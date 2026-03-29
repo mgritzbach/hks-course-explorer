@@ -96,6 +96,15 @@ function normalizeBidPrice(price) {
   return Math.max(0, Math.min(100, (price / 1000) * 100))
 }
 
+function spreadRankPosition(index, total, domainMax) {
+  if (total <= 1) return domainMax * 0.5
+  const startPct = 14
+  const endPct = 86
+  const step = (endPct - startPct) / (total - 1)
+  const positionPct = endPct - (index * step)
+  return (positionPct / 100) * domainMax
+}
+
 function coverageWarning(courses, metricMeta) {
   if (!courses.length) return null
 
@@ -281,10 +290,17 @@ export default function ScatterPlot({
 
   const bidOnlyData = useMemo(() => (
     (biddingOnlyCourses || [])
-      .map((course) => {
+      .filter((course) => course.last_bid_price != null)
+      .sort((a, b) => {
+        if ((b.last_bid_price ?? -1) !== (a.last_bid_price ?? -1)) return (b.last_bid_price ?? -1) - (a.last_bid_price ?? -1)
+        return (a.course_name || a.course_code || '').localeCompare(b.course_name || b.course_code || '')
+      })
+      .map((course, index, rankedCourses) => {
         const normalizedBid = normalizeBidPrice(course.last_bid_price)
-        const axisBidValueX = xMode.useRaw ? course.last_bid_price ?? null : normalizedBid
-        const axisBidValueY = yMode.useRaw ? course.last_bid_price ?? null : normalizedBid
+        const rankX = spreadRankPosition(index, rankedCourses.length, xMode.useRaw ? xMode.domain[1] : 100)
+        const rankY = spreadRankPosition(index, rankedCourses.length, yMode.useRaw ? yMode.domain[1] : 100)
+        const axisBidValueX = xMeta.bid_metric ? (xMode.useRaw ? course.last_bid_price ?? null : normalizedBid) : rankX
+        const axisBidValueY = yMeta.bid_metric ? (yMode.useRaw ? course.last_bid_price ?? null : normalizedBid) : rankY
 
         return {
           ...course,
@@ -299,10 +315,11 @@ export default function ScatterPlot({
           _color: '#fbbf24',
           _opacity: 0.9,
           _isBidOnly: true,
+          _bidRank: index + 1,
         }
       })
       .filter((course) => course._xVal != null && course._yVal != null)
-  ), [biddingOnlyCourses, xMeta.label, xMode.useRaw, yMeta.label, yMode.useRaw])
+  ), [biddingOnlyCourses, xMeta.bid_metric, xMode.domain, xMode.useRaw, yMeta.bid_metric, yMode.domain, yMode.useRaw])
 
   const allEmpty = allCoursesDeduped.length === 0 && bidOnlyData.length === 0
   const chartHeight = 340
@@ -497,7 +514,7 @@ export default function ScatterPlot({
           <p className="text-muted"><span className="font-medium" style={{ color: '#e879a0' }}>Pink</span> = ever went to bidding</p>
           {bidOnlyData.length > 0 && (
             <p className="text-muted">
-              <span className="font-medium" style={{ color: '#fbbf24' }}>Amber diamond</span> = bidding now, no eval yet, positioned by last clearing price
+              <span className="font-medium" style={{ color: '#fbbf24' }}>Amber diamond</span> = bidding now, no eval yet, evenly spread by competitiveness rank
             </p>
           )}
         </div>

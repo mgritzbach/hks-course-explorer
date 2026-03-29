@@ -254,7 +254,7 @@ export default function Faculty({ courses, meta }) {
             </div>
           </div>
 
-          <div className="app-footer mt-8">Data from HKS QReports · {new Date().getFullYear()}</div>
+          <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach MPA'26 · Data from HKS QReports · {new Date().getFullYear()}</div>
         </>}
       </main>
     </div>

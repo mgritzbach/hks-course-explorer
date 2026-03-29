@@ -289,7 +289,7 @@ export default function Home({ courses, meta }) {
             className="mb-4 rounded-lg px-4 py-3 text-xs md:text-sm"
             style={{ background: '#1e1a0a', border: '1px solid #92400e', color: '#fbbf24' }}
           >
-            Bidding Season 2026 is active. Courses without evaluation data still appear, and amber diamonds are positioned from last clearing price.
+            Bidding Season 2026 is active. Courses without evaluation data still appear, and amber diamonds are spread by competitiveness rank.
           </div>
         )}
 
@@ -388,7 +388,7 @@ export default function Home({ courses, meta }) {
         </div>
 
         <div className="app-footer mt-8">
-          Data from HKS QReports · {new Date().getFullYear()}
+          HKS Course Explorer by Michael Gritzbach MPA'26 · Data from HKS QReports · {new Date().getFullYear()}
         </div>
       </main>
     </div>
