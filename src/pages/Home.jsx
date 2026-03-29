@@ -401,12 +401,12 @@ export default function Home({ courses, meta, favs }) {
                   onChange={(event) => setSortBy(event.target.value)}
                   style={{ padding: '4px 28px 4px 8px', fontSize: 12 }}
                 >
-                  <option value="bid_price_desc">Most Competitive (Last Bid Price desc)</option>
-                  <option value="instructor_desc">Instructor Rating desc</option>
-                  <option value="course_rating_desc">Course Rating desc</option>
-                  <option value="workload_asc">Workload asc (lightest first)</option>
-                  <option value="rigor_desc">Rigor desc</option>
-                  <option value="diverse_desc">Diverse Perspectives desc</option>
+                  <option value="bid_price_desc">Most Competitive</option>
+                  <option value="instructor_desc">Top Instructor Rating</option>
+                  <option value="course_rating_desc">Top Course Rating</option>
+                  <option value="workload_asc">Lightest Workload</option>
+                  <option value="rigor_desc">Most Rigorous</option>
+                  <option value="diverse_desc">Most Diverse Perspectives</option>
                   <option value="name_asc">Course Name A-Z</option>
                 </select>
               </div>

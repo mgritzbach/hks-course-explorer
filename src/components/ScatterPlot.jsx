@@ -167,6 +167,9 @@ function CustomTooltip({ active, payload }) {
         {datum._isBidOnly && (
           <p className="text-[10px]" style={{ color: '#fbbf24' }}>No eval data yet · ranked by bid competitiveness</p>
         )}
+        {datum._isBidOnly && (
+          <p className="mt-1 text-[10px]" style={{ color: '#60a5fa' }}>Click to open course details →</p>
+        )}
         {datum.metrics_pct?.Instructor_Rating != null && datum._xLabel !== 'Instructor Rating' && datum._yLabel !== 'Instructor Rating' && (
           <p>
             Instructor: <span className="font-medium" style={{ color: '#38bdf8' }}>{Math.round(datum.metrics_pct.Instructor_Rating)}%</span>
@@ -191,7 +194,7 @@ function CustomTooltip({ active, payload }) {
         )}
       </div>
 
-      <p className="mt-1 text-[10px]" style={{ color: '#60a5fa' }}>Click for pinned details</p>
+      {!datum._isBidOnly && <p className="mt-1 text-[10px]" style={{ color: '#60a5fa' }}>Click for pinned details</p>}
     </div>
   )
 }
@@ -447,7 +450,7 @@ export default function ScatterPlot({
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3', stroke: '#38bdf8' }} />
             <Scatter data={bgData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
             <Scatter data={matchedData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
-            <Scatter data={bidOnlyData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
+            <Scatter data={bidOnlyData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && navigate(`/courses?id=${encodeURIComponent(payload.id)}`)} />} />
           </ScatterChart>
         </ResponsiveContainer>
       </div>

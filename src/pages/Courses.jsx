@@ -3,17 +3,24 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 
 const LABEL_COLOR = { Outstanding: '#22c55e', Excellent: '#86efac', Good: '#facc15', Average: '#f97316', Poor: '#ef4444' }
-const WORKLOAD_COLOR = { 'Very Light': '#22c55e', Light: '#86efac', Moderate: '#facc15', Heavy: '#f97316', 'Very Heavy': '#ef4444' }
+const WORKLOAD_COLOR = { 'Very Light': '#60a5fa', Light: '#93c5fd', Moderate: '#facc15', Heavy: '#fb923c', 'Very Heavy': '#f97316' }
 const TERM_LABELS = { Fall: 'Fall', Spring: 'Spring', January: 'Jan' }
 const ALL_TERMS = ['Fall', 'Spring', 'January']
 
 function pct(value) { return value != null ? `${Math.round(value)}%` : '-' }
 function getConcentration(code) { const match = code?.match(/^([A-Z]+)/); return match ? match[1] : 'Other' }
 
-function MetricRow({ label, value, higherBetter = true }) {
+function MetricRow({ label, value, higherBetter = true, neutral = false }) {
   if (value == null) return null
   const rounded = Math.round(value)
-  const color = higherBetter ? (rounded >= 75 ? '#22c55e' : rounded >= 50 ? '#facc15' : '#ef4444') : (rounded <= 25 ? '#22c55e' : rounded <= 50 ? '#facc15' : '#ef4444')
+  let color
+  if (neutral) {
+    color = '#60a5fa'
+  } else if (higherBetter) {
+    color = rounded >= 75 ? '#22c55e' : rounded >= 50 ? '#facc15' : '#ef4444'
+  } else {
+    color = rounded <= 25 ? '#22c55e' : rounded <= 50 ? '#facc15' : '#ef4444'
+  }
   return (
     <div className="mb-2">
       <div className="mb-1 flex justify-between text-xs"><span className="text-muted">{label}</span><span className="font-medium text-label">{rounded}%</span></div>
@@ -344,7 +351,7 @@ export default function Courses({ courses, meta, favs }) {
               {instructorPct != null ? <div className="mb-4 rounded p-3" style={{ background: '#13131f' }}><p className="text-xs text-muted">Instructor Rating</p><p className="text-base font-bold" style={{ color: LABEL_COLOR[selected.instructor_label] || '#38bdf8' }}>{selected.instructor_label}</p><p className="text-xs text-muted">Better than {Math.round(instructorPct)}% of courses</p></div> : <div className="mb-4 rounded p-3 text-xs italic" style={{ background: '#13131f', color: '#5a5a7a' }}>No instructor rating data available</div>}
               {workloadPct != null ? <div className="rounded p-3" style={{ background: '#13131f' }}><p className="text-xs text-muted">Course Workload</p><p className="text-base font-bold" style={{ color: WORKLOAD_COLOR[selected.workload_label] || '#c0c0d8' }}>{selected.workload_label}</p><p className="text-xs text-muted">More intensive than {Math.round(workloadPct)}% of courses</p></div> : <div className="rounded p-3 text-xs italic" style={{ background: '#13131f', color: '#5a5a7a' }}>No workload data available</div>}
             </div>
-            <div className="rounded-lg p-4 lg:col-span-2" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}><h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">All Evaluation Metrics</h4>{selected.has_eval ? <div className="grid gap-x-8 sm:grid-cols-2">{meta.metrics.map((metric) => <MetricRow key={metric.key} label={metric.label} value={selected.metrics_pct?.[metric.key]} higherBetter={metric.higher_is_better} />)}</div> : <div className="py-6 text-center"><p className="text-sm text-muted">No evaluation data available for this course.</p></div>}</div>
+            <div className="rounded-lg p-4 lg:col-span-2" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}><h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">All Evaluation Metrics</h4>{selected.has_eval ? <div className="grid gap-x-8 sm:grid-cols-2">{meta.metrics.map((metric) => <MetricRow key={metric.key} label={metric.label} value={selected.metrics_pct?.[metric.key]} higherBetter={metric.higher_is_better} neutral={metric.key === 'Workload' || metric.key === 'Rigor'} />)}</div> : <div className="py-6 text-center"><p className="text-sm text-muted">No evaluation data available for this course.</p></div>}</div>
             <div className="lg:col-span-2 space-y-3">
               {/* Action buttons */}
               <div className="flex flex-wrap gap-2">

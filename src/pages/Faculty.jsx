@@ -3,10 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 
 function pct(value) { return value != null ? `${Math.round(value)}%` : '-' }
 
-function MetricBar({ label, value, higherBetter = true }) {
+function MetricBar({ label, value, higherBetter = true, neutral = false }) {
   if (value == null) return null
   const rounded = Math.round(value)
-  const color = higherBetter ? (rounded >= 75 ? '#22c55e' : rounded >= 50 ? '#facc15' : '#ef4444') : (rounded <= 25 ? '#22c55e' : rounded <= 50 ? '#facc15' : '#ef4444')
+  let color
+  if (neutral) {
+    color = '#60a5fa'
+  } else if (higherBetter) {
+    color = rounded >= 75 ? '#22c55e' : rounded >= 50 ? '#facc15' : '#ef4444'
+  } else {
+    color = rounded <= 25 ? '#22c55e' : rounded <= 50 ? '#facc15' : '#ef4444'
+  }
   return (
     <div className="mb-2">
       <div className="mb-0.5 flex justify-between text-xs"><span className="text-muted">{label}</span><span className="font-medium text-label">{rounded}%</span></div>
@@ -221,7 +228,37 @@ export default function Faculty({ courses, meta }) {
           <button onClick={() => setSidebarOpen(true)} className="rounded-full border border-[#2a2a3e] bg-[#151521] px-3 py-2 text-xs font-medium text-white md:hidden">Browse Faculty{activeFilterCount({ concentration, minRating, minCourses }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses })})` : ''}</button>
         </div>
 
-        {!selectedData && <div className="flex flex-1 flex-col items-center justify-center text-center" style={{ paddingBottom: 80 }}><p className="mb-2 font-medium text-label">Select an instructor</p><p className="text-xs text-muted">Browse {allProfessors.length} instructors from the mobile list or the desktop sidebar.</p></div>}
+        {!selectedData && (
+          <div className="flex flex-1 flex-col items-center justify-center text-center" style={{ paddingBottom: 80 }}>
+            <p className="mb-1 text-2xl" style={{ lineHeight: 1 }}>&#x1F393;</p>
+            <p className="mb-1 mt-3 font-medium text-label">Select an instructor</p>
+            <p className="mb-6 text-xs text-muted">
+              {allProfessors.length} instructors with eval data · use the sidebar to search or filter
+            </p>
+            {allProfessors.length > 0 && (
+              <div className="max-w-md">
+                <p className="mb-2 text-[10px] uppercase tracking-wider text-muted">Top rated instructors</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {[...allProfessors]
+                    .filter((prof) => prof.avgMetrics?.Instructor_Rating != null)
+                    .sort((a, b) => (b.avgMetrics.Instructor_Rating - a.avgMetrics.Instructor_Rating) || b.evalCourses - a.evalCourses)
+                    .slice(0, 8)
+                    .map((prof) => (
+                      <button
+                        key={prof.professor}
+                        onClick={() => handleSelectProf(prof)}
+                        className="rounded-full border border-[#2a2a3e] px-3 py-1.5 text-xs text-label transition-colors hover:border-[#38bdf8] hover:text-white"
+                        style={{ background: '#1a1a28' }}
+                      >
+                        {prof.professor_display}
+                        <span className="ml-1.5 font-medium" style={{ color: '#4ade80' }}>{Math.round(prof.avgMetrics.Instructor_Rating)}%</span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {selectedData && <>
           <div className="mb-6">
@@ -235,7 +272,7 @@ export default function Faculty({ courses, meta }) {
           <div className="mb-6 grid gap-4 lg:grid-cols-2">
             <div className="rounded-lg p-4" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Average Ratings</h4>
-              {meta.metrics.filter((metric) => !metric.bid_metric).map((metric) => <MetricBar key={metric.key} label={metric.label} value={selectedData.avgMetrics?.[metric.key]} higherBetter={metric.higher_is_better} />)}
+              {meta.metrics.filter((metric) => !metric.bid_metric).map((metric) => <MetricBar key={metric.key} label={metric.label} value={selectedData.avgMetrics?.[metric.key]} higherBetter={metric.higher_is_better} neutral={metric.key === 'Workload' || metric.key === 'Rigor'} />)}
             </div>
             <div className="rounded-lg p-4" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Quick Stats</h4>

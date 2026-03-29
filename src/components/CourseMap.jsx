@@ -148,16 +148,28 @@ export default function CourseMap({ courses }) {
 
   return (
     <div className="rounded-lg" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
-      <div className="flex flex-col gap-3 border-b border-[#2a2a3e] px-4 py-3 md:flex-row md:items-center md:justify-between">
-        <p className="text-xs text-muted">
-          <span className="font-medium text-label">{courses.length}</span> courses · Box size = respondents · Color = Instructor Rating
-        </p>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px]">
-          <span style={{ color: '#16a34a' }}>Top 25%</span>
-          <span style={{ color: '#65a30d' }}>25-50%</span>
-          <span style={{ color: '#ca8a04' }}>50-75%</span>
-          <span style={{ color: '#dc2626' }}>Bottom 25%</span>
-          <span style={{ color: '#3a3a58' }}>No data</span>
+      <div className="border-b border-[#2a2a3e] px-4 py-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs text-muted">
+            <span className="font-medium text-label">{courses.length}</span> courses
+          </p>
+          <p className="text-[10px] text-muted">Click any block to open course details</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px]">
+          <span className="font-medium text-muted">Instructor Rating:</span>
+          {[
+            { color: '#16a34a', label: 'Top 25%' },
+            { color: '#65a30d', label: '25–50%' },
+            { color: '#ca8a04', label: '50–75%' },
+            { color: '#dc2626', label: 'Bottom 25%' },
+            { color: '#3a3a58', label: 'No data' },
+          ].map(({ color, label }) => (
+            <span key={label} className="flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: color }} />
+              <span style={{ color: '#c0c0d8' }}>{label}</span>
+            </span>
+          ))}
+          <span className="ml-2 text-muted">· Box size = N respondents</span>
         </div>
       </div>
 
