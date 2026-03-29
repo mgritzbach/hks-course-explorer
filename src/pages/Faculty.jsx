@@ -172,7 +172,7 @@ export default function Faculty({ courses, meta }) {
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close faculty list" />}
-      <div className={`mobile-drawer ${sidebarOpen ? 'open' : ''}`}>
+      <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>
         <FacultySidebar
           meta={meta}
           displayedProfs={displayedProfs}

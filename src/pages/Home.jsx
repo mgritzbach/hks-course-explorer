@@ -240,7 +240,7 @@ export default function Home({ courses, meta }) {
     <div className="flex h-full min-h-0 overflow-hidden">
       {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close filters" />}
 
-      <div className={`mobile-drawer ${sidebarOpen ? 'open' : ''}`}>
+      <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>
         <Sidebar
           filters={filters}
           setFilters={setFilters}
