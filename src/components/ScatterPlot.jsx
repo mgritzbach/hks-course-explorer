@@ -379,7 +379,10 @@ export default function ScatterPlot({
 
   if (allEmpty) {
     return (
-      <div className="rounded-lg" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
+      <div
+        className="shrink-0 rounded-lg"
+        style={{ background: '#1a1a28', border: '1px solid #2a2a3e', display: 'flex', flexDirection: 'column' }}
+      >
         <AxisSelectors />
         <div className="flex items-center justify-center px-8 text-center" style={{ height: 300 }}>
           <div>
@@ -392,10 +395,13 @@ export default function ScatterPlot({
   }
 
   return (
-    <div className="rounded-lg" style={{ background: '#1a1a28', border: '1px solid #2a2a3e', overflow: 'hidden' }}>
+    <div
+      className="shrink-0 rounded-lg"
+      style={{ background: '#1a1a28', border: '1px solid #2a2a3e', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+    >
       <AxisSelectors />
 
-      <div style={{ width: '100%', height: chartHeight }}>
+      <div style={{ width: '100%', height: chartHeight, flexShrink: 0 }}>
         <ResponsiveContainer width="100%" height={chartHeight}>
           <ScatterChart margin={{ top: 10, right: 12, bottom: 28, left: 0 }}>
             {showQuadrants && (
