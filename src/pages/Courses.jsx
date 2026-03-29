@@ -83,7 +83,7 @@ export default function Courses({ courses, meta }) {
   const [filters, setFilters] = useState({ year: 'all', terms: [...ALL_TERMS], concentration: 'All', academicArea: 'All', coreFilter: 'all', isStemOnly: false, gender: 'all', minInstructorPct: 'any', evalOnly: false })
 
   useEffect(() => { const id = searchParams.get('id'); if (id) { setSelectedId(id); setActiveTab('details') } }, [searchParams])
-  useEffect(() => { if (selected?.description) setDescOpen(true) }, [selected?.id])
+  useEffect(() => { if (selected && selected.description) setDescOpen(true) }, [selectedId])
   useEffect(() => { document.title = 'HKS Course Explorer' }, [])
 
   const allOptions = useMemo(() => {
