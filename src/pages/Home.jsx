@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import CourseCard from '../components/CourseCard.jsx'
 import CourseMap from '../components/CourseMap.jsx'
 import ScatterPlot from '../components/ScatterPlot.jsx'
@@ -122,14 +123,32 @@ const PRESETS = [
   },
 ]
 
-export default function Home({ courses, meta }) {
+export default function Home({ courses, meta, favs }) {
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Parse initial state from URL params (enables sharable links)
+  const initYear = (() => {
+    const y = searchParams.get('year')
+    if (!y) return meta.default_year
+    const n = parseInt(y, 10)
+    return Number.isNaN(n) ? meta.default_year : n
+  })()
+  const initTerms = (() => {
+    const t = searchParams.get('terms')
+    if (!t) return [...ALL_TERMS]
+    const parts = t.split(',').filter((term) => ALL_TERMS.includes(term))
+    return parts.length ? parts : [...ALL_TERMS]
+  })()
+  const initConc = searchParams.get('conc') || 'All'
+  const initSort = searchParams.get('sort') || 'bid_price_desc'
+
   const [filters, setFilters] = useState({
     searchText: '',
-    concentration: 'All',
+    concentration: initConc,
     coreFilter: 'all',
-    terms: [...ALL_TERMS],
+    terms: initTerms,
     isStemOnly: false,
-    year: meta.default_year,
+    year: initYear,
     gender: 'all',
     minInstructorPct: 'any',
     evalOnly: false,
@@ -137,8 +156,19 @@ export default function Home({ courses, meta }) {
   const [xMetric, setXMetric] = useState(DEFAULT_X)
   const [yMetric, setYMetric] = useState(DEFAULT_Y)
   const [activeTab, setActiveTab] = useState('comparisons')
-  const [sortBy, setSortBy] = useState('bid_price_desc')
+  const [sortBy, setSortBy] = useState(initSort)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showShortlistOnly, setShowShortlistOnly] = useState(false)
+
+  // Sync key state to URL whenever it changes
+  useEffect(() => {
+    const params = {}
+    if (filters.year !== meta.default_year) params.year = filters.year
+    if (filters.terms.length !== ALL_TERMS.length) params.terms = filters.terms.join(',')
+    if (filters.concentration !== 'All') params.conc = filters.concentration
+    if (sortBy !== 'bid_price_desc') params.sort = sortBy
+    setSearchParams(params, { replace: true })
+  }, [filters.year, filters.terms, filters.concentration, sortBy, meta.default_year, setSearchParams])
 
   const avgMode = isAverageYear(filters.year)
   const bidYear = filters.year === 2026
@@ -346,6 +376,15 @@ export default function Home({ courses, meta }) {
                 {preset.label}
               </button>
             ))}
+            {favs && favs.count > 0 && (
+              <button
+                onClick={() => setShowShortlistOnly((v) => !v)}
+                className={`preset-pill ${showShortlistOnly ? 'active' : ''}`}
+                style={showShortlistOnly ? { borderColor: '#fbbf24', color: '#fbbf24' } : {}}
+              >
+                ★ Shortlist ({favs.count})
+              </button>
+            )}
           </div>
 
           <div className="sort-bar mb-3 flex flex-col gap-3 rounded-lg px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -383,7 +422,10 @@ export default function Home({ courses, meta }) {
               <p className="text-xs text-muted">Try adjusting the year, terms, concentration, or removing some filters.</p>
             </div>
           ) : (
-            sorted.map((course) => <CourseCard key={course.id} course={course} />)
+            (showShortlistOnly && favs
+              ? sorted.filter((c) => favs.isFavorite(c.course_code_base))
+              : sorted
+            ).map((course) => <CourseCard key={course.id} course={course} favs={favs} />)
           )}
         </div>
 

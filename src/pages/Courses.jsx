@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 
 const LABEL_COLOR = { Outstanding: '#22c55e', Excellent: '#86efac', Good: '#facc15', Average: '#f97316', Poor: '#ef4444' }
 const WORKLOAD_COLOR = { 'Very Light': '#22c55e', Light: '#86efac', Moderate: '#facc15', Heavy: '#f97316', 'Very Heavy': '#ef4444' }
@@ -72,7 +73,120 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
   )
 }
 
-export default function Courses({ courses, meta }) {
+function BiddingTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null
+  const d = payload[0].payload
+  return (
+    <div className="rounded-lg px-3 py-2 text-xs shadow-xl" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
+      <p className="mb-1 font-semibold text-label">{d.label}</p>
+      {d.price != null && <p style={{ color: '#38bdf8' }}>Clearing price: <span className="font-bold">{d.price} pts</span></p>}
+      {d.bids != null && <p className="text-muted">Bids: {d.bids}{d.cap != null ? ` / ${d.cap} seats` : ''}</p>}
+      {d.over != null && d.over > 0 && <p style={{ color: '#f97316' }}>+{d.over} oversubscribed</p>}
+    </div>
+  )
+}
+
+function BiddingTab({ biddingHistory, selected, navigate }) {
+  if (biddingHistory.length === 0) {
+    return (
+      <div className="rounded-lg py-8 text-center" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
+        <p className="text-sm text-muted">This course has no bidding records.</p>
+      </div>
+    )
+  }
+
+  // Build chart data — one point per (year, term), sorted ascending
+  const termOrder = { Spring: 0, January: 1, Fall: 2 }
+  const chartData = [...biddingHistory]
+    .filter((row) => row.bid_clearing_price != null)
+    .sort((a, b) => (a.year || 0) - (b.year || 0) || (termOrder[a.term] ?? 9) - (termOrder[b.term] ?? 9))
+    .map((row) => ({
+      label: `${row.term} ${row.year}`,
+      price: row.bid_clearing_price,
+      bids: row.bid_n_bids ?? null,
+      cap: row.bid_capacity ?? null,
+      over: row.bid_n_bids != null && row.bid_capacity != null ? Math.max(0, row.bid_n_bids - row.bid_capacity) : null,
+    }))
+
+  // Deduplicate same label (multiple sections same term) — keep max price
+  const dedupMap = new Map()
+  for (const pt of chartData) {
+    if (!dedupMap.has(pt.label) || pt.price > dedupMap.get(pt.label).price) dedupMap.set(pt.label, pt)
+  }
+  const trendData = [...dedupMap.values()]
+
+  return (
+    <div>
+      <p className="mb-4 text-xs text-muted">
+        Bidding history for <span style={{ color: '#38bdf8' }}>{selected.course_code_base}</span> ({biddingHistory.length} record{biddingHistory.length !== 1 ? 's' : ''})
+      </p>
+
+      {trendData.length >= 2 && (
+        <div className="mb-6 rounded-lg p-4" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Clearing Price Trend</p>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={trendData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3e" />
+              <XAxis dataKey="label" tick={{ fill: '#8888aa', fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: '#8888aa', fontSize: 10 }} tickLine={false} axisLine={false} domain={['auto', 'auto']} tickFormatter={(v) => `${v}`} width={36} />
+              <RechartsTooltip content={<BiddingTooltip />} cursor={{ stroke: '#38bdf8', strokeWidth: 1, strokeDasharray: '3 3' }} />
+              <Line type="monotone" dataKey="price" stroke="#38bdf8" strokeWidth={2} dot={{ r: 4, fill: '#38bdf8', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+            </LineChart>
+          </ResponsiveContainer>
+          {trendData.length >= 3 && (() => {
+            const first = trendData[0].price
+            const last = trendData[trendData.length - 1].price
+            const delta = last - first
+            const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→'
+            const color = delta > 50 ? '#f87171' : delta < -50 ? '#4ade80' : '#facc15'
+            return (
+              <p className="mt-2 text-xs" style={{ color }}>
+                {arrow} {delta > 0 ? '+' : ''}{delta} pts from {trendData[0].label} to {trendData[trendData.length - 1].label}
+                {delta > 100 && ' — getting significantly more competitive'}
+                {delta < -100 && ' — becoming less competitive'}
+              </p>
+            )
+          })()}
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr style={{ borderBottom: '1px solid #2a2a3e' }}>
+              {['Year', 'Term', 'Instructor', 'Clearing Price', 'Capacity', 'Bids', 'Oversubscribed by'].map((h) => (
+                <th key={h} className="whitespace-nowrap py-2 pr-4 text-left font-medium text-muted">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {biddingHistory.map((row, i) => {
+              const over = row.bid_n_bids != null && row.bid_capacity != null && row.bid_n_bids > row.bid_capacity
+                ? row.bid_n_bids - row.bid_capacity : null
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid #1a1a28' }}>
+                  <td className="py-2 pr-4 text-label">{row.year}</td>
+                  <td className="py-2 pr-4 text-muted">{row.term}</td>
+                  <td className="py-2 pr-4 text-label">
+                    <button onClick={() => navigate(`/faculty?prof=${encodeURIComponent(row.professor)}`)} className="hover:underline" style={{ color: '#93c5fd' }}>
+                      {row.professor_display || row.professor}
+                    </button>
+                  </td>
+                  <td className="py-2 pr-4 font-medium" style={{ color: '#38bdf8' }}>{row.bid_clearing_price != null ? `${row.bid_clearing_price} pts` : '-'}</td>
+                  <td className="py-2 pr-4 text-label">{row.bid_capacity ?? '-'}</td>
+                  <td className="py-2 pr-4 text-label">{row.bid_n_bids ?? '-'}</td>
+                  <td className="py-2 pr-4">{over != null ? <span style={{ color: '#f97316' }}>+{over}</span> : <span className="text-muted">-</span>}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+export default function Courses({ courses, meta, favs }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -236,6 +350,18 @@ export default function Courses({ courses, meta }) {
               <div className="flex flex-wrap gap-2">
                 {selected.course_url && <a href={selected.course_url} target="_blank" rel="noopener noreferrer" className="inline-block rounded px-5 py-2 text-sm font-medium text-white" style={{ background: '#2563eb' }}>🌐 Course Website</a>}
                 {selected.instructor_profile_url && <a href={selected.instructor_profile_url} target="_blank" rel="noopener noreferrer" className="inline-block rounded border border-[#2a2a3e] px-5 py-2 text-sm font-medium text-label hover:border-[#38bdf8]">👤 Faculty Profile</a>}
+                {favs && (() => {
+                  const starred = favs.isFavorite(selected.course_code_base)
+                  return (
+                    <button
+                      onClick={() => favs.toggle(selected.course_code_base)}
+                      className="inline-flex items-center gap-1.5 rounded border px-4 py-2 text-sm font-medium transition-colors"
+                      style={{ borderColor: starred ? '#fbbf24' : '#2a2a3e', color: starred ? '#fbbf24' : '#8888aa', background: starred ? '#2a1f0a' : 'transparent' }}
+                    >
+                      {starred ? '★ Shortlisted' : '☆ Add to Shortlist'}
+                    </button>
+                  )
+                })()}
               </div>
 
               {/* Description */}
@@ -267,7 +393,7 @@ export default function Courses({ courses, meta }) {
             </div>
           </div>}
           {activeTab === 'performance' && <div>{history.length === 0 ? <div className="rounded-lg py-8 text-center" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}><p className="text-sm text-muted">No evaluation history found for this course.</p></div> : <><p className="mb-4 text-xs text-muted">Showing all {history.length} evaluation record{history.length !== 1 ? 's' : ''} for <span style={{ color: '#38bdf8' }}>{selected.course_code_base}</span>.</p><HistoryTable history={history} /></>}</div>}
-          {activeTab === 'bidding' && <div><p className="mb-4 text-xs text-muted">Bidding history for <span style={{ color: '#38bdf8' }}>{selected.course_code_base}</span> ({biddingHistory.length} record{biddingHistory.length !== 1 ? 's' : ''})</p>{biddingHistory.length === 0 ? <div className="rounded-lg py-8 text-center" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}><p className="text-sm text-muted">This course has no bidding records.</p></div> : <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr style={{ borderBottom: '1px solid #2a2a3e' }}>{['Year', 'Term', 'Instructor', 'Clearing Price', 'Capacity', 'Bids', 'Oversubscribed by'].map((h) => <th key={h} className="whitespace-nowrap py-2 pr-4 text-left font-medium text-muted">{h}</th>)}</tr></thead><tbody>{biddingHistory.map((row, i) => { const over = row.bid_n_bids != null && row.bid_capacity != null && row.bid_n_bids > row.bid_capacity ? row.bid_n_bids - row.bid_capacity : null; return <tr key={i} style={{ borderBottom: '1px solid #1a1a28' }}><td className="py-2 pr-4 text-label">{row.year}</td><td className="py-2 pr-4 text-muted">{row.term}</td><td className="py-2 pr-4 text-label"><button onClick={() => navigate(`/faculty?prof=${encodeURIComponent(row.professor)}`)} className="hover:underline" style={{ color: '#93c5fd' }}>{row.professor_display || row.professor}</button></td><td className="py-2 pr-4 font-medium" style={{ color: '#38bdf8' }}>{row.bid_clearing_price != null ? `${row.bid_clearing_price} pts` : '-'}</td><td className="py-2 pr-4 text-label">{row.bid_capacity ?? '-'}</td><td className="py-2 pr-4 text-label">{row.bid_n_bids ?? '-'}</td><td className="py-2 pr-4">{over != null ? <span style={{ color: '#f97316' }}>+{over}</span> : <span className="text-muted">-</span>}</td></tr> })}</tbody></table></div>}</div>}
+          {activeTab === 'bidding' && <BiddingTab biddingHistory={biddingHistory} selected={selected} navigate={navigate} />}
         </>}
         <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach MPA'26 · Data from HKS QReports · {new Date().getFullYear()}</div>
       </main>

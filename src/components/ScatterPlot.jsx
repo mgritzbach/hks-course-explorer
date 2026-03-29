@@ -435,7 +435,6 @@ export default function ScatterPlot({
               axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
               tickLine={false}
               width={44}
-              label={{ value: yMeta.label, angle: -90, position: 'insideLeft', offset: -2, fill: '#c0c0d8', fontSize: 11 }}
             />
 
             {showQuadrants && (

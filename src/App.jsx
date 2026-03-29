@@ -3,11 +3,13 @@ import { NavLink, Route, Routes } from 'react-router-dom'
 import Home from './pages/Home.jsx'
 import Courses from './pages/Courses.jsx'
 import Faculty from './pages/Faculty.jsx'
+import { useFavorites } from './useFavorites.js'
 
 export default function App() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const favs = useFavorites()
 
   useEffect(() => {
     fetch('/courses.json')
@@ -96,9 +98,9 @@ export default function App() {
 
         <div className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
           <Routes>
-            <Route path="/" element={<Home courses={data.courses} meta={data.meta} />} />
-            <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} />} />
-            <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} />} />
+            <Route path="/" element={<Home courses={data.courses} meta={data.meta} favs={favs} />} />
+            <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} />} />
+            <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} />} />
           </Routes>
         </div>
 

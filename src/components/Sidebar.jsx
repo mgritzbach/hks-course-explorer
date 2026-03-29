@@ -126,10 +126,22 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       </div>
 
       <div className="filter-section px-4 py-3">
-        <label className="filter-label mb-1 block">Year:</label>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="filter-label">Year:</label>
+          {filters.year !== 0 && (
+            <button
+              onClick={() => update({ year: 0 })}
+              className="text-[10px] font-medium transition-colors hover:text-white"
+              style={{ color: '#38bdf8' }}
+              title="See weighted averages across all years"
+            >
+              All-time avg →
+            </button>
+          )}
+        </div>
         <div className="select-wrap">
           <select value={filters.year} onChange={(event) => update({ year: parseInt(event.target.value, 10) })}>
-            <option value={0}>All Years (Avg)</option>
+            <option value={0}>⊕ All Years Average</option>
             {[...meta.years].reverse().map((year) => (
               <option key={year} value={year}>
                 {year === 2026 ? `${year} - Bidding` : year}
@@ -137,6 +149,11 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
             ))}
           </select>
         </div>
+        {filters.year === 0 && (
+          <p className="mt-1.5 text-[10px] leading-tight" style={{ color: '#60a5fa' }}>
+            Weighted averages across all years — best for comparing instructors long-term.
+          </p>
+        )}
       </div>
 
       <div className="filter-section px-4 py-3">

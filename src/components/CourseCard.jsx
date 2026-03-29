@@ -19,8 +19,9 @@ function RatingBadge({ label, value, color }) {
   )
 }
 
-export default function CourseCard({ course }) {
+export default function CourseCard({ course, favs }) {
   const navigate = useNavigate()
+  const starred = favs?.isFavorite(course.course_code_base)
 
   const instructorPct = course.metrics_pct?.Instructor_Rating
   const workloadPct = course.metrics_pct?.Workload
@@ -157,7 +158,7 @@ export default function CourseCard({ course }) {
         </p>
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)} className="btn-details">
           View Full Details
         </button>
@@ -171,6 +172,16 @@ export default function CourseCard({ course }) {
           >
             Course Website
           </a>
+        )}
+        {favs && (
+          <button
+            onClick={() => favs.toggle(course.course_code_base)}
+            title={starred ? 'Remove from shortlist' : 'Add to shortlist'}
+            className="ml-auto rounded px-3 py-2 text-sm transition-colors"
+            style={{ color: starred ? '#fbbf24' : '#4a4a6a', background: starred ? '#2a1f0a' : 'transparent' }}
+          >
+            {starred ? '★' : '☆'}
+          </button>
         )}
       </div>
     </div>
