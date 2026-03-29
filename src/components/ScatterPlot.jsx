@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CartesianGrid,
@@ -238,6 +238,24 @@ export default function ScatterPlot({
   onYChange,
 }) {
   const navigate = useNavigate()
+  const [pinnedDatum, setPinnedDatum] = useState(null)
+  const [isTouchMode, setIsTouchMode] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined
+
+    const mediaQuery = window.matchMedia('(hover: none), (pointer: coarse), (max-width: 767px)')
+    const syncMode = () => setIsTouchMode(mediaQuery.matches)
+    syncMode()
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', syncMode)
+      return () => mediaQuery.removeEventListener('change', syncMode)
+    }
+
+    mediaQuery.addListener(syncMode)
+    return () => mediaQuery.removeListener(syncMode)
+  }, [])
 
   const allCoursesDeduped = useMemo(() => dedupeCoTaught(allCourses), [allCourses])
   const matchedCoursesDeduped = useMemo(() => dedupeCoTaught(matchedCourses), [matchedCourses])
@@ -319,6 +337,13 @@ export default function ScatterPlot({
   const redX1 = xHigherBetter ? 50 : 100
   const redY0 = yHigherBetter ? 0 : 50
   const redY1 = yHigherBetter ? 50 : 100
+
+  useEffect(() => {
+    if (!pinnedDatum) return
+
+    const stillExists = [...matchedData, ...bidOnlyData].some((datum) => datum.id === pinnedDatum.id)
+    if (!stillExists) setPinnedDatum(null)
+  }, [bidOnlyData, matchedData, pinnedDatum])
 
   const AxisSelectors = () => (
     <div className="grid gap-3 border-b border-[#2a2a3e] px-3 py-3 md:grid-cols-2">
@@ -412,12 +437,89 @@ export default function ScatterPlot({
             )}
 
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3', stroke: '#38bdf8' }} />
-            <Scatter data={bgData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && navigate(`/courses?id=${encodeURIComponent(payload.id)}`)} />} />
-            <Scatter data={matchedData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && navigate(`/courses?id=${encodeURIComponent(payload.id)}`)} />} />
-            <Scatter data={bidOnlyData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && navigate(`/courses?id=${encodeURIComponent(payload.id)}`)} />} />
+            <Scatter
+              data={bgData}
+              isAnimationActive={false}
+              shape={<CustomDot onClick={(payload) => {
+                if (!payload?.id) return
+                if (isTouchMode) {
+                  setPinnedDatum(payload)
+                  return
+                }
+                navigate(`/courses?id=${encodeURIComponent(payload.id)}`)
+              }} />}
+            />
+            <Scatter
+              data={matchedData}
+              isAnimationActive={false}
+              shape={<CustomDot onClick={(payload) => {
+                if (!payload?.id) return
+                if (isTouchMode) {
+                  setPinnedDatum(payload)
+                  return
+                }
+                navigate(`/courses?id=${encodeURIComponent(payload.id)}`)
+              }} />}
+            />
+            <Scatter
+              data={bidOnlyData}
+              isAnimationActive={false}
+              shape={<CustomDot onClick={(payload) => {
+                if (!payload?.id) return
+                if (isTouchMode) {
+                  setPinnedDatum(payload)
+                  return
+                }
+                navigate(`/courses?id=${encodeURIComponent(payload.id)}`)
+              }} />}
+            />
           </ScatterChart>
         </ResponsiveContainer>
       </div>
+
+      {isTouchMode && pinnedDatum && (
+        <div className="border-t border-[#2a2a3e] px-4 py-4" style={{ background: '#151521' }}>
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold" style={{ color: '#38bdf8' }}>{pinnedDatum.course_code}</p>
+              <p className="text-sm text-label">{pinnedDatum.course_name}</p>
+              <p className="mt-1 text-xs text-muted">{pinnedDatum.professor_display || pinnedDatum.professor}</p>
+            </div>
+            <button
+              onClick={() => setPinnedDatum(null)}
+              className="rounded border border-[#2a2a3e] px-2 py-1 text-[11px] text-muted hover:text-white"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="space-y-1 text-xs text-muted">
+            <p>{pinnedDatum.is_average ? `Average ${pinnedDatum.year_range}` : `${pinnedDatum.term} ${pinnedDatum.year}`}</p>
+            {pinnedDatum._xVal != null && (
+              <p>
+                {pinnedDatum._xLabel}: <span className="text-label">{pinnedDatum._xRaw != null ? `${pinnedDatum._xRaw} pts (${Math.round(pinnedDatum._xVal)}%)` : `${Math.round(pinnedDatum._xVal)}${pinnedDatum._xIsRaw ? '' : '%'}`}</span>
+              </p>
+            )}
+            {pinnedDatum._yVal != null && (
+              <p>
+                {pinnedDatum._yLabel}: <span className="text-label">{pinnedDatum._yRaw != null ? `${pinnedDatum._yRaw} pts (${Math.round(pinnedDatum._yVal)}%)` : `${Math.round(pinnedDatum._yVal)}${pinnedDatum._yIsRaw ? '' : '%'}`}</span>
+              </p>
+            )}
+            {pinnedDatum.last_bid_price != null && (
+              <p>Last bid: <span className="text-label">{pinnedDatum.last_bid_price} pts</span></p>
+            )}
+          </div>
+
+          <div className="mt-3">
+            <button
+              onClick={() => navigate(`/courses?id=${encodeURIComponent(pinnedDatum.id)}`)}
+              className="btn-details"
+            >
+              View Full Details
+            </button>
+          </div>
+        </div>
+      )}
 
       {warnings.map((warning, index) => (
         <div

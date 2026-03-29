@@ -181,53 +181,36 @@ export default function Home({ courses, meta }) {
 
   const sorted = useMemo(() => {
     const result = [...filtered]
+    const compareValues = (a, b, getPrimary, direction = 'desc') => {
+      const av = getPrimary(a)
+      const bv = getPrimary(b)
+      const aBid = a.last_bid_price
+      const bBid = b.last_bid_price
+
+      if (av == null && bv == null) {
+        if (aBid == null && bBid == null) return 0
+        if (aBid == null) return 1
+        if (bBid == null) return -1
+        return bBid - aBid
+      }
+
+      if (av == null) return 1
+      if (bv == null) return -1
+
+      return direction === 'asc' ? av - bv : bv - av
+    }
 
     switch (sortBy) {
       case 'instructor_desc':
-        return result.sort((a, b) => {
-          const av = a.metrics_pct?.Instructor_Rating
-          const bv = b.metrics_pct?.Instructor_Rating
-          if (av == null && bv == null) return 0
-          if (av == null) return 1
-          if (bv == null) return -1
-          return bv - av
-        })
+        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.Instructor_Rating))
       case 'workload_asc':
-        return result.sort((a, b) => {
-          const av = a.metrics_pct?.Workload
-          const bv = b.metrics_pct?.Workload
-          if (av == null && bv == null) return 0
-          if (av == null) return 1
-          if (bv == null) return -1
-          return av - bv
-        })
+        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.Workload, 'asc'))
       case 'course_rating_desc':
-        return result.sort((a, b) => {
-          const av = a.metrics_pct?.Course_Rating
-          const bv = b.metrics_pct?.Course_Rating
-          if (av == null && bv == null) return 0
-          if (av == null) return 1
-          if (bv == null) return -1
-          return bv - av
-        })
+        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.Course_Rating))
       case 'rigor_desc':
-        return result.sort((a, b) => {
-          const av = a.metrics_pct?.Rigor
-          const bv = b.metrics_pct?.Rigor
-          if (av == null && bv == null) return 0
-          if (av == null) return 1
-          if (bv == null) return -1
-          return bv - av
-        })
+        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.Rigor))
       case 'diverse_desc':
-        return result.sort((a, b) => {
-          const av = a.metrics_pct?.['Diverse Perspectives']
-          const bv = b.metrics_pct?.['Diverse Perspectives']
-          if (av == null && bv == null) return 0
-          if (av == null) return 1
-          if (bv == null) return -1
-          return bv - av
-        })
+        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.['Diverse Perspectives']))
       case 'bid_price_desc':
         return result.sort((a, b) => {
           const av = a.last_bid_price
