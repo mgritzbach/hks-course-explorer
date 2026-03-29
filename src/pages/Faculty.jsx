@@ -1,480 +1,261 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
-function pct(v) {
-  return v != null ? `${Math.round(v)}%` : '—'
-}
+function pct(value) { return value != null ? `${Math.round(value)}%` : '-' }
 
 function MetricBar({ label, value, higherBetter = true }) {
   if (value == null) return null
-  const v = Math.round(value)
-  const color = higherBetter
-    ? v >= 75 ? '#22c55e' : v >= 50 ? '#facc15' : '#ef4444'
-    : v <= 25 ? '#22c55e' : v <= 50 ? '#facc15' : '#ef4444'
+  const rounded = Math.round(value)
+  const color = higherBetter ? (rounded >= 75 ? '#22c55e' : rounded >= 50 ? '#facc15' : '#ef4444') : (rounded <= 25 ? '#22c55e' : rounded <= 50 ? '#facc15' : '#ef4444')
   return (
-    <div className="mb-1.5">
-      <div className="flex justify-between text-xs mb-0.5">
-        <span className="text-muted">{label}</span>
-        <span className="font-medium text-label">{v}%</span>
-      </div>
-      <div className="w-full rounded-full h-1" style={{ background: '#2a2a3e' }}>
-        <div className="h-1 rounded-full" style={{ width: `${v}%`, background: color }} />
-      </div>
+    <div className="mb-2">
+      <div className="mb-0.5 flex justify-between text-xs"><span className="text-muted">{label}</span><span className="font-medium text-label">{rounded}%</span></div>
+      <div className="h-1 w-full rounded-full" style={{ background: '#2a2a3e' }}><div className="h-1 rounded-full" style={{ width: `${rounded}%`, background: color }} /></div>
     </div>
   )
 }
 
 const SORT_OPTIONS = [
-  { value: 'name_asc',          label: 'Name A–Z' },
-  { value: 'rating_desc',       label: 'Instructor Rating ↓' },
-  { value: 'course_rating_desc',label: 'Course Rating ↓' },
-  { value: 'courses_desc',      label: 'Most Courses ↓' },
-  { value: 'respondents_desc',  label: 'Most Respondents ↓' },
+  { value: 'name_asc', label: 'Name A-Z' },
+  { value: 'rating_desc', label: 'Instructor Rating desc' },
+  { value: 'course_rating_desc', label: 'Course Rating desc' },
+  { value: 'courses_desc', label: 'Most Courses' },
+  { value: 'respondents_desc', label: 'Most Respondents' },
 ]
+
+function activeFilterCount({ concentration, minRating, minCourses }) {
+  return (concentration !== 'All' ? 1 : 0) + (minRating !== 'any' ? 1 : 0) + (minCourses !== 'any' ? 1 : 0)
+}
+
+function FacultySidebar({
+  meta, displayedProfs, allProfessors, selectedProf, query, setQuery, concentration, setConcentration,
+  minRating, setMinRating, minCourses, setMinCourses, sortBy, setSortBy, resetFilters, handleSelectProf,
+  mobile = false, onClose = null,
+}) {
+  const filters = activeFilterCount({ concentration, minRating, minCourses })
+
+  return (
+    <aside className="flex h-full flex-col overflow-hidden shrink-0" style={{ width: mobile ? '100%' : 292, background: '#151521', borderRight: '1px solid #2a2a3e' }}>
+      <div className="shrink-0 border-b border-[#2a2a3e] px-4 pb-3 pt-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-semibold" style={{ color: '#38bdf8' }}>Faculty Explorer</p>
+            {filters > 0 && <span className="filter-badge">{filters} active</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            {filters > 0 && <button onClick={resetFilters} className="text-[10px] text-muted hover:text-label">Reset</button>}
+            {mobile && onClose && <button onClick={onClose} className="rounded-full border border-[#2a2a3e] px-2 py-1 text-[11px] text-muted hover:text-white">Close</button>}
+          </div>
+        </div>
+
+        <input type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name..." className="mb-3 w-full" style={{ fontSize: 12 }} />
+
+        <div className="grid gap-2">
+          <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Sort</p><div className="select-wrap"><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}>{SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></div>
+          <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Concentration</p><div className="select-wrap"><select value={concentration} onChange={(event) => setConcentration(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="All">All</option>{meta.concentrations.map((item) => <option key={item} value={item}>{item}</option>)}</select></div></div>
+          <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Min Instructor Rating</p><div className="select-wrap"><select value={minRating} onChange={(event) => setMinRating(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any</option><option value="90">Top 10%</option><option value="75">Top 25%</option><option value="50">Top 50%</option></select></div></div>
+          <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Min Courses Taught</p><div className="select-wrap"><select value={minCourses} onChange={(event) => setMinCourses(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any</option><option value="3">3+</option><option value="5">5+</option><option value="10">10+</option><option value="20">20+</option></select></div></div>
+        </div>
+
+        <p className="mt-3 text-[10px] text-muted">{displayedProfs.length} of {allProfessors.length} instructors</p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {displayedProfs.map((prof) => {
+          const avg = prof.avgMetrics?.Instructor_Rating
+          const selected = selectedProf === prof.professor
+          return (
+            <button
+              key={prof.professor}
+              onClick={() => { handleSelectProf(prof); if (mobile && onClose) onClose() }}
+              className="w-full border-b border-[#1e1e2e] px-4 py-3 text-left transition-colors hover:bg-[#1e1e2e]"
+              style={{ background: selected ? '#2a2a3e' : undefined, borderLeft: selected ? '3px solid #38bdf8' : '3px solid transparent' }}
+            >
+              <p className="text-xs font-medium leading-tight text-label">{prof.professor_display}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="text-[10px] text-muted">{prof.evalCourses} course{prof.evalCourses !== 1 ? 's' : ''}</span>
+                {avg != null && <span className="rounded px-1 py-0.5 text-[10px] font-medium" style={{ background: avg >= 75 ? '#14532d' : avg >= 50 ? '#422006' : '#450a0a', color: avg >= 75 ? '#4ade80' : avg >= 50 ? '#fb923c' : '#f87171' }}>{Math.round(avg)}% instr.</span>}
+              </div>
+            </button>
+          )
+        })}
+        {displayedProfs.length === 0 && <p className="px-4 py-6 text-center text-xs text-muted">No instructors match the current filters.</p>}
+      </div>
+    </aside>
+  )
+}
 
 export default function Faculty({ courses, meta }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-
-  const [query,        setQuery]        = useState('')
+  const [query, setQuery] = useState('')
   const [selectedProf, setSelectedProf] = useState(searchParams.get('prof') || null)
-
-  // Filter + sort state
   const [concentration, setConcentration] = useState('All')
-  const [minRating,     setMinRating]     = useState('any')   // 'any' | '50' | '75' | '90'
-  const [minCourses,    setMinCourses]    = useState('any')   // 'any' | '3' | '5' | '10'
-  const [sortBy,        setSortBy]        = useState('name_asc')
+  const [minRating, setMinRating] = useState('any')
+  const [minCourses, setMinCourses] = useState('any')
+  const [sortBy, setSortBy] = useState('name_asc')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  useEffect(() => {
-    const prof = searchParams.get('prof')
-    if (prof) setSelectedProf(prof)
-  }, [searchParams])
+  useEffect(() => { const professor = searchParams.get('prof'); if (professor) setSelectedProf(professor) }, [searchParams])
+  useEffect(() => { document.title = 'HKS Faculty Explorer' }, [])
 
-  useEffect(() => {
-    document.title = 'HKS Faculty Explorer'
-  }, [])
-
-  // ── Build professor registry ────────────────────────────────────────────────
   const allProfessors = useMemo(() => {
-    const map = new Map()
-    for (const c of courses) {
-      if (!c.professor || c.is_average) continue
-      const key = c.professor
-      if (!map.has(key)) {
-        map.set(key, {
-          professor:         key,
-          professor_display: c.professor_display || key,
-          faculty_title:     c.faculty_title,
-          faculty_category:  c.faculty_category,
-          gender:            c.gender,
-          courses:           [],
-          evalCourses:       0,
-          totalRespondents:  0,
-          concentrationSet:  new Set(),
-          sumMetrics:        {},
-          cntMetrics:        {},
+    const registry = new Map()
+    for (const course of courses) {
+      if (!course.professor || course.is_average) continue
+      if (!registry.has(course.professor)) {
+        registry.set(course.professor, {
+          professor: course.professor,
+          professor_display: course.professor_display || course.professor,
+          faculty_title: course.faculty_title,
+          faculty_category: course.faculty_category,
+          courses: [],
+          evalCourses: 0,
+          totalRespondents: 0,
+          concentrationSet: new Set(),
+          sumMetrics: {},
+          cntMetrics: {},
         })
       }
-      const entry = map.get(key)
-      entry.courses.push(c)
-      if (c.concentration) entry.concentrationSet.add(c.concentration)
-      if (c.has_eval && !c.is_average) {
-        entry.evalCourses++
-        entry.totalRespondents += c.n_respondents || 0
-        for (const m of meta.metrics) {
-          const v = c.metrics_pct?.[m.key]
-          if (v != null) {
-            const w = c.n_respondents || 1
-            entry.sumMetrics[m.key] = (entry.sumMetrics[m.key] || 0) + v * w
-            entry.cntMetrics[m.key] = (entry.cntMetrics[m.key] || 0) + w
+      const entry = registry.get(course.professor)
+      entry.courses.push(course)
+      if (course.concentration) entry.concentrationSet.add(course.concentration)
+      if (course.has_eval && !course.is_average) {
+        entry.evalCourses += 1
+        entry.totalRespondents += course.n_respondents || 0
+        for (const metric of meta.metrics) {
+          const value = course.metrics_pct?.[metric.key]
+          if (value != null) {
+            const weight = course.n_respondents || 1
+            entry.sumMetrics[metric.key] = (entry.sumMetrics[metric.key] || 0) + value * weight
+            entry.cntMetrics[metric.key] = (entry.cntMetrics[metric.key] || 0) + weight
           }
         }
       }
     }
-
-    return [...map.values()]
-      .filter(p => p.evalCourses > 0)
-      .map(p => ({
-        ...p,
-        concentrations: [...p.concentrationSet].sort(),
-        avgMetrics: Object.fromEntries(
-          meta.metrics.map(m => [
-            m.key,
-            p.cntMetrics[m.key]
-              ? Math.round(p.sumMetrics[m.key] / p.cntMetrics[m.key] * 10) / 10
-              : null,
-          ])
-        ),
-      }))
+    return [...registry.values()].filter((prof) => prof.evalCourses > 0).map((prof) => ({
+      ...prof,
+      concentrations: [...prof.concentrationSet].sort(),
+      avgMetrics: Object.fromEntries(meta.metrics.map((metric) => [metric.key, prof.cntMetrics[metric.key] ? Math.round((prof.sumMetrics[metric.key] / prof.cntMetrics[metric.key]) * 10) / 10 : null])),
+    }))
   }, [courses, meta.metrics])
 
-  // ── Filter + sort ───────────────────────────────────────────────────────────
   const displayedProfs = useMemo(() => {
-    const minRatingN  = minRating  !== 'any' ? parseFloat(minRating)  : null
-    const minCoursesN = minCourses !== 'any' ? parseInt(minCourses)   : null
-
-    let list = allProfessors.filter(p => {
+    const minRatingValue = minRating !== 'any' ? parseFloat(minRating) : null
+    const minCoursesValue = minCourses !== 'any' ? parseInt(minCourses, 10) : null
+    const list = allProfessors.filter((prof) => {
       if (query) {
-        const q = query.toLowerCase()
-        if (!(p.professor_display || '').toLowerCase().includes(q) &&
-            !(p.professor || '').toLowerCase().includes(q)) return false
+        const normalized = query.toLowerCase()
+        if (!(prof.professor_display || '').toLowerCase().includes(normalized) && !(prof.professor || '').toLowerCase().includes(normalized)) return false
       }
-      if (concentration !== 'All' && !p.concentrations.includes(concentration)) return false
-      if (minRatingN  !== null && (p.avgMetrics?.Instructor_Rating ?? -1) < minRatingN)  return false
-      if (minCoursesN !== null && p.evalCourses < minCoursesN) return false
+      if (concentration !== 'All' && !prof.concentrations.includes(concentration)) return false
+      if (minRatingValue !== null && (prof.avgMetrics?.Instructor_Rating ?? -1) < minRatingValue) return false
+      if (minCoursesValue !== null && prof.evalCourses < minCoursesValue) return false
       return true
     })
-
     switch (sortBy) {
-      case 'rating_desc':
-        list.sort((a, b) => {
-          const av = a.avgMetrics?.Instructor_Rating ?? -1
-          const bv = b.avgMetrics?.Instructor_Rating ?? -1
-          return bv - av
-        })
-        break
-      case 'course_rating_desc':
-        list.sort((a, b) => {
-          const av = a.avgMetrics?.Course_Rating ?? -1
-          const bv = b.avgMetrics?.Course_Rating ?? -1
-          return bv - av
-        })
-        break
-      case 'courses_desc':
-        list.sort((a, b) => b.evalCourses - a.evalCourses)
-        break
-      case 'respondents_desc':
-        list.sort((a, b) => b.totalRespondents - a.totalRespondents)
-        break
-      default: // name_asc
-        list.sort((a, b) => (a.professor_display || '').localeCompare(b.professor_display || ''))
+      case 'rating_desc': list.sort((a, b) => (b.avgMetrics?.Instructor_Rating ?? -1) - (a.avgMetrics?.Instructor_Rating ?? -1)); break
+      case 'course_rating_desc': list.sort((a, b) => (b.avgMetrics?.Course_Rating ?? -1) - (a.avgMetrics?.Course_Rating ?? -1)); break
+      case 'courses_desc': list.sort((a, b) => b.evalCourses - a.evalCourses); break
+      case 'respondents_desc': list.sort((a, b) => b.totalRespondents - a.totalRespondents); break
+      default: list.sort((a, b) => (a.professor_display || '').localeCompare(b.professor_display || ''))
     }
-
     return list
-  }, [allProfessors, query, concentration, minRating, minCourses, sortBy])
+  }, [allProfessors, concentration, minCourses, minRating, query, sortBy])
 
-  // ── Selected professor ──────────────────────────────────────────────────────
-  const selectedData = useMemo(() =>
-    selectedProf ? allProfessors.find(p => p.professor === selectedProf) || null : null,
-    [allProfessors, selectedProf]
-  )
+  const selectedData = useMemo(() => selectedProf ? allProfessors.find((prof) => prof.professor === selectedProf) || null : null, [allProfessors, selectedProf])
+  const profCourses = useMemo(() => selectedData ? selectedData.courses.filter((course) => course.has_eval && !course.is_average).sort((a, b) => (b.year || 0) - (a.year || 0) || (a.term || '').localeCompare(b.term || '')) : [], [selectedData])
 
-  const profCourses = useMemo(() => {
-    if (!selectedData) return []
-    return selectedData.courses
-      .filter(c => c.has_eval && !c.is_average)
-      .sort((a, b) => (b.year || 0) - (a.year || 0) || (a.term || '').localeCompare(b.term || ''))
-  }, [selectedData])
-
-  const handleSelectProf = (p) => {
-    setSelectedProf(p.professor)
-    setSearchParams({ prof: p.professor })
-  }
-
-  const resetFilters = () => {
-    setConcentration('All')
-    setMinRating('any')
-    setMinCourses('any')
-    setSortBy('name_asc')
-    setQuery('')
-  }
-
-  const activeFilters = (concentration !== 'All' ? 1 : 0)
-    + (minRating !== 'any' ? 1 : 0)
-    + (minCourses !== 'any' ? 1 : 0)
+  const resetFilters = () => { setConcentration('All'); setMinRating('any'); setMinCourses('any'); setSortBy('name_asc'); setQuery('') }
+  const handleSelectProf = (prof) => { setSelectedProf(prof.professor); setSearchParams({ prof: prof.professor }) }
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full min-h-0 overflow-hidden">
+      {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close faculty list" />}
+      <div className={`mobile-drawer ${sidebarOpen ? 'open' : ''}`}>
+        <FacultySidebar
+          meta={meta}
+          displayedProfs={displayedProfs}
+          allProfessors={allProfessors}
+          selectedProf={selectedProf}
+          query={query}
+          setQuery={setQuery}
+          concentration={concentration}
+          setConcentration={setConcentration}
+          minRating={minRating}
+          setMinRating={setMinRating}
+          minCourses={minCourses}
+          setMinCourses={setMinCourses}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          resetFilters={resetFilters}
+          handleSelectProf={handleSelectProf}
+          mobile
+          onClose={() => setSidebarOpen(false)}
+        />
+      </div>
+      <div className="hidden md:block">
+        <FacultySidebar
+          meta={meta}
+          displayedProfs={displayedProfs}
+          allProfessors={allProfessors}
+          selectedProf={selectedProf}
+          query={query}
+          setQuery={setQuery}
+          concentration={concentration}
+          setConcentration={setConcentration}
+          minRating={minRating}
+          setMinRating={setMinRating}
+          minCourses={minCourses}
+          setMinCourses={setMinCourses}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          resetFilters={resetFilters}
+          handleSelectProf={handleSelectProf}
+        />
+      </div>
 
-      {/* ── Left panel: list + filters ── */}
-      <aside
-        className="flex flex-col overflow-hidden shrink-0"
-        style={{ width: 280, background: '#151521', borderRight: '1px solid #2a2a3e' }}
-      >
-        {/* Header + search */}
-        <div className="px-4 pt-4 pb-2 shrink-0 border-b border-[#2a2a3e]">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold" style={{ color: '#38bdf8' }}>👩‍🏫 Faculty Explorer</p>
-            {activeFilters > 0 && (
-              <button
-                onClick={resetFilters}
-                className="text-[10px] text-muted hover:text-label transition-colors"
-              >
-                🔄 Reset ({activeFilters})
-              </button>
-            )}
-          </div>
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search by name…"
-            className="w-full mb-2"
-            style={{ fontSize: 12 }}
-          />
-
-          {/* Sort */}
-          <div className="mb-2">
-            <p className="text-[10px] text-muted mb-1 uppercase tracking-wider">Sort</p>
-            <div className="select-wrap">
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
-              >
-                {SORT_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Concentration filter */}
-          <div className="mb-2">
-            <p className="text-[10px] text-muted mb-1 uppercase tracking-wider">Concentration</p>
-            <div className="select-wrap">
-              <select
-                value={concentration}
-                onChange={e => setConcentration(e.target.value)}
-                style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
-              >
-                <option value="All">All</option>
-                {meta.concentrations.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Min instructor rating */}
-          <div className="mb-2">
-            <p className="text-[10px] text-muted mb-1 uppercase tracking-wider">Min Instructor Rating</p>
-            <div className="select-wrap">
-              <select
-                value={minRating}
-                onChange={e => setMinRating(e.target.value)}
-                style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
-              >
-                <option value="any">Any</option>
-                <option value="90">Top 10% (≥90%)</option>
-                <option value="75">Top 25% (≥75%)</option>
-                <option value="50">Top 50% (≥50%)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Min courses */}
-          <div className="mb-3">
-            <p className="text-[10px] text-muted mb-1 uppercase tracking-wider">Min Courses Taught</p>
-            <div className="select-wrap">
-              <select
-                value={minCourses}
-                onChange={e => setMinCourses(e.target.value)}
-                style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
-              >
-                <option value="any">Any</option>
-                <option value="3">≥ 3 courses</option>
-                <option value="5">≥ 5 courses</option>
-                <option value="10">≥ 10 courses</option>
-                <option value="20">≥ 20 courses</option>
-              </select>
-            </div>
-          </div>
-
-          <p className="text-[10px] text-muted">
-            {displayedProfs.length} of {allProfessors.length} instructor{allProfessors.length !== 1 ? 's' : ''}
-          </p>
+      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-8 md:py-6">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div><h2 className="text-lg font-bold text-white md:text-2xl">Faculty Explorer</h2><p className="mt-1 text-xs text-muted md:text-sm">Browse teaching history and weighted rating averages for HKS instructors.</p></div>
+          <button onClick={() => setSidebarOpen(true)} className="rounded-full border border-[#2a2a3e] bg-[#151521] px-3 py-2 text-xs font-medium text-white md:hidden">Browse Faculty{activeFilterCount({ concentration, minRating, minCourses }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses })})` : ''}</button>
         </div>
 
-        {/* Professor list */}
-        <div className="flex-1 overflow-y-auto">
-          {displayedProfs.map(p => {
-            const avgInstr = p.avgMetrics?.Instructor_Rating
-            const isSelected = selectedProf === p.professor
-            return (
-              <button
-                key={p.professor}
-                onClick={() => handleSelectProf(p)}
-                className="w-full text-left px-4 py-2.5 transition-colors border-b border-[#1e1e2e] hover:bg-[#1e1e2e]"
-                style={{
-                  background: isSelected ? '#2a2a3e' : undefined,
-                  borderLeft: isSelected ? '3px solid #38bdf8' : '3px solid transparent',
-                }}
-              >
-                <p className="text-xs font-medium text-label leading-tight">{p.professor_display}</p>
-                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <span className="text-[10px] text-muted">
-                    {p.evalCourses} course{p.evalCourses !== 1 ? 's' : ''}
-                  </span>
-                  {avgInstr != null && (
-                    <span
-                      className="text-[10px] font-medium px-1 rounded"
-                      style={{
-                        background: avgInstr >= 75 ? '#14532d' : avgInstr >= 50 ? '#422006' : '#450a0a',
-                        color:      avgInstr >= 75 ? '#4ade80' : avgInstr >= 50 ? '#fb923c' : '#f87171',
-                      }}
-                    >
-                      {Math.round(avgInstr)}% instr.
-                    </span>
-                  )}
-                  {p.concentrations.length > 0 && (
-                    <span className="text-[10px] text-muted">{p.concentrations.join(', ')}</span>
-                  )}
-                </div>
-              </button>
-            )
-          })}
-          {displayedProfs.length === 0 && (
-            <p className="px-4 py-6 text-xs text-muted text-center">No instructors match the current filters.</p>
-          )}
-        </div>
-      </aside>
+        {!selectedData && <div className="flex flex-1 flex-col items-center justify-center text-center" style={{ paddingBottom: 80 }}><p className="mb-2 font-medium text-label">Select an instructor</p><p className="text-xs text-muted">Browse {allProfessors.length} instructors from the mobile list or the desktop sidebar.</p></div>}
 
-      {/* ── Right panel: detail ── */}
-      <main className="flex-1 overflow-y-auto px-8 py-6">
-
-        {!selectedData && (
-          <div className="flex flex-col items-center justify-center h-full text-center" style={{ paddingBottom: 80 }}>
-            <p className="text-4xl mb-4">👩‍🏫</p>
-            <p className="text-label font-medium mb-2">Select an instructor</p>
-            <p className="text-xs text-muted">
-              Browse {allProfessors.length} instructors on the left, or click any instructor name anywhere in the app.
-            </p>
+        {selectedData && <>
+          <div className="mb-6">
+            <h2 className="mb-1 text-xl font-bold text-white md:text-2xl">{selectedData.professor_display}</h2>
+            {selectedData.faculty_title && <p className="text-sm text-muted">{selectedData.faculty_title}</p>}
+            {selectedData.faculty_category && <p className="text-xs text-muted">{selectedData.faculty_category}</p>}
+            {selectedData.concentrations.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{selectedData.concentrations.map((item) => <span key={item} className="rounded px-2 py-1 text-[10px] font-medium" style={{ background: '#1e2a4a', color: '#93c5fd' }}>{item}</span>)}</div>}
+            <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted"><span>{selectedData.evalCourses} course{selectedData.evalCourses !== 1 ? 's' : ''} with evals</span>{selectedData.totalRespondents > 0 && <span>{selectedData.totalRespondents} total respondents</span>}</div>
           </div>
-        )}
 
-        {selectedData && (
-          <>
-            {/* Header */}
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-white mb-1">{selectedData.professor_display}</h2>
-              {selectedData.faculty_title && (
-                <p className="text-sm text-muted">{selectedData.faculty_title}</p>
-              )}
-              {selectedData.faculty_category && (
-                <p className="text-xs text-muted">{selectedData.faculty_category}</p>
-              )}
-              {selectedData.concentrations.length > 0 && (
-                <div className="flex gap-1 mt-2 flex-wrap">
-                  {selectedData.concentrations.map(c => (
-                    <span
-                      key={c}
-                      className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                      style={{ background: '#1e2a4a', color: '#93c5fd' }}
-                    >
-                      {c}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-4 mt-3 text-xs text-muted flex-wrap">
-                <span>📚 {selectedData.evalCourses} course{selectedData.evalCourses !== 1 ? 's' : ''} with evals</span>
-                {selectedData.totalRespondents > 0 && (
-                  <span>👥 {selectedData.totalRespondents} total respondents</span>
-                )}
-              </div>
+          <div className="mb-6 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg p-4" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Average Ratings</h4>
+              {meta.metrics.filter((metric) => !metric.bid_metric).map((metric) => <MetricBar key={metric.key} label={metric.label} value={selectedData.avgMetrics?.[metric.key]} higherBetter={metric.higher_is_better} />)}
             </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              {/* Avg metrics panel */}
-              <div className="rounded-lg p-4" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
-                <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">
-                  Average Ratings (weighted by respondents)
-                </h4>
-                {meta.metrics.filter(m => !m.bid_metric).map(m => (
-                  <MetricBar
-                    key={m.key}
-                    label={m.label}
-                    value={selectedData.avgMetrics?.[m.key]}
-                    higherBetter={m.higher_is_better}
-                  />
-                ))}
-              </div>
-
-              {/* Quick stats */}
-              <div className="rounded-lg p-4" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
-                <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">Quick Stats</h4>
-                {(() => {
-                  const s = selectedData.avgMetrics
-                  return (
-                    <div className="space-y-3">
-                      {s?.Instructor_Rating != null && (
-                        <div className="p-3 rounded" style={{ background: '#13131f' }}>
-                          <p className="text-[10px] text-muted uppercase tracking-wider">Instructor Rating</p>
-                          <p className="text-xl font-bold" style={{ color: '#38bdf8' }}>{Math.round(s.Instructor_Rating)}%</p>
-                          <p className="text-[10px] text-muted">global percentile avg</p>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { key: 'Course_Rating',        label: 'Course Rating',     color: '#86efac' },
-                          { key: 'Workload',             label: 'Workload',          color: '#c0c0d8' },
-                          { key: 'Rigor',                label: 'Rigor',             color: '#c0c0d8' },
-                          { key: 'Diverse Perspectives', label: 'Diverse Persp.',    color: '#c0c0d8' },
-                          { key: 'Feedback',             label: 'Feedback',          color: '#c0c0d8' },
-                        ].map(({ key, label, color }) => s?.[key] != null && (
-                          <div key={key} className="p-2 rounded" style={{ background: '#13131f' }}>
-                            <p className="text-[10px] text-muted">{label}</p>
-                            <p className="text-sm font-bold" style={{ color }}>{Math.round(s[key])}%</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
+            <div className="rounded-lg p-4" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Quick Stats</h4>
+              {selectedData.avgMetrics?.Instructor_Rating != null && <div className="mb-3 rounded p-3" style={{ background: '#13131f' }}><p className="text-[10px] uppercase tracking-wider text-muted">Instructor Rating</p><p className="text-xl font-bold" style={{ color: '#38bdf8' }}>{Math.round(selectedData.avgMetrics.Instructor_Rating)}%</p><p className="text-[10px] text-muted">global percentile average</p></div>}
+              <div className="grid grid-cols-2 gap-2">{[{ key: 'Course_Rating', label: 'Course Rating', color: '#86efac' }, { key: 'Workload', label: 'Workload', color: '#c0c0d8' }, { key: 'Rigor', label: 'Rigor', color: '#c0c0d8' }, { key: 'Diverse Perspectives', label: 'Diverse Persp.', color: '#c0c0d8' }, { key: 'Feedback', label: 'Feedback', color: '#c0c0d8' }].map(({ key, label, color }) => selectedData.avgMetrics?.[key] != null && <div key={key} className="rounded p-2" style={{ background: '#13131f' }}><p className="text-[10px] text-muted">{label}</p><p className="text-sm font-bold" style={{ color }}>{Math.round(selectedData.avgMetrics[key])}%</p></div>)}</div>
             </div>
+          </div>
 
-            {/* Course history table */}
-            <div className="rounded-lg" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
-              <div className="px-4 py-3 border-b border-[#2a2a3e]">
-                <h4 className="text-xs font-semibold text-muted uppercase tracking-wider">
-                  All Courses Taught ({profCourses.length})
-                </h4>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #2a2a3e' }}>
-                      {['Year', 'Term', 'Course', 'Instructor %', 'Course %', 'Workload %', 'Rigor %', 'Diverse Persp.', 'N'].map(h => (
-                        <th key={h} className="text-left py-2 px-3 text-muted font-medium whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {profCourses.map((c, i) => (
-                      <tr
-                        key={i}
-                        className="hover:bg-[#1e1e2e] cursor-pointer transition-colors"
-                        style={{ borderBottom: '1px solid #1a1a28' }}
-                        onClick={() => navigate(`/courses?id=${encodeURIComponent(c.id)}`)}
-                      >
-                        <td className="py-1.5 px-3 text-label">{c.year}</td>
-                        <td className="py-1.5 px-3 text-muted">{c.term}</td>
-                        <td className="py-1.5 px-3">
-                          <span className="font-medium" style={{ color: '#38bdf8' }}>{c.course_code}</span>
-                          <span className="text-label ml-2">{c.course_name}</span>
-                        </td>
-                        <td className="py-1.5 px-3 font-medium" style={{ color: '#38bdf8' }}>
-                          {pct(c.metrics_pct?.Instructor_Rating)}
-                        </td>
-                        <td className="py-1.5 px-3 text-label">{pct(c.metrics_pct?.Course_Rating)}</td>
-                        <td className="py-1.5 px-3 text-label">{pct(c.metrics_pct?.Workload)}</td>
-                        <td className="py-1.5 px-3 text-label">{pct(c.metrics_pct?.Rigor)}</td>
-                        <td className="py-1.5 px-3 text-label">{pct(c.metrics_pct?.['Diverse Perspectives'])}</td>
-                        <td className="py-1.5 px-3 text-muted">{c.n_respondents ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          <div className="rounded-lg" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
+            <div className="border-b border-[#2a2a3e] px-4 py-3"><h4 className="text-xs font-semibold uppercase tracking-wider text-muted">All Courses Taught ({profCourses.length})</h4></div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr style={{ borderBottom: '1px solid #2a2a3e' }}>{['Year', 'Term', 'Course', 'Instructor %', 'Course %', 'Workload %', 'Rigor %', 'Diverse Persp.', 'N'].map((h) => <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-medium text-muted">{h}</th>)}</tr></thead>
+                <tbody>{profCourses.map((course, i) => <tr key={i} className="cursor-pointer transition-colors hover:bg-[#1e1e2e]" style={{ borderBottom: '1px solid #1a1a28' }} onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}><td className="px-3 py-2 text-label">{course.year}</td><td className="px-3 py-2 text-muted">{course.term}</td><td className="px-3 py-2"><span className="font-medium" style={{ color: '#38bdf8' }}>{course.course_code}</span><span className="ml-2 text-label">{course.course_name}</span></td><td className="px-3 py-2 font-medium" style={{ color: '#38bdf8' }}>{pct(course.metrics_pct?.Instructor_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Course_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Workload)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Rigor)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.['Diverse Perspectives'])}</td><td className="px-3 py-2 text-muted">{course.n_respondents ?? '-'}</td></tr>)}</tbody>
+              </table>
             </div>
+          </div>
 
-            <div className="app-footer mt-8">
-              Data from HKS QReports · {new Date().getFullYear()}
-            </div>
-          </>
-        )}
+          <div className="app-footer mt-8">Data from HKS QReports · {new Date().getFullYear()}</div>
+        </>}
       </main>
     </div>
   )
