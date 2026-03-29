@@ -152,17 +152,20 @@ function CustomTooltip({ active, payload }) {
       <p className="mb-2 text-muted">{datum.is_average ? `avg ${datum.year_range}` : `${datum.term} ${datum.year}`}</p>
 
       <div className="space-y-0.5">
-        {datum._xVal != null && (
+        {datum._xVal != null && !datum._isBidOnly && (
           <p>
             {datum._xLabel}:{' '}
             <span className="font-medium">{formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}</span>
           </p>
         )}
-        {datum._yVal != null && (
+        {datum._yVal != null && !datum._isBidOnly && (
           <p>
             {datum._yLabel}:{' '}
             <span className="font-medium">{formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}</span>
           </p>
+        )}
+        {datum._isBidOnly && (
+          <p className="text-[10px]" style={{ color: '#fbbf24' }}>No eval data yet · ranked by bid competitiveness</p>
         )}
         {datum.metrics_pct?.Instructor_Rating != null && datum._xLabel !== 'Instructor Rating' && datum._yLabel !== 'Instructor Rating' && (
           <p>
@@ -312,8 +315,8 @@ export default function ScatterPlot({
           ...course,
           _xVal: axisBidValueX,
           _yVal: axisBidValueY,
-          _xRaw: course.last_bid_price ?? null,
-          _yRaw: course.last_bid_price ?? null,
+          _xRaw: xMeta.bid_metric ? (course.last_bid_price ?? null) : null,
+          _yRaw: yMeta.bid_metric ? (course.last_bid_price ?? null) : null,
           _xIsRaw: xMode.useRaw,
           _yIsRaw: yMode.useRaw,
           _xLabel: xMeta.label,
