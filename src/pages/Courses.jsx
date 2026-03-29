@@ -105,12 +105,21 @@ export default function Courses({ courses, meta }) {
       if (filters.evalOnly && !course.has_eval) return false
       return true
     })
+    list = list.sort((a, b) => {
+      const aBid = a.last_bid_price ?? -1
+      const bBid = b.last_bid_price ?? -1
+      if (aBid !== bBid) return bBid - aBid
+      return (a.course_name || a.course_code || '').localeCompare(b.course_name || b.course_code || '')
+    })
     if (!query) return list.slice(0, 100)
     const normalized = query.toLowerCase()
     return list.filter((course) => (course.course_name || '').toLowerCase().includes(normalized) || (course.course_code || '').toLowerCase().includes(normalized) || (course.professor_display || '').toLowerCase().includes(normalized)).slice(0, 100)
   }, [allOptions, courses, filters, query])
 
-  const topByBidding = useMemo(() => allOptions.filter((course) => course.last_bid_price != null).sort((a, b) => (b.last_bid_price || 0) - (a.last_bid_price || 0)).slice(0, 5), [allOptions])
+  const topByBidding = useMemo(
+    () => filteredOptions.filter((course) => course.last_bid_price != null).slice(0, 5),
+    [filteredOptions]
+  )
 
   const selected = useMemo(() => {
     if (!selectedId) return null

@@ -137,7 +137,7 @@ export default function Home({ courses, meta }) {
   const [xMetric, setXMetric] = useState(DEFAULT_X)
   const [yMetric, setYMetric] = useState(DEFAULT_Y)
   const [activeTab, setActiveTab] = useState('comparisons')
-  const [sortBy, setSortBy] = useState('instructor_desc')
+  const [sortBy, setSortBy] = useState('bid_price_desc')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const avgMode = isAverageYear(filters.year)
@@ -289,7 +289,7 @@ export default function Home({ courses, meta }) {
             className="mb-4 rounded-lg px-4 py-3 text-xs md:text-sm"
             style={{ background: '#1e1a0a', border: '1px solid #92400e', color: '#fbbf24' }}
           >
-            Bidding Season 2026 is active. Courses without evaluation data still appear, and their scatter positions are illustrative unless you switch to bid-based axes.
+            Bidding Season 2026 is active. Courses without evaluation data still appear, and amber diamonds are positioned from last clearing price.
           </div>
         )}
 
@@ -362,12 +362,12 @@ export default function Home({ courses, meta }) {
                   onChange={(event) => setSortBy(event.target.value)}
                   style={{ padding: '4px 28px 4px 8px', fontSize: 12 }}
                 >
+                  <option value="bid_price_desc">Most Competitive (Last Bid Price desc)</option>
                   <option value="instructor_desc">Instructor Rating desc</option>
                   <option value="course_rating_desc">Course Rating desc</option>
                   <option value="workload_asc">Workload asc (lightest first)</option>
                   <option value="rigor_desc">Rigor desc</option>
                   <option value="diverse_desc">Diverse Perspectives desc</option>
-                  <option value="bid_price_desc">Last Bid Price desc</option>
                   <option value="name_asc">Course Name A-Z</option>
                 </select>
               </div>

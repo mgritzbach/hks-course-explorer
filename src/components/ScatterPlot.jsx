@@ -91,16 +91,9 @@ function getAxisMode(metricMeta, allDeduped, matchedDeduped) {
   return { useRaw: true, domain: [0, domainMax], tickFmt: (value) => `${value}` }
 }
 
-function hashSpread(id, salt) {
-  let hash = 5381
-  const value = `${id}${salt}`
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash = ((hash << 5) + hash) ^ value.charCodeAt(index)
-    hash >>>= 0
-  }
-
-  return 8 + (hash % 840) / 10
+function normalizeBidPrice(price) {
+  if (price == null) return null
+  return Math.max(0, Math.min(100, (price / 1000) * 100))
 }
 
 function coverageWarning(courses, metricMeta) {
@@ -118,6 +111,17 @@ function coverageWarning(courses, metricMeta) {
     type: 'warn',
     msg: `"${metricMeta.label}" has data for ${hasData}/${courses.length} courses (${coverage}%) this year.`,
   }
+}
+
+function formatMetricValue(datum, valueKey, rawKey, rawModeKey) {
+  const value = datum[valueKey]
+  const rawValue = datum[rawKey]
+  const rawMode = datum[rawModeKey]
+
+  if (value == null) return null
+  if (rawMode) return rawValue != null ? `${rawValue} pts` : `${Math.round(value)}`
+  if (rawValue != null) return `${rawValue} pts (${Math.round(value)}%)`
+  return `${Math.round(value)}%`
 }
 
 function CustomTooltip({ active, payload }) {
@@ -138,54 +142,38 @@ function CustomTooltip({ active, payload }) {
       </p>
       <p className="mb-2 text-muted">{datum.is_average ? `avg ${datum.year_range}` : `${datum.term} ${datum.year}`}</p>
 
-      {datum._isBidOnly ? (
-        <p style={{ color: '#fbbf24' }}>
-          Bidding only
-          {datum.last_bid_price != null && <span className="ml-1 font-bold">{datum.last_bid_price} pts</span>}
-        </p>
-      ) : (
-        <div className="space-y-0.5">
-          {datum._xVal != null && (
-            <p>
-              {datum._xLabel}:{' '}
-              <span className="font-medium">
-                {datum._xRaw != null ? `${datum._xRaw} pts (${Math.round(datum._xVal)}%)` : `${Math.round(datum._xVal)}${datum._xIsRaw ? '' : '%'}`}
-              </span>
-            </p>
-          )}
-          {datum._yVal != null && (
-            <p>
-              {datum._yLabel}:{' '}
-              <span className="font-medium">
-                {datum._yRaw != null ? `${datum._yRaw} pts (${Math.round(datum._yVal)}%)` : `${Math.round(datum._yVal)}${datum._yIsRaw ? '' : '%'}`}
-              </span>
-            </p>
-          )}
-          {datum.metrics_pct?.Instructor_Rating != null && datum._xLabel !== 'Instructor Rating' && datum._yLabel !== 'Instructor Rating' && (
-            <p>
-              Instructor: <span className="font-medium" style={{ color: '#38bdf8' }}>{Math.round(datum.metrics_pct.Instructor_Rating)}%</span>
-            </p>
-          )}
-        </div>
-      )}
+      <div className="space-y-0.5">
+        {datum._xVal != null && (
+          <p>
+            {datum._xLabel}:{' '}
+            <span className="font-medium">{formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}</span>
+          </p>
+        )}
+        {datum._yVal != null && (
+          <p>
+            {datum._yLabel}:{' '}
+            <span className="font-medium">{formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}</span>
+          </p>
+        )}
+        {datum.metrics_pct?.Instructor_Rating != null && datum._xLabel !== 'Instructor Rating' && datum._yLabel !== 'Instructor Rating' && (
+          <p>
+            Instructor: <span className="font-medium" style={{ color: '#38bdf8' }}>{Math.round(datum.metrics_pct.Instructor_Rating)}%</span>
+          </p>
+        )}
+      </div>
 
       <div className="mt-2 border-t border-[#2a2a3e] pt-2">
-        {datum.ever_bidding ? (
-          <>
-            <p style={{ color: '#fbbf24' }}>Went to bidding</p>
-            {datum.last_bid_price != null && (
-              <p className="text-muted">
-                Last bid: <span className="font-medium text-label">{datum.last_bid_price} pts</span>
-                {datum.last_bid_acad && <span className="ml-1 text-[10px]">({datum.last_bid_acad} {datum.last_bid_term || ''})</span>}
-              </p>
-            )}
-          </>
+        {datum.last_bid_price != null ? (
+          <p className="text-muted">
+            Last clearing price: <span className="font-medium text-label">{datum.last_bid_price} pts</span>
+            {datum.last_bid_acad && <span className="ml-1 text-[10px]">({datum.last_bid_acad} {datum.last_bid_term || ''})</span>}
+          </p>
         ) : (
           <p className="text-[10px] text-muted">No bidding history</p>
         )}
       </div>
 
-      <p className="mt-1 text-[10px]" style={{ color: '#60a5fa' }}>Tap to view details</p>
+      <p className="mt-1 text-[10px]" style={{ color: '#60a5fa' }}>Click for pinned details</p>
     </div>
   )
 }
@@ -239,23 +227,6 @@ export default function ScatterPlot({
 }) {
   const navigate = useNavigate()
   const [pinnedDatum, setPinnedDatum] = useState(null)
-  const [isTouchMode, setIsTouchMode] = useState(false)
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return undefined
-
-    const mediaQuery = window.matchMedia('(hover: none), (pointer: coarse), (max-width: 767px)')
-    const syncMode = () => setIsTouchMode(mediaQuery.matches)
-    syncMode()
-
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', syncMode)
-      return () => mediaQuery.removeEventListener('change', syncMode)
-    }
-
-    mediaQuery.addListener(syncMode)
-    return () => mediaQuery.removeListener(syncMode)
-  }, [])
 
   const allCoursesDeduped = useMemo(() => dedupeCoTaught(allCourses), [allCourses])
   const matchedCoursesDeduped = useMemo(() => dedupeCoTaught(matchedCourses), [matchedCourses])
@@ -309,23 +280,29 @@ export default function ScatterPlot({
   ), [matchedCoursesDeduped, xMeta, xMetric, xMode, yMeta, yMetric, yMode])
 
   const bidOnlyData = useMemo(() => (
-    (biddingOnlyCourses || []).map((course) => {
-      const xReal = getValue(course, xMode, xMetric)
-      const yReal = getValue(course, yMode, yMetric)
-      const useRealCoords = xReal != null && yReal != null
-      return {
-        ...course,
-        _xVal: useRealCoords ? xReal : hashSpread(course.id, 'x') * xMode.domain[1] / 100,
-        _yVal: useRealCoords ? yReal : hashSpread(course.id, 'y') * yMode.domain[1] / 100,
-        _xLabel: xMeta.label,
-        _yLabel: yMeta.label,
-        _color: '#fbbf24',
-        _opacity: 0.9,
-        _isBidOnly: true,
-        _positionedReal: useRealCoords,
-      }
-    })
-  ), [biddingOnlyCourses, xMeta.label, xMetric, xMode, yMeta.label, yMetric, yMode])
+    (biddingOnlyCourses || [])
+      .map((course) => {
+        const normalizedBid = normalizeBidPrice(course.last_bid_price)
+        const axisBidValueX = xMode.useRaw ? course.last_bid_price ?? null : normalizedBid
+        const axisBidValueY = yMode.useRaw ? course.last_bid_price ?? null : normalizedBid
+
+        return {
+          ...course,
+          _xVal: axisBidValueX,
+          _yVal: axisBidValueY,
+          _xRaw: course.last_bid_price ?? null,
+          _yRaw: course.last_bid_price ?? null,
+          _xIsRaw: xMode.useRaw,
+          _yIsRaw: yMode.useRaw,
+          _xLabel: xMeta.label,
+          _yLabel: yMeta.label,
+          _color: '#fbbf24',
+          _opacity: 0.9,
+          _isBidOnly: true,
+        }
+      })
+      .filter((course) => course._xVal != null && course._yVal != null)
+  ), [biddingOnlyCourses, xMeta.label, xMode.useRaw, yMeta.label, yMode.useRaw])
 
   const allEmpty = allCoursesDeduped.length === 0 && bidOnlyData.length === 0
   const chartHeight = 340
@@ -443,47 +420,14 @@ export default function ScatterPlot({
             )}
 
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3', stroke: '#38bdf8' }} />
-            <Scatter
-              data={bgData}
-              isAnimationActive={false}
-              shape={<CustomDot onClick={(payload) => {
-                if (!payload?.id) return
-                if (isTouchMode) {
-                  setPinnedDatum(payload)
-                  return
-                }
-                navigate(`/courses?id=${encodeURIComponent(payload.id)}`)
-              }} />}
-            />
-            <Scatter
-              data={matchedData}
-              isAnimationActive={false}
-              shape={<CustomDot onClick={(payload) => {
-                if (!payload?.id) return
-                if (isTouchMode) {
-                  setPinnedDatum(payload)
-                  return
-                }
-                navigate(`/courses?id=${encodeURIComponent(payload.id)}`)
-              }} />}
-            />
-            <Scatter
-              data={bidOnlyData}
-              isAnimationActive={false}
-              shape={<CustomDot onClick={(payload) => {
-                if (!payload?.id) return
-                if (isTouchMode) {
-                  setPinnedDatum(payload)
-                  return
-                }
-                navigate(`/courses?id=${encodeURIComponent(payload.id)}`)
-              }} />}
-            />
+            <Scatter data={bgData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
+            <Scatter data={matchedData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
+            <Scatter data={bidOnlyData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
           </ScatterChart>
         </ResponsiveContainer>
       </div>
 
-      {isTouchMode && pinnedDatum && (
+      {pinnedDatum && (
         <div className="border-t border-[#2a2a3e] px-4 py-4" style={{ background: '#151521' }}>
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -503,16 +447,16 @@ export default function ScatterPlot({
             <p>{pinnedDatum.is_average ? `Average ${pinnedDatum.year_range}` : `${pinnedDatum.term} ${pinnedDatum.year}`}</p>
             {pinnedDatum._xVal != null && (
               <p>
-                {pinnedDatum._xLabel}: <span className="text-label">{pinnedDatum._xRaw != null ? `${pinnedDatum._xRaw} pts (${Math.round(pinnedDatum._xVal)}%)` : `${Math.round(pinnedDatum._xVal)}${pinnedDatum._xIsRaw ? '' : '%'}`}</span>
+                {pinnedDatum._xLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_xVal', '_xRaw', '_xIsRaw')}</span>
               </p>
             )}
             {pinnedDatum._yVal != null && (
               <p>
-                {pinnedDatum._yLabel}: <span className="text-label">{pinnedDatum._yRaw != null ? `${pinnedDatum._yRaw} pts (${Math.round(pinnedDatum._yVal)}%)` : `${Math.round(pinnedDatum._yVal)}${pinnedDatum._yIsRaw ? '' : '%'}`}</span>
+                {pinnedDatum._yLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_yVal', '_yRaw', '_yIsRaw')}</span>
               </p>
             )}
             {pinnedDatum.last_bid_price != null && (
-              <p>Last bid: <span className="text-label">{pinnedDatum.last_bid_price} pts</span></p>
+              <p>Last clearing price: <span className="text-label">{pinnedDatum.last_bid_price} pts</span></p>
             )}
           </div>
 
@@ -521,7 +465,7 @@ export default function ScatterPlot({
               onClick={() => navigate(`/courses?id=${encodeURIComponent(pinnedDatum.id)}`)}
               className="btn-details"
             >
-              View Full Details
+              Go to Course Details
             </button>
           </div>
         </div>
@@ -553,13 +497,12 @@ export default function ScatterPlot({
           <p className="text-muted"><span className="font-medium" style={{ color: '#e879a0' }}>Pink</span> = ever went to bidding</p>
           {bidOnlyData.length > 0 && (
             <p className="text-muted">
-              <span className="font-medium" style={{ color: '#fbbf24' }}>Amber diamond</span> = bidding now, no eval yet
-              {bidOnlyData.some((datum) => datum._positionedReal) ? ' with real bid coordinates' : ' with illustrative coordinates'}
+              <span className="font-medium" style={{ color: '#fbbf24' }}>Amber diamond</span> = bidding now, no eval yet, positioned by last clearing price
             </p>
           )}
         </div>
         <p className="mt-2 text-[11px] text-muted">
-          Tap a point for full course details. {matchedData.length} course{matchedData.length !== 1 ? 's' : ''} shown
+          Click a point to preview details. {matchedData.length} course{matchedData.length !== 1 ? 's' : ''} shown
           {bidOnlyData.length > 0 && ` · ${bidOnlyData.length} bidding only`}
           {bgData.length > 0 && ` · ${bgData.length} additional context points`}
         </p>
