@@ -171,14 +171,20 @@ function CustomTooltip({ active, payload }) {
         )}
       </div>
 
-      <div className="mt-2 border-t border-[#2a2a3e] pt-2">
-        {datum.last_bid_price != null ? (
+      <div className="mt-2 border-t border-[#2a2a3e] pt-2 space-y-0.5">
+        <p className="text-muted">
+          Bidding: <span className="font-medium" style={{ color: datum.ever_bidding ? '#e879a0' : '#8888aa' }}>{datum.ever_bidding ? 'Yes' : 'No'}</span>
+        </p>
+        {datum.last_bid_price != null && (
           <p className="text-muted">
             Last clearing price: <span className="font-medium text-label">{datum.last_bid_price} pts</span>
             {datum.last_bid_acad && <span className="ml-1 text-[10px]">({datum.last_bid_acad} {datum.last_bid_term || ''})</span>}
           </p>
-        ) : (
-          <p className="text-[10px] text-muted">No bidding history</p>
+        )}
+        {datum.bid_clearing_price != null && datum.bid_clearing_price !== datum.last_bid_price && (
+          <p className="text-muted">
+            This term: <span className="font-medium text-label">{datum.bid_clearing_price} pts</span>
+          </p>
         )}
       </div>
 
