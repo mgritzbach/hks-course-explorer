@@ -178,6 +178,12 @@ function CustomTooltip({ active, payload }) {
       </div>
 
       <div className="mt-2 border-t border-[#2a2a3e] pt-2 space-y-0.5">
+        {datum.n_respondents != null && (
+          <p className="text-muted">
+            N=<span className="font-medium text-label">{datum.n_respondents}</span>
+            <span className="ml-1 text-[10px]" style={{ color: '#8888aa' }}>survey respondents</span>
+          </p>
+        )}
         <p className="text-muted">
           Bidding: <span className="font-medium" style={{ color: datum.ever_bidding ? '#e879a0' : '#8888aa' }}>{datum.ever_bidding ? 'Yes' : 'No'}</span>
         </p>
@@ -194,7 +200,7 @@ function CustomTooltip({ active, payload }) {
         )}
       </div>
 
-      {!datum._isBidOnly && <p className="mt-1 text-[10px]" style={{ color: '#60a5fa' }}>Click for pinned details</p>}
+      {!datum._isBidOnly && <p className="mt-1 text-[10px]" style={{ color: '#60a5fa' }}>Click to pin · open full course details below</p>}
     </div>
   )
 }
@@ -483,6 +489,9 @@ export default function ScatterPlot({
                 {pinnedDatum._yLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_yVal', '_yRaw', '_yIsRaw')}</span>
               </p>
             )}
+            {pinnedDatum.n_respondents != null && (
+              <p>N=<span className="text-label">{pinnedDatum.n_respondents}</span> survey respondents</p>
+            )}
             {pinnedDatum.last_bid_price != null && (
               <p>Last clearing price: <span className="text-label">{pinnedDatum.last_bid_price} pts</span></p>
             )}
@@ -533,6 +542,9 @@ export default function ScatterPlot({
           Click a point to preview details. {matchedData.length} course{matchedData.length !== 1 ? 's' : ''} shown
           {bidOnlyData.length > 0 && ` · ${bidOnlyData.length} bidding only`}
           {bgData.length > 0 && ` · ${bgData.length} additional context points`}
+        </p>
+        <p className="mt-1 text-[10px] text-muted md:hidden" style={{ color: '#6060a0' }}>
+          Tip: rotate to landscape for a larger chart on mobile.
         </p>
       </div>
     </div>
