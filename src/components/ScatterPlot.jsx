@@ -270,6 +270,7 @@ export default function ScatterPlot({
 }) {
   const navigate = useNavigate()
   const [pinnedDatum, setPinnedDatum] = useState(null)
+  const [hoverState, setHoverState] = useState(null)
   const chartWrapperRef = useRef(null)
   const [zoomedX, setZoomedX] = useState(null)
   const [zoomedY, setZoomedY] = useState(null)
@@ -414,37 +415,6 @@ export default function ScatterPlot({
     if (nextY) setZoomedY(clampDomain(nextY, yMode.domain))
   }
 
-  const buildHoverHtml = (datum) => {
-    const xLine = datum._isBidOnly || datum._xVal == null
-      ? ''
-      : `${datum._xLabel}: ${formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}`
-    const yLine = datum._isBidOnly || datum._yVal == null
-      ? ''
-      : `${datum._yLabel}: ${formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}`
-    const bidOnlyLine = datum._isBidOnly
-      ? 'No eval data yet - ranked by bid competitiveness'
-      : ''
-    const respondents = datum.n_respondents != null
-      ? `N=${datum.n_respondents} survey respondents`
-      : ''
-    const lastBid = datum.last_bid_price != null
-      ? `Last clearing price: ${datum.last_bid_price} pts`
-      : ''
-
-    return [
-      `${datum.course_code} - ${datum.course_name}`,
-      `${datum.professor_display || datum.professor}`,
-      `${datum.is_average ? `avg ${datum.year_range}` : `${datum.term} ${datum.year}`}`,
-      xLine,
-      yLine,
-      bidOnlyLine,
-      respondents,
-      `Bidding: ${datum.ever_bidding ? 'Yes' : 'No'}`,
-      lastBid,
-      'Click to pin and preview details below',
-    ].filter(Boolean).join('<br>')
-  }
-
   const plotData = useMemo(() => {
     const traces = []
 
@@ -480,9 +450,8 @@ export default function ScatterPlot({
         mode: 'markers',
         x: matchedData.map((datum) => datum._xVal),
         y: matchedData.map((datum) => datum._yVal),
-        text: matchedData.map(buildHoverHtml),
         customdata: matchedData,
-        hovertemplate: '%{text}<extra></extra>',
+        hoverinfo: 'none',
         showlegend: false,
         marker: {
           size: 11,
@@ -498,9 +467,8 @@ export default function ScatterPlot({
         mode: 'markers',
         x: bidOnlyData.map((datum) => datum._xVal),
         y: bidOnlyData.map((datum) => datum._yVal),
-        text: bidOnlyData.map(buildHoverHtml),
         customdata: bidOnlyData,
-        hovertemplate: '%{text}<extra></extra>',
+        hoverinfo: 'none',
         showlegend: false,
         marker: {
           size: 12,
@@ -627,6 +595,29 @@ export default function ScatterPlot({
     ],
   }), [])
 
+  const handlePlotHover = (event) => {
+    const point = event?.points?.[0]
+    const datum = point?.customdata
+    const nativeEvent = event?.event
+    const wrapper = chartWrapperRef.current
+    if (!datum?.id || !nativeEvent || !wrapper) return
+
+    const bounds = wrapper.getBoundingClientRect()
+    const tooltipWidth = 320
+    const tooltipHeight = 220
+    const offset = 14
+
+    let left = nativeEvent.clientX - bounds.left + offset
+    let top = nativeEvent.clientY - bounds.top - tooltipHeight / 2
+
+    left = Math.max(12, Math.min(left, bounds.width - tooltipWidth - 12))
+    top = Math.max(12, Math.min(top, bounds.height - tooltipHeight - 12))
+
+    setHoverState({ datum, left, top })
+  }
+
+  const clearHover = () => setHoverState(null)
+
   const AxisSelectors = () => (
     <div className="grid gap-3 border-b px-4 py-4 md:grid-cols-2" style={{ borderColor: 'var(--line)' }}>
       <div>
@@ -716,12 +707,83 @@ export default function ScatterPlot({
           config={plotConfig}
           useResizeHandler
           onRelayout={handlePlotRelayout}
+          onHover={handlePlotHover}
+          onUnhover={clearHover}
           onClick={(event) => {
             const datum = event?.points?.[0]?.customdata
             if (datum?.id) setPinnedDatum(datum)
           }}
           style={{ width: '100%', height: `${chartHeight}px` }}
         />
+
+        {hoverState?.datum && (
+          <div
+            className="rounded-2xl px-3 py-2 text-xs shadow-lg"
+            style={{
+              position: 'absolute',
+              left: hoverState.left,
+              top: hoverState.top,
+              width: 320,
+              maxWidth: 'calc(100% - 24px)',
+              background: 'var(--panel-strong)',
+              border: '1px solid var(--line-strong)',
+              color: 'var(--text)',
+              boxShadow: 'var(--shadow-lg)',
+              pointerEvents: 'none',
+              zIndex: 5,
+            }}
+          >
+            <p className="mb-1 text-sm font-bold" style={{ color: hoverState.datum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>
+              {hoverState.datum.course_code}
+            </p>
+            <p className="mb-1 leading-snug text-label">{hoverState.datum.course_name}</p>
+            <p className="mb-1 text-muted">
+              {hoverState.datum.professor_display || hoverState.datum.professor}
+              {hoverState.datum._coTaught && (
+                <span className="ml-1 text-[10px]" style={{ color: 'var(--blue)' }}>
+                  co-taught ({hoverState.datum._coTaughtCount})
+                </span>
+              )}
+            </p>
+            <p className="mb-2 text-muted">
+              {hoverState.datum.is_average ? `avg ${hoverState.datum.year_range}` : `${hoverState.datum.term} ${hoverState.datum.year}`}
+            </p>
+
+            <div className="space-y-0.5">
+              {hoverState.datum._xVal != null && !hoverState.datum._isBidOnly && (
+                <p>{hoverState.datum._xLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_xVal', '_xRaw', '_xIsRaw')}</span></p>
+              )}
+              {hoverState.datum._yVal != null && !hoverState.datum._isBidOnly && (
+                <p>{hoverState.datum._yLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_yVal', '_yRaw', '_yIsRaw')}</span></p>
+              )}
+              {hoverState.datum._isBidOnly && (
+                <p className="text-[10px]" style={{ color: 'var(--gold)' }}>No eval data yet · ranked by bid competitiveness</p>
+              )}
+              {hoverState.datum.metrics_pct?.Instructor_Rating != null && hoverState.datum._xLabel !== 'Instructor Rating' && hoverState.datum._yLabel !== 'Instructor Rating' && (
+                <p>Instructor: <span className="font-medium" style={{ color: 'var(--blue)' }}>{Math.round(hoverState.datum.metrics_pct.Instructor_Rating)}%</span></p>
+              )}
+            </div>
+
+            <div className="mt-2 space-y-0.5 border-t pt-2" style={{ borderColor: 'var(--line)' }}>
+              {hoverState.datum.n_respondents != null && (
+                <p className="text-muted">
+                  N=<span className="font-medium text-label">{hoverState.datum.n_respondents}</span>
+                  <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>survey respondents</span>
+                </p>
+              )}
+              <p className="text-muted">
+                Bidding: <span className="font-medium" style={{ color: hoverState.datum.ever_bidding ? '#e6a4bb' : 'var(--text-muted)' }}>{hoverState.datum.ever_bidding ? 'Yes' : 'No'}</span>
+              </p>
+              {hoverState.datum.last_bid_price != null && (
+                <p className="text-muted">
+                  Last clearing price: <span className="font-medium text-label">{hoverState.datum.last_bid_price} pts</span>
+                </p>
+              )}
+            </div>
+
+            <p className="mt-1 text-[10px]" style={{ color: 'var(--blue)' }}>Click to pin and preview details below</p>
+          </div>
+        )}
       </div>
 
       {pinnedDatum && (
