@@ -7,7 +7,7 @@ function countActiveFilters(filters) {
   if (filters.searchText.trim()) count++
   if (filters.concentration !== 'All') count++
   if (filters.coreFilter !== 'all') count++
-  if (filters.isStemOnly) count++
+  if (filters.stemGroup !== 'all') count++
   if (filters.gender !== 'all') count++
   if (filters.minInstructorPct !== 'any') count++
   if (filters.evalOnly) count++
@@ -71,7 +71,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       concentration: 'All',
       coreFilter: 'all',
       terms: ['Fall', 'Spring', 'January'],
-      isStemOnly: false,
+      stemGroup: 'all',
       year: meta.default_year,
       gender: 'all',
       minInstructorPct: 'any',
@@ -241,19 +241,21 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         </div>
       </div>
 
+      {/* STEM */}
+      <div className="filter-section px-4 py-3">
+        <label className="filter-label mb-1.5 block">STEM</label>
+        <div className="select-wrap">
+          <select value={filters.stemGroup} onChange={(event) => update({ stemGroup: event.target.value })}>
+            <option value="all">All courses</option>
+            <option value="stem">STEM only</option>
+            <option value="A">STEM A only</option>
+            <option value="B">STEM B only</option>
+          </select>
+        </div>
+      </div>
+
       {/* Checkboxes */}
       <div className="filter-section flex flex-col gap-3 px-4 py-3">
-        <label className="flex cursor-pointer items-center gap-2.5">
-          <input
-            type="checkbox"
-            checked={filters.isStemOnly}
-            onChange={(event) => update({ isStemOnly: event.target.checked })}
-            className="h-3.5 w-3.5 cursor-pointer"
-            style={{ accentColor: 'var(--accent)' }}
-          />
-          <span className="text-xs text-label">STEM courses only</span>
-        </label>
-
         <label className="flex cursor-pointer items-center gap-2.5">
           <input
             type="checkbox"

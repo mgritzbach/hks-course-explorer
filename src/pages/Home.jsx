@@ -19,7 +19,7 @@ function applyFilters(courses, filters) {
     concentration,
     coreFilter,
     terms,
-    isStemOnly,
+    stemGroup,
     year,
     gender,
     minInstructorPct,
@@ -44,7 +44,9 @@ function applyFilters(courses, filters) {
     if (concentration !== 'All' && course.concentration !== concentration) return false
     if (coreFilter === 'core' && !course.is_core) return false
     if (coreFilter === 'no-core' && course.is_core) return false
-    if (isStemOnly && !course.is_stem) return false
+    if (stemGroup === 'stem' && !course.is_stem) return false
+    if (stemGroup === 'A' && course.stem_group !== 'A') return false
+    if (stemGroup === 'B' && course.stem_group !== 'B') return false
     if (gender !== 'all' && course.gender != null && course.gender !== gender) return false
 
     if (minPct !== null) {
@@ -82,7 +84,7 @@ function countFilterBadges(filters) {
   if (filters.searchText.trim()) count++
   if (filters.concentration !== 'All') count++
   if (filters.coreFilter !== 'all') count++
-  if (filters.isStemOnly) count++
+  if (filters.stemGroup !== 'all') count++
   if (filters.gender !== 'all') count++
   if (filters.minInstructorPct !== 'any') count++
   if (filters.evalOnly) count++
@@ -111,8 +113,8 @@ const PRESETS = [
   {
     key: 'stem_only',
     label: 'STEM Only',
-    apply: (filters) => ({ ...filters, isStemOnly: true }),
-    isActive: (filters) => filters.isStemOnly,
+    apply: (filters) => ({ ...filters, stemGroup: 'stem' }),
+    isActive: (filters) => filters.stemGroup !== 'all',
   },
   {
     key: 'bidding_2026',
@@ -146,7 +148,7 @@ export default function Home({ courses, meta, favs }) {
     concentration: initConc,
     coreFilter: 'all',
     terms: initTerms,
-    isStemOnly: false,
+    stemGroup: 'all',
     year: initYear,
     gender: 'all',
     minInstructorPct: 'any',

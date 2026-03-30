@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CartesianGrid,
@@ -11,6 +11,23 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+
+// Must match ScatterChart margin and YAxis width props
+const CHART_MARGIN = { top: 10, right: 14, bottom: 28, left: 0 }
+const Y_AXIS_WIDTH = 44
+
+function getDataCoords(rawX, rawY, containerWidth, containerHeight, xDomain, yDomain) {
+  const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left
+  const plotRight = containerWidth - CHART_MARGIN.right
+  const plotTop = CHART_MARGIN.top
+  const plotBottom = containerHeight - CHART_MARGIN.bottom
+  const px = Math.max(0, Math.min(1, (rawX - plotLeft) / (plotRight - plotLeft)))
+  const py = Math.max(0, Math.min(1, (rawY - plotTop) / (plotBottom - plotTop)))
+  return {
+    x: xDomain[0] + px * (xDomain[1] - xDomain[0]),
+    y: yDomain[1] - py * (yDomain[1] - yDomain[0]),
+  }
+}
 
 function dedupeCoTaught(courses) {
   const grouped = new Map()
@@ -242,6 +259,15 @@ export default function ScatterPlot({
   const navigate = useNavigate()
   const [pinnedDatum, setPinnedDatum] = useState(null)
 
+  // Drag-to-zoom state
+  const chartWrapperRef = useRef(null)
+  const isDraggingRef = useRef(false)
+  const dragStartRef = useRef(null)
+  const [isDragMode, setIsDragMode] = useState(false)
+  const [zoomSel, setZoomSel] = useState(null)
+  const [zoomedX, setZoomedX] = useState(null)
+  const [zoomedY, setZoomedY] = useState(null)
+
   const allCoursesDeduped = useMemo(() => dedupeCoTaught(allCourses), [allCourses])
   const matchedCoursesDeduped = useMemo(() => dedupeCoTaught(matchedCourses), [matchedCourses])
 
@@ -252,6 +278,10 @@ export default function ScatterPlot({
   const xMode = useMemo(() => getAxisMode(xMeta, allCoursesDeduped, matchedCoursesDeduped), [allCoursesDeduped, matchedCoursesDeduped, xMeta])
   const yMode = useMemo(() => getAxisMode(yMeta, allCoursesDeduped, matchedCoursesDeduped), [allCoursesDeduped, matchedCoursesDeduped, yMeta])
   const showQuadrants = !xMeta.bid_metric && !yMeta.bid_metric
+
+  const effectiveXDomain = zoomedX || xMode.domain
+  const effectiveYDomain = zoomedY || yMode.domain
+  const isZoomed = zoomedX != null || zoomedY != null
 
   const warnings = [
     coverageWarning(allCoursesDeduped, xMeta),
@@ -343,6 +373,67 @@ export default function ScatterPlot({
     if (!stillExists) setPinnedDatum(null)
   }, [bidOnlyData, matchedData, pinnedDatum])
 
+  // Reset zoom when axis metrics change
+  useEffect(() => {
+    setZoomedX(null)
+    setZoomedY(null)
+  }, [xMetric, yMetric])
+
+  const handleWrapperMouseDown = (e) => {
+    if (e.button !== 0) return
+    const rect = chartWrapperRef.current.getBoundingClientRect()
+    dragStartRef.current = { rawX: e.clientX - rect.left, rawY: e.clientY - rect.top }
+    isDraggingRef.current = false
+  }
+
+  const handleWrapperMouseMove = (e) => {
+    if (!dragStartRef.current) return
+    const rect = chartWrapperRef.current.getBoundingClientRect()
+    const rawX = e.clientX - rect.left
+    const rawY = e.clientY - rect.top
+    const dx = rawX - dragStartRef.current.rawX
+    const dy = rawY - dragStartRef.current.rawY
+    if (!isDraggingRef.current && Math.hypot(dx, dy) < 5) return
+    if (!isDraggingRef.current) {
+      isDraggingRef.current = true
+      setIsDragMode(true)
+    }
+    setZoomSel({ rawX1: dragStartRef.current.rawX, rawY1: dragStartRef.current.rawY, rawX2: rawX, rawY2: rawY })
+  }
+
+  const handleWrapperMouseUp = (e) => {
+    if (isDraggingRef.current && dragStartRef.current && chartWrapperRef.current) {
+      const rect = chartWrapperRef.current.getBoundingClientRect()
+      const rawX2 = e.clientX - rect.left
+      const rawY2 = e.clientY - rect.top
+      const { rawX: rawX1, rawY: rawY1 } = dragStartRef.current
+      if (Math.abs(rawX2 - rawX1) >= 10 && Math.abs(rawY2 - rawY1) >= 10) {
+        const w = chartWrapperRef.current.offsetWidth
+        const h = chartWrapperRef.current.offsetHeight
+        const c1 = getDataCoords(rawX1, rawY1, w, h, effectiveXDomain, effectiveYDomain)
+        const c2 = getDataCoords(rawX2, rawY2, w, h, effectiveXDomain, effectiveYDomain)
+        setZoomedX([Math.min(c1.x, c2.x), Math.max(c1.x, c2.x)])
+        setZoomedY([Math.min(c1.y, c2.y), Math.max(c1.y, c2.y)])
+      }
+    }
+    isDraggingRef.current = false
+    dragStartRef.current = null
+    setIsDragMode(false)
+    setZoomSel(null)
+  }
+
+  const handleWrapperMouseLeave = () => {
+    isDraggingRef.current = false
+    dragStartRef.current = null
+    setIsDragMode(false)
+    setZoomSel(null)
+  }
+
+  const resetZoom = () => {
+    setZoomedX(null)
+    setZoomedY(null)
+  }
+
   const AxisSelectors = () => (
     <div className="grid gap-3 border-b px-4 py-4 md:grid-cols-2" style={{ borderColor: 'var(--line)' }}>
       <div>
@@ -372,6 +463,19 @@ export default function ScatterPlot({
           </select>
         </div>
       </div>
+
+      {isZoomed && (
+        <div className="flex items-center gap-2 md:col-span-2">
+          <span className="text-[10px]" style={{ color: 'var(--blue)' }}>Zoomed in</span>
+          <button
+            onClick={resetZoom}
+            className="rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors hover:text-label"
+            style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
+          >
+            Reset zoom
+          </button>
+        </div>
+      )}
     </div>
   )
 
@@ -393,9 +497,16 @@ export default function ScatterPlot({
     <div className="surface-card shrink-0 rounded-[24px]" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <AxisSelectors />
 
-      <div style={{ width: '100%', height: chartHeight, flexShrink: 0 }}>
+      <div
+        ref={chartWrapperRef}
+        style={{ width: '100%', height: chartHeight, flexShrink: 0, position: 'relative', cursor: 'crosshair' }}
+        onMouseDown={handleWrapperMouseDown}
+        onMouseMove={handleWrapperMouseMove}
+        onMouseUp={handleWrapperMouseUp}
+        onMouseLeave={handleWrapperMouseLeave}
+      >
         <ResponsiveContainer width="100%" height={chartHeight}>
-          <ScatterChart margin={{ top: 10, right: 14, bottom: 28, left: 0 }}>
+          <ScatterChart margin={CHART_MARGIN}>
             {showQuadrants && (
               <>
                 <ReferenceArea x1={greenX0} x2={greenX1} y1={greenY0} y2={greenY1} fill="rgba(123, 176, 138, 0.08)" />
@@ -408,7 +519,7 @@ export default function ScatterPlot({
             <XAxis
               type="number"
               dataKey="_xVal"
-              domain={xMode.domain}
+              domain={effectiveXDomain}
               tickFormatter={xMode.tickFmt}
               tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
               axisLine={{ stroke: 'rgba(243, 233, 226, 0.2)' }}
@@ -418,15 +529,15 @@ export default function ScatterPlot({
             <YAxis
               type="number"
               dataKey="_yVal"
-              domain={yMode.domain}
+              domain={effectiveYDomain}
               tickFormatter={yMode.tickFmt}
               tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
               axisLine={{ stroke: 'rgba(243, 233, 226, 0.2)' }}
               tickLine={false}
-              width={44}
+              width={Y_AXIS_WIDTH}
             />
 
-            {showQuadrants && (
+            {showQuadrants && !isZoomed && (
               <>
                 <ReferenceLine x={50} stroke="rgba(243, 233, 226, 0.28)" strokeDasharray="4 4" />
                 <ReferenceLine y={50} stroke="rgba(243, 233, 226, 0.28)" strokeDasharray="4 4" />
@@ -439,6 +550,29 @@ export default function ScatterPlot({
             <Scatter data={bidOnlyData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
           </ScatterChart>
         </ResponsiveContainer>
+
+        {/* Block chart interaction while dragging to prevent dot clicks */}
+        {isDragMode && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 10 }} />
+        )}
+
+        {/* Selection rectangle */}
+        {zoomSel && (
+          <div
+            style={{
+              position: 'absolute',
+              left: Math.min(zoomSel.rawX1, zoomSel.rawX2),
+              top: Math.min(zoomSel.rawY1, zoomSel.rawY2),
+              width: Math.abs(zoomSel.rawX2 - zoomSel.rawX1),
+              height: Math.abs(zoomSel.rawY2 - zoomSel.rawY1),
+              border: '1.5px dashed rgba(165, 28, 48, 0.75)',
+              background: 'rgba(165, 28, 48, 0.07)',
+              borderRadius: 2,
+              pointerEvents: 'none',
+              zIndex: 11,
+            }}
+          />
+        )}
       </div>
 
       {pinnedDatum && (
@@ -506,7 +640,9 @@ export default function ScatterPlot({
           )}
         </div>
         <p className="mt-2 text-[11px] text-muted">
-          Click a point to preview details. {matchedData.length} course{matchedData.length !== 1 ? 's' : ''} shown
+          Click a point to preview details · drag to zoom in
+          {isZoomed && <span style={{ color: 'var(--blue)' }}> · zoomed</span>}
+          {` · ${matchedData.length} course${matchedData.length !== 1 ? 's' : ''} shown`}
           {bidOnlyData.length > 0 && ` · ${bidOnlyData.length} bidding only`}
           {bgData.length > 0 && ` · ${bgData.length} additional context points`}
         </p>

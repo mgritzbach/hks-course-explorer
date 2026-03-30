@@ -49,7 +49,7 @@ export default function CourseCard({ course, favs }) {
           <div className="mb-2 flex flex-wrap gap-2">
             {course.is_stem && (
               <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>
-                STEM
+                {course.stem_group ? `STEM ${course.stem_group}` : 'STEM'}
               </span>
             )}
             {course.is_core && (
