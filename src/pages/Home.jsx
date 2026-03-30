@@ -358,7 +358,7 @@ export default function Home({ courses, meta, favs }) {
           </div>
         )}
 
-        <div className="mb-5 flex gap-2 overflow-x-auto border-b pb-2" style={{ borderColor: 'var(--line)' }}>
+        <div className="top-tabs-bar mb-5">
           {[
             { key: 'comparisons', label: 'Course Comparisons' },
             { key: 'map', label: 'Course Map' },
@@ -366,7 +366,7 @@ export default function Home({ courses, meta, favs }) {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold transition-colors ${
+              className={`top-tab-button whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold transition-colors ${
                 activeTab === tab.key ? 'text-white' : 'hover:text-label'
               }`}
               style={activeTab === tab.key

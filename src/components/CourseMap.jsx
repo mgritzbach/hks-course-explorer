@@ -171,6 +171,10 @@ function buildDescriptionMap(courses) {
   return normalizeCoordinates(projected)
 }
 
+function countCoursesWithMapText(courses) {
+  return dedupeCourses(courses).filter((course) => buildCourseText(course).trim().length > 0).length
+}
+
 function MapHoverCard({ datum }) {
   if (!datum) return null
 
@@ -213,6 +217,8 @@ export default function CourseMap({ courses }) {
   const wrapperRef = useRef(null)
   const [hoverState, setHoverState] = useState(null)
   const points = useMemo(() => buildDescriptionMap(courses), [courses])
+  const sourceCourseCount = useMemo(() => countCoursesWithMapText(courses), [courses])
+  const omittedCourseCount = Math.max(0, dedupeCourses(courses).length - sourceCourseCount)
 
   const legend = useMemo(() => {
     const prefixes = [...new Set(points.map((point) => point.prefix))].sort()
@@ -333,9 +339,17 @@ export default function CourseMap({ courses }) {
       <div className="border-b px-5 py-4" style={{ borderColor: 'var(--line)' }}>
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="mb-1 text-sm font-semibold text-label">About</p>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-label">Course Similarity Map</p>
+              <span
+                className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                style={{ background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}
+              >
+                {points.length} mapped
+              </span>
+            </div>
             <p className="max-w-3xl text-sm text-muted">
-              This map places courses closer together when their descriptions, titles, and themes use similar language.
+              This view places courses closer together when their descriptions, titles, prerequisites, and section notes use similar language.
             </p>
           </div>
           <p className="text-[10px] text-muted">Zoom, pan, and click any point to open course details</p>
@@ -345,6 +359,17 @@ export default function CourseMap({ courses }) {
           <p>Nearby points indicate related course content.</p>
           <p>Prefix color shows the course family.</p>
           <p>Pink outlines mark courses with bidding history.</p>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted">
+          <span className="rounded-full px-2.5 py-1" style={{ background: 'var(--panel-subtle)', border: '1px solid var(--line)' }}>
+            Based on text from {sourceCourseCount} course{sourceCourseCount !== 1 ? 's' : ''}
+          </span>
+          {omittedCourseCount > 0 && (
+            <span className="rounded-full px-2.5 py-1" style={{ background: 'var(--panel-subtle)', border: '1px solid var(--line)' }}>
+              {omittedCourseCount} omitted without enough descriptive text
+            </span>
+          )}
         </div>
       </div>
 
