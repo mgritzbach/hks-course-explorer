@@ -811,7 +811,7 @@ export default function Courses({ courses, meta, favs }) {
           </>
         )}
 
-        <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach VUS&apos;18, MPA&apos;26 - Data from HKS QReports - {new Date().getFullYear()}</div>
+        <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach VUS&apos;18, MPA&apos;26 - {new Date().getFullYear()}</div>
       </main>
     </div>
   )
