@@ -130,6 +130,11 @@ export default function CourseCard({ course, favs }) {
                 Last Bid: {course.last_bid_price} pts ({course.last_bid_acad || ''} {course.last_bid_term || ''})
               </span>
             )}
+            {course.avg_bid_price != null && (
+              <span className="block pt-1 sm:inline sm:pl-2">
+                Avg Bid: {Math.round(course.avg_bid_price)} pts
+              </span>
+            )}
           </>
         ) : (
           <>
@@ -138,6 +143,11 @@ export default function CourseCard({ course, favs }) {
             {course.ever_bidding && course.last_bid_price != null && (
               <span className="block pt-1 sm:inline sm:pl-2">
                 Last Bid: {course.last_bid_price} pts ({course.last_bid_acad || ''} {course.last_bid_term || ''})
+              </span>
+            )}
+            {course.avg_bid_price != null && (
+              <span className="block pt-1 sm:inline sm:pl-2">
+                Avg Bid: {Math.round(course.avg_bid_price)} pts
               </span>
             )}
           </>

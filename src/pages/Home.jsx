@@ -197,6 +197,22 @@ export default function Home({ courses, meta, favs }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [sidebarOpen])
 
+  const avgBidByBase = useMemo(() => {
+    const grouped = new Map()
+    for (const course of courses) {
+      const bid = course.bid_clearing_price ?? course.last_bid_price
+      if (!course.course_code_base || bid == null) continue
+      if (!grouped.has(course.course_code_base)) grouped.set(course.course_code_base, [])
+      grouped.get(course.course_code_base).push(bid)
+    }
+
+    const averages = new Map()
+    for (const [base, bids] of grouped.entries()) {
+      averages.set(base, Math.round((bids.reduce((sum, value) => sum + value, 0) / bids.length) * 10) / 10)
+    }
+    return averages
+  }, [courses])
+
   const yearEvalCourses = useMemo(() => (
     avgMode
       ? courses.filter((course) => course.is_average && course.has_eval)
@@ -204,7 +220,7 @@ export default function Home({ courses, meta, favs }) {
   ), [avgMode, courses, filters.year])
 
   const biddingOnlyCourses = useMemo(() => {
-    if (avgMode) return []
+    if (avgMode || filters.evalOnly) return []
     return courses.filter((course) =>
       course.year === filters.year &&
       !course.has_eval &&
@@ -212,9 +228,14 @@ export default function Home({ courses, meta, favs }) {
       !course.is_average &&
       filters.terms.includes(course.term)
     )
-  }, [avgMode, courses, filters.terms, filters.year])
+  }, [avgMode, courses, filters.evalOnly, filters.terms, filters.year])
 
-  const filtered = useMemo(() => applyFilters(courses, filters), [courses, filters])
+  const filtered = useMemo(() => (
+    applyFilters(courses, filters).map((course) => ({
+      ...course,
+      avg_bid_price: avgBidByBase.get(course.course_code_base) ?? null,
+    }))
+  ), [avgBidByBase, courses, filters])
   const filteredEval = useMemo(() => filtered.filter((course) => course.has_eval), [filtered])
 
   const sorted = useMemo(() => {
@@ -450,7 +471,7 @@ export default function Home({ courses, meta, favs }) {
         </div>
 
         <div className="app-footer mt-8">
-          HKS Course Explorer by Michael Gritzbach MPA&apos;26 · Data from HKS QReports · {new Date().getFullYear()}
+          HKS Course Explorer by Michael Gritzbach VUS&apos;18, MPA&apos;26 · Data from HKS QReports · {new Date().getFullYear()}
         </div>
       </main>
     </div>

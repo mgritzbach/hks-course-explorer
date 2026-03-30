@@ -303,11 +303,15 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
     if (!dedupMap.has(point.label) || point.price > dedupMap.get(point.label).price) dedupMap.set(point.label, point)
   }
   const trendData = [...dedupMap.values()]
+  const avgBidPrice = chartData.length
+    ? Math.round((chartData.reduce((sum, point) => sum + point.price, 0) / chartData.length) * 10) / 10
+    : null
 
   return (
     <div>
       <p className="mb-4 text-xs text-muted">
         Bidding history for <span style={{ color: 'var(--accent-strong)' }}>{selected.course_code_base}</span> ({biddingHistory.length} record{biddingHistory.length !== 1 ? 's' : ''})
+        {avgBidPrice != null && <span className="ml-2">· Avg clearing price <span className="text-label">{avgBidPrice} pts</span></span>}
       </p>
 
       {trendData.length >= 2 && (
@@ -807,7 +811,7 @@ export default function Courses({ courses, meta, favs }) {
           </>
         )}
 
-        <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach MPA&apos;26 - Data from HKS QReports - {new Date().getFullYear()}</div>
+        <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach VUS&apos;18, MPA&apos;26 - Data from HKS QReports - {new Date().getFullYear()}</div>
       </main>
     </div>
   )
