@@ -15,7 +15,7 @@ import {
 // Must match ScatterChart margin and YAxis width props
 const CHART_MARGIN = { top: 10, right: 14, bottom: 28, left: 0 }
 const Y_AXIS_WIDTH = 44
-const MIN_ZOOM_SPAN_RATIO = 0.18
+const MIN_ZOOM_SPAN_RATIO = 0.015
 
 function clampDomain(nextDomain, baseDomain) {
   const baseSpan = baseDomain[1] - baseDomain[0]
