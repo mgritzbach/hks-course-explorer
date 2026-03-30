@@ -371,7 +371,7 @@ export default function Courses({ courses, meta, favs }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(searchParams.get('id') || null)
-  const [openSections, setOpenSections] = useState({ details: true, performance: true, bidding: true })
+  const [activeTab, setActiveTab] = useState('details')
   const [descOpen, setDescOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const [filters, setFilters] = useState({
@@ -390,6 +390,7 @@ export default function Courses({ courses, meta, favs }) {
     const id = searchParams.get('id')
     if (id) {
       setSelectedId(id)
+      setActiveTab('details')
     }
   }, [searchParams])
 
@@ -404,11 +405,6 @@ export default function Courses({ courses, meta, favs }) {
     }
     return course || null
   }, [courses, selectedId])
-
-  useEffect(() => {
-    if (!selected) return
-    setOpenSections({ details: true, performance: true, bidding: true })
-  }, [selected?.id])
 
   useEffect(() => {
     if (selected?.description) setDescOpen(true)
@@ -568,250 +564,253 @@ export default function Courses({ courses, meta, favs }) {
               {selected.n_respondents != null && <span>N={selected.n_respondents} respondents</span>}
             </div>
 
-            <div className="mb-3 rounded-[18px] border px-4 py-3" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
-              <div className="flex flex-wrap gap-2 text-sm font-medium">
-                <span style={{ color: 'var(--accent-strong)' }}>Course Details</span>
-                <span className="text-muted">•</span>
-                <span className="text-label">Past Performance</span>
-                <span className="text-muted">•</span>
-                <span className="text-label">Bidding History</span>
-              </div>
+            <div className="mb-6 flex flex-wrap gap-2 border-b pb-3" style={{ borderColor: 'var(--line)' }}>
+              {[
+                ['details', 'Course Details'],
+                ['performance', 'Past Performance'],
+                ['bidding', 'Bidding History'],
+              ].map(([key, label]) => {
+                const active = activeTab === key
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveTab(key)}
+                    className="rounded-full border px-4 py-2 text-sm font-semibold transition-colors"
+                    style={active
+                      ? {
+                          borderColor: 'rgba(165, 28, 48, 0.28)',
+                          background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.16), rgba(165, 28, 48, 0.08))',
+                          color: 'var(--accent-strong)',
+                          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+                        }
+                      : {
+                          borderColor: 'transparent',
+                          background: 'transparent',
+                          color: 'var(--text-muted)',
+                        }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
             </div>
 
-            <section className="mb-8">
-              <button
-                onClick={() => setOpenSections((current) => ({ ...current, details: !current.details }))}
-                className="mb-4 flex w-full items-center justify-between rounded-[18px] border px-4 py-3 text-left"
-                style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
-              >
-                <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Course Details</span>
-                <span className="text-xs text-muted">{openSections.details ? 'Hide' : 'Show'}</span>
-              </button>
-              {openSections.details && <div className="grid gap-4 lg:grid-cols-2">
-                <div className="surface-card rounded-[22px] p-5">
-                  <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Course Information</h4>
+            {activeTab === 'details' && (
+              <section className="mb-8">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="surface-card rounded-[22px] p-5">
+                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Course Information</h4>
 
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {selected.academic_area && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>{selected.academic_area}</span>}
-                    {selected.is_stem && <span className="rounded-full px-3 py-1 text-[10px] font-bold" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>STEM</span>}
-                    {selected.is_core && <span className="rounded-full px-3 py-1 text-[10px] font-bold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>Core</span>}
-                    {selected.cross_registration === true && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'rgba(123, 176, 138, 0.14)', color: 'var(--success)' }}>Cross-reg OK</span>}
-                    {selected.cross_registration === false && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'rgba(216, 112, 112, 0.12)', color: 'var(--danger)' }}>No cross-reg</span>}
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {selected.academic_area && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>{selected.academic_area}</span>}
+                      {selected.is_stem && <span className="rounded-full px-3 py-1 text-[10px] font-bold" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>STEM</span>}
+                      {selected.is_core && <span className="rounded-full px-3 py-1 text-[10px] font-bold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>Core</span>}
+                      {selected.cross_registration === true && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'rgba(123, 176, 138, 0.14)', color: 'var(--success)' }}>Cross-reg OK</span>}
+                      {selected.cross_registration === false && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'rgba(216, 112, 112, 0.12)', color: 'var(--danger)' }}>No cross-reg</span>}
+                    </div>
+
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                      <span className="text-2xl font-bold tracking-tight" style={{ color: 'var(--accent-strong)' }}>{selected.course_code}</span>
+                      <CopyButton text={selected.course_code_base || selected.course_code} />
+                      {selected.term && <span className="text-sm text-muted">{selected.term} {selected.year}</span>}
+                    </div>
+
+                    {(selected.credits_min != null || selected.grading_basis) && (
+                      <div className="mb-4 flex flex-wrap gap-5 text-sm">
+                        {selected.credits_min != null && (
+                          <div>
+                            <span className="text-muted">Credits: </span>
+                            <span className="text-label">{selected.credits_min === selected.credits_max ? selected.credits_min : `${selected.credits_min}-${selected.credits_max}`}</span>
+                          </div>
+                        )}
+                        {selected.grading_basis && (
+                          <div>
+                            <span className="text-muted">Grading: </span>
+                            <span className="text-label">{selected.grading_basis.replace('HKS ', '')}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {(selected.meeting_days || selected.time_start) && (
+                      <div className="mb-4 text-sm">
+                        <span className="text-muted">Schedule: </span>
+                        <span className="text-label">
+                          {[selected.meeting_days, selected.time_start && selected.time_end ? `${selected.time_start}-${selected.time_end}` : selected.time_start].filter(Boolean).join(' ')}
+                        </span>
+                      </div>
+                    )}
+
+                    {selected.enrolled_cap != null && (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted">Enrollment ({selected.current_term || 'current'})</span>
+                          <span className="text-label">{selected.enrolled_total ?? '?'} / {selected.enrolled_cap}</span>
+                        </div>
+                        <div className="mt-2 h-2 w-full rounded-full" style={{ background: 'var(--line)' }}>
+                          <div
+                            className="h-2 rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, ((selected.enrolled_total || 0) / selected.enrolled_cap) * 100)}%`,
+                              background: (selected.enrolled_total || 0) >= selected.enrolled_cap ? 'var(--danger)' : 'var(--accent-strong)',
+                            }}
+                          />
+                        </div>
+                        {selected.waitlist_total > 0 && <p className="mt-1 text-xs" style={{ color: 'var(--warning)' }}>{selected.waitlist_total} on waitlist</p>}
+                      </div>
+                    )}
+
+                    {selected.professor_display && (
+                      <div className="mb-4">
+                        <p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Instructor</p>
+                        <button onClick={() => navigate(`/faculty?prof=${encodeURIComponent(selected.professor)}`)} className="text-left text-xl hover:underline" style={{ color: 'var(--blue)' }}>
+                          {selected.professor_display}
+                        </button>
+                        {selected.faculty_title && <p className="text-sm text-muted">{selected.faculty_title}</p>}
+                        {selected.faculty_category && <p className="text-sm text-muted">{selected.faculty_category}</p>}
+                      </div>
+                    )}
+
+                    {selected.last_bid_price != null && (
+                      <div className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
+                        <p className="mb-3 text-[10px] uppercase tracking-wider text-muted">Last Bid ({selected.last_bid_acad} {selected.last_bid_term})</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted">Clearing Price</span>
+                          <span className="rounded-xl px-3 py-2 text-xl font-bold" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>{selected.last_bid_price} pts</span>
+                        </div>
+                        {selected.last_bid_capacity != null && <div className="mt-2 flex items-center justify-between text-sm"><span className="text-muted">Capacity</span><span className="text-label">{selected.last_bid_capacity}</span></div>}
+                        {selected.last_bid_n_bids != null && <div className="mt-2 flex items-center justify-between text-sm"><span className="text-muted">Bids</span><span className="text-label">{selected.last_bid_n_bids}</span></div>}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="mb-4 flex flex-wrap items-center gap-2">
-                    <span className="text-2xl font-bold tracking-tight" style={{ color: 'var(--accent-strong)' }}>{selected.course_code}</span>
-                    <CopyButton text={selected.course_code_base || selected.course_code} />
-                    {selected.term && <span className="text-sm text-muted">{selected.term} {selected.year}</span>}
+                  <div className="surface-card rounded-[22px] p-5">
+                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Student Experience</h4>
+                    {instructorPct != null ? (
+                      <div className="mb-4 rounded-[18px] p-4" style={{ background: 'var(--panel-subtle)' }}>
+                        <p className="text-sm text-muted">Instructor Rating</p>
+                        <p className="text-2xl font-bold" style={{ color: LABEL_COLOR[selected.instructor_label] || 'var(--accent-strong)' }}>{selected.instructor_label}</p>
+                        <p className="text-sm text-muted">Better than {Math.round(instructorPct)}% of courses</p>
+                      </div>
+                    ) : <div className="mb-4 rounded-[18px] p-4 text-sm italic text-muted" style={{ background: 'var(--panel-subtle)' }}>No instructor rating data available</div>}
+                    {workloadPct != null ? (
+                      <div className="rounded-[18px] p-4" style={{ background: 'var(--panel-subtle)' }}>
+                        <p className="text-sm text-muted">Course Workload</p>
+                        <p className="text-2xl font-bold" style={{ color: WORKLOAD_COLOR[selected.workload_label] || 'var(--text-soft)' }}>{selected.workload_label}</p>
+                        <p className="text-sm text-muted">More intensive than {Math.round(workloadPct)}% of courses</p>
+                      </div>
+                    ) : <div className="rounded-[18px] p-4 text-sm italic text-muted" style={{ background: 'var(--panel-subtle)' }}>No workload data available</div>}
                   </div>
 
-                  {(selected.credits_min != null || selected.grading_basis) && (
-                    <div className="mb-4 flex flex-wrap gap-5 text-sm">
-                      {selected.credits_min != null && (
-                        <div>
-                          <span className="text-muted">Credits: </span>
-                          <span className="text-label">{selected.credits_min === selected.credits_max ? selected.credits_min : `${selected.credits_min}-${selected.credits_max}`}</span>
-                        </div>
+                  <div className="surface-card rounded-[22px] p-5 lg:col-span-2">
+                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">All Evaluation Metrics</h4>
+                    {selected.has_eval ? (
+                      <div className="grid gap-x-8 sm:grid-cols-2">
+                        {meta.metrics.map((metric) => (
+                          <MetricRow
+                            key={metric.key}
+                            label={metric.label}
+                            value={selected.metrics_pct?.[metric.key]}
+                            higherBetter={metric.higher_is_better}
+                            neutral={metric.key === 'Workload' || metric.key === 'Rigor'}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-6 text-center">
+                        <p className="text-sm text-muted">No evaluation data available for this course.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 lg:col-span-2">
+                    <div className="flex flex-wrap gap-3">
+                      {selected.course_url && (
+                        <a href={selected.course_url} target="_blank" rel="noopener noreferrer" className="btn-details inline-block">
+                          Course Website
+                        </a>
                       )}
-                      {selected.grading_basis && (
-                        <div>
-                          <span className="text-muted">Grading: </span>
-                          <span className="text-label">{selected.grading_basis.replace('HKS ', '')}</span>
-                        </div>
+                      {selected.instructor_profile_url && (
+                        <a
+                          href={selected.instructor_profile_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block rounded-full border px-5 py-2.5 text-sm font-medium transition-colors hover:text-label"
+                          style={{ borderColor: 'var(--line)', color: 'var(--text-soft)', background: 'var(--panel-subtle)' }}
+                        >
+                          Faculty Profile
+                        </a>
                       )}
+                      {favs && (() => {
+                        const starred = favs.isFavorite(selected.course_code_base)
+                        return (
+                          <button
+                            onClick={() => favs.toggle(selected.course_code_base)}
+                            className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-medium transition-colors"
+                            style={{
+                              borderColor: starred ? 'rgba(212, 168, 106, 0.45)' : 'var(--line)',
+                              color: starred ? 'var(--gold)' : 'var(--text-muted)',
+                              background: starred ? 'var(--gold-soft)' : 'var(--panel-subtle)',
+                            }}
+                          >
+                            {starred ? 'Shortlisted' : 'Add to Shortlist'}
+                          </button>
+                        )
+                      })()}
                     </div>
-                  )}
 
-                  {(selected.meeting_days || selected.time_start) && (
-                    <div className="mb-4 text-sm">
-                      <span className="text-muted">Schedule: </span>
-                      <span className="text-label">
-                        {[selected.meeting_days, selected.time_start && selected.time_end ? `${selected.time_start}-${selected.time_end}` : selected.time_start].filter(Boolean).join(' ')}
-                      </span>
-                    </div>
-                  )}
-
-                  {selected.enrolled_cap != null && (
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted">Enrollment ({selected.current_term || 'current'})</span>
-                        <span className="text-label">{selected.enrolled_total ?? '?'} / {selected.enrolled_cap}</span>
+                    {selected.description && (
+                      <div className="overflow-hidden rounded-[22px]" style={{ border: '1px solid var(--line)' }}>
+                        <button onClick={() => setDescOpen((current) => !current)} className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-label" style={{ background: 'var(--panel-strong)' }}>
+                          <span>Course Description</span>
+                          <span className="text-xs text-muted">{descOpen ? 'Hide' : 'Show'}</span>
+                        </button>
+                        {descOpen && <div className="px-4 py-4 text-base leading-relaxed text-label" style={{ background: 'var(--panel-subtle)' }}>{selected.description}</div>}
                       </div>
-                      <div className="mt-2 h-2 w-full rounded-full" style={{ background: 'var(--line)' }}>
-                        <div
-                          className="h-2 rounded-full transition-all"
-                          style={{
-                            width: `${Math.min(100, ((selected.enrolled_total || 0) / selected.enrolled_cap) * 100)}%`,
-                            background: (selected.enrolled_total || 0) >= selected.enrolled_cap ? 'var(--danger)' : 'var(--accent-strong)',
-                          }}
-                        />
-                      </div>
-                      {selected.waitlist_total > 0 && <p className="mt-1 text-xs" style={{ color: 'var(--warning)' }}>{selected.waitlist_total} on waitlist</p>}
-                    </div>
-                  )}
+                    )}
 
-                  {selected.professor_display && (
-                    <div className="mb-4">
-                      <p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Instructor</p>
-                      <button onClick={() => navigate(`/faculty?prof=${encodeURIComponent(selected.professor)}`)} className="text-left text-xl hover:underline" style={{ color: 'var(--blue)' }}>
-                        {selected.professor_display}
-                      </button>
-                      {selected.faculty_title && <p className="text-sm text-muted">{selected.faculty_title}</p>}
-                      {selected.faculty_category && <p className="text-sm text-muted">{selected.faculty_category}</p>}
-                    </div>
-                  )}
-
-                  {selected.last_bid_price != null && (
-                    <div className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
-                      <p className="mb-3 text-[10px] uppercase tracking-wider text-muted">Last Bid ({selected.last_bid_acad} {selected.last_bid_term})</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted">Clearing Price</span>
-                        <span className="rounded-xl px-3 py-2 text-xl font-bold" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>{selected.last_bid_price} pts</span>
+                    {selected.prerequisites && (
+                      <div className="surface-card rounded-[22px] px-4 py-4">
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">Prerequisites & Restrictions</p>
+                        <p className="text-sm leading-relaxed text-label">{selected.prerequisites}</p>
                       </div>
-                      {selected.last_bid_capacity != null && <div className="mt-2 flex items-center justify-between text-sm"><span className="text-muted">Capacity</span><span className="text-label">{selected.last_bid_capacity}</span></div>}
-                      {selected.last_bid_n_bids != null && <div className="mt-2 flex items-center justify-between text-sm"><span className="text-muted">Bids</span><span className="text-label">{selected.last_bid_n_bids}</span></div>}
-                    </div>
-                  )}
+                    )}
+
+                    {selected.section_notes?.length > 0 && (
+                      <div className="surface-card rounded-[22px] px-4 py-4">
+                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted">Section Notes</p>
+                        {selected.section_notes.map((note, index) => <p key={index} className="mb-1 text-sm leading-relaxed text-label">{note}</p>)}
+                      </div>
+                    )}
+                  </div>
                 </div>
+              </section>
+            )}
 
-                <div className="surface-card rounded-[22px] p-5">
-                  <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Student Experience</h4>
-                  {instructorPct != null ? (
-                    <div className="mb-4 rounded-[18px] p-4" style={{ background: 'var(--panel-subtle)' }}>
-                      <p className="text-sm text-muted">Instructor Rating</p>
-                      <p className="text-2xl font-bold" style={{ color: LABEL_COLOR[selected.instructor_label] || 'var(--accent-strong)' }}>{selected.instructor_label}</p>
-                      <p className="text-sm text-muted">Better than {Math.round(instructorPct)}% of courses</p>
-                    </div>
-                  ) : <div className="mb-4 rounded-[18px] p-4 text-sm italic text-muted" style={{ background: 'var(--panel-subtle)' }}>No instructor rating data available</div>}
-                  {workloadPct != null ? (
-                    <div className="rounded-[18px] p-4" style={{ background: 'var(--panel-subtle)' }}>
-                      <p className="text-sm text-muted">Course Workload</p>
-                      <p className="text-2xl font-bold" style={{ color: WORKLOAD_COLOR[selected.workload_label] || 'var(--text-soft)' }}>{selected.workload_label}</p>
-                      <p className="text-sm text-muted">More intensive than {Math.round(workloadPct)}% of courses</p>
-                    </div>
-                  ) : <div className="rounded-[18px] p-4 text-sm italic text-muted" style={{ background: 'var(--panel-subtle)' }}>No workload data available</div>}
-                </div>
-
-                <div className="surface-card rounded-[22px] p-5 lg:col-span-2">
-                  <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">All Evaluation Metrics</h4>
-                  {selected.has_eval ? (
-                    <div className="grid gap-x-8 sm:grid-cols-2">
-                      {meta.metrics.map((metric) => (
-                        <MetricRow
-                          key={metric.key}
-                          label={metric.label}
-                          value={selected.metrics_pct?.[metric.key]}
-                          higherBetter={metric.higher_is_better}
-                          neutral={metric.key === 'Workload' || metric.key === 'Rigor'}
-                        />
-                      ))}
+            {activeTab === 'performance' && (
+              <section className="mb-8">
+                <div>
+                  {history.length === 0 ? (
+                    <div className="surface-card rounded-[22px] py-8 text-center">
+                      <p className="text-sm text-muted">No evaluation history found for this course.</p>
                     </div>
                   ) : (
-                    <div className="py-6 text-center">
-                      <p className="text-sm text-muted">No evaluation data available for this course.</p>
-                    </div>
+                    <>
+                      <p className="mb-4 text-xs text-muted">
+                        Showing all {history.length} evaluation record{history.length !== 1 ? 's' : ''} for <span style={{ color: 'var(--accent-strong)' }}>{selected.course_code_base}</span>.
+                      </p>
+                      <HistoryTable history={history} />
+                    </>
                   )}
                 </div>
+              </section>
+            )}
 
-                <div className="space-y-3 lg:col-span-2">
-                  <div className="flex flex-wrap gap-3">
-                    {selected.course_url && (
-                      <a href={selected.course_url} target="_blank" rel="noopener noreferrer" className="btn-details inline-block">
-                        Course Website
-                      </a>
-                    )}
-                    {selected.instructor_profile_url && (
-                      <a
-                        href={selected.instructor_profile_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block rounded-full border px-5 py-2.5 text-sm font-medium transition-colors hover:text-label"
-                        style={{ borderColor: 'var(--line)', color: 'var(--text-soft)', background: 'var(--panel-subtle)' }}
-                      >
-                        Faculty Profile
-                      </a>
-                    )}
-                    {favs && (() => {
-                      const starred = favs.isFavorite(selected.course_code_base)
-                      return (
-                        <button
-                          onClick={() => favs.toggle(selected.course_code_base)}
-                          className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-medium transition-colors"
-                          style={{
-                            borderColor: starred ? 'rgba(212, 168, 106, 0.45)' : 'var(--line)',
-                            color: starred ? 'var(--gold)' : 'var(--text-muted)',
-                            background: starred ? 'var(--gold-soft)' : 'var(--panel-subtle)',
-                          }}
-                        >
-                          {starred ? 'Shortlisted' : 'Add to Shortlist'}
-                        </button>
-                      )
-                    })()}
-                  </div>
-
-                  {selected.description && (
-                    <div className="overflow-hidden rounded-[22px]" style={{ border: '1px solid var(--line)' }}>
-                      <button onClick={() => setDescOpen((current) => !current)} className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-label" style={{ background: 'var(--panel-strong)' }}>
-                        <span>Course Description</span>
-                        <span className="text-xs text-muted">{descOpen ? 'Hide' : 'Show'}</span>
-                      </button>
-                      {descOpen && <div className="px-4 py-4 text-base leading-relaxed text-label" style={{ background: 'var(--panel-subtle)' }}>{selected.description}</div>}
-                    </div>
-                  )}
-
-                  {selected.prerequisites && (
-                    <div className="surface-card rounded-[22px] px-4 py-4">
-                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">Prerequisites & Restrictions</p>
-                      <p className="text-sm leading-relaxed text-label">{selected.prerequisites}</p>
-                    </div>
-                  )}
-
-                  {selected.section_notes?.length > 0 && (
-                    <div className="surface-card rounded-[22px] px-4 py-4">
-                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted">Section Notes</p>
-                      {selected.section_notes.map((note, index) => <p key={index} className="mb-1 text-sm leading-relaxed text-label">{note}</p>)}
-                    </div>
-                  )}
-                </div>
-              </div>}
-            </section>
-
-            <section className="mb-8">
-              <button
-                onClick={() => setOpenSections((current) => ({ ...current, performance: !current.performance }))}
-                className="mb-4 flex w-full items-center justify-between rounded-[18px] border px-4 py-3 text-left"
-                style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
-              >
-                <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Past Performance</span>
-                <span className="text-xs text-muted">{openSections.performance ? 'Hide' : 'Show'}</span>
-              </button>
-              {openSections.performance && <div>
-                {history.length === 0 ? (
-                  <div className="surface-card rounded-[22px] py-8 text-center">
-                    <p className="text-sm text-muted">No evaluation history found for this course.</p>
-                  </div>
-                ) : (
-                  <>
-                    <p className="mb-4 text-xs text-muted">
-                      Showing all {history.length} evaluation record{history.length !== 1 ? 's' : ''} for <span style={{ color: 'var(--accent-strong)' }}>{selected.course_code_base}</span>.
-                    </p>
-                    <HistoryTable history={history} />
-                  </>
-                )}
-              </div>}
-            </section>
-
-            <section>
-              <button
-                onClick={() => setOpenSections((current) => ({ ...current, bidding: !current.bidding }))}
-                className="mb-4 flex w-full items-center justify-between rounded-[18px] border px-4 py-3 text-left"
-                style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
-              >
-                <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Bidding History</span>
-                <span className="text-xs text-muted">{openSections.bidding ? 'Hide' : 'Show'}</span>
-              </button>
-              {openSections.bidding && <BiddingTab biddingHistory={biddingHistory} selected={selected} navigate={navigate} />}
-            </section>
+            {activeTab === 'bidding' && (
+              <section>
+                <BiddingTab biddingHistory={biddingHistory} selected={selected} navigate={navigate} />
+              </section>
+            )}
           </>
         )}
 
