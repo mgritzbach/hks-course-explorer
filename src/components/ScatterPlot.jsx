@@ -1,20 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  CartesianGrid,
-  ReferenceArea,
-  ReferenceLine,
-  ResponsiveContainer,
-  Scatter,
-  ScatterChart,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import Plot from 'react-plotly.js'
 
-// Must match ScatterChart margin and YAxis width props
-const CHART_MARGIN = { top: 10, right: 14, bottom: 28, left: 0 }
-const Y_AXIS_WIDTH = 44
 const MIN_ZOOM_SPAN_RATIO = 0.015
 
 function clampDomain(nextDomain, baseDomain) {
@@ -52,32 +39,6 @@ function zoomNumericDomain(currentDomain, baseDomain, factor, anchorValue = null
 function panNumericDomain(currentDomain, baseDomain, deltaValue) {
   const activeDomain = currentDomain || baseDomain
   return clampDomain([activeDomain[0] + deltaValue, activeDomain[1] + deltaValue], baseDomain)
-}
-
-function getTouchDistance(touches) {
-  const [a, b] = touches
-  return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
-}
-
-function getTouchMidpoint(touches, rect) {
-  const [a, b] = touches
-  return {
-    rawX: ((a.clientX + b.clientX) / 2) - rect.left,
-    rawY: ((a.clientY + b.clientY) / 2) - rect.top,
-  }
-}
-
-function getDataCoords(rawX, rawY, containerWidth, containerHeight, xDomain, yDomain) {
-  const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left
-  const plotRight = containerWidth - CHART_MARGIN.right
-  const plotTop = CHART_MARGIN.top
-  const plotBottom = containerHeight - CHART_MARGIN.bottom
-  const px = Math.max(0, Math.min(1, (rawX - plotLeft) / (plotRight - plotLeft)))
-  const py = Math.max(0, Math.min(1, (rawY - plotTop) / (plotBottom - plotTop)))
-  return {
-    x: xDomain[0] + px * (xDomain[1] - xDomain[0]),
-    y: yDomain[1] - py * (yDomain[1] - yDomain[0]),
-  }
 }
 
 function dedupeCoTaught(courses) {
@@ -309,10 +270,7 @@ export default function ScatterPlot({
 }) {
   const navigate = useNavigate()
   const [pinnedDatum, setPinnedDatum] = useState(null)
-
   const chartWrapperRef = useRef(null)
-  const interactionRef = useRef(null)
-  const [isPanning, setIsPanning] = useState(false)
   const [zoomedX, setZoomedX] = useState(null)
   const [zoomedY, setZoomedY] = useState(null)
 
@@ -427,115 +385,251 @@ export default function ScatterPlot({
     setZoomedY(null)
   }, [xMetric, yMetric])
 
-  const applyPanFromRawDelta = (prevRaw, nextRaw, currentXDomain, currentYDomain) => {
-    if (!chartWrapperRef.current) return
-    const width = chartWrapperRef.current.offsetWidth
-    const height = chartWrapperRef.current.offsetHeight
-    const prevCoords = getDataCoords(prevRaw.rawX, prevRaw.rawY, width, height, currentXDomain, currentYDomain)
-    const nextCoords = getDataCoords(nextRaw.rawX, nextRaw.rawY, width, height, currentXDomain, currentYDomain)
-    setZoomedX(panNumericDomain(currentXDomain, xMode.domain, prevCoords.x - nextCoords.x))
-    setZoomedY(panNumericDomain(currentYDomain, yMode.domain, prevCoords.y - nextCoords.y))
-  }
-
   const handleZoomButton = (direction) => {
-    const factor = direction === 'in' ? 0.82 : 1.22
+    const factor = direction === 'in' ? 0.72 : 1.38
     setZoomedX((current) => zoomNumericDomain(current, xMode.domain, factor))
     setZoomedY((current) => zoomNumericDomain(current, yMode.domain, factor))
-  }
-
-  const handleWrapperMouseDown = (e) => {
-    if (e.button !== 0 || !chartWrapperRef.current) return
-    const rect = chartWrapperRef.current.getBoundingClientRect()
-    const startRaw = { rawX: e.clientX - rect.left, rawY: e.clientY - rect.top }
-    interactionRef.current = {
-      type: 'mouse-pan',
-      startRaw,
-      prevRaw: startRaw,
-    }
-  }
-
-  const handleWrapperMouseMove = (e) => {
-    if (!interactionRef.current || interactionRef.current.type !== 'mouse-pan' || !chartWrapperRef.current) return
-    const rect = chartWrapperRef.current.getBoundingClientRect()
-    const nextRaw = { rawX: e.clientX - rect.left, rawY: e.clientY - rect.top }
-    if (!isPanning && Math.hypot(nextRaw.rawX - interactionRef.current.startRaw.rawX, nextRaw.rawY - interactionRef.current.startRaw.rawY) < 4) {
-      return
-    }
-    if (!isPanning) setIsPanning(true)
-    applyPanFromRawDelta(interactionRef.current.prevRaw, nextRaw, effectiveXDomain, effectiveYDomain)
-    interactionRef.current.prevRaw = nextRaw
-  }
-
-  const stopInteraction = () => {
-    interactionRef.current = null
-    setIsPanning(false)
-  }
-
-  const handleWrapperTouchStart = (e) => {
-    if (!chartWrapperRef.current || e.touches.length < 2) return
-    const rect = chartWrapperRef.current.getBoundingClientRect()
-    interactionRef.current = {
-      type: 'touch-transform',
-      prevMidpoint: getTouchMidpoint(e.touches, rect),
-      prevDistance: getTouchDistance(e.touches),
-    }
-    setIsPanning(true)
-  }
-
-  const handleWrapperTouchMove = (e) => {
-    if (!chartWrapperRef.current || !interactionRef.current || interactionRef.current.type !== 'touch-transform' || e.touches.length < 2) return
-    e.preventDefault()
-    const rect = chartWrapperRef.current.getBoundingClientRect()
-    const currentMidpoint = getTouchMidpoint(e.touches, rect)
-    const currentDistance = getTouchDistance(e.touches)
-    const width = chartWrapperRef.current.offsetWidth
-    const height = chartWrapperRef.current.offsetHeight
-
-    const anchorCoords = getDataCoords(
-      interactionRef.current.prevMidpoint.rawX,
-      interactionRef.current.prevMidpoint.rawY,
-      width,
-      height,
-      effectiveXDomain,
-      effectiveYDomain,
-    )
-
-    const pinchFactor = interactionRef.current.prevDistance / currentDistance
-    const nextXDomain = zoomNumericDomain(effectiveXDomain, xMode.domain, pinchFactor, anchorCoords.x)
-    const nextYDomain = zoomNumericDomain(effectiveYDomain, yMode.domain, pinchFactor, anchorCoords.y)
-
-    const prevCoords = getDataCoords(
-      interactionRef.current.prevMidpoint.rawX,
-      interactionRef.current.prevMidpoint.rawY,
-      width,
-      height,
-      nextXDomain,
-      nextYDomain,
-    )
-    const currentCoords = getDataCoords(
-      currentMidpoint.rawX,
-      currentMidpoint.rawY,
-      width,
-      height,
-      nextXDomain,
-      nextYDomain,
-    )
-
-    setZoomedX(panNumericDomain(nextXDomain, xMode.domain, prevCoords.x - currentCoords.x))
-    setZoomedY(panNumericDomain(nextYDomain, yMode.domain, prevCoords.y - currentCoords.y))
-
-    interactionRef.current = {
-      type: 'touch-transform',
-      prevMidpoint: currentMidpoint,
-      prevDistance: currentDistance,
-    }
   }
 
   const resetZoom = () => {
     setZoomedX(null)
     setZoomedY(null)
-    stopInteraction()
   }
+
+  const handlePlotRelayout = (event) => {
+    if (!event) return
+    if (event['xaxis.autorange'] || event['yaxis.autorange']) {
+      resetZoom()
+      return
+    }
+
+    const nextX = event['xaxis.range[0]'] != null && event['xaxis.range[1]'] != null
+      ? [Number(event['xaxis.range[0]']), Number(event['xaxis.range[1]'])]
+      : null
+    const nextY = event['yaxis.range[0]'] != null && event['yaxis.range[1]'] != null
+      ? [Number(event['yaxis.range[0]']), Number(event['yaxis.range[1]'])]
+      : null
+
+    if (nextX) setZoomedX(clampDomain(nextX, xMode.domain))
+    if (nextY) setZoomedY(clampDomain(nextY, yMode.domain))
+  }
+
+  const buildHoverHtml = (datum) => {
+    const titleColor = datum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)'
+    const xLine = datum._isBidOnly || datum._xVal == null
+      ? ''
+      : `<div>${datum._xLabel}: <b>${formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}</b></div>`
+    const yLine = datum._isBidOnly || datum._yVal == null
+      ? ''
+      : `<div>${datum._yLabel}: <b>${formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}</b></div>`
+    const bidOnlyLine = datum._isBidOnly
+      ? `<div style="color:var(--gold);font-size:10px;">No eval data yet · ranked by bid competitiveness</div>`
+      : ''
+    const respondents = datum.n_respondents != null
+      ? `<div>N=<b>${datum.n_respondents}</b> survey respondents</div>`
+      : ''
+    const lastBid = datum.last_bid_price != null
+      ? `<div>Last clearing price: <b>${datum.last_bid_price} pts</b></div>`
+      : ''
+
+    return `
+      <div style="max-width:280px;">
+        <div style="font-weight:700;font-size:14px;color:${titleColor};">${datum.course_code}</div>
+        <div style="color:var(--text-soft);margin-top:2px;">${datum.course_name}</div>
+        <div style="color:var(--text-muted);margin-top:4px;">${datum.professor_display || datum.professor}</div>
+        <div style="color:var(--text-muted);margin-top:2px;">${datum.is_average ? `avg ${datum.year_range}` : `${datum.term} ${datum.year}`}</div>
+        <div style="margin-top:8px;">${xLine}${yLine}${bidOnlyLine}</div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);color:var(--text-muted);">
+          ${respondents}
+          <div>Bidding: <b>${datum.ever_bidding ? 'Yes' : 'No'}</b></div>
+          ${lastBid}
+        </div>
+        <div style="margin-top:6px;color:var(--blue);font-size:10px;">Click to pin and preview details below</div>
+      </div>
+    `
+  }
+
+  const plotData = useMemo(() => {
+    const traces = []
+
+    if (showQuadrants) {
+      traces.push({
+        type: 'scatter',
+        mode: 'markers',
+        x: [],
+        y: [],
+        hoverinfo: 'skip',
+        showlegend: false,
+      })
+    }
+
+    if (bgData.length) {
+      traces.push({
+        type: 'scattergl',
+        mode: 'markers',
+        x: bgData.map((datum) => datum._xVal),
+        y: bgData.map((datum) => datum._yVal),
+        hoverinfo: 'skip',
+        showlegend: false,
+        marker: {
+          size: 9,
+          color: 'rgba(205, 191, 181, 0.22)',
+        },
+      })
+    }
+
+    if (matchedData.length) {
+      traces.push({
+        type: 'scattergl',
+        mode: 'markers',
+        x: matchedData.map((datum) => datum._xVal),
+        y: matchedData.map((datum) => datum._yVal),
+        text: matchedData.map(buildHoverHtml),
+        customdata: matchedData,
+        hovertemplate: '%{text}<extra></extra>',
+        showlegend: false,
+        marker: {
+          size: 11,
+          color: matchedData.map((datum) => datum._color),
+          line: { color: 'rgba(255,255,255,0.16)', width: 0.8 },
+        },
+      })
+    }
+
+    if (bidOnlyData.length) {
+      traces.push({
+        type: 'scattergl',
+        mode: 'markers',
+        x: bidOnlyData.map((datum) => datum._xVal),
+        y: bidOnlyData.map((datum) => datum._yVal),
+        text: bidOnlyData.map(buildHoverHtml),
+        customdata: bidOnlyData,
+        hovertemplate: '%{text}<extra></extra>',
+        showlegend: false,
+        marker: {
+          size: 12,
+          symbol: 'diamond',
+          color: '#d4a86a',
+          line: { color: 'rgba(255,255,255,0.22)', width: 0.8 },
+        },
+      })
+    }
+
+    return traces
+  }, [bgData, bidOnlyData, matchedData, showQuadrants])
+
+  const plotLayout = useMemo(() => {
+    const shapes = []
+    if (showQuadrants) {
+      shapes.push(
+        {
+          type: 'rect',
+          xref: 'x',
+          yref: 'y',
+          x0: greenX0,
+          x1: greenX1,
+          y0: greenY0,
+          y1: greenY1,
+          fillcolor: 'rgba(123, 176, 138, 0.11)',
+          line: { width: 0 },
+          layer: 'below',
+        },
+        {
+          type: 'rect',
+          xref: 'x',
+          yref: 'y',
+          x0: redX0,
+          x1: redX1,
+          y0: redY0,
+          y1: redY1,
+          fillcolor: 'rgba(165, 28, 48, 0.11)',
+          line: { width: 0 },
+          layer: 'below',
+        },
+      )
+
+      if (!isZoomed) {
+        shapes.push(
+          {
+            type: 'line',
+            xref: 'x',
+            yref: 'y',
+            x0: 50,
+            x1: 50,
+            y0: effectiveYDomain[0],
+            y1: effectiveYDomain[1],
+            line: { color: 'rgba(243, 233, 226, 0.28)', dash: 'dot', width: 1 },
+            layer: 'below',
+          },
+          {
+            type: 'line',
+            xref: 'x',
+            yref: 'y',
+            x0: effectiveXDomain[0],
+            x1: effectiveXDomain[1],
+            y0: 50,
+            y1: 50,
+            line: { color: 'rgba(243, 233, 226, 0.28)', dash: 'dot', width: 1 },
+            layer: 'below',
+          },
+        )
+      }
+    }
+
+    return {
+      autosize: true,
+      margin: { t: 12, r: 18, b: 44, l: 54 },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      dragmode: 'pan',
+      hovermode: 'closest',
+      shapes,
+      xaxis: {
+        range: effectiveXDomain,
+        fixedrange: false,
+        tickfont: { color: 'var(--text-muted)', size: 11 },
+        ticksuffix: xMode.useRaw ? '' : '%',
+        showline: true,
+        linecolor: 'rgba(243, 233, 226, 0.2)',
+        tickcolor: 'rgba(243, 233, 226, 0.2)',
+        gridcolor: 'rgba(243, 233, 226, 0.06)',
+        zeroline: false,
+        title: { text: xMeta.label, font: { color: 'var(--text-muted)', size: 12 } },
+      },
+      yaxis: {
+        range: effectiveYDomain,
+        fixedrange: false,
+        tickfont: { color: 'var(--text-muted)', size: 11 },
+        ticksuffix: yMode.useRaw ? '' : '%',
+        showline: true,
+        linecolor: 'rgba(243, 233, 226, 0.2)',
+        tickcolor: 'rgba(243, 233, 226, 0.2)',
+        gridcolor: 'rgba(243, 233, 226, 0.06)',
+        zeroline: false,
+        title: { text: yMeta.label, font: { color: 'var(--text-muted)', size: 12 } },
+      },
+      hoverlabel: {
+        bgcolor: 'var(--panel-strong)',
+        bordercolor: 'var(--line-strong)',
+        font: { color: 'var(--text)', size: 12 },
+      },
+    }
+  }, [effectiveXDomain, effectiveYDomain, greenX0, greenX1, greenY0, greenY1, isZoomed, redX0, redX1, redY0, redY1, showQuadrants, xMeta.label, xMode.useRaw, yMeta.label, yMode.useRaw])
+
+  const plotConfig = useMemo(() => ({
+    responsive: true,
+    displaylogo: false,
+    scrollZoom: true,
+    doubleClick: 'reset',
+    modeBarButtonsToRemove: [
+      'select2d',
+      'lasso2d',
+      'hoverClosestCartesian',
+      'hoverCompareCartesian',
+      'toggleSpikelines',
+      'autoScale2d',
+    ],
+  }), [])
 
   const AxisSelectors = () => (
     <div className="grid gap-3 border-b px-4 py-4 md:grid-cols-2" style={{ borderColor: 'var(--line)' }}>
@@ -618,66 +712,20 @@ export default function ScatterPlot({
 
       <div
         ref={chartWrapperRef}
-        style={{ width: '100%', height: chartHeight, flexShrink: 0, position: 'relative', cursor: isPanning ? 'grabbing' : 'grab', touchAction: 'none' }}
-        onMouseDown={handleWrapperMouseDown}
-        onMouseMove={handleWrapperMouseMove}
-        onMouseUp={stopInteraction}
-        onMouseLeave={stopInteraction}
-        onTouchStart={handleWrapperTouchStart}
-        onTouchMove={handleWrapperTouchMove}
-        onTouchEnd={stopInteraction}
-        onTouchCancel={stopInteraction}
+        style={{ width: '100%', height: chartHeight, flexShrink: 0, position: 'relative' }}
       >
-        <ResponsiveContainer width="100%" height={chartHeight}>
-          <ScatterChart margin={CHART_MARGIN}>
-            {showQuadrants && (
-              <>
-                <ReferenceArea x1={greenX0} x2={greenX1} y1={greenY0} y2={greenY1} fill="rgba(123, 176, 138, 0.08)" />
-                <ReferenceArea x1={redX0} x2={redX1} y1={redY0} y2={redY1} fill="rgba(165, 28, 48, 0.08)" />
-              </>
-            )}
-
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(243, 233, 226, 0.05)" />
-
-            <XAxis
-              type="number"
-              dataKey="_xVal"
-              domain={effectiveXDomain}
-              tickFormatter={xMode.tickFmt}
-              tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-              axisLine={{ stroke: 'rgba(243, 233, 226, 0.2)' }}
-              tickLine={false}
-              label={{ value: xMeta.label, position: 'insideBottom', offset: -10, fill: 'var(--text-muted)', fontSize: 11 }}
-            />
-            <YAxis
-              type="number"
-              dataKey="_yVal"
-              domain={effectiveYDomain}
-              tickFormatter={yMode.tickFmt}
-              tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-              axisLine={{ stroke: 'rgba(243, 233, 226, 0.2)' }}
-              tickLine={false}
-              width={Y_AXIS_WIDTH}
-            />
-
-            {showQuadrants && !isZoomed && (
-              <>
-                <ReferenceLine x={50} stroke="rgba(243, 233, 226, 0.28)" strokeDasharray="4 4" />
-                <ReferenceLine y={50} stroke="rgba(243, 233, 226, 0.28)" strokeDasharray="4 4" />
-              </>
-            )}
-
-            <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3', stroke: '#d4a86a' }} />
-            <Scatter data={bgData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
-            <Scatter data={matchedData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
-            <Scatter data={bidOnlyData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
-          </ScatterChart>
-        </ResponsiveContainer>
-
-        {/* Block chart interaction while panning to prevent accidental dot clicks */}
-        {isPanning && (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 10 }} />
-        )}
+        <Plot
+          data={plotData}
+          layout={plotLayout}
+          config={plotConfig}
+          useResizeHandler
+          onRelayout={handlePlotRelayout}
+          onClick={(event) => {
+            const datum = event?.points?.[0]?.customdata
+            if (datum?.id) setPinnedDatum(datum)
+          }}
+          style={{ width: '100%', height: `${chartHeight}px` }}
+        />
       </div>
 
       {pinnedDatum && (
