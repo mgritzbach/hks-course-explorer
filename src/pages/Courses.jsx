@@ -371,7 +371,6 @@ export default function Courses({ courses, meta, favs }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(searchParams.get('id') || null)
-  const [activeTab, setActiveTab] = useState('details')
   const [descOpen, setDescOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const [filters, setFilters] = useState({
@@ -390,7 +389,6 @@ export default function Courses({ courses, meta, favs }) {
     const id = searchParams.get('id')
     if (id) {
       setSelectedId(id)
-      setActiveTab('details')
     }
   }, [searchParams])
 
@@ -564,29 +562,18 @@ export default function Courses({ courses, meta, favs }) {
               {selected.n_respondents != null && <span>N={selected.n_respondents} respondents</span>}
             </div>
 
-            <div className="mb-5 flex gap-2 overflow-x-auto border-b pb-1" style={{ borderColor: 'var(--line)' }}>
-              {[
-                { key: 'details', label: 'Course Details' },
-                { key: 'performance', label: 'Past Performance' },
-                { key: 'bidding', label: 'Bidding History' },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`whitespace-nowrap rounded-full px-4 py-2 text-sm transition-colors ${activeTab === tab.key ? 'text-white' : 'text-muted hover:text-label'}`}
-                  style={activeTab === tab.key
-                    ? {
-                        background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.22), rgba(165, 28, 48, 0.08))',
-                        border: '1px solid rgba(212, 168, 106, 0.2)',
-                      }
-                    : { border: '1px solid transparent' }}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <div className="mb-3 rounded-[18px] border px-4 py-3" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+              <div className="flex flex-wrap gap-2 text-sm font-medium">
+                <span style={{ color: 'var(--accent-strong)' }}>Course Details</span>
+                <span className="text-muted">•</span>
+                <span className="text-label">Past Performance</span>
+                <span className="text-muted">•</span>
+                <span className="text-label">Bidding History</span>
+              </div>
             </div>
 
-            {activeTab === 'details' && (
+            <section className="mb-8">
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Course Details</h3>
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="surface-card rounded-[22px] p-5">
                   <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Course Information</h4>
@@ -774,9 +761,10 @@ export default function Courses({ courses, meta, favs }) {
                   )}
                 </div>
               </div>
-            )}
+            </section>
 
-            {activeTab === 'performance' && (
+            <section className="mb-8">
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Past Performance</h3>
               <div>
                 {history.length === 0 ? (
                   <div className="surface-card rounded-[22px] py-8 text-center">
@@ -791,9 +779,12 @@ export default function Courses({ courses, meta, favs }) {
                   </>
                 )}
               </div>
-            )}
+            </section>
 
-            {activeTab === 'bidding' && <BiddingTab biddingHistory={biddingHistory} selected={selected} navigate={navigate} />}
+            <section>
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Bidding History</h3>
+              <BiddingTab biddingHistory={biddingHistory} selected={selected} navigate={navigate} />
+            </section>
           </>
         )}
 
