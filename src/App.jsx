@@ -9,7 +9,16 @@ export default function App() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'dark'
+    return window.localStorage.getItem('hks-theme') || 'dark'
+  })
   const favs = useFavorites()
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    window.localStorage.setItem('hks-theme', theme)
+  }, [theme])
 
   useEffect(() => {
     fetch('/courses.json')
@@ -31,7 +40,7 @@ export default function App() {
     return (
       <div
         className="flex h-screen flex-col items-center justify-center gap-4"
-        style={{ background: '#0f0f17' }}
+        style={{ background: 'transparent' }}
       >
         <div className="spinner" />
         <p className="text-muted text-sm">Loading course data...</p>
@@ -43,7 +52,7 @@ export default function App() {
     return (
       <div
         className="flex h-screen flex-col items-center justify-center gap-3 px-8 text-center"
-        style={{ background: '#0f0f17' }}
+        style={{ background: 'transparent' }}
       >
         <p className="text-red-400 text-lg font-semibold">Error: {error}</p>
         <p className="text-muted text-sm">
@@ -60,26 +69,52 @@ export default function App() {
   ]
 
   const desktopNavItem = ({ isActive }) =>
-    `px-4 py-2 text-sm transition-colors ${isActive ? 'bg-[#2a2a3e] text-white' : 'text-label hover:bg-[#1e1e2e]'}`
+    `mx-2 rounded-2xl px-4 py-3 text-sm transition-colors ${
+      isActive ? 'text-white' : 'text-label hover:text-white'
+    }`
 
   const mobileNavItem = ({ isActive }) =>
     `flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl px-3 py-2 text-[11px] font-medium transition-colors ${
-      isActive ? 'bg-[#1f3145] text-white' : 'text-[#98a3c1]'
+      isActive ? 'text-white' : 'text-label'
     }`
 
+  const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+
   return (
-    <div className="flex min-h-screen md:h-screen" style={{ background: '#0f0f17' }}>
+    <div className="flex min-h-screen md:h-screen" style={{ background: 'transparent' }}>
       <nav
-        className="hidden shrink-0 flex-col py-3 md:flex"
-        style={{ width: 160, background: '#151521', borderRight: '1px solid #2a2a3e' }}
+        className="hidden shrink-0 flex-col px-3 py-4 md:flex"
+        style={{
+          width: 178,
+          background: 'var(--nav-shell)',
+          borderRight: '1px solid var(--line)',
+          backdropFilter: 'blur(18px)',
+        }}
       >
-        <div className="mb-2 border-b border-[#1e1e2e] px-4 pb-3">
-          <p className="text-xs font-bold" style={{ color: '#38bdf8' }}>HKS</p>
-          <p className="text-xs text-muted">Course Explorer</p>
+        <div className="mb-4 rounded-[22px] border px-4 pb-4 pt-5" style={{ borderColor: 'var(--line)', background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.16), rgba(255,255,255,0.02))' }}>
+          <p className="kicker">Harvard-inspired</p>
+          <p className="serif-display mt-2 text-2xl font-semibold" style={{ color: 'var(--text)' }}>HKS</p>
+          <p className="text-xs" style={{ color: 'var(--text-soft)' }}>Course Explorer</p>
+          <p className="mt-3 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
+            Crafted independently for Harvard Kennedy School students.
+          </p>
+          <button type="button" onClick={toggleTheme} className="theme-toggle mt-4">
+            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          </button>
         </div>
 
         {navItems.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end} className={desktopNavItem}>
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={desktopNavItem}
+            style={({ isActive }) => ({
+              background: isActive ? 'linear-gradient(180deg, rgba(165, 28, 48, 0.22), rgba(165, 28, 48, 0.09))' : 'transparent',
+              border: `1px solid ${isActive ? 'rgba(212, 168, 106, 0.26)' : 'transparent'}`,
+              boxShadow: isActive ? '0 14px 30px rgba(165, 28, 48, 0.16)' : 'none',
+            })}
+          >
             {item.label}
           </NavLink>
         ))}
@@ -87,13 +122,28 @@ export default function App() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header
-          className="sticky top-0 z-30 border-b border-[#1e1e2e] px-4 py-3 md:hidden"
-          style={{ background: 'rgba(15, 15, 23, 0.96)', backdropFilter: 'blur(14px)' }}
+          className="sticky top-0 z-30 border-b px-4 py-3 md:hidden"
+          style={{
+            background: 'var(--nav-shell)',
+            borderColor: 'var(--line)',
+            backdropFilter: 'blur(18px)',
+          }}
         >
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em]" style={{ color: '#38bdf8' }}>
-            HKS
-          </p>
-          <p className="text-sm text-white">Course Explorer</p>
+          <p className="kicker">Harvard-inspired</p>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <div>
+              <p className="serif-display text-xl font-semibold" style={{ color: 'var(--text)' }}>HKS</p>
+              <p className="text-sm" style={{ color: 'var(--text-soft)' }}>Course Explorer</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={toggleTheme} className="theme-toggle">
+                {theme === 'dark' ? 'Light' : 'Dark'}
+              </button>
+              <div className="rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.16em]" style={{ borderColor: 'rgba(212, 168, 106, 0.26)', color: 'var(--gold)' }}>
+                Student-built
+              </div>
+            </div>
+          </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
@@ -105,16 +155,26 @@ export default function App() {
         </div>
 
         <nav
-          className="fixed inset-x-0 bottom-0 z-40 border-t border-[#223046] px-3 pt-3 md:hidden"
+          className="fixed inset-x-0 bottom-0 z-40 border-t px-3 pt-3 md:hidden"
           style={{
-            background: 'rgba(15, 15, 23, 0.98)',
-            backdropFilter: 'blur(16px)',
+            background: 'var(--nav-shell)',
+            borderColor: 'var(--line)',
+            backdropFilter: 'blur(20px)',
             paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
           }}
         >
-          <div className="mx-auto flex max-w-md gap-2 rounded-2xl border border-[#223046] bg-[#121825]/90 p-2 shadow-[0_-8px_24px_rgba(0,0,0,0.28)]">
+          <div className="mx-auto flex max-w-md gap-2 rounded-[24px] border p-2 shadow-[0_-12px_28px_rgba(0,0,0,0.28)]" style={{ borderColor: 'var(--line)', background: 'var(--nav-shell-strong)' }}>
             {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end} className={mobileNavItem}>
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={mobileNavItem}
+                style={({ isActive }) => ({
+                  background: isActive ? 'linear-gradient(180deg, rgba(165, 28, 48, 0.28), rgba(165, 28, 48, 0.12))' : 'transparent',
+                  border: `1px solid ${isActive ? 'rgba(212, 168, 106, 0.18)' : 'transparent'}`,
+                })}
+              >
                 {item.label}
               </NavLink>
             ))}

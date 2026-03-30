@@ -126,7 +126,6 @@ const PRESETS = [
 export default function Home({ courses, meta, favs }) {
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Parse initial state from URL params (enables sharable links)
   const initYear = (() => {
     const y = searchParams.get('year')
     if (!y) return meta.default_year
@@ -160,7 +159,6 @@ export default function Home({ courses, meta, favs }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortlistOnly, setShowShortlistOnly] = useState(false)
 
-  // Sync key state to URL whenever it changes
   useEffect(() => {
     const params = {}
     if (filters.year !== meta.default_year) params.year = filters.year
@@ -257,6 +255,12 @@ export default function Home({ courses, meta, favs }) {
     }
   }, [filtered, sortBy])
 
+  const visibleCourses = useMemo(() => (
+    showShortlistOnly && favs
+      ? sorted.filter((course) => favs.isFavorite(course.course_code_base))
+      : sorted
+  ), [favs, showShortlistOnly, sorted])
+
   const resultText = filters.searchText.trim()
     ? `Search complete. Scroll down to view ${filtered.length} result${filtered.length !== 1 ? 's' : ''}.`
     : null
@@ -286,29 +290,48 @@ export default function Home({ courses, meta, favs }) {
       </div>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-white md:text-2xl" style={{ color: '#38bdf8' }}>
-              {pageTitle(filters)}
-            </h1>
-            <p className="mt-1 text-xs text-muted md:text-sm">
-              Compare ratings, scan bidding pressure, and jump into full course details.
-            </p>
+        <section className="panel-shell mb-5 overflow-hidden">
+          <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-5 md:px-7 md:py-7">
+            <div className="min-w-0 flex-1">
+              <p className="kicker mb-2">Independent HKS student tool</p>
+              <h1 className="serif-display text-3xl font-semibold md:text-[2.5rem]" style={{ color: 'var(--text)' }}>
+                {pageTitle(filters)}
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm md:text-[15px]" style={{ color: 'var(--text-soft)' }}>
+                Compare course quality, scan bidding pressure, and move through HKS offerings with a cleaner, more editorial experience inspired by a polished Harvard of the 2030s.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden rounded-full border px-3 py-2 text-xs font-medium text-white shadow-sm"
+              style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.04)' }}
+            >
+              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="md:hidden rounded-full border border-[#2a2a3e] bg-[#151521] px-3 py-2 text-xs font-medium text-white shadow-sm"
-          >
-            Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-          </button>
-        </div>
+          <div className="flex flex-wrap gap-3 border-t px-5 py-4 md:px-7" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.015)' }}>
+            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.025)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>View</span>
+              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>{avgMode ? 'All-years weighted averages' : bidYear ? 'Active bidding season' : 'Filtered current courses'}</p>
+            </div>
+            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.025)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Matching now</span>
+              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>{filtered.length} course{filtered.length !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.025)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Built for</span>
+              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>Harvard Kennedy School students</p>
+            </div>
+          </div>
+        </section>
 
         {avgMode && (
           <div
-            className="mb-4 rounded-lg px-4 py-3 text-xs md:text-sm"
-            style={{ background: '#1a1e2e', border: '1px solid #2a3a5e', color: '#93c5fd' }}
+            className="mb-4 rounded-2xl px-4 py-3 text-xs md:text-sm"
+            style={{ background: 'var(--blue-soft)', border: '1px solid rgba(157, 194, 219, 0.18)', color: 'var(--blue)' }}
           >
             Showing weighted averages across all years for each course and instructor pairing. Courses with more years and respondents carry more weight.
           </div>
@@ -316,8 +339,8 @@ export default function Home({ courses, meta, favs }) {
 
         {bidYear && (
           <div
-            className="mb-4 rounded-lg px-4 py-3 text-xs md:text-sm"
-            style={{ background: '#1e1a0a', border: '1px solid #92400e', color: '#fbbf24' }}
+            className="mb-4 rounded-2xl px-4 py-3 text-xs md:text-sm"
+            style={{ background: 'var(--gold-soft)', border: '1px solid rgba(212, 168, 106, 0.18)', color: 'var(--gold)' }}
           >
             Bidding Season 2026 is active. Courses without evaluation data still appear, and amber diamonds are spread by competitiveness rank.
           </div>
@@ -325,14 +348,14 @@ export default function Home({ courses, meta, favs }) {
 
         {resultText && (
           <div
-            className="mb-4 rounded-lg px-4 py-3 text-sm text-green-300"
-            style={{ background: '#1a2e1a', border: '1px solid #2a4a2a' }}
+            className="mb-4 rounded-2xl px-4 py-3 text-sm"
+            style={{ background: 'rgba(123, 176, 138, 0.12)', border: '1px solid rgba(123, 176, 138, 0.2)', color: 'var(--success)' }}
           >
             {resultText}
           </div>
         )}
 
-        <div className="mb-4 flex gap-2 overflow-x-auto border-b border-[#2a2a3e] pb-1">
+        <div className="mb-4 flex gap-2 overflow-x-auto border-b pb-1" style={{ borderColor: 'var(--line)' }}>
           {[
             { key: 'comparisons', label: 'Course Comparisons' },
             { key: 'map', label: 'Course Map' },
@@ -340,10 +363,15 @@ export default function Home({ courses, meta, favs }) {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`whitespace-nowrap rounded-t-lg px-4 py-2 text-sm transition-colors ${
+              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm transition-colors ${
                 activeTab === tab.key ? 'text-white' : 'text-muted hover:text-label'
               }`}
-              style={activeTab === tab.key ? { borderBottom: '2px solid #38bdf8' } : undefined}
+              style={activeTab === tab.key
+                ? {
+                    background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.22), rgba(165, 28, 48, 0.08))',
+                    border: '1px solid rgba(212, 168, 106, 0.2)',
+                  }
+                : { border: '1px solid transparent' }}
             >
               {tab.label}
             </button>
@@ -380,16 +408,16 @@ export default function Home({ courses, meta, favs }) {
               <button
                 onClick={() => setShowShortlistOnly((v) => !v)}
                 className={`preset-pill ${showShortlistOnly ? 'active' : ''}`}
-                style={showShortlistOnly ? { borderColor: '#fbbf24', color: '#fbbf24' } : {}}
+                style={showShortlistOnly ? { borderColor: 'rgba(212, 168, 106, 0.38)', color: 'var(--gold)' } : {}}
               >
                 ★ Shortlist ({favs.count})
               </button>
             )}
           </div>
 
-          <div className="sort-bar mb-3 flex flex-col gap-3 rounded-lg px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="sort-bar mb-3 flex flex-col gap-3 rounded-[22px] px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted">
-              <span className="font-medium text-label">{sorted.length}</span> course{sorted.length !== 1 ? 's' : ''}
+              <span className="font-medium text-label">{visibleCourses.length}</span> course{visibleCourses.length !== 1 ? 's' : ''}
               <span className="text-muted"> ({filteredEval.length} with evals)</span>
             </p>
 
@@ -413,24 +441,18 @@ export default function Home({ courses, meta, favs }) {
             </div>
           </div>
 
-          {sorted.length === 0 ? (
-            <div
-              className="rounded-lg py-12 text-center"
-              style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}
-            >
+          {visibleCourses.length === 0 ? (
+            <div className="surface-card rounded-2xl py-12 text-center">
               <p className="mb-1 font-medium text-label">No courses match the current filters</p>
               <p className="text-xs text-muted">Try adjusting the year, terms, concentration, or removing some filters.</p>
             </div>
           ) : (
-            (showShortlistOnly && favs
-              ? sorted.filter((c) => favs.isFavorite(c.course_code_base))
-              : sorted
-            ).map((course) => <CourseCard key={course.id} course={course} favs={favs} />)
+            visibleCourses.map((course) => <CourseCard key={course.id} course={course} favs={favs} />)
           )}
         </div>
 
         <div className="app-footer mt-8">
-          HKS Course Explorer by Michael Gritzbach MPA'26 · Data from HKS QReports · {new Date().getFullYear()}
+          HKS Course Explorer by Michael Gritzbach MPA&apos;26 · Data from HKS QReports · {new Date().getFullYear()}
         </div>
       </main>
     </div>

@@ -140,67 +140,54 @@ function CustomTooltip({ active, payload }) {
 
   return (
     <div
-      className="rounded px-3 py-2 text-xs shadow-lg"
-      style={{ background: '#1a1a2e', border: '1px solid #38bdf8', color: '#e0e0f0', maxWidth: 280 }}
+      className="rounded-2xl px-3 py-2 text-xs shadow-lg"
+      style={{
+        background: 'var(--panel-strong)',
+        border: '1px solid var(--line-strong)',
+        color: 'var(--text)',
+        maxWidth: 280,
+        boxShadow: 'var(--shadow-lg)',
+      }}
     >
-      <p className="mb-1 text-sm font-bold" style={{ color: '#38bdf8' }}>{datum.course_code}</p>
-      <p className="mb-1 leading-snug">{datum.course_name}</p>
+      <p className="mb-1 text-sm font-bold" style={{ color: datum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>{datum.course_code}</p>
+      <p className="mb-1 leading-snug text-label">{datum.course_name}</p>
       <p className="mb-1 text-muted">
         {datum.professor_display || datum.professor}
-        {datum._coTaught && <span className="ml-1 text-[10px]" style={{ color: '#a78bfa' }}>co-taught ({datum._coTaughtCount})</span>}
+        {datum._coTaught && <span className="ml-1 text-[10px]" style={{ color: 'var(--blue)' }}>co-taught ({datum._coTaughtCount})</span>}
       </p>
       <p className="mb-2 text-muted">{datum.is_average ? `avg ${datum.year_range}` : `${datum.term} ${datum.year}`}</p>
 
       <div className="space-y-0.5">
         {datum._xVal != null && !datum._isBidOnly && (
-          <p>
-            {datum._xLabel}:{' '}
-            <span className="font-medium">{formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}</span>
-          </p>
+          <p>{datum._xLabel}: <span className="font-medium">{formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}</span></p>
         )}
         {datum._yVal != null && !datum._isBidOnly && (
-          <p>
-            {datum._yLabel}:{' '}
-            <span className="font-medium">{formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}</span>
-          </p>
+          <p>{datum._yLabel}: <span className="font-medium">{formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}</span></p>
         )}
-        {datum._isBidOnly && (
-          <p className="text-[10px]" style={{ color: '#fbbf24' }}>No eval data yet · ranked by bid competitiveness</p>
-        )}
-        {datum._isBidOnly && (
-          <p className="mt-1 text-[10px]" style={{ color: '#60a5fa' }}>Click to open course details →</p>
-        )}
+        {datum._isBidOnly && <p className="text-[10px]" style={{ color: 'var(--gold)' }}>No eval data yet · ranked by bid competitiveness</p>}
         {datum.metrics_pct?.Instructor_Rating != null && datum._xLabel !== 'Instructor Rating' && datum._yLabel !== 'Instructor Rating' && (
-          <p>
-            Instructor: <span className="font-medium" style={{ color: '#38bdf8' }}>{Math.round(datum.metrics_pct.Instructor_Rating)}%</span>
-          </p>
+          <p>Instructor: <span className="font-medium" style={{ color: 'var(--blue)' }}>{Math.round(datum.metrics_pct.Instructor_Rating)}%</span></p>
         )}
       </div>
 
-      <div className="mt-2 border-t border-[#2a2a3e] pt-2 space-y-0.5">
+      <div className="mt-2 space-y-0.5 border-t pt-2" style={{ borderColor: 'var(--line)' }}>
         {datum.n_respondents != null && (
           <p className="text-muted">
             N=<span className="font-medium text-label">{datum.n_respondents}</span>
-            <span className="ml-1 text-[10px]" style={{ color: '#8888aa' }}>survey respondents</span>
+            <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>survey respondents</span>
           </p>
         )}
         <p className="text-muted">
-          Bidding: <span className="font-medium" style={{ color: datum.ever_bidding ? '#e879a0' : '#8888aa' }}>{datum.ever_bidding ? 'Yes' : 'No'}</span>
+          Bidding: <span className="font-medium" style={{ color: datum.ever_bidding ? '#e6a4bb' : 'var(--text-muted)' }}>{datum.ever_bidding ? 'Yes' : 'No'}</span>
         </p>
         {datum.last_bid_price != null && (
           <p className="text-muted">
             Last clearing price: <span className="font-medium text-label">{datum.last_bid_price} pts</span>
-            {datum.last_bid_acad && <span className="ml-1 text-[10px]">({datum.last_bid_acad} {datum.last_bid_term || ''})</span>}
-          </p>
-        )}
-        {datum.bid_clearing_price != null && datum.bid_clearing_price !== datum.last_bid_price && (
-          <p className="text-muted">
-            This term: <span className="font-medium text-label">{datum.bid_clearing_price} pts</span>
           </p>
         )}
       </div>
 
-      {!datum._isBidOnly && <p className="mt-1 text-[10px]" style={{ color: '#60a5fa' }}>Click to pin · open full course details below</p>}
+      <p className="mt-1 text-[10px]" style={{ color: 'var(--blue)' }}>Click to pin and preview details below</p>
     </div>
   )
 }
@@ -208,7 +195,7 @@ function CustomTooltip({ active, payload }) {
 function CustomDot({ cx, cy, payload, onClick }) {
   if (cx == null || cy == null) return null
 
-  const color = payload._color || '#60a5fa'
+  const color = payload._color || 'var(--blue)'
   const opacity = payload._opacity ?? 1
   const size = payload._isBidOnly ? 7 : 6
 
@@ -219,7 +206,7 @@ function CustomDot({ cx, cy, payload, onClick }) {
         points={`${cx},${cy - delta} ${cx + delta},${cy} ${cx},${cy + delta} ${cx - delta},${cy}`}
         fill={color}
         fillOpacity={opacity}
-        stroke="rgba(255,255,255,0.2)"
+        stroke="rgba(255,255,255,0.22)"
         strokeWidth={0.5}
         style={{ cursor: 'pointer' }}
         onClick={() => onClick && onClick(payload)}
@@ -234,7 +221,7 @@ function CustomDot({ cx, cy, payload, onClick }) {
       r={size}
       fill={color}
       fillOpacity={opacity}
-      stroke="rgba(255,255,255,0.15)"
+      stroke="rgba(255,255,255,0.18)"
       strokeWidth={0.5}
       style={{ cursor: payload._noHover ? 'default' : 'pointer', pointerEvents: payload._noHover ? 'none' : 'auto' }}
       onClick={payload._noHover ? undefined : () => onClick && onClick(payload)}
@@ -272,7 +259,6 @@ export default function ScatterPlot({
   ].filter(Boolean)
 
   const matchedIds = useMemo(() => new Set(matchedCoursesDeduped.map((course) => course.id)), [matchedCoursesDeduped])
-
   const getValue = (course, mode, key) => (mode.useRaw ? course.metrics_raw?.[key] ?? null : course.metrics_pct?.[key] ?? null)
 
   const bgData = useMemo(() => (
@@ -282,8 +268,8 @@ export default function ScatterPlot({
         ...course,
         _xVal: getValue(course, xMode, xMetric),
         _yVal: getValue(course, yMode, yMetric),
-        _color: 'rgba(130,130,160,0.18)',
-        _opacity: 0.5,
+        _color: 'rgba(205, 191, 181, 0.18)',
+        _opacity: 0.48,
         _noHover: true,
       }))
   ), [allCoursesDeduped, matchedIds, xMetric, xMode, yMetric, yMode])
@@ -301,7 +287,7 @@ export default function ScatterPlot({
         _yIsRaw: yMode.useRaw,
         _xLabel: xMeta.label,
         _yLabel: yMeta.label,
-        _color: course.ever_bidding ? '#e879a0' : '#60a5fa',
+        _color: course.ever_bidding ? '#d78aa7' : '#a51c30',
         _opacity: 1,
       }))
   ), [matchedCoursesDeduped, xMeta, xMetric, xMode, yMeta, yMetric, yMode])
@@ -330,8 +316,8 @@ export default function ScatterPlot({
           _yIsRaw: yMode.useRaw,
           _xLabel: xMeta.label,
           _yLabel: yMeta.label,
-          _color: '#fbbf24',
-          _opacity: 0.9,
+          _color: '#d4a86a',
+          _opacity: 0.92,
           _isBidOnly: true,
           _bidRank: index + 1,
         }
@@ -358,14 +344,14 @@ export default function ScatterPlot({
   }, [bidOnlyData, matchedData, pinnedDatum])
 
   const AxisSelectors = () => (
-    <div className="grid gap-3 border-b border-[#2a2a3e] px-3 py-3 md:grid-cols-2">
+    <div className="grid gap-3 border-b px-4 py-4 md:grid-cols-2" style={{ borderColor: 'var(--line)' }}>
       <div>
         <p className="mb-1 text-[10px] text-muted">
           Y-Axis: {yHigherBetter ? 'Higher is better' : 'Lower is better'}
-          {yMode.useRaw && <span className="ml-1" style={{ color: '#fbbf24' }}>raw values</span>}
+          {yMode.useRaw && <span className="ml-1" style={{ color: 'var(--gold)' }}>raw values</span>}
         </p>
         <div className="select-wrap">
-          <select value={yMetric} onChange={(event) => onYChange(event.target.value)} style={{ background: '#13131f' }}>
+          <select value={yMetric} onChange={(event) => onYChange(event.target.value)}>
             {metrics.map((metric) => (
               <option key={metric.key} value={metric.key}>{metric.label}</option>
             ))}
@@ -376,10 +362,10 @@ export default function ScatterPlot({
       <div>
         <p className="mb-1 text-[10px] text-muted">
           X-Axis: {xHigherBetter ? 'Higher is better' : 'Lower is better'}
-          {xMode.useRaw && <span className="ml-1" style={{ color: '#fbbf24' }}>raw values</span>}
+          {xMode.useRaw && <span className="ml-1" style={{ color: 'var(--gold)' }}>raw values</span>}
         </p>
         <div className="select-wrap">
-          <select value={xMetric} onChange={(event) => onXChange(event.target.value)} style={{ background: '#13131f' }}>
+          <select value={xMetric} onChange={(event) => onXChange(event.target.value)}>
             {metrics.map((metric) => (
               <option key={metric.key} value={metric.key}>{metric.label}</option>
             ))}
@@ -391,10 +377,7 @@ export default function ScatterPlot({
 
   if (allEmpty) {
     return (
-      <div
-        className="shrink-0 rounded-lg"
-        style={{ background: '#1a1a28', border: '1px solid #2a2a3e', display: 'flex', flexDirection: 'column' }}
-      >
+      <div className="surface-card shrink-0 rounded-[24px]" style={{ display: 'flex', flexDirection: 'column' }}>
         <AxisSelectors />
         <div className="flex items-center justify-center px-8 text-center" style={{ height: 300 }}>
           <div>
@@ -407,71 +390,69 @@ export default function ScatterPlot({
   }
 
   return (
-    <div
-      className="shrink-0 rounded-lg"
-      style={{ background: '#1a1a28', border: '1px solid #2a2a3e', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-    >
+    <div className="surface-card shrink-0 rounded-[24px]" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <AxisSelectors />
 
       <div style={{ width: '100%', height: chartHeight, flexShrink: 0 }}>
         <ResponsiveContainer width="100%" height={chartHeight}>
-          <ScatterChart margin={{ top: 10, right: 12, bottom: 28, left: 0 }}>
+          <ScatterChart margin={{ top: 10, right: 14, bottom: 28, left: 0 }}>
             {showQuadrants && (
               <>
-                <ReferenceArea x1={greenX0} x2={greenX1} y1={greenY0} y2={greenY1} fill="rgba(100,220,130,0.07)" />
-                <ReferenceArea x1={redX0} x2={redX1} y1={redY0} y2={redY1} fill="rgba(255,80,80,0.07)" />
+                <ReferenceArea x1={greenX0} x2={greenX1} y1={greenY0} y2={greenY1} fill="rgba(123, 176, 138, 0.08)" />
+                <ReferenceArea x1={redX0} x2={redX1} y1={redY0} y2={redY1} fill="rgba(165, 28, 48, 0.08)" />
               </>
             )}
 
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(243, 233, 226, 0.05)" />
 
             <XAxis
               type="number"
               dataKey="_xVal"
               domain={xMode.domain}
               tickFormatter={xMode.tickFmt}
-              tick={{ fill: '#8888aa', fontSize: 11 }}
-              axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+              axisLine={{ stroke: 'rgba(243, 233, 226, 0.2)' }}
               tickLine={false}
-              label={{ value: xMeta.label, position: 'insideBottom', offset: -10, fill: '#c0c0d8', fontSize: 11 }}
+              label={{ value: xMeta.label, position: 'insideBottom', offset: -10, fill: 'var(--text-muted)', fontSize: 11 }}
             />
             <YAxis
               type="number"
               dataKey="_yVal"
               domain={yMode.domain}
               tickFormatter={yMode.tickFmt}
-              tick={{ fill: '#8888aa', fontSize: 11 }}
-              axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+              axisLine={{ stroke: 'rgba(243, 233, 226, 0.2)' }}
               tickLine={false}
               width={44}
             />
 
             {showQuadrants && (
               <>
-                <ReferenceLine x={50} stroke="rgba(200,200,220,0.3)" strokeDasharray="4 4" />
-                <ReferenceLine y={50} stroke="rgba(200,200,220,0.3)" strokeDasharray="4 4" />
+                <ReferenceLine x={50} stroke="rgba(243, 233, 226, 0.28)" strokeDasharray="4 4" />
+                <ReferenceLine y={50} stroke="rgba(243, 233, 226, 0.28)" strokeDasharray="4 4" />
               </>
             )}
 
-            <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3', stroke: '#38bdf8' }} />
+            <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3', stroke: '#d4a86a' }} />
             <Scatter data={bgData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
             <Scatter data={matchedData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
-            <Scatter data={bidOnlyData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && navigate(`/courses?id=${encodeURIComponent(payload.id)}`)} />} />
+            <Scatter data={bidOnlyData} isAnimationActive={false} shape={<CustomDot onClick={(payload) => payload?.id && setPinnedDatum(payload)} />} />
           </ScatterChart>
         </ResponsiveContainer>
       </div>
 
       {pinnedDatum && (
-        <div className="border-t border-[#2a2a3e] px-4 py-4" style={{ background: '#151521' }}>
+        <div className="border-t px-4 py-4" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-bold" style={{ color: '#38bdf8' }}>{pinnedDatum.course_code}</p>
+              <p className="text-sm font-bold" style={{ color: pinnedDatum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>{pinnedDatum.course_code}</p>
               <p className="text-sm text-label">{pinnedDatum.course_name}</p>
               <p className="mt-1 text-xs text-muted">{pinnedDatum.professor_display || pinnedDatum.professor}</p>
             </div>
             <button
               onClick={() => setPinnedDatum(null)}
-              className="rounded border border-[#2a2a3e] px-2 py-1 text-[11px] text-muted hover:text-white"
+              className="rounded-full border px-3 py-1 text-[11px] text-muted hover:text-label"
+              style={{ borderColor: 'var(--line)' }}
             >
               Close
             </button>
@@ -479,29 +460,14 @@ export default function ScatterPlot({
 
           <div className="space-y-1 text-xs text-muted">
             <p>{pinnedDatum.is_average ? `Average ${pinnedDatum.year_range}` : `${pinnedDatum.term} ${pinnedDatum.year}`}</p>
-            {pinnedDatum._xVal != null && (
-              <p>
-                {pinnedDatum._xLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_xVal', '_xRaw', '_xIsRaw')}</span>
-              </p>
-            )}
-            {pinnedDatum._yVal != null && (
-              <p>
-                {pinnedDatum._yLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_yVal', '_yRaw', '_yIsRaw')}</span>
-              </p>
-            )}
-            {pinnedDatum.n_respondents != null && (
-              <p>N=<span className="text-label">{pinnedDatum.n_respondents}</span> survey respondents</p>
-            )}
-            {pinnedDatum.last_bid_price != null && (
-              <p>Last clearing price: <span className="text-label">{pinnedDatum.last_bid_price} pts</span></p>
-            )}
+            {pinnedDatum._xVal != null && <p>{pinnedDatum._xLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_xVal', '_xRaw', '_xIsRaw')}</span></p>}
+            {pinnedDatum._yVal != null && <p>{pinnedDatum._yLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_yVal', '_yRaw', '_yIsRaw')}</span></p>}
+            {pinnedDatum.n_respondents != null && <p>N=<span className="text-label">{pinnedDatum.n_respondents}</span> survey respondents</p>}
+            {pinnedDatum.last_bid_price != null && <p>Last clearing price: <span className="text-label">{pinnedDatum.last_bid_price} pts</span></p>}
           </div>
 
           <div className="mt-3">
-            <button
-              onClick={() => navigate(`/courses?id=${encodeURIComponent(pinnedDatum.id)}`)}
-              className="btn-details"
-            >
+            <button onClick={() => navigate(`/courses?id=${encodeURIComponent(pinnedDatum.id)}`)} className="btn-details">
               Go to Course Details
             </button>
           </div>
@@ -511,10 +477,11 @@ export default function ScatterPlot({
       {warnings.map((warning, index) => (
         <div
           key={`${warning.msg}-${index}`}
-          className="flex items-center gap-2 border-t border-[#2a2a3e] px-4 py-2 text-xs"
+          className="flex items-center gap-2 border-t px-4 py-2 text-xs"
           style={{
-            background: warning.type === 'error' ? '#2a1010' : '#2a2010',
-            color: warning.type === 'error' ? '#f87171' : '#fbbf24',
+            borderColor: 'var(--line)',
+            background: warning.type === 'error' ? 'rgba(216, 112, 112, 0.12)' : 'rgba(217, 155, 78, 0.12)',
+            color: warning.type === 'error' ? 'var(--danger)' : 'var(--warning)',
           }}
         >
           <span>Warning:</span>
@@ -522,19 +489,19 @@ export default function ScatterPlot({
         </div>
       ))}
 
-      <div className="border-t border-[#2a2a3e] px-4 py-3 text-xs" style={{ background: '#13131f' }}>
+      <div className="border-t px-4 py-3 text-xs" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.015)' }}>
         <p className="mb-2 font-medium text-label">How to read this</p>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {showQuadrants && (
             <>
-              <p className="text-muted"><span className="font-medium text-green-400">Green quadrant</span> = stronger on both axes</p>
-              <p className="text-muted"><span className="font-medium text-red-400">Red quadrant</span> = weaker on both axes</p>
+              <p className="text-muted"><span className="font-medium" style={{ color: 'var(--success)' }}>Green quadrant</span> = stronger on both axes</p>
+              <p className="text-muted"><span className="font-medium" style={{ color: 'var(--accent-strong)' }}>Crimson quadrant</span> = weaker on both axes</p>
             </>
           )}
-          <p className="text-muted"><span className="font-medium" style={{ color: '#e879a0' }}>Pink</span> = ever went to bidding</p>
+          <p className="text-muted"><span className="font-medium" style={{ color: '#d78aa7' }}>Rose</span> = ever went to bidding</p>
           {bidOnlyData.length > 0 && (
             <p className="text-muted">
-              <span className="font-medium" style={{ color: '#fbbf24' }}>Amber diamond</span> = bidding now, no eval yet, evenly spread by competitiveness rank
+              <span className="font-medium" style={{ color: 'var(--gold)' }}>Amber diamond</span> = bidding now, no eval yet, evenly spread by competitiveness rank
             </p>
           )}
         </div>
@@ -543,7 +510,7 @@ export default function ScatterPlot({
           {bidOnlyData.length > 0 && ` · ${bidOnlyData.length} bidding only`}
           {bgData.length > 0 && ` · ${bgData.length} additional context points`}
         </p>
-        <p className="mt-1 text-[10px] text-muted md:hidden" style={{ color: '#6060a0' }}>
+        <p className="mt-1 text-[10px] text-muted md:hidden" style={{ color: 'var(--text-muted)' }}>
           Tip: rotate to landscape for a larger chart on mobile.
         </p>
       </div>

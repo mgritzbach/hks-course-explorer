@@ -59,7 +59,6 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
     const nextTerms = filters.terms.includes(term)
       ? filters.terms.filter((item) => item !== term)
       : [...filters.terms, term]
-
     if (nextTerms.length > 0) update({ terms: nextTerms })
   }
 
@@ -87,52 +86,55 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       className="flex h-full flex-col overflow-y-auto shrink-0"
       style={{
         width: mobile ? '100%' : 248,
-        background: '#151521',
-        borderRight: '1px solid #2a2a3e',
+        background: 'linear-gradient(180deg, var(--panel-strong), var(--panel-soft))',
+        borderRight: '1px solid var(--line)',
       }}
     >
+      {/* Header */}
       <div className="px-4 pb-3 pt-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold text-red-400">{title}</p>
-            {activeCount > 0 && <span className="filter-badge">{activeCount} active</span>}
+            <p className="kicker">{title}</p>
+            {activeCount > 0 && <span className="filter-badge">{activeCount}</span>}
           </div>
           {mobile && onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-[#2a2a3e] px-2 py-1 text-[11px] text-muted transition-colors hover:text-white"
+              className="rounded-full px-3 py-1 text-[11px] text-muted transition-colors hover:text-label"
+              style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)' }}
             >
               Close
             </button>
           )}
         </div>
 
-        <label className="filter-label mb-1 block">Keywords (comma-separated):</label>
+        <label className="filter-label mb-1.5 block">Keywords</label>
         <div className="search-input-wrap">
           <input
             type="text"
             value={searchInput}
-            placeholder="Leadership, climate, Levy"
+            placeholder="Leadership, climate, Levy…"
             onChange={(event) => handleSearchChange(event.target.value)}
             onKeyDown={handleSearchKey}
           />
           {searchInput && (
             <button className="search-clear-btn" onClick={clearSearch} aria-label="Clear search">
-              x
+              ×
             </button>
           )}
         </div>
       </div>
 
+      {/* Year */}
       <div className="filter-section px-4 py-3">
-        <div className="mb-1 flex items-center justify-between">
-          <label className="filter-label">Year:</label>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="filter-label">Year</label>
           {filters.year !== 0 && (
             <button
               onClick={() => update({ year: 0 })}
-              className="text-[10px] font-medium transition-colors hover:text-white"
-              style={{ color: '#38bdf8' }}
+              className="text-[10px] font-semibold transition-colors hover:text-label"
+              style={{ color: 'var(--gold)' }}
               title="See weighted averages across all years"
             >
               All-time avg →
@@ -144,23 +146,24 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
             <option value={0}>⊕ All Years Average</option>
             {[...meta.years].reverse().map((year) => (
               <option key={year} value={year}>
-                {year === 2026 ? `${year} - Bidding` : year}
+                {year === 2026 ? `${year} — Bidding` : year}
               </option>
             ))}
           </select>
         </div>
         {filters.year === 0 && (
-          <p className="mt-1.5 text-[10px] leading-tight" style={{ color: '#60a5fa' }}>
+          <p className="mt-1.5 text-[10px] leading-tight" style={{ color: 'var(--blue)' }}>
             Weighted averages across all years — best for comparing instructors long-term.
           </p>
         )}
       </div>
 
+      {/* Concentration */}
       <div className="filter-section px-4 py-3">
-        <label className="filter-label mb-1 block">Concentration:</label>
+        <label className="filter-label mb-1.5 block">Concentration</label>
         <div className="select-wrap">
           <select value={filters.concentration} onChange={(event) => update({ concentration: event.target.value })}>
-            <option value="All">All</option>
+            <option value="All">All concentrations</option>
             {meta.concentrations.map((concentration) => (
               <option key={concentration} value={concentration}>{concentration}</option>
             ))}
@@ -168,38 +171,44 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         </div>
       </div>
 
+      {/* Core */}
       <div className="filter-section px-4 py-3">
-        <label className="filter-label mb-1 block">Core Courses:</label>
+        <label className="filter-label mb-1.5 block">Core Courses</label>
         <div className="select-wrap">
           <select value={filters.coreFilter} onChange={(event) => update({ coreFilter: event.target.value })}>
             <option value="all">Show All</option>
             <option value="core">Core Only</option>
-            <option value="no-core">No Core</option>
+            <option value="no-core">Electives Only</option>
           </select>
         </div>
       </div>
 
+      {/* Terms (only when a specific year is selected) */}
       {filters.year !== 0 && (
         <div className="filter-section px-4 py-3">
           <div className="mb-2 flex items-center justify-between">
-            <label className="filter-label">Term:</label>
-            <button onClick={() => update({ terms: ['Fall', 'Spring', 'January'] })} className="text-[10px] text-muted hover:text-label">
+            <label className="filter-label">Term</label>
+            <button
+              onClick={() => update({ terms: ['Fall', 'Spring', 'January'] })}
+              className="text-[10px] text-muted transition-colors hover:text-label"
+            >
               All
             </button>
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {meta.terms.map((term) => {
               const active = filters.terms.includes(term)
               return (
                 <button
                   key={term}
                   onClick={() => toggleTerm(term)}
-                  className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-                    active ? 'bg-red-600 text-white' : 'border border-[#2a2a3e] bg-[#1a1a28] text-muted hover:border-red-600'
-                  }`}
+                  className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-all"
+                  style={active
+                    ? { background: 'var(--accent)', color: '#fff8f5', border: '1px solid transparent' }
+                    : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
                 >
                   {TERM_LABELS[term]}
-                  {active && <span className="text-[10px] leading-none">x</span>}
+                  {active && <span style={{ fontSize: 9, opacity: 0.75 }}>✕</span>}
                 </button>
               )
             })}
@@ -207,20 +216,22 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         </div>
       )}
 
+      {/* Min Instructor Rating */}
       <div className="filter-section px-4 py-3">
-        <label className="filter-label mb-1 block">Min Instructor Rating:</label>
+        <label className="filter-label mb-1.5 block">Min Instructor Rating</label>
         <div className="select-wrap">
           <select value={filters.minInstructorPct} onChange={(event) => update({ minInstructorPct: event.target.value })}>
             <option value="any">Any</option>
-            <option value="75">Top 25% (&gt;=75th pct)</option>
-            <option value="50">Top 50% (&gt;=50th pct)</option>
-            <option value="25">Top 75% (&gt;=25th pct)</option>
+            <option value="75">Top 25% (≥75th pct)</option>
+            <option value="50">Top 50% (≥50th pct)</option>
+            <option value="25">Top 75% (≥25th pct)</option>
           </select>
         </div>
       </div>
 
+      {/* Instructor Gender */}
       <div className="filter-section px-4 py-3">
-        <label className="filter-label mb-1 block">Instructor Gender:</label>
+        <label className="filter-label mb-1.5 block">Instructor Gender</label>
         <div className="select-wrap">
           <select value={filters.gender} onChange={(event) => update({ gender: event.target.value })}>
             <option value="all">All</option>
@@ -230,42 +241,50 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         </div>
       </div>
 
-      <div className="filter-section flex flex-col gap-2.5 px-4 py-3">
-        <div className="flex items-center gap-2">
+      {/* Checkboxes */}
+      <div className="filter-section flex flex-col gap-3 px-4 py-3">
+        <label className="flex cursor-pointer items-center gap-2.5">
           <input
-            id="stem-check"
             type="checkbox"
             checked={filters.isStemOnly}
             onChange={(event) => update({ isStemOnly: event.target.checked })}
-            className="h-3.5 w-3.5 cursor-pointer accent-accent"
+            className="h-3.5 w-3.5 cursor-pointer"
+            style={{ accentColor: 'var(--accent)' }}
           />
-          <label htmlFor="stem-check" className="cursor-pointer text-xs text-label">Only STEM</label>
-        </div>
+          <span className="text-xs text-label">STEM courses only</span>
+        </label>
 
-        <div className="flex items-center gap-2">
+        <label className="flex cursor-pointer items-center gap-2.5">
           <input
-            id="eval-check"
             type="checkbox"
             checked={filters.evalOnly}
             onChange={(event) => update({ evalOnly: event.target.checked })}
-            className="h-3.5 w-3.5 cursor-pointer accent-accent"
+            className="h-3.5 w-3.5 cursor-pointer"
+            style={{ accentColor: 'var(--accent)' }}
           />
-          <label htmlFor="eval-check" className="cursor-pointer text-xs text-label">Only with evals</label>
-        </div>
+          <span className="text-xs text-label">Only courses with evals</span>
+        </label>
       </div>
 
+      {/* Reset */}
       <div className="filter-section px-4 py-3">
         <button
           onClick={reset}
-          className="w-full rounded border border-[#2a2a3e] py-2 text-xs text-muted transition-colors hover:border-label hover:text-label"
+          className="w-full rounded-full py-2 text-xs font-semibold text-muted transition-all hover:text-label"
+          style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)' }}
         >
           Reset All Filters
         </button>
       </div>
 
-      <div className="mt-auto border-t border-[#2a2a3e] px-4 pb-4 pt-4">
-        <a href="mailto:feedback@hks.harvard.edu" className="text-xs text-accent hover:underline">
-          Share Feedback
+      {/* Footer */}
+      <div className="mt-auto border-t px-4 pb-5 pt-4" style={{ borderColor: 'var(--line)' }}>
+        <a
+          href="mailto:feedback@hks.harvard.edu"
+          className="text-xs transition-colors hover:text-label"
+          style={{ color: 'var(--gold)' }}
+        >
+          Share Feedback →
         </a>
       </div>
     </aside>

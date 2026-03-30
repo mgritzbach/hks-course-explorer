@@ -7,17 +7,14 @@ function MetricBar({ label, value, higherBetter = true, neutral = false }) {
   if (value == null) return null
   const rounded = Math.round(value)
   let color
-  if (neutral) {
-    color = '#60a5fa'
-  } else if (higherBetter) {
-    color = rounded >= 75 ? '#22c55e' : rounded >= 50 ? '#facc15' : '#ef4444'
-  } else {
-    color = rounded <= 25 ? '#22c55e' : rounded <= 50 ? '#facc15' : '#ef4444'
-  }
+  if (neutral) color = 'var(--blue)'
+  else if (higherBetter) color = rounded >= 75 ? 'var(--success)' : rounded >= 50 ? 'var(--gold)' : 'var(--danger)'
+  else color = rounded <= 25 ? 'var(--success)' : rounded <= 50 ? 'var(--gold)' : 'var(--danger)'
+
   return (
     <div className="mb-2">
       <div className="mb-0.5 flex justify-between text-xs"><span className="text-muted">{label}</span><span className="font-medium text-label">{rounded}%</span></div>
-      <div className="h-1 w-full rounded-full" style={{ background: '#2a2a3e' }}><div className="h-1 rounded-full" style={{ width: `${rounded}%`, background: color }} /></div>
+      <div className="h-1 w-full rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}><div className="h-1 rounded-full" style={{ width: `${rounded}%`, background: color }} /></div>
     </div>
   )
 }
@@ -42,16 +39,16 @@ function FacultySidebar({
   const filters = activeFilterCount({ concentration, minRating, minCourses })
 
   return (
-    <aside className="flex h-full flex-col overflow-hidden shrink-0" style={{ width: mobile ? '100%' : 292, background: '#151521', borderRight: '1px solid #2a2a3e' }}>
-      <div className="shrink-0 border-b border-[#2a2a3e] px-4 pb-3 pt-4">
+    <aside className="flex h-full flex-col overflow-hidden shrink-0" style={{ width: mobile ? '100%' : 292, background: 'linear-gradient(180deg, var(--panel-strong), var(--panel-soft))', borderRight: '1px solid var(--line)' }}>
+      <div className="shrink-0 border-b px-4 pb-3 pt-4" style={{ borderColor: 'var(--line)' }}>
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold" style={{ color: '#38bdf8' }}>Faculty Explorer</p>
+            <p className="kicker">Faculty Explorer</p>
             {filters > 0 && <span className="filter-badge">{filters} active</span>}
           </div>
           <div className="flex items-center gap-2">
             {filters > 0 && <button onClick={resetFilters} className="text-[10px] text-muted hover:text-label">Reset</button>}
-            {mobile && onClose && <button onClick={onClose} className="rounded-full border border-[#2a2a3e] px-2 py-1 text-[11px] text-muted hover:text-white">Close</button>}
+            {mobile && onClose && <button onClick={onClose} className="rounded-full border px-2 py-1 text-[11px] text-muted hover:text-label" style={{ borderColor: 'var(--line)' }}>Close</button>}
           </div>
         </div>
 
@@ -75,13 +72,13 @@ function FacultySidebar({
             <button
               key={prof.professor}
               onClick={() => { handleSelectProf(prof); if (mobile && onClose) onClose() }}
-              className="w-full border-b border-[#1e1e2e] px-4 py-3 text-left transition-colors hover:bg-[#1e1e2e]"
-              style={{ background: selected ? '#2a2a3e' : undefined, borderLeft: selected ? '3px solid #38bdf8' : '3px solid transparent' }}
+              className="w-full border-b px-4 py-3 text-left transition-colors"
+              style={{ background: selected ? 'rgba(165, 28, 48, 0.12)' : undefined, borderColor: 'rgba(243, 233, 226, 0.06)', borderLeft: selected ? '3px solid var(--accent)' : '3px solid transparent' }}
             >
               <p className="text-xs font-medium leading-tight text-label">{prof.professor_display}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="text-[10px] text-muted">{prof.evalCourses} course{prof.evalCourses !== 1 ? 's' : ''}</span>
-                {avg != null && <span className="rounded px-1 py-0.5 text-[10px] font-medium" style={{ background: avg >= 75 ? '#14532d' : avg >= 50 ? '#422006' : '#450a0a', color: avg >= 75 ? '#4ade80' : avg >= 50 ? '#fb923c' : '#f87171' }}>{Math.round(avg)}% instr.</span>}
+                {avg != null && <span className="rounded px-1 py-0.5 text-[10px] font-medium" style={{ background: avg >= 75 ? 'rgba(123,176,138,0.12)' : avg >= 50 ? 'rgba(212,168,106,0.12)' : 'rgba(216,112,112,0.12)', color: avg >= 75 ? 'var(--success)' : avg >= 50 ? 'var(--gold)' : 'var(--danger)' }}>{Math.round(avg)}% instr.</span>}
               </div>
             </button>
           )
@@ -224,8 +221,8 @@ export default function Faculty({ courses, meta }) {
 
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-8 md:py-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="text-lg font-bold text-white md:text-2xl">Faculty Explorer</h2><p className="mt-1 text-xs text-muted md:text-sm">Browse teaching history and weighted rating averages for HKS instructors.</p></div>
-          <button onClick={() => setSidebarOpen(true)} className="rounded-full border border-[#2a2a3e] bg-[#151521] px-3 py-2 text-xs font-medium text-white md:hidden">Browse Faculty{activeFilterCount({ concentration, minRating, minCourses }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses })})` : ''}</button>
+          <div><p className="kicker mb-2">Teaching lens</p><h2 className="serif-display text-3xl font-semibold md:text-[2.4rem]" style={{ color: 'var(--text)' }}>Faculty Explorer</h2><p className="mt-2 text-xs text-muted md:text-sm">Browse teaching history and weighted rating averages for HKS instructors.</p></div>
+          <button onClick={() => setSidebarOpen(true)} className="rounded-full border px-3 py-2 text-xs font-medium text-white md:hidden" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.04)' }}>Browse Faculty{activeFilterCount({ concentration, minRating, minCourses }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses })})` : ''}</button>
         </div>
 
         {!selectedData && (
@@ -233,7 +230,7 @@ export default function Faculty({ courses, meta }) {
             <p className="mb-1 text-2xl" style={{ lineHeight: 1 }}>&#x1F393;</p>
             <p className="mb-1 mt-3 font-medium text-label">Select an instructor</p>
             <p className="mb-6 text-xs text-muted">
-              {allProfessors.length} instructors with eval data · use the sidebar to search or filter
+              {allProfessors.length} instructors with eval data - use the sidebar to search or filter
             </p>
             {allProfessors.length > 0 && (
               <div className="max-w-md">
@@ -247,11 +244,11 @@ export default function Faculty({ courses, meta }) {
                       <button
                         key={prof.professor}
                         onClick={() => handleSelectProf(prof)}
-                        className="rounded-full border border-[#2a2a3e] px-3 py-1.5 text-xs text-label transition-colors hover:border-[#38bdf8] hover:text-white"
-                        style={{ background: '#1a1a28' }}
+                        className="rounded-full border px-3 py-1.5 text-xs text-label transition-colors hover:text-label"
+                        style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.03)' }}
                       >
                         {prof.professor_display}
-                        <span className="ml-1.5 font-medium" style={{ color: '#4ade80' }}>{Math.round(prof.avgMetrics.Instructor_Rating)}%</span>
+                        <span className="ml-1.5 font-medium" style={{ color: 'var(--success)' }}>{Math.round(prof.avgMetrics.Instructor_Rating)}%</span>
                       </button>
                     ))}
                 </div>
@@ -262,36 +259,36 @@ export default function Faculty({ courses, meta }) {
 
         {selectedData && <>
           <div className="mb-6">
-            <h2 className="mb-1 text-xl font-bold text-white md:text-2xl">{selectedData.professor_display}</h2>
+            <h2 className="serif-display mb-1 text-3xl font-semibold md:text-[2.25rem]" style={{ color: 'var(--text)' }}>{selectedData.professor_display}</h2>
             {selectedData.faculty_title && <p className="text-sm text-muted">{selectedData.faculty_title}</p>}
             {selectedData.faculty_category && <p className="text-xs text-muted">{selectedData.faculty_category}</p>}
-            {selectedData.concentrations.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{selectedData.concentrations.map((item) => <span key={item} className="rounded px-2 py-1 text-[10px] font-medium" style={{ background: '#1e2a4a', color: '#93c5fd' }}>{item}</span>)}</div>}
+            {selectedData.concentrations.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{selectedData.concentrations.map((item) => <span key={item} className="rounded-full px-2.5 py-1 text-[10px] font-medium" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>{item}</span>)}</div>}
             <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted"><span>{selectedData.evalCourses} course{selectedData.evalCourses !== 1 ? 's' : ''} with evals</span>{selectedData.totalRespondents > 0 && <span>{selectedData.totalRespondents} total respondents</span>}</div>
           </div>
 
           <div className="mb-6 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-lg p-4" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
+            <div className="surface-card rounded-[22px] p-4">
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Average Ratings</h4>
               {meta.metrics.filter((metric) => !metric.bid_metric).map((metric) => <MetricBar key={metric.key} label={metric.label} value={selectedData.avgMetrics?.[metric.key]} higherBetter={metric.higher_is_better} neutral={metric.key === 'Workload' || metric.key === 'Rigor'} />)}
             </div>
-            <div className="rounded-lg p-4" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
+            <div className="surface-card rounded-[22px] p-4">
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Quick Stats</h4>
-              {selectedData.avgMetrics?.Instructor_Rating != null && <div className="mb-3 rounded p-3" style={{ background: '#13131f' }}><p className="text-[10px] uppercase tracking-wider text-muted">Instructor Rating</p><p className="text-xl font-bold" style={{ color: '#38bdf8' }}>{Math.round(selectedData.avgMetrics.Instructor_Rating)}%</p><p className="text-[10px] text-muted">global percentile average</p></div>}
-              <div className="grid grid-cols-2 gap-2">{[{ key: 'Course_Rating', label: 'Course Rating', color: '#86efac' }, { key: 'Workload', label: 'Workload', color: '#c0c0d8' }, { key: 'Rigor', label: 'Rigor', color: '#c0c0d8' }, { key: 'Diverse Perspectives', label: 'Diverse Persp.', color: '#c0c0d8' }, { key: 'Feedback', label: 'Feedback', color: '#c0c0d8' }].map(({ key, label, color }) => selectedData.avgMetrics?.[key] != null && <div key={key} className="rounded p-2" style={{ background: '#13131f' }}><p className="text-[10px] text-muted">{label}</p><p className="text-sm font-bold" style={{ color }}>{Math.round(selectedData.avgMetrics[key])}%</p></div>)}</div>
+              {selectedData.avgMetrics?.Instructor_Rating != null && <div className="mb-3 rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.025)' }}><p className="text-[10px] uppercase tracking-wider text-muted">Instructor Rating</p><p className="text-xl font-bold" style={{ color: 'var(--accent-strong)' }}>{Math.round(selectedData.avgMetrics.Instructor_Rating)}%</p><p className="text-[10px] text-muted">global percentile average</p></div>}
+              <div className="grid grid-cols-2 gap-2">{[{ key: 'Course_Rating', label: 'Course Rating', color: 'var(--success)' }, { key: 'Workload', label: 'Workload', color: 'var(--text-soft)' }, { key: 'Rigor', label: 'Rigor', color: 'var(--text-soft)' }, { key: 'Diverse Perspectives', label: 'Diverse Persp.', color: 'var(--text-soft)' }, { key: 'Feedback', label: 'Feedback', color: 'var(--text-soft)' }].map(({ key, label, color }) => selectedData.avgMetrics?.[key] != null && <div key={key} className="rounded-2xl p-2" style={{ background: 'rgba(255,255,255,0.025)' }}><p className="text-[10px] text-muted">{label}</p><p className="text-sm font-bold" style={{ color }}>{Math.round(selectedData.avgMetrics[key])}%</p></div>)}</div>
             </div>
           </div>
 
-          <div className="rounded-lg" style={{ background: '#1a1a28', border: '1px solid #2a2a3e' }}>
-            <div className="border-b border-[#2a2a3e] px-4 py-3"><h4 className="text-xs font-semibold uppercase tracking-wider text-muted">All Courses Taught ({profCourses.length})</h4></div>
+          <div className="surface-card rounded-[22px]">
+            <div className="border-b px-4 py-3" style={{ borderColor: 'var(--line)' }}><h4 className="text-xs font-semibold uppercase tracking-wider text-muted">All Courses Taught ({profCourses.length})</h4></div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr style={{ borderBottom: '1px solid #2a2a3e' }}>{['Year', 'Term', 'Course', 'Instructor %', 'Course %', 'Workload %', 'Rigor %', 'Diverse Persp.', 'N'].map((h) => <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-medium text-muted">{h}</th>)}</tr></thead>
-                <tbody>{profCourses.map((course, i) => <tr key={i} className="cursor-pointer transition-colors hover:bg-[#1e1e2e]" style={{ borderBottom: '1px solid #1a1a28' }} onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}><td className="px-3 py-2 text-label">{course.year}</td><td className="px-3 py-2 text-muted">{course.term}</td><td className="px-3 py-2"><span className="font-medium" style={{ color: '#38bdf8' }}>{course.course_code}</span><span className="ml-2 text-label">{course.course_name}</span></td><td className="px-3 py-2 font-medium" style={{ color: '#38bdf8' }}>{pct(course.metrics_pct?.Instructor_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Course_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Workload)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Rigor)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.['Diverse Perspectives'])}</td><td className="px-3 py-2 text-muted">{course.n_respondents ?? '-'}</td></tr>)}</tbody>
+                <thead><tr style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.08)' }}>{['Year', 'Term', 'Course', 'Instructor %', 'Course %', 'Workload %', 'Rigor %', 'Diverse Persp.', 'N'].map((h) => <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-medium text-muted">{h}</th>)}</tr></thead>
+                <tbody>{profCourses.map((course, i) => <tr key={i} className="cursor-pointer transition-colors hover:bg-[rgba(255,255,255,0.02)]" style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.05)' }} onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}><td className="px-3 py-2 text-label">{course.year}</td><td className="px-3 py-2 text-muted">{course.term}</td><td className="px-3 py-2"><span className="font-medium" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</span><span className="ml-2 text-label">{course.course_name}</span></td><td className="px-3 py-2 font-medium" style={{ color: 'var(--accent-strong)' }}>{pct(course.metrics_pct?.Instructor_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Course_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Workload)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Rigor)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.['Diverse Perspectives'])}</td><td className="px-3 py-2 text-muted">{course.n_respondents ?? '-'}</td></tr>)}</tbody>
               </table>
             </div>
           </div>
 
-          <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach MPA'26 · Data from HKS QReports · {new Date().getFullYear()}</div>
+          <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach MPA&apos;26 - Data from HKS QReports - {new Date().getFullYear()}</div>
         </>}
       </main>
     </div>

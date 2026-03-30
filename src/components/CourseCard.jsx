@@ -14,7 +14,7 @@ function RatingBadge({ label, value, color }) {
   return (
     <div className="text-xs leading-5 md:text-right">
       <span className="text-muted">{label}: </span>
-      <span className="font-medium" style={{ color: color || '#c0c0d8' }}>{pct(value)}</span>
+      <span className="font-medium" style={{ color: color || 'var(--text-soft)' }}>{pct(value)}</span>
     </div>
   )
 }
@@ -29,90 +29,96 @@ export default function CourseCard({ course, favs }) {
   const biddingOnly = !course.has_eval && course.has_bidding
   const noEval = !course.has_eval && !course.has_bidding
 
-  const borderAccent = biddingOnly ? '#f59e0b' : noEval ? '#4a4a5e' : '#38bdf8'
+  const borderAccent = biddingOnly ? 'var(--gold)' : noEval ? 'rgba(243, 233, 226, 0.2)' : 'var(--accent)'
   const descriptionExcerpt = course.description
     ? (course.description.length > 180 ? `${course.description.slice(0, 180)}...` : course.description)
     : null
 
   return (
     <div
-      className="card-hover py-5"
+      className="card-hover surface-card mb-3 py-5"
       style={{
-        borderBottom: '1px solid #2a2a3e',
         borderLeft: `3px solid ${borderAccent}`,
-        paddingLeft: 14,
+        paddingLeft: 16,
+        paddingRight: 16,
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.028), rgba(255,255,255,0.016))',
       }}
     >
-      <div className="mb-2 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold leading-6 md:text-[15px]">
-            <button
-              onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}
-              className="text-left hover:underline"
-              style={{ color: '#38bdf8' }}
-            >
-              <span className="font-bold">{course.course_code}</span>
-              <span className="text-label">: {course.course_name || '(Untitled)'}</span>
-            </button>
-          </h3>
-
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mb-2 flex flex-wrap gap-2">
             {course.is_stem && (
-              <span className="rounded px-2 py-1 text-[10px] font-bold" style={{ background: '#1e3a52', color: '#38bdf8' }}>
+              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>
                 STEM
               </span>
             )}
             {course.is_core && (
-              <span className="rounded px-2 py-1 text-[10px] font-bold" style={{ background: '#2a1f0e', color: '#f59e0b' }}>
+              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
                 Core
               </span>
             )}
+            {biddingOnly && (
+              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
+                Bidding pressure
+              </span>
+            )}
           </div>
+
+          <h3 className="serif-display text-lg font-semibold leading-6 md:text-[22px]" style={{ color: 'var(--text)' }}>
+            <button
+              onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}
+              className="text-left transition-opacity hover:opacity-85"
+            >
+              <span style={{ color: biddingOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>{course.course_code}</span>
+              <span style={{ color: biddingOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>:</span>
+              <span style={{ color: 'var(--text)' }}>{` ${course.course_name || '(Untitled)'}`}</span>
+            </button>
+          </h3>
         </div>
 
-        <div className="min-w-0 md:min-w-[120px]">
+        <div className="min-w-0 md:min-w-[140px]">
           {biddingOnly ? (
             <div
-              className="inline-flex rounded-lg border px-3 py-2 text-xs font-bold md:flex md:flex-col md:items-end"
-              style={{ background: '#2a1f0a', color: '#f59e0b', borderColor: '#f59e0b44' }}
+              className="inline-flex rounded-2xl border px-3 py-2 text-xs font-bold md:flex md:flex-col md:items-end"
+              style={{ background: 'var(--gold-soft)', color: 'var(--gold)', borderColor: 'rgba(212, 168, 106, 0.24)' }}
             >
-              <span>Bidding</span>
+              <span>Most Competitive</span>
               {course.last_bid_price != null && (
-                <span className="font-normal md:mt-1" style={{ fontSize: 11, color: '#f8d27d' }}>
+                <span className="font-normal md:mt-1" style={{ fontSize: 11, color: 'var(--gold)' }}>
                   {course.last_bid_price} pts
                 </span>
               )}
             </div>
           ) : noEval ? (
-            <div className="text-xs text-muted">No eval data</div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>No eval data</div>
           ) : (
             <div className="grid gap-1">
-              <RatingBadge label="Instructor" value={instructorPct} color="#38bdf8" />
-              <RatingBadge label="Course" value={coursePct} color="#86efac" />
-              <RatingBadge label="Workload" value={workloadPct} color="#c0c0d8" />
+              <RatingBadge label="Instructor" value={instructorPct} color="var(--accent-strong)" />
+              <RatingBadge label="Course" value={coursePct} color="var(--success)" />
+              <RatingBadge label="Workload" value={workloadPct} color="var(--text-soft)" />
             </div>
           )}
         </div>
       </div>
 
       {course.professor_display && (
-        <p className="mb-1 text-sm text-label">
-          <span className="text-muted">Instructor:</span>{' '}
+        <p className="mb-2 text-sm" style={{ color: 'var(--text-soft)' }}>
+          <span style={{ color: 'var(--text-muted)' }}>Instructor:</span>{' '}
           <button
             onClick={() => navigate(`/faculty?prof=${encodeProf(course.professor)}`)}
             className="hover:underline"
-            style={{ color: '#93c5fd' }}
+            style={{ color: 'var(--blue)' }}
           >
             {course.professor_display}
           </button>
-          {course.faculty_category && <span className="ml-1 text-[11px] text-muted">({course.faculty_category})</span>}
+          {course.faculty_category && <span className="ml-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>({course.faculty_category})</span>}
         </p>
       )}
 
-      <p className="mb-3 text-xs text-muted leading-5">
+      <p className="mb-3 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>
         {course.is_average ? (
           <>
-            <span className="mr-2 rounded px-2 py-1 text-[11px]" style={{ background: '#1e2a4a', color: '#93c5fd' }}>
+            <span className="mr-2 rounded-full px-2 py-1 text-[11px]" style={{ background: 'var(--panel-subtle)', color: 'var(--blue)' }}>
               avg {course.year_range}
             </span>
             <span>
@@ -138,22 +144,12 @@ export default function CourseCard({ course, favs }) {
         )}
       </p>
 
-      {biddingOnly && (
-        <p
-          className="mb-3 inline-flex items-center gap-2 rounded border px-3 py-1 text-xs font-medium"
-          style={{ background: '#2a1f0a', color: '#f59e0b', borderColor: '#f59e0b33' }}
-        >
-          Bidding only
-          {course.last_bid_price != null && <span className="font-bold">{course.last_bid_price} pts</span>}
-        </p>
-      )}
-
       {descriptionExcerpt && (
-        <p className="mb-3 text-xs leading-relaxed text-muted">{descriptionExcerpt}</p>
+        <p className="mb-4 text-xs leading-relaxed" style={{ color: 'var(--text-soft)' }}>{descriptionExcerpt}</p>
       )}
 
       {noEval && !biddingOnly && (
-        <p className="mb-2 text-xs italic" style={{ color: '#5a5a7a' }}>
+        <p className="mb-3 text-xs italic" style={{ color: 'var(--text-muted)' }}>
           No evaluation data available
         </p>
       )}
@@ -167,8 +163,8 @@ export default function CourseCard({ course, favs }) {
             href={course.course_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded px-4 py-2 text-center text-xs font-medium text-label transition-opacity hover:opacity-80"
-            style={{ background: '#2a2a3e' }}
+            className="rounded-full border px-4 py-2 text-center text-xs font-medium transition-opacity hover:opacity-80"
+            style={{ background: 'var(--panel-subtle)', borderColor: 'var(--line)', color: 'var(--text)' }}
           >
             Course Website
           </a>
@@ -177,8 +173,12 @@ export default function CourseCard({ course, favs }) {
           <button
             onClick={() => favs.toggle(course.course_code_base)}
             title={starred ? 'Remove from shortlist' : 'Add to shortlist'}
-            className="ml-auto rounded px-3 py-2 text-sm transition-colors"
-            style={{ color: starred ? '#fbbf24' : '#4a4a6a', background: starred ? '#2a1f0a' : 'transparent' }}
+            className="ml-auto rounded-full px-3 py-2 text-sm transition-colors"
+            style={{
+              color: starred ? 'var(--gold)' : 'var(--text-muted)',
+              background: starred ? 'var(--gold-soft)' : 'transparent',
+              border: `1px solid ${starred ? 'rgba(212, 168, 106, 0.22)' : 'transparent'}`,
+            }}
           >
             {starred ? '★' : '☆'}
           </button>
