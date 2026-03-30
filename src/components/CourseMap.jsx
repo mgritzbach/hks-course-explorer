@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ResponsiveContainer, Tooltip, Treemap } from 'recharts'
 
-// Data-coded instructor rating colors — semantic, not theme-dependent
 function instructorColor(percentile) {
   if (percentile == null) return 'rgba(255,255,255,0.08)'
   if (percentile >= 75) return '#16a34a'
@@ -51,7 +50,7 @@ function CustomCell(props) {
           style={{ pointerEvents: 'none', userSelect: 'none' }}
         >
           {name?.length > Math.floor(width / (fontSize * 0.6))
-            ? `${name.slice(0, Math.floor(width / (fontSize * 0.6)) - 1)}…`
+            ? `${name.slice(0, Math.floor(width / (fontSize * 0.6)) - 1)}...`
             : name}
         </text>
       )}
@@ -109,6 +108,7 @@ function CustomTooltip({ active, payload }) {
 export default function CourseMap({ courses }) {
   const navigate = useNavigate()
   const chartHeight = courses.length > 0 ? 360 : 320
+  const useCompactLayout = courses.length > 0 && courses.length <= 8
 
   const treeData = useMemo(() => {
     if (!courses.length) return []
@@ -160,14 +160,16 @@ export default function CourseMap({ courses }) {
           <p className="text-xs text-muted">
             <span className="font-semibold text-label">{courses.length}</span> courses
           </p>
-          <p className="text-[10px] text-muted">Click any block to open details</p>
+          <p className="text-[10px] text-muted">
+            {useCompactLayout ? 'Compact view for small result sets' : 'Click any block to open details'}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span className="filter-label">Instructor Rating</span>
           {[
             { color: '#16a34a', label: 'Top 25%' },
-            { color: '#65a30d', label: '25–50%' },
-            { color: '#ca8a04', label: '50–75%' },
+            { color: '#65a30d', label: '25-50%' },
+            { color: '#ca8a04', label: '50-75%' },
             { color: '#dc2626', label: 'Bottom 25%' },
             { color: 'rgba(255,255,255,0.08)', label: 'No data', border: '1px solid rgba(255,255,255,0.16)' },
           ].map(({ color, label, border }) => (
@@ -176,29 +178,75 @@ export default function CourseMap({ courses }) {
               <span className="text-muted">{label}</span>
             </span>
           ))}
-          <span className="text-[10px] text-muted">· Box size = N respondents</span>
+          {!useCompactLayout && <span className="text-[10px] text-muted">· Box size = N respondents</span>}
         </div>
       </div>
 
-      <div style={{ width: '100%', height: chartHeight }}>
-        <ResponsiveContainer width="100%" height={chartHeight}>
-          <Treemap
-            data={treeData}
-            dataKey="value"
-            aspectRatio={4 / 3}
-            isAnimationActive={false}
-            content={<CustomCell />}
-            onClick={(node) => {
-              if (node?._course?.id) navigate(`/courses?id=${encodeURIComponent(node._course.id)}`)
-            }}
-          >
-            <Tooltip content={<CustomTooltip />} />
-          </Treemap>
-        </ResponsiveContainer>
-      </div>
+      {useCompactLayout ? (
+        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+          {courses.map((course) => (
+            <button
+              key={course.id}
+              onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}
+              className="rounded-[18px] border p-4 text-left transition-colors hover:text-label"
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</p>
+                  <p className="mt-1 text-sm text-label">{course.course_name}</p>
+                </div>
+                <span
+                  className="mt-0.5 inline-block h-3 w-3 shrink-0 rounded-full"
+                  style={{
+                    background: instructorColor(course.metrics_pct?.Instructor_Rating),
+                    border: '1px solid rgba(255,255,255,0.16)',
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted">{course.professor_display || course.professor}</p>
+              <p className="mt-1 text-xs text-muted">{course.is_average ? `avg ${course.year_range}` : `${course.term} ${course.year}`}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                {course.metrics_pct?.Instructor_Rating != null && (
+                  <span className="rounded-full px-2 py-1" style={{ background: 'rgba(165, 28, 48, 0.12)', color: 'var(--accent-strong)' }}>
+                    Instr. {Math.round(course.metrics_pct.Instructor_Rating)}%
+                  </span>
+                )}
+                {course.metrics_pct?.Course_Rating != null && (
+                  <span className="rounded-full px-2 py-1" style={{ background: 'rgba(123, 176, 138, 0.14)', color: 'var(--success)' }}>
+                    Course {Math.round(course.metrics_pct.Course_Rating)}%
+                  </span>
+                )}
+                {course.metrics_pct?.Workload != null && (
+                  <span className="rounded-full px-2 py-1" style={{ background: 'var(--panel-strong)', color: 'var(--text-soft)' }}>
+                    Workload {Math.round(course.metrics_pct.Workload)}%
+                  </span>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ width: '100%', height: chartHeight }}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <Treemap
+              data={treeData}
+              dataKey="value"
+              aspectRatio={4 / 3}
+              isAnimationActive={false}
+              content={<CustomCell />}
+              onClick={(node) => {
+                if (node?._course?.id) navigate(`/courses?id=${encodeURIComponent(node._course.id)}`)
+              }}
+            >
+              <Tooltip content={<CustomTooltip />} />
+            </Treemap>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       <div className="border-t px-5 py-3 text-[11px] text-muted" style={{ borderColor: 'var(--line)', background: 'rgba(0,0,0,0.06)' }}>
-        Grouped by concentration · tap a block to open the full detail view
+        {useCompactLayout ? 'Small result set: showing readable course cards instead of a stretched treemap' : 'Grouped by concentration · tap a block to open the full detail view'}
       </div>
     </div>
   )
