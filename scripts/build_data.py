@@ -8,19 +8,21 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE_CSV = ROOT / "data" / "canonical_courses_enriched.csv"
 OUTPUT_JSON = ROOT / "public" / "courses.json"
 
-RAW_METRICS = [
-    "Instructor_Rating",
-    "Course_Rating",
-    "Workload",
-    "Assignments",
-    "Availability",
-    "Discussions",
-    "Diverse Perspectives",
-    "Feedback",
-    "Discussion Diversity",
-    "Rigor",
-    "Readings",
-    "Insights",
+METRICS = [
+    {"key": "Instructor_Rating", "label": "Instructor Rating", "higher_is_better": True},
+    {"key": "Course_Rating", "label": "Course Rating", "higher_is_better": True},
+    {"key": "Workload", "label": "Workload", "higher_is_better": False},
+    {"key": "Assignments", "label": "Assignment Value", "higher_is_better": True},
+    {"key": "Availability", "label": "Availability", "higher_is_better": True},
+    {"key": "Discussions", "label": "Class Discussions", "higher_is_better": True},
+    {"key": "Diverse Perspectives", "label": "Diverse Perspectives", "higher_is_better": True},
+    {"key": "Feedback", "label": "Feedback", "higher_is_better": True},
+    {"key": "Discussion Diversity", "label": "Discussion Diversity", "higher_is_better": True},
+    {"key": "Rigor", "label": "Rigor", "higher_is_better": True},
+    {"key": "Readings", "label": "Readings", "higher_is_better": False},
+    {"key": "Insights", "label": "Insights", "higher_is_better": True},
+    {"key": "Bid_Price", "label": "Bid Price", "higher_is_better": False, "bid_metric": True},
+    {"key": "Bid_N_Bids", "label": "Number of Bids", "higher_is_better": False, "bid_metric": True},
 ]
 
 
@@ -137,10 +139,10 @@ def meta_from_courses(courses):
     return {
         "concentrations": concentrations,
         "years": years,
-        "terms": terms,
+        "terms": [term for term in terms if term != "Average"],
         "default_year": default_year,
         "default_terms": ["Fall", "Spring"],
-        "metrics": RAW_METRICS,
+        "metrics": METRICS,
     }
 
 
@@ -152,15 +154,17 @@ def build_course(row, latest_bid_lookup):
     term = clean_text(row.get("term"))
     professor = clean_text(row.get("professor"))
     metrics_raw = {
-        metric: parse_float(row.get(metric))
-        for metric in RAW_METRICS
+        metric["key"]: parse_float(row.get(metric["key"]))
+        for metric in METRICS
+        if not metric.get("bid_metric")
     }
     metrics_raw["Bid_Price"] = parse_float(row.get("bid_clearing_price"))
     metrics_raw["Bid_N_Bids"] = parse_float(row.get("bid_n_bids"))
 
     metrics_pct = {
-        metric: parse_float(row.get(f"pct_{metric}"))
-        for metric in RAW_METRICS
+        metric["key"]: parse_float(row.get(f"pct_{metric['key']}"))
+        for metric in METRICS
+        if not metric.get("bid_metric")
     }
     metrics_pct["Bid_Price"] = None
     metrics_pct["Bid_N_Bids"] = None
@@ -182,6 +186,9 @@ def build_course(row, latest_bid_lookup):
         "course_url": clean_text(row.get("course_url")),
         "is_stem": parse_bool(row.get("is_stem")),
         "is_core": parse_bool(row.get("core")),
+        "is_average": parse_bool(row.get("is_average")),
+        "year_range": nullable_text(row.get("year_range")),
+        "n_terms": parse_int(row.get("n_terms")),
         "has_eval": parse_bool(row.get("has_eval")),
         "has_bidding": has_bidding,
         "ever_bidding": course_code in latest_bid_lookup,
