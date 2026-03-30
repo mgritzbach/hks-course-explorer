@@ -335,7 +335,15 @@ export default function CourseMap({ courses }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-[24px]" style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}>
+    <div
+      className="overflow-hidden rounded-[24px]"
+      style={{
+        background: 'var(--panel-strong)',
+        border: '1px solid var(--line)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <div className="border-b px-5 py-4" style={{ borderColor: 'var(--line)' }}>
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -375,7 +383,7 @@ export default function CourseMap({ courses }) {
 
       <div
         ref={wrapperRef}
-        style={{ position: 'relative', width: '100%', height: 560 }}
+        style={{ position: 'relative', width: '100%', height: 560, flexShrink: 0 }}
       >
         <Plot
           data={traces}
