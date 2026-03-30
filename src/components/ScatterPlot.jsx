@@ -415,38 +415,34 @@ export default function ScatterPlot({
   }
 
   const buildHoverHtml = (datum) => {
-    const titleColor = datum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)'
     const xLine = datum._isBidOnly || datum._xVal == null
       ? ''
-      : `<div>${datum._xLabel}: <b>${formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}</b></div>`
+      : `${datum._xLabel}: ${formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}`
     const yLine = datum._isBidOnly || datum._yVal == null
       ? ''
-      : `<div>${datum._yLabel}: <b>${formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}</b></div>`
+      : `${datum._yLabel}: ${formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}`
     const bidOnlyLine = datum._isBidOnly
-      ? `<div style="color:var(--gold);font-size:10px;">No eval data yet · ranked by bid competitiveness</div>`
+      ? 'No eval data yet - ranked by bid competitiveness'
       : ''
     const respondents = datum.n_respondents != null
-      ? `<div>N=<b>${datum.n_respondents}</b> survey respondents</div>`
+      ? `N=${datum.n_respondents} survey respondents`
       : ''
     const lastBid = datum.last_bid_price != null
-      ? `<div>Last clearing price: <b>${datum.last_bid_price} pts</b></div>`
+      ? `Last clearing price: ${datum.last_bid_price} pts`
       : ''
 
-    return `
-      <div style="max-width:280px;">
-        <div style="font-weight:700;font-size:14px;color:${titleColor};">${datum.course_code}</div>
-        <div style="color:var(--text-soft);margin-top:2px;">${datum.course_name}</div>
-        <div style="color:var(--text-muted);margin-top:4px;">${datum.professor_display || datum.professor}</div>
-        <div style="color:var(--text-muted);margin-top:2px;">${datum.is_average ? `avg ${datum.year_range}` : `${datum.term} ${datum.year}`}</div>
-        <div style="margin-top:8px;">${xLine}${yLine}${bidOnlyLine}</div>
-        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);color:var(--text-muted);">
-          ${respondents}
-          <div>Bidding: <b>${datum.ever_bidding ? 'Yes' : 'No'}</b></div>
-          ${lastBid}
-        </div>
-        <div style="margin-top:6px;color:var(--blue);font-size:10px;">Click to pin and preview details below</div>
-      </div>
-    `
+    return [
+      `${datum.course_code} - ${datum.course_name}`,
+      `${datum.professor_display || datum.professor}`,
+      `${datum.is_average ? `avg ${datum.year_range}` : `${datum.term} ${datum.year}`}`,
+      xLine,
+      yLine,
+      bidOnlyLine,
+      respondents,
+      `Bidding: ${datum.ever_bidding ? 'Yes' : 'No'}`,
+      lastBid,
+      'Click to pin and preview details below',
+    ].filter(Boolean).join('<br>')
   }
 
   const plotData = useMemo(() => {
