@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import CourseCard from '../components/CourseCard.jsx'
 import CourseMap from '../components/CourseMap.jsx'
@@ -129,6 +129,8 @@ const PRESETS = [
 
 export default function Home({ courses, meta, favs }) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const mainRef = useRef(null)
+  const visualizationRef = useRef(null)
 
   const initYear = (() => {
     const y = searchParams.get('year')
@@ -161,6 +163,13 @@ export default function Home({ courses, meta, favs }) {
   const [sortBy, setSortBy] = useState(initSort)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortlistOnly, setShowShortlistOnly] = useState(false)
+
+  const scrollToVisualization = () => {
+    if (!mainRef.current || !visualizationRef.current) return
+
+    const offsetTop = Math.max(0, visualizationRef.current.offsetTop - 12)
+    mainRef.current.scrollTo({ top: offsetTop, behavior: 'smooth' })
+  }
 
   useEffect(() => {
     const params = {}
@@ -292,7 +301,7 @@ export default function Home({ courses, meta, favs }) {
         <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" />
       </div>
 
-      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
+      <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
         <section className="panel-shell mb-5 overflow-hidden">
           <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-5 md:px-7 md:py-7">
             <div className="min-w-0 flex-1">
@@ -358,15 +367,18 @@ export default function Home({ courses, meta, favs }) {
           </div>
         )}
 
-        <div className="mb-5 flex gap-2 overflow-x-auto border-b pb-2" style={{ borderColor: 'var(--line)' }}>
+        <div ref={visualizationRef} className="top-tabs-bar mb-5">
           {[
             { key: 'comparisons', label: 'Course Comparisons' },
             { key: 'map', label: 'Course Map' },
           ].map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold transition-colors ${
+              onClick={() => {
+                setActiveTab(tab.key)
+                window.requestAnimationFrame(scrollToVisualization)
+              }}
+              className={`top-tab-button whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold transition-colors ${
                 activeTab === tab.key ? 'text-white' : 'hover:text-label'
               }`}
               style={activeTab === tab.key
