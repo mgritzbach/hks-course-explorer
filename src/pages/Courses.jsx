@@ -103,8 +103,7 @@ function activeFilterCount(filters) {
   if (filters.concentration !== 'All') count++
   if (filters.academicArea !== 'All') count++
   if (filters.coreFilter !== 'all') count++
-  if (filters.isStemOnly) count++
-  if (filters.gender !== 'all') count++
+  if (filters.stemGroup !== 'all') count++
   if (filters.minInstructorPct !== 'any') count++
   if (filters.evalOnly) count++
   if (filters.year !== 'all' && (filters.terms.length !== ALL_TERMS.length || !ALL_TERMS.every((term) => filters.terms.includes(term)))) count++
@@ -119,8 +118,7 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
     concentration: 'All',
     academicArea: 'All',
     coreFilter: 'all',
-    isStemOnly: false,
-    gender: 'all',
+    stemGroup: 'all',
     minInstructorPct: 'any',
     evalOnly: false,
   })
@@ -239,21 +237,17 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
       </div>
 
       <div className="filter-section px-4 py-3">
-        <label className="filter-label mb-1 block">Instructor Gender:</label>
+        <label className="filter-label mb-1 block">STEM Group:</label>
         <div className="select-wrap">
-          <select value={filters.gender} onChange={(event) => update({ gender: event.target.value })}>
+          <select value={filters.stemGroup} onChange={(event) => update({ stemGroup: event.target.value })}>
             <option value="all">All</option>
-            <option value="M">Male instructors</option>
-            <option value="F">Female instructors</option>
+            <option value="A">STEM A</option>
+            <option value="B">STEM B</option>
           </select>
         </div>
       </div>
 
       <div className="filter-section flex flex-col gap-2.5 px-4 py-3">
-        <label className="flex items-center gap-2 text-xs text-label">
-          <input type="checkbox" checked={filters.isStemOnly} onChange={(event) => update({ isStemOnly: event.target.checked })} className="h-3.5 w-3.5 cursor-pointer accent-accent" />
-          Only STEM
-        </label>
         <label className="flex items-center gap-2 text-xs text-label">
           <input type="checkbox" checked={filters.evalOnly} onChange={(event) => update({ evalOnly: event.target.checked })} className="h-3.5 w-3.5 cursor-pointer accent-accent" />
           Only with evals
@@ -380,8 +374,7 @@ export default function Courses({ courses, meta, favs }) {
     concentration: 'All',
     academicArea: 'All',
     coreFilter: 'all',
-    isStemOnly: false,
-    gender: 'all',
+    stemGroup: 'all',
     minInstructorPct: 'any',
     evalOnly: false,
   })
@@ -434,8 +427,8 @@ export default function Courses({ courses, meta, favs }) {
       if (filters.academicArea !== 'All' && course.academic_area !== filters.academicArea) return false
       if (filters.coreFilter === 'core' && !course.is_core) return false
       if (filters.coreFilter === 'no-core' && course.is_core) return false
-      if (filters.isStemOnly && !course.is_stem) return false
-      if (filters.gender !== 'all' && course.gender != null && course.gender !== filters.gender) return false
+      if (filters.stemGroup === 'A' && course.stem_group !== 'A') return false
+      if (filters.stemGroup === 'B' && course.stem_group !== 'B') return false
       if (minPct !== null) {
         const rating = course.metrics_pct?.Instructor_Rating
         if (rating != null && rating < minPct) return false

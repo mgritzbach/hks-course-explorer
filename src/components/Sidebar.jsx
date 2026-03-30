@@ -8,7 +8,6 @@ function countActiveFilters(filters) {
   if (filters.concentration !== 'All') count++
   if (filters.coreFilter !== 'all') count++
   if (filters.stemGroup !== 'all') count++
-  if (filters.gender !== 'all') count++
   if (filters.minInstructorPct !== 'any') count++
   if (filters.evalOnly) count++
   if (filters.year !== 0) {
@@ -73,7 +72,6 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       terms: ['Fall', 'Spring', 'January'],
       stemGroup: 'all',
       year: meta.default_year,
-      gender: 'all',
       minInstructorPct: 'any',
       evalOnly: false,
     }))
@@ -229,27 +227,14 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         </div>
       </div>
 
-      {/* Instructor Gender */}
+      {/* STEM Group */}
       <div className="filter-section px-4 py-3">
-        <label className="filter-label mb-1.5 block">Instructor Gender</label>
-        <div className="select-wrap">
-          <select value={filters.gender} onChange={(event) => update({ gender: event.target.value })}>
-            <option value="all">All</option>
-            <option value="M">Male instructors</option>
-            <option value="F">Female instructors</option>
-          </select>
-        </div>
-      </div>
-
-      {/* STEM */}
-      <div className="filter-section px-4 py-3">
-        <label className="filter-label mb-1.5 block">STEM</label>
+        <label className="filter-label mb-1.5 block">STEM Group</label>
         <div className="select-wrap">
           <select value={filters.stemGroup} onChange={(event) => update({ stemGroup: event.target.value })}>
-            <option value="all">All courses</option>
-            <option value="stem">STEM only</option>
-            <option value="A">STEM A only</option>
-            <option value="B">STEM B only</option>
+            <option value="all">All</option>
+            <option value="A">STEM A</option>
+            <option value="B">STEM B</option>
           </select>
         </div>
       </div>
