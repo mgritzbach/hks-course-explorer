@@ -393,11 +393,6 @@ export default function Courses({ courses, meta, favs }) {
     }
   }, [searchParams])
 
-  useEffect(() => {
-    if (!selected) return
-    setOpenSections({ details: true, performance: true, bidding: true })
-  }, [selected?.id])
-
   const selected = useMemo(() => {
     if (!selectedId) return null
     let course = courses.find((item) => item.id === selectedId)
@@ -409,6 +404,11 @@ export default function Courses({ courses, meta, favs }) {
     }
     return course || null
   }, [courses, selectedId])
+
+  useEffect(() => {
+    if (!selected) return
+    setOpenSections({ details: true, performance: true, bidding: true })
+  }, [selected?.id])
 
   useEffect(() => {
     if (selected?.description) setDescOpen(true)
