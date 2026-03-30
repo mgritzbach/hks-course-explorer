@@ -213,9 +213,21 @@ input[type="text"] {
   transition: border-color 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out);
 }
 
+select option,
+select optgroup {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+
 html[data-theme='light'] select,
 html[data-theme='light'] input[type="text"] {
   background: rgba(255, 255, 255, 0.7);
+}
+
+html[data-theme='light'] select option,
+html[data-theme='light'] select optgroup {
+  background: var(--panel-strong);
+  color: var(--text);
 }
 
 select::placeholder,

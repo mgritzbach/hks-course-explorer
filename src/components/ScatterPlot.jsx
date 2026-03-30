@@ -15,6 +15,57 @@ import {
 // Must match ScatterChart margin and YAxis width props
 const CHART_MARGIN = { top: 10, right: 14, bottom: 28, left: 0 }
 const Y_AXIS_WIDTH = 44
+const MIN_ZOOM_SPAN_RATIO = 0.18
+
+function clampDomain(nextDomain, baseDomain) {
+  const baseSpan = baseDomain[1] - baseDomain[0]
+  const nextSpan = nextDomain[1] - nextDomain[0]
+  if (nextSpan >= baseSpan) return [...baseDomain]
+
+  let start = nextDomain[0]
+  let end = nextDomain[1]
+
+  if (start < baseDomain[0]) {
+    end += baseDomain[0] - start
+    start = baseDomain[0]
+  }
+  if (end > baseDomain[1]) {
+    start -= end - baseDomain[1]
+    end = baseDomain[1]
+  }
+
+  return [start, end]
+}
+
+function zoomNumericDomain(currentDomain, baseDomain, factor, anchorValue = null) {
+  const activeDomain = currentDomain || baseDomain
+  const activeSpan = activeDomain[1] - activeDomain[0]
+  const baseSpan = baseDomain[1] - baseDomain[0]
+  const minSpan = baseSpan * MIN_ZOOM_SPAN_RATIO
+  const nextSpan = Math.min(baseSpan, Math.max(minSpan, activeSpan * factor))
+  const anchor = anchorValue ?? (activeDomain[0] + activeDomain[1]) / 2
+  const anchorRatio = activeSpan === 0 ? 0.5 : (anchor - activeDomain[0]) / activeSpan
+  const nextStart = anchor - (nextSpan * anchorRatio)
+  return clampDomain([nextStart, nextStart + nextSpan], baseDomain)
+}
+
+function panNumericDomain(currentDomain, baseDomain, deltaValue) {
+  const activeDomain = currentDomain || baseDomain
+  return clampDomain([activeDomain[0] + deltaValue, activeDomain[1] + deltaValue], baseDomain)
+}
+
+function getTouchDistance(touches) {
+  const [a, b] = touches
+  return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
+}
+
+function getTouchMidpoint(touches, rect) {
+  const [a, b] = touches
+  return {
+    rawX: ((a.clientX + b.clientX) / 2) - rect.left,
+    rawY: ((a.clientY + b.clientY) / 2) - rect.top,
+  }
+}
 
 function getDataCoords(rawX, rawY, containerWidth, containerHeight, xDomain, yDomain) {
   const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left
@@ -259,12 +310,9 @@ export default function ScatterPlot({
   const navigate = useNavigate()
   const [pinnedDatum, setPinnedDatum] = useState(null)
 
-  // Drag-to-zoom state
   const chartWrapperRef = useRef(null)
-  const isDraggingRef = useRef(false)
-  const dragStartRef = useRef(null)
-  const [isDragMode, setIsDragMode] = useState(false)
-  const [zoomSel, setZoomSel] = useState(null)
+  const interactionRef = useRef(null)
+  const [isPanning, setIsPanning] = useState(false)
   const [zoomedX, setZoomedX] = useState(null)
   const [zoomedY, setZoomedY] = useState(null)
 
@@ -379,59 +427,114 @@ export default function ScatterPlot({
     setZoomedY(null)
   }, [xMetric, yMetric])
 
+  const applyPanFromRawDelta = (prevRaw, nextRaw, currentXDomain, currentYDomain) => {
+    if (!chartWrapperRef.current) return
+    const width = chartWrapperRef.current.offsetWidth
+    const height = chartWrapperRef.current.offsetHeight
+    const prevCoords = getDataCoords(prevRaw.rawX, prevRaw.rawY, width, height, currentXDomain, currentYDomain)
+    const nextCoords = getDataCoords(nextRaw.rawX, nextRaw.rawY, width, height, currentXDomain, currentYDomain)
+    setZoomedX(panNumericDomain(currentXDomain, xMode.domain, prevCoords.x - nextCoords.x))
+    setZoomedY(panNumericDomain(currentYDomain, yMode.domain, prevCoords.y - nextCoords.y))
+  }
+
+  const handleZoomButton = (direction) => {
+    const factor = direction === 'in' ? 0.82 : 1.22
+    setZoomedX((current) => zoomNumericDomain(current, xMode.domain, factor))
+    setZoomedY((current) => zoomNumericDomain(current, yMode.domain, factor))
+  }
+
   const handleWrapperMouseDown = (e) => {
-    if (e.button !== 0) return
+    if (e.button !== 0 || !chartWrapperRef.current) return
     const rect = chartWrapperRef.current.getBoundingClientRect()
-    dragStartRef.current = { rawX: e.clientX - rect.left, rawY: e.clientY - rect.top }
-    isDraggingRef.current = false
+    const startRaw = { rawX: e.clientX - rect.left, rawY: e.clientY - rect.top }
+    interactionRef.current = {
+      type: 'mouse-pan',
+      startRaw,
+      prevRaw: startRaw,
+    }
   }
 
   const handleWrapperMouseMove = (e) => {
-    if (!dragStartRef.current) return
+    if (!interactionRef.current || interactionRef.current.type !== 'mouse-pan' || !chartWrapperRef.current) return
     const rect = chartWrapperRef.current.getBoundingClientRect()
-    const rawX = e.clientX - rect.left
-    const rawY = e.clientY - rect.top
-    const dx = rawX - dragStartRef.current.rawX
-    const dy = rawY - dragStartRef.current.rawY
-    if (!isDraggingRef.current && Math.hypot(dx, dy) < 5) return
-    if (!isDraggingRef.current) {
-      isDraggingRef.current = true
-      setIsDragMode(true)
+    const nextRaw = { rawX: e.clientX - rect.left, rawY: e.clientY - rect.top }
+    if (!isPanning && Math.hypot(nextRaw.rawX - interactionRef.current.startRaw.rawX, nextRaw.rawY - interactionRef.current.startRaw.rawY) < 4) {
+      return
     }
-    setZoomSel({ rawX1: dragStartRef.current.rawX, rawY1: dragStartRef.current.rawY, rawX2: rawX, rawY2: rawY })
+    if (!isPanning) setIsPanning(true)
+    applyPanFromRawDelta(interactionRef.current.prevRaw, nextRaw, effectiveXDomain, effectiveYDomain)
+    interactionRef.current.prevRaw = nextRaw
   }
 
-  const handleWrapperMouseUp = (e) => {
-    if (isDraggingRef.current && dragStartRef.current && chartWrapperRef.current) {
-      const rect = chartWrapperRef.current.getBoundingClientRect()
-      const rawX2 = e.clientX - rect.left
-      const rawY2 = e.clientY - rect.top
-      const { rawX: rawX1, rawY: rawY1 } = dragStartRef.current
-      if (Math.abs(rawX2 - rawX1) >= 10 && Math.abs(rawY2 - rawY1) >= 10) {
-        const w = chartWrapperRef.current.offsetWidth
-        const h = chartWrapperRef.current.offsetHeight
-        const c1 = getDataCoords(rawX1, rawY1, w, h, effectiveXDomain, effectiveYDomain)
-        const c2 = getDataCoords(rawX2, rawY2, w, h, effectiveXDomain, effectiveYDomain)
-        setZoomedX([Math.min(c1.x, c2.x), Math.max(c1.x, c2.x)])
-        setZoomedY([Math.min(c1.y, c2.y), Math.max(c1.y, c2.y)])
-      }
-    }
-    isDraggingRef.current = false
-    dragStartRef.current = null
-    setIsDragMode(false)
-    setZoomSel(null)
+  const stopInteraction = () => {
+    interactionRef.current = null
+    setIsPanning(false)
   }
 
-  const handleWrapperMouseLeave = () => {
-    isDraggingRef.current = false
-    dragStartRef.current = null
-    setIsDragMode(false)
-    setZoomSel(null)
+  const handleWrapperTouchStart = (e) => {
+    if (!chartWrapperRef.current || e.touches.length < 2) return
+    const rect = chartWrapperRef.current.getBoundingClientRect()
+    interactionRef.current = {
+      type: 'touch-transform',
+      prevMidpoint: getTouchMidpoint(e.touches, rect),
+      prevDistance: getTouchDistance(e.touches),
+    }
+    setIsPanning(true)
+  }
+
+  const handleWrapperTouchMove = (e) => {
+    if (!chartWrapperRef.current || !interactionRef.current || interactionRef.current.type !== 'touch-transform' || e.touches.length < 2) return
+    e.preventDefault()
+    const rect = chartWrapperRef.current.getBoundingClientRect()
+    const currentMidpoint = getTouchMidpoint(e.touches, rect)
+    const currentDistance = getTouchDistance(e.touches)
+    const width = chartWrapperRef.current.offsetWidth
+    const height = chartWrapperRef.current.offsetHeight
+
+    const anchorCoords = getDataCoords(
+      interactionRef.current.prevMidpoint.rawX,
+      interactionRef.current.prevMidpoint.rawY,
+      width,
+      height,
+      effectiveXDomain,
+      effectiveYDomain,
+    )
+
+    const pinchFactor = interactionRef.current.prevDistance / currentDistance
+    const nextXDomain = zoomNumericDomain(effectiveXDomain, xMode.domain, pinchFactor, anchorCoords.x)
+    const nextYDomain = zoomNumericDomain(effectiveYDomain, yMode.domain, pinchFactor, anchorCoords.y)
+
+    const prevCoords = getDataCoords(
+      interactionRef.current.prevMidpoint.rawX,
+      interactionRef.current.prevMidpoint.rawY,
+      width,
+      height,
+      nextXDomain,
+      nextYDomain,
+    )
+    const currentCoords = getDataCoords(
+      currentMidpoint.rawX,
+      currentMidpoint.rawY,
+      width,
+      height,
+      nextXDomain,
+      nextYDomain,
+    )
+
+    setZoomedX(panNumericDomain(nextXDomain, xMode.domain, prevCoords.x - currentCoords.x))
+    setZoomedY(panNumericDomain(nextYDomain, yMode.domain, prevCoords.y - currentCoords.y))
+
+    interactionRef.current = {
+      type: 'touch-transform',
+      prevMidpoint: currentMidpoint,
+      prevDistance: currentDistance,
+    }
   }
 
   const resetZoom = () => {
     setZoomedX(null)
     setZoomedY(null)
+    stopInteraction()
   }
 
   const AxisSelectors = () => (
@@ -464,18 +567,34 @@ export default function ScatterPlot({
         </div>
       </div>
 
-      {isZoomed && (
-        <div className="flex items-center gap-2 md:col-span-2">
-          <span className="text-[10px]" style={{ color: 'var(--blue)' }}>Zoomed in</span>
-          <button
-            onClick={resetZoom}
-            className="rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors hover:text-label"
-            style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
-          >
-            Reset zoom
-          </button>
-        </div>
-      )}
+      <div className="flex items-center gap-2 md:col-span-2">
+        <button
+          onClick={() => handleZoomButton('out')}
+          className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
+          style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
+        >
+          -
+        </button>
+        <button
+          onClick={() => handleZoomButton('in')}
+          className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
+          style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
+        >
+          +
+        </button>
+        {isZoomed && (
+          <>
+            <span className="text-[10px]" style={{ color: 'var(--blue)' }}>Zoomed in</span>
+            <button
+              onClick={resetZoom}
+              className="rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors hover:text-label"
+              style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
+            >
+              Reset zoom
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 
@@ -499,11 +618,15 @@ export default function ScatterPlot({
 
       <div
         ref={chartWrapperRef}
-        style={{ width: '100%', height: chartHeight, flexShrink: 0, position: 'relative', cursor: 'crosshair' }}
+        style={{ width: '100%', height: chartHeight, flexShrink: 0, position: 'relative', cursor: isPanning ? 'grabbing' : 'grab', touchAction: 'none' }}
         onMouseDown={handleWrapperMouseDown}
         onMouseMove={handleWrapperMouseMove}
-        onMouseUp={handleWrapperMouseUp}
-        onMouseLeave={handleWrapperMouseLeave}
+        onMouseUp={stopInteraction}
+        onMouseLeave={stopInteraction}
+        onTouchStart={handleWrapperTouchStart}
+        onTouchMove={handleWrapperTouchMove}
+        onTouchEnd={stopInteraction}
+        onTouchCancel={stopInteraction}
       >
         <ResponsiveContainer width="100%" height={chartHeight}>
           <ScatterChart margin={CHART_MARGIN}>
@@ -551,27 +674,9 @@ export default function ScatterPlot({
           </ScatterChart>
         </ResponsiveContainer>
 
-        {/* Block chart interaction while dragging to prevent dot clicks */}
-        {isDragMode && (
+        {/* Block chart interaction while panning to prevent accidental dot clicks */}
+        {isPanning && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 10 }} />
-        )}
-
-        {/* Selection rectangle */}
-        {zoomSel && (
-          <div
-            style={{
-              position: 'absolute',
-              left: Math.min(zoomSel.rawX1, zoomSel.rawX2),
-              top: Math.min(zoomSel.rawY1, zoomSel.rawY2),
-              width: Math.abs(zoomSel.rawX2 - zoomSel.rawX1),
-              height: Math.abs(zoomSel.rawY2 - zoomSel.rawY1),
-              border: '1.5px dashed rgba(165, 28, 48, 0.75)',
-              background: 'rgba(165, 28, 48, 0.07)',
-              borderRadius: 2,
-              pointerEvents: 'none',
-              zIndex: 11,
-            }}
-          />
         )}
       </div>
 
@@ -640,7 +745,7 @@ export default function ScatterPlot({
           )}
         </div>
         <p className="mt-2 text-[11px] text-muted">
-          Click a point to preview details · drag to zoom in
+          Click a point to preview details · use + / - or pinch to zoom · drag or two-finger pan to move
           {isZoomed && <span style={{ color: 'var(--blue)' }}> · zoomed</span>}
           {` · ${matchedData.length} course${matchedData.length !== 1 ? 's' : ''} shown`}
           {bidOnlyData.length > 0 && ` · ${bidOnlyData.length} bidding only`}
