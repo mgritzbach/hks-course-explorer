@@ -358,7 +358,7 @@ export default function Home({ courses, meta, favs }) {
           </div>
         )}
 
-        <div className="mb-4 flex gap-2 overflow-x-auto border-b pb-1" style={{ borderColor: 'var(--line)' }}>
+        <div className="mb-5 flex gap-2 overflow-x-auto border-b pb-2" style={{ borderColor: 'var(--line)' }}>
           {[
             { key: 'comparisons', label: 'Course Comparisons' },
             { key: 'map', label: 'Course Map' },
@@ -366,15 +366,21 @@ export default function Home({ courses, meta, favs }) {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm transition-colors ${
-                activeTab === tab.key ? 'text-white' : 'text-muted hover:text-label'
+              className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold transition-colors ${
+                activeTab === tab.key ? 'text-white' : 'hover:text-label'
               }`}
               style={activeTab === tab.key
                 ? {
-                    background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.22), rgba(165, 28, 48, 0.08))',
-                    border: '1px solid rgba(212, 168, 106, 0.2)',
+                    background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.28), rgba(165, 28, 48, 0.12))',
+                    border: '1px solid rgba(212, 168, 106, 0.3)',
+                    color: '#fff7f4',
+                    boxShadow: 'inset 0 -2px 0 rgba(165, 28, 48, 0.9), 0 8px 22px rgba(15, 10, 8, 0.14)',
                   }
-                : { border: '1px solid transparent' }}
+                : {
+                    border: '1px solid var(--line)',
+                    background: 'var(--panel-subtle)',
+                    color: 'var(--text-soft)',
+                  }}
             >
               {tab.label}
             </button>
