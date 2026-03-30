@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build:data": "python scripts/build_data.py",
+    "prebuild": "npm run build:data",
     "build": "vite build",
     "preview": "vite preview"
   },

@@ -3,7 +3,6 @@ import { NavLink, Route, Routes } from 'react-router-dom'
 import Home from './pages/Home.jsx'
 import Courses from './pages/Courses.jsx'
 import Faculty from './pages/Faculty.jsx'
-import MapLab from './pages/MapLab.jsx'
 import { useFavorites } from './useFavorites.js'
 
 export default function App() {
@@ -67,7 +66,6 @@ export default function App() {
     { to: '/', label: 'Home', end: true },
     { to: '/courses', label: 'Courses' },
     { to: '/faculty', label: 'Faculty' },
-    { to: '/map-lab', label: 'Map Lab' },
   ]
 
   const desktopNavItem = ({ isActive }) =>
@@ -153,7 +151,6 @@ export default function App() {
             <Route path="/" element={<Home courses={data.courses} meta={data.meta} favs={favs} />} />
             <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} />} />
             <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} />} />
-            <Route path="/map-lab" element={<MapLab courses={data.courses} />} />
           </Routes>
         </div>
 
