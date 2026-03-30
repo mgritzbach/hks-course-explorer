@@ -2,6 +2,7 @@ import csv
 import json
 from collections import defaultdict
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -67,6 +68,33 @@ def parse_year(value):
     if number is None:
         return None
     return int(number)
+
+
+def parse_year_range(value):
+    text = clean_text(value)
+    if not text:
+        return (None, None)
+    numbers = [int(match) for match in re.findall(r"\d{4}", text)]
+    if not numbers:
+        return (None, None)
+    if len(numbers) == 1:
+        return (numbers[0], numbers[0])
+    return (numbers[0], numbers[1])
+
+
+def average(values):
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def format_numeric(value, decimals=2):
+    if value is None:
+        return ""
+    rounded = round(value, decimals)
+    if abs(rounded - round(rounded)) < 1e-9:
+        return str(int(round(rounded)))
+    return f"{rounded:.{decimals}f}".rstrip("0").rstrip(".")
 
 
 def concentration_from_code(code):
@@ -146,6 +174,62 @@ def meta_from_courses(courses):
     }
 
 
+def fill_average_bid_fields(rows):
+    historical_rows_by_code = defaultdict(list)
+
+    for row in rows:
+        course_code = clean_text(row.get("course_code"))
+        if not course_code or parse_bool(row.get("is_average")):
+            continue
+        historical_rows_by_code[course_code].append(row)
+
+    updated = 0
+    for row in rows:
+        if not parse_bool(row.get("is_average")):
+            continue
+
+        course_code = clean_text(row.get("course_code"))
+        if not course_code:
+            continue
+
+        candidates = historical_rows_by_code.get(course_code, [])
+        if not candidates:
+            continue
+
+        start_year, end_year = parse_year_range(row.get("year_range"))
+        if start_year is not None and end_year is not None:
+            candidates = [
+                candidate
+                for candidate in candidates
+                if (candidate_year := parse_year(candidate.get("year"))) is not None
+                and start_year <= candidate_year <= end_year
+            ]
+
+        if not candidates:
+            continue
+
+        price_values = [
+            value for value in (parse_float(candidate.get("bid_clearing_price")) for candidate in candidates)
+            if value is not None
+        ]
+        bid_count_values = [
+            value for value in (parse_float(candidate.get("bid_n_bids")) for candidate in candidates)
+            if value is not None
+        ]
+
+        if not clean_text(row.get("bid_clearing_price")) and price_values:
+            row["bid_clearing_price"] = format_numeric(average(price_values), decimals=2)
+            updated += 1
+
+        if not clean_text(row.get("bid_n_bids")) and bid_count_values:
+            row["bid_n_bids"] = format_numeric(average(bid_count_values), decimals=2)
+
+        if price_values or bid_count_values:
+            row["has_bidding"] = "True"
+
+    return updated
+
+
 def build_course(row, latest_bid_lookup):
     course_code = clean_text(row.get("course_code"))
     course_code_base = clean_text(row.get("course_code_base")) or course_code
@@ -219,6 +303,8 @@ def main():
 
     with SOURCE_CSV.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle, delimiter=";"))
+
+    fill_average_bid_fields(rows)
 
     bid_rows_by_course = defaultdict(list)
     for row in rows:
