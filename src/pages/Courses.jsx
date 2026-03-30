@@ -371,6 +371,7 @@ export default function Courses({ courses, meta, favs }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(searchParams.get('id') || null)
+  const [openSections, setOpenSections] = useState({ details: true, performance: true, bidding: true })
   const [descOpen, setDescOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const [filters, setFilters] = useState({
@@ -391,6 +392,11 @@ export default function Courses({ courses, meta, favs }) {
       setSelectedId(id)
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (!selected) return
+    setOpenSections({ details: true, performance: true, bidding: true })
+  }, [selected?.id])
 
   const selected = useMemo(() => {
     if (!selectedId) return null
@@ -573,8 +579,15 @@ export default function Courses({ courses, meta, favs }) {
             </div>
 
             <section className="mb-8">
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Course Details</h3>
-              <div className="grid gap-4 lg:grid-cols-2">
+              <button
+                onClick={() => setOpenSections((current) => ({ ...current, details: !current.details }))}
+                className="mb-4 flex w-full items-center justify-between rounded-[18px] border px-4 py-3 text-left"
+                style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
+              >
+                <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Course Details</span>
+                <span className="text-xs text-muted">{openSections.details ? 'Hide' : 'Show'}</span>
+              </button>
+              {openSections.details && <div className="grid gap-4 lg:grid-cols-2">
                 <div className="surface-card rounded-[22px] p-5">
                   <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Course Information</h4>
 
@@ -760,12 +773,19 @@ export default function Courses({ courses, meta, favs }) {
                     </div>
                   )}
                 </div>
-              </div>
+              </div>}
             </section>
 
             <section className="mb-8">
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Past Performance</h3>
-              <div>
+              <button
+                onClick={() => setOpenSections((current) => ({ ...current, performance: !current.performance }))}
+                className="mb-4 flex w-full items-center justify-between rounded-[18px] border px-4 py-3 text-left"
+                style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
+              >
+                <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Past Performance</span>
+                <span className="text-xs text-muted">{openSections.performance ? 'Hide' : 'Show'}</span>
+              </button>
+              {openSections.performance && <div>
                 {history.length === 0 ? (
                   <div className="surface-card rounded-[22px] py-8 text-center">
                     <p className="text-sm text-muted">No evaluation history found for this course.</p>
@@ -778,12 +798,19 @@ export default function Courses({ courses, meta, favs }) {
                     <HistoryTable history={history} />
                   </>
                 )}
-              </div>
+              </div>}
             </section>
 
             <section>
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Bidding History</h3>
-              <BiddingTab biddingHistory={biddingHistory} selected={selected} navigate={navigate} />
+              <button
+                onClick={() => setOpenSections((current) => ({ ...current, bidding: !current.bidding }))}
+                className="mb-4 flex w-full items-center justify-between rounded-[18px] border px-4 py-3 text-left"
+                style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
+              >
+                <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-strong)' }}>Bidding History</span>
+                <span className="text-xs text-muted">{openSections.bidding ? 'Hide' : 'Show'}</span>
+              </button>
+              {openSections.bidding && <BiddingTab biddingHistory={biddingHistory} selected={selected} navigate={navigate} />}
             </section>
           </>
         )}
