@@ -24,6 +24,13 @@ function clampDomain(nextDomain, baseDomain) {
   return [start, end]
 }
 
+function isBaseOrWiderDomain(nextDomain, baseDomain) {
+  const epsilon = 0.0001
+  const baseSpan = baseDomain[1] - baseDomain[0]
+  const nextSpan = nextDomain[1] - nextDomain[0]
+  return nextSpan >= baseSpan - epsilon
+}
+
 function zoomNumericDomain(currentDomain, baseDomain, factor, anchorValue = null) {
   const activeDomain = currentDomain || baseDomain
   const activeSpan = activeDomain[1] - activeDomain[0]
@@ -411,6 +418,11 @@ export default function ScatterPlot({
       ? [Number(event['yaxis.range[0]']), Number(event['yaxis.range[1]'])]
       : null
 
+    if (nextX && nextY && isBaseOrWiderDomain(nextX, xMode.domain) && isBaseOrWiderDomain(nextY, yMode.domain)) {
+      resetZoom()
+      return
+    }
+
     if (nextX) setZoomedX(clampDomain(nextX, xMode.domain))
     if (nextY) setZoomedY(clampDomain(nextY, yMode.domain))
   }
@@ -551,6 +563,8 @@ export default function ScatterPlot({
       xaxis: {
         range: effectiveXDomain,
         fixedrange: false,
+        minallowed: xMode.domain[0],
+        maxallowed: xMode.domain[1],
         tickfont: { color: 'var(--text-muted)', size: 11 },
         ticksuffix: xMode.useRaw ? '' : '%',
         showline: true,
@@ -563,6 +577,8 @@ export default function ScatterPlot({
       yaxis: {
         range: effectiveYDomain,
         fixedrange: false,
+        minallowed: yMode.domain[0],
+        maxallowed: yMode.domain[1],
         tickfont: { color: 'var(--text-muted)', size: 11 },
         ticksuffix: yMode.useRaw ? '' : '%',
         showline: true,
