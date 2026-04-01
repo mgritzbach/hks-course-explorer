@@ -18,11 +18,19 @@ export default function App() {
     if (typeof window === 'undefined') return 'score'
     return window.localStorage.getItem('hks-metric-mode') || 'score'
   })
+  const [colorblindMode, setColorblindModeState] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('hks-colorblind') === 'true'
+  })
   const favs = useFavorites()
 
   const setMetricMode = (mode) => {
     window.localStorage.setItem('hks-metric-mode', mode)
     setMetricModeState(mode)
+  }
+  const setColorblindMode = (val) => {
+    window.localStorage.setItem('hks-colorblind', String(val))
+    setColorblindModeState(val)
   }
 
   useEffect(() => {
@@ -162,8 +170,8 @@ export default function App() {
         {/* Page content */}
         <div className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
           <Routes>
-            <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
-            <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
+            <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />} />
+            <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />} />
             <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} />} />
             <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} />} />
           </Routes>

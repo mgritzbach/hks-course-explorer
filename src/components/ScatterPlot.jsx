@@ -4,6 +4,16 @@ import Plot from 'react-plotly.js'
 
 const MIN_ZOOM_SPAN_RATIO = 0.015
 
+// Deterministic jitter: consistent per course, breaks up tied-value vertical stripes
+function hashJitter(str, scale = 1) {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) ^ str.charCodeAt(i)
+    hash = hash & hash
+  }
+  return ((hash % 1000) / 1000) * scale * 2 - scale
+}
+
 function clampDomain(nextDomain, baseDomain) {
   const baseSpan = baseDomain[1] - baseDomain[0]
   const nextSpan = nextDomain[1] - nextDomain[0]
@@ -275,6 +285,7 @@ export default function ScatterPlot({
   onXChange,
   onYChange,
   metricMode = 'score',
+  colorblindMode = false,
 }) {
   const navigate = useNavigate()
   const [pinnedDatum, setPinnedDatum] = useState(null)
@@ -313,34 +324,46 @@ export default function ScatterPlot({
   const bgData = useMemo(() => (
     allCoursesDeduped
       .filter((course) => !matchedIds.has(course.id) && getValue(course, xMode, xMetric) != null && getValue(course, yMode, yMetric) != null)
-      .map((course) => ({
-        ...course,
-        _xVal: getValue(course, xMode, xMetric),
-        _yVal: getValue(course, yMode, yMetric),
-        _color: 'rgba(205, 191, 181, 0.18)',
-        _opacity: 0.48,
-        _noHover: true,
-      }))
+      .map((course) => {
+        const rawX = getValue(course, xMode, xMetric)
+        const rawY = getValue(course, yMode, yMetric)
+        const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', 1.1)
+        const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', 1.1)
+        return {
+          ...course,
+          _xVal: Math.max(xMode.domain[0], Math.min(xMode.domain[1], rawX + jx)),
+          _yVal: Math.max(yMode.domain[0], Math.min(yMode.domain[1], rawY + jy)),
+          _color: 'rgba(205, 191, 181, 0.18)',
+          _opacity: 0.48,
+          _noHover: true,
+        }
+      })
   ), [allCoursesDeduped, matchedIds, xMetric, xMode, yMetric, yMode])
 
   const matchedData = useMemo(() => (
     matchedCoursesDeduped
       .filter((course) => getValue(course, xMode, xMetric) != null && getValue(course, yMode, yMetric) != null)
-      .map((course) => ({
-        ...course,
-        _xVal: getValue(course, xMode, xMetric),
-        _yVal: getValue(course, yMode, yMetric),
-        _xRaw: !xMode.useRaw && xMeta.bid_metric ? course.metrics_raw?.[xMetric] ?? null : null,
-        _yRaw: !yMode.useRaw && yMeta.bid_metric ? course.metrics_raw?.[yMetric] ?? null : null,
-        _xRaw05: !xMode.useRaw ? course.metrics_raw?.[xMetric] ?? null : null,
-        _yRaw05: !yMode.useRaw ? course.metrics_raw?.[yMetric] ?? null : null,
-        _xIsRaw: xMode.useRaw,
-        _yIsRaw: yMode.useRaw,
-        _xLabel: xMeta.label,
-        _yLabel: yMeta.label,
-        _color: course.ever_bidding ? '#d78aa7' : '#a51c30',
-        _opacity: 1,
-      }))
+      .map((course) => {
+        const rawX = getValue(course, xMode, xMetric)
+        const rawY = getValue(course, yMode, yMetric)
+        const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', 1.1)
+        const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', 1.1)
+        return {
+          ...course,
+          _xVal: Math.max(xMode.domain[0], Math.min(xMode.domain[1], rawX + jx)),
+          _yVal: Math.max(yMode.domain[0], Math.min(yMode.domain[1], rawY + jy)),
+          _xRaw: !xMode.useRaw && xMeta.bid_metric ? course.metrics_raw?.[xMetric] ?? null : null,
+          _yRaw: !yMode.useRaw && yMeta.bid_metric ? course.metrics_raw?.[yMetric] ?? null : null,
+          _xRaw05: !xMode.useRaw ? course.metrics_raw?.[xMetric] ?? null : null,
+          _yRaw05: !yMode.useRaw ? course.metrics_raw?.[yMetric] ?? null : null,
+          _xIsRaw: xMode.useRaw,
+          _yIsRaw: yMode.useRaw,
+          _xLabel: xMeta.label,
+          _yLabel: yMeta.label,
+          _color: course.ever_bidding ? '#d78aa7' : '#a51c30',
+          _opacity: 1,
+        }
+      })
   ), [matchedCoursesDeduped, xMeta, xMetric, xMode, yMeta, yMetric, yMode])
 
   const bidOnlyData = useMemo(() => (
@@ -501,6 +524,14 @@ export default function ScatterPlot({
     return traces
   }, [bgData, bidOnlyData, matchedData, showQuadrants])
 
+  // Task 5: Colorblind-safe palette — blue/orange instead of green/red
+  const quadGoodColor = colorblindMode ? 'rgba(66, 133, 244, 0.18)' : 'rgba(123, 176, 138, 0.18)'
+  const quadBadColor  = colorblindMode ? 'rgba(255, 152, 0, 0.18)'  : 'rgba(165, 28, 48, 0.18)'
+  const quadGoodBorder = colorblindMode ? 'rgba(66, 133, 244, 0.35)' : 'rgba(123, 176, 138, 0.35)'
+  const quadBadBorder  = colorblindMode ? 'rgba(255, 152, 0, 0.35)'  : 'rgba(165, 28, 48, 0.35)'
+  const legendGoodLabel = colorblindMode ? 'var(--blue)' : 'var(--success)'
+  const legendBadLabel  = colorblindMode ? 'var(--gold)' : 'var(--accent-strong)'
+
   const plotLayout = useMemo(() => {
     const shapes = []
     if (showQuadrants) {
@@ -513,8 +544,8 @@ export default function ScatterPlot({
           x1: greenX1,
           y0: greenY0,
           y1: greenY1,
-          fillcolor: 'rgba(123, 176, 138, 0.11)',
-          line: { width: 0 },
+          fillcolor: quadGoodColor,
+          line: { color: quadGoodBorder, width: 1 },
           layer: 'below',
         },
         {
@@ -525,8 +556,8 @@ export default function ScatterPlot({
           x1: redX1,
           y0: redY0,
           y1: redY1,
-          fillcolor: 'rgba(165, 28, 48, 0.11)',
-          line: { width: 0 },
+          fillcolor: quadBadColor,
+          line: { color: quadBadBorder, width: 1 },
           layer: 'below',
         },
       )
@@ -561,6 +592,7 @@ export default function ScatterPlot({
 
     return {
       autosize: true,
+      uirevision: `${xMetric}-${yMetric}-${metricMode}`,
       margin: { t: 12, r: 18, b: 44, l: 54 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
@@ -601,7 +633,7 @@ export default function ScatterPlot({
         font: { color: 'var(--text)', size: 12 },
       },
     }
-  }, [effectiveXDomain, effectiveYDomain, greenX0, greenX1, greenY0, greenY1, isZoomed, redX0, redX1, redY0, redY1, showQuadrants, xMeta.label, xMode.useRaw, yMeta.label, yMode.useRaw])
+  }, [effectiveXDomain, effectiveYDomain, greenX0, greenX1, greenY0, greenY1, isZoomed, metricMode, quadBadBorder, quadBadColor, quadGoodBorder, quadGoodColor, redX0, redX1, redY0, redY1, showQuadrants, xMeta.label, xMetric, xMode.useRaw, yMeta.label, yMetric, yMode.useRaw])
 
   const plotConfig = useMemo(() => ({
     responsive: true,
@@ -876,8 +908,8 @@ export default function ScatterPlot({
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {showQuadrants && (
             <>
-              <p className="text-muted"><span className="font-medium" style={{ color: 'var(--success)' }}>Green quadrant</span> = stronger on both axes</p>
-              <p className="text-muted"><span className="font-medium" style={{ color: 'var(--accent-strong)' }}>Crimson quadrant</span> = weaker on both axes</p>
+              <p className="text-muted"><span className="font-medium" style={{ color: legendGoodLabel }}>{colorblindMode ? 'Blue' : 'Green'} quadrant</span> = stronger on both axes</p>
+              <p className="text-muted"><span className="font-medium" style={{ color: legendBadLabel }}>{colorblindMode ? 'Orange' : 'Crimson'} quadrant</span> = weaker on both axes</p>
             </>
           )}
           <p className="text-muted"><span className="font-medium" style={{ color: '#d78aa7' }}>Rose</span> = ever went to bidding</p>

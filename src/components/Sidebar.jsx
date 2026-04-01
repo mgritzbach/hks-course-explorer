@@ -19,7 +19,7 @@ function countActiveFilters(filters) {
   return count
 }
 
-export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null }) {
+export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null, colorblindMode = false, setColorblindMode = null }) {
   const [searchInput, setSearchInput] = useState(filters.searchText)
   const debounceRef = useRef(null)
 
@@ -285,6 +285,28 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
               ? 'Avg rating ÷ 5 × 100% (absolute)'
               : 'Rank vs. all courses in dataset'}
           </p>
+        </div>
+      )}
+
+      {/* Colorblind mode toggle */}
+      {setColorblindMode && (
+        <div className="filter-section px-4 py-3">
+          <label className="filter-label mb-2 block">Accessibility</label>
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={colorblindMode}
+              onChange={(e) => setColorblindMode(e.target.checked)}
+              className="h-3.5 w-3.5 cursor-pointer"
+              style={{ accentColor: 'var(--blue)' }}
+            />
+            <span className="text-xs text-label">Red-green colorblind mode</span>
+          </label>
+          {colorblindMode && (
+            <p className="mt-1.5 text-[10px] leading-tight" style={{ color: 'var(--blue)' }}>
+              Quadrants use blue/orange instead of green/red
+            </p>
+          )}
         </div>
       )}
 

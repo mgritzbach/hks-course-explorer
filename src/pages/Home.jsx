@@ -127,7 +127,7 @@ const PRESETS = [
   },
 ]
 
-export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode }) {
+export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode, colorblindMode = false, setColorblindMode }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const mainRef = useRef(null)
   const visualizationRef = useRef(null)
@@ -313,6 +313,8 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           setFilters={setFilters}
           metricMode={metricMode}
           setMetricMode={setMetricMode}
+          colorblindMode={colorblindMode}
+          setColorblindMode={setColorblindMode}
           meta={meta}
           title="Search Courses"
           mobile
@@ -321,7 +323,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
       </div>
 
       <div className="hidden md:block">
-        <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" metricMode={metricMode} setMetricMode={setMetricMode} />
+        <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />
       </div>
 
       <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
@@ -431,6 +433,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             onXChange={setXMetric}
             onYChange={setYMetric}
             metricMode={metricMode}
+            colorblindMode={colorblindMode}
           />
         )}
 
