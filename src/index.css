@@ -211,23 +211,25 @@ input[type="text"] {
   appearance: none;
   -webkit-appearance: none;
   transition: border-color 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out);
+  color-scheme: dark;
 }
 
 select option,
 select optgroup {
-  background: var(--panel-strong);
-  color: var(--text);
+  background: #221b1c;
+  color: #f3ebe2;
 }
 
 html[data-theme='light'] select,
 html[data-theme='light'] input[type="text"] {
   background: rgba(255, 255, 255, 0.7);
+  color-scheme: light;
 }
 
 html[data-theme='light'] select option,
 html[data-theme='light'] select optgroup {
-  background: var(--panel-strong);
-  color: var(--text);
+  background: #fffbf7;
+  color: #1e1519;
 }
 
 select::placeholder,

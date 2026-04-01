@@ -227,14 +227,15 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         </div>
       </div>
 
-      {/* STEM Group */}
+      {/* STEM */}
       <div className="filter-section px-4 py-3">
-        <label className="filter-label mb-1.5 block">STEM Group</label>
+        <label className="filter-label mb-1.5 block">STEM</label>
         <div className="select-wrap">
           <select value={filters.stemGroup} onChange={(event) => update({ stemGroup: event.target.value })}>
-            <option value="all">All</option>
-            <option value="A">STEM A</option>
-            <option value="B">STEM B</option>
+            <option value="all">All courses</option>
+            <option value="stem">STEM only (A + B)</option>
+            <option value="A">STEM A only</option>
+            <option value="B">STEM B only</option>
           </select>
         </div>
       </div>

@@ -10,7 +10,8 @@ const STOPWORDS = new Set([
   'with', 'your',
 ])
 
-const PREFIX_COLORS = {
+// Standard palette — hue-based, vivid
+const PREFIX_COLORS_STANDARD = {
   API: '#3b82f6',
   BGP: '#f59e0b',
   DEV: '#22c55e',
@@ -18,6 +19,25 @@ const PREFIX_COLORS = {
   IGA: '#8b5cf6',
   MLD: '#a78bfa',
   SUP: '#ec4899',
+}
+
+// Okabe-Ito colorblind-safe palette (safe for deuteranopia, protanopia, tritanopia)
+const OKABE_ITO = [
+  '#E69F00', // Orange
+  '#56B4E9', // Sky Blue
+  '#009E73', // Bluish Green
+  '#F0E442', // Yellow
+  '#0072B2', // Blue
+  '#D55E00', // Vermillion
+  '#CC79A7', // Reddish Purple
+  '#8ECFC9', // Teal (extended)
+  '#FFBE7A', // Peach (extended)
+  '#82B0D2', // Slate Blue (extended)
+]
+
+function getColor(prefix, colorblind, index) {
+  if (colorblind) return OKABE_ITO[index % OKABE_ITO.length]
+  return PREFIX_COLORS_STANDARD[prefix] || `hsl(${stableHash(prefix) % 360} 62% 58%)`
 }
 
 function stableHash(text) {
@@ -93,7 +113,7 @@ function normalizeCoordinates(points) {
   const spanY = Math.max(maxY - minY, 0.0001)
   const padding = 8
 
-  return points.map((point, index) => {
+  return points.map((point) => {
     const normalizedX = padding + ((point.rawX - minX) / spanX) * (100 - padding * 2)
     const normalizedY = padding + ((point.rawY - minY) / spanY) * (100 - padding * 2)
     const jitterX = ((stableHash(`${point.id}:jx`) % 1000) / 1000 - 0.5) * 1.4
@@ -103,7 +123,6 @@ function normalizeCoordinates(points) {
       ...point,
       mapX: Math.max(4, Math.min(96, normalizedX + (points.length <= 8 ? 0 : jitterX))),
       mapY: Math.max(4, Math.min(96, normalizedY + (points.length <= 8 ? 0 : jitterY))),
-      labelIndex: index,
     }
   })
 }
@@ -216,17 +235,19 @@ export default function CourseMap({ courses }) {
   const navigate = useNavigate()
   const wrapperRef = useRef(null)
   const [hoverState, setHoverState] = useState(null)
+  const [colorblind, setColorblind] = useState(false)
+
   const points = useMemo(() => buildDescriptionMap(courses), [courses])
   const sourceCourseCount = useMemo(() => countCoursesWithMapText(courses), [courses])
   const omittedCourseCount = Math.max(0, dedupeCourses(courses).length - sourceCourseCount)
 
   const legend = useMemo(() => {
     const prefixes = [...new Set(points.map((point) => point.prefix))].sort()
-    return prefixes.map((prefix) => ({
+    return prefixes.map((prefix, index) => ({
       prefix,
-      color: PREFIX_COLORS[prefix] || `hsl(${stableHash(prefix) % 360} 62% 58%)`,
+      color: getColor(prefix, colorblind, index),
     }))
-  }, [points])
+  }, [points, colorblind])
 
   const traces = useMemo(() => {
     if (!points.length) return []
@@ -360,14 +381,37 @@ export default function CourseMap({ courses }) {
               This view places courses closer together when their descriptions, titles, prerequisites, and section notes use similar language.
             </p>
           </div>
-          <p className="text-[10px] text-muted">Zoom, pan, and click any point to open course details</p>
+
+          <div className="flex items-center gap-2">
+            {/* Colorblind toggle */}
+            <button
+              onClick={() => setColorblind((v) => !v)}
+              title={colorblind ? 'Switch to standard colors' : 'Switch to colorblind-safe palette (Okabe-Ito)'}
+              className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all"
+              style={colorblind
+                ? { background: 'var(--blue-soft)', border: '1px solid var(--blue)', color: 'var(--blue)' }
+                : { background: 'var(--panel-subtle)', border: '1px solid var(--line)', color: 'var(--text-muted)' }}
+            >
+              {colorblind ? '◉ Colorblind-safe' : '○ Colorblind-safe'}
+            </button>
+            <p className="hidden text-[10px] text-muted md:block">Zoom, pan, click</p>
+          </div>
         </div>
 
         <div className="grid gap-2 text-[12px] text-muted md:grid-cols-3">
           <p>Nearby points indicate related course content.</p>
-          <p>Prefix color shows the course family.</p>
+          <p>Color shows the course family prefix.</p>
           <p>Pink outlines mark courses with bidding history.</p>
         </div>
+
+        {colorblind && (
+          <div
+            className="mt-3 rounded-xl px-3 py-2 text-[11px]"
+            style={{ background: 'var(--blue-soft)', color: 'var(--blue)', border: '1px solid rgba(157,194,219,0.2)' }}
+          >
+            Colorblind-safe mode active — using Okabe-Ito palette, safe for deuteranopia, protanopia, and tritanopia.
+          </div>
+        )}
 
         <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted">
           <span className="rounded-full px-2.5 py-1" style={{ background: 'var(--panel-subtle)', border: '1px solid var(--line)' }}>

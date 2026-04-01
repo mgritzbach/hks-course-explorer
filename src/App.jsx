@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
-import Home from './pages/Home.jsx'
+import Compare from './pages/Compare.jsx'
 import Courses from './pages/Courses.jsx'
 import Faculty from './pages/Faculty.jsx'
+import Home from './pages/Home.jsx'
 import { useFavorites } from './useFavorites.js'
 
 export default function App() {
@@ -43,7 +44,7 @@ export default function App() {
         style={{ background: 'transparent' }}
       >
         <div className="spinner" />
-        <p className="text-muted text-sm">Loading course data...</p>
+        <p className="text-muted text-sm">Loading course data…</p>
       </div>
     )
   }
@@ -54,18 +55,19 @@ export default function App() {
         className="flex h-screen flex-col items-center justify-center gap-3 px-8 text-center"
         style={{ background: 'transparent' }}
       >
-        <p className="text-red-400 text-lg font-semibold">Error: {error}</p>
-        <p className="text-muted text-sm">
-          Run <code className="text-accent">python scripts/build_data.py</code> first to generate the data file.
+        <p className="text-lg font-semibold" style={{ color: 'var(--danger)' }}>Error: {error}</p>
+        <p className="text-sm text-muted">
+          Run <code style={{ color: 'var(--accent-strong)' }}>python scripts/build_data.py</code> first to generate the data file.
         </p>
       </div>
     )
   }
 
   const navItems = [
-    { to: '/', label: 'Home', end: true },
+    { to: '/',        label: 'Home',    end: true },
     { to: '/courses', label: 'Courses' },
     { to: '/faculty', label: 'Faculty' },
+    { to: '/compare', label: 'Compare' },
   ]
 
   const desktopNavItem = ({ isActive }) =>
@@ -74,7 +76,7 @@ export default function App() {
     }`
 
   const mobileNavItem = ({ isActive }) =>
-    `flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl px-3 py-2 text-[11px] font-medium transition-colors ${
+    `flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl px-2 py-2 text-[10px] font-medium transition-colors ${
       isActive ? 'text-white' : 'text-label'
     }`
 
@@ -82,6 +84,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen md:h-screen" style={{ background: 'transparent' }}>
+      {/* Desktop sidebar nav */}
       <nav
         className="hidden shrink-0 flex-col px-3 py-4 md:flex"
         style={{
@@ -121,6 +124,7 @@ export default function App() {
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Mobile top header */}
         <header
           className="sticky top-0 z-30 border-b px-4 py-3 md:hidden"
           style={{
@@ -146,14 +150,17 @@ export default function App() {
           </div>
         </header>
 
+        {/* Page content */}
         <div className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
           <Routes>
-            <Route path="/" element={<Home courses={data.courses} meta={data.meta} favs={favs} />} />
+            <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} />} />
             <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} />} />
             <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} />} />
+            <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} />} />
           </Routes>
         </div>
 
+        {/* Mobile bottom nav */}
         <nav
           className="fixed inset-x-0 bottom-0 z-40 border-t px-3 pt-3 md:hidden"
           style={{
@@ -163,7 +170,7 @@ export default function App() {
             paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
           }}
         >
-          <div className="mx-auto flex max-w-md gap-2 rounded-[24px] border p-2 shadow-[0_-12px_28px_rgba(0,0,0,0.28)]" style={{ borderColor: 'var(--line)', background: 'var(--nav-shell-strong)' }}>
+          <div className="mx-auto flex max-w-md gap-1 rounded-[24px] border p-2 shadow-[0_-12px_28px_rgba(0,0,0,0.28)]" style={{ borderColor: 'var(--line)', background: 'var(--nav-shell-strong)' }}>
             {navItems.map((item) => (
               <NavLink
                 key={item.to}

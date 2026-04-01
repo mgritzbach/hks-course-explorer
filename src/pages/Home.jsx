@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import CourseCard from '../components/CourseCard.jsx'
+import CourseMap from '../components/CourseMap.jsx'
 import ScatterPlot from '../components/ScatterPlot.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 
-const DEFAULT_X = 'Instructor_Rating'
+const DEFAULT_X = 'Workload'
 const DEFAULT_Y = 'Course_Rating'
 const ALL_TERMS = ['Fall', 'Spring', 'January']
 
@@ -161,6 +162,7 @@ export default function Home({ courses, meta, favs }) {
   const [sortBy, setSortBy] = useState(initSort)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortlistOnly, setShowShortlistOnly] = useState(false)
+  const [activeTab, setActiveTab] = useState('comparisons')
 
   const scrollToVisualization = () => {
     if (!mainRef.current || !visualizationRef.current) return
@@ -387,30 +389,49 @@ export default function Home({ courses, meta, favs }) {
         )}
 
         <div ref={visualizationRef} className="top-tabs-bar mb-5">
-          <button
-            onClick={() => window.requestAnimationFrame(scrollToVisualization)}
-            className="top-tab-button whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold text-white transition-colors"
-            style={{
-              background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.28), rgba(165, 28, 48, 0.12))',
-              border: '1px solid rgba(212, 168, 106, 0.3)',
-              color: '#fff7f4',
-              boxShadow: 'inset 0 -2px 0 rgba(165, 28, 48, 0.9), 0 8px 22px rgba(15, 10, 8, 0.14)',
-            }}
-          >
-            Course Comparisons
-          </button>
+          {[
+            { key: 'comparisons', label: 'Course Comparisons' },
+            { key: 'map',         label: 'Similarity Map' },
+          ].map((tab) => {
+            const isActive = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                onClick={() => { setActiveTab(tab.key); window.requestAnimationFrame(scrollToVisualization) }}
+                className="top-tab-button whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold transition-colors"
+                style={isActive
+                  ? {
+                      background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.28), rgba(165, 28, 48, 0.12))',
+                      border: '1px solid rgba(212, 168, 106, 0.3)',
+                      color: '#fff7f4',
+                      boxShadow: 'inset 0 -2px 0 rgba(165, 28, 48, 0.9), 0 8px 22px rgba(15, 10, 8, 0.14)',
+                    }
+                  : {
+                      border: '1px solid var(--line)',
+                      color: 'var(--text-muted)',
+                      background: 'transparent',
+                    }}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
 
-        <ScatterPlot
-          allCourses={yearEvalCourses}
-          matchedCourses={filteredEval}
-          biddingOnlyCourses={biddingOnlyCourses}
-          xMetric={xMetric}
-          yMetric={yMetric}
-          metrics={meta.metrics}
-          onXChange={setXMetric}
-          onYChange={setYMetric}
-        />
+        {activeTab === 'comparisons' && (
+          <ScatterPlot
+            allCourses={yearEvalCourses}
+            matchedCourses={filteredEval}
+            biddingOnlyCourses={biddingOnlyCourses}
+            xMetric={xMetric}
+            yMetric={yMetric}
+            metrics={meta.metrics}
+            onXChange={setXMetric}
+            onYChange={setYMetric}
+          />
+        )}
+
+        {activeTab === 'map' && <CourseMap courses={filtered} />}
 
         <div className="mt-6">
           <div className="preset-pills mb-3">
