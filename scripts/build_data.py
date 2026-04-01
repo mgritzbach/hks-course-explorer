@@ -88,6 +88,17 @@ def average(values):
     return sum(values) / len(values)
 
 
+def median(values):
+    if not values:
+        return None
+    sorted_vals = sorted(values)
+    n = len(sorted_vals)
+    mid = n // 2
+    if n % 2 == 0:
+        return (sorted_vals[mid - 1] + sorted_vals[mid]) / 2
+    return sorted_vals[mid]
+
+
 def format_numeric(value, decimals=2):
     if value is None:
         return ""
@@ -164,6 +175,17 @@ def meta_from_courses(courses):
         if any(course.get("term") == term for course in courses):
             terms.append(term)
     default_year = max((year for year in years if year and year > 0), default=max(years or [0]))
+
+    # Compute per-year median instructor ratings (raw 0-5 scale)
+    year_medians = {}
+    for year in years:
+        year_courses = [c for c in courses if c.get("year") == year and not c.get("is_average") and c.get("metrics_raw", {}).get("Instructor_Rating") is not None]
+        raw_vals = [c["metrics_raw"]["Instructor_Rating"] for c in year_courses]
+        year_medians[str(year)] = round(median(raw_vals), 3) if raw_vals else None
+
+    overall_courses = [c for c in courses if not c.get("is_average") and c.get("metrics_raw", {}).get("Instructor_Rating") is not None]
+    overall_median = round(median([c["metrics_raw"]["Instructor_Rating"] for c in overall_courses]), 3) if overall_courses else None
+
     return {
         "concentrations": concentrations,
         "years": years,
@@ -171,6 +193,8 @@ def meta_from_courses(courses):
         "default_year": default_year,
         "default_terms": ["Fall", "Spring"],
         "metrics": METRICS,
+        "year_medians_instructor": year_medians,
+        "overall_median_instructor": overall_median,
     }
 
 

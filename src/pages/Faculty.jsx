@@ -27,16 +27,16 @@ const SORT_OPTIONS = [
   { value: 'respondents_desc', label: 'Most Respondents' },
 ]
 
-function activeFilterCount({ concentration, minRating, minCourses }) {
-  return (concentration !== 'All' ? 1 : 0) + (minRating !== 'any' ? 1 : 0) + (minCourses !== 'any' ? 1 : 0)
+function activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear }) {
+  return (concentration !== 'All' ? 1 : 0) + (minRating !== 'any' ? 1 : 0) + (minCourses !== 'any' ? 1 : 0) + (taughtSinceYear !== 'any' ? 1 : 0)
 }
 
 function FacultySidebar({
   meta, displayedProfs, allProfessors, selectedProf, query, setQuery, concentration, setConcentration,
-  minRating, setMinRating, minCourses, setMinCourses, sortBy, setSortBy, resetFilters, handleSelectProf,
+  minRating, setMinRating, minCourses, setMinCourses, taughtSinceYear, setTaughtSinceYear, sortBy, setSortBy, resetFilters, handleSelectProf,
   mobile = false, onClose = null,
 }) {
-  const filters = activeFilterCount({ concentration, minRating, minCourses })
+  const filters = activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })
 
   return (
     <aside className="flex h-full flex-col overflow-hidden shrink-0" style={{ width: mobile ? '100%' : 292, background: 'linear-gradient(180deg, var(--panel-strong), var(--panel-soft))', borderRight: '1px solid var(--line)' }}>
@@ -59,6 +59,7 @@ function FacultySidebar({
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Concentration</p><div className="select-wrap"><select value={concentration} onChange={(event) => setConcentration(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="All">All</option>{meta.concentrations.map((item) => <option key={item} value={item}>{item}</option>)}</select></div></div>
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Min Instructor Rating</p><div className="select-wrap"><select value={minRating} onChange={(event) => setMinRating(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any</option><option value="90">Top 10%</option><option value="75">Top 25%</option><option value="50">Top 50%</option></select></div></div>
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Min Courses Taught</p><div className="select-wrap"><select value={minCourses} onChange={(event) => setMinCourses(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any</option><option value="3">3+</option><option value="5">5+</option><option value="10">10+</option><option value="20">20+</option></select></div></div>
+          <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Taught Since</p><div className="select-wrap"><select value={taughtSinceYear} onChange={(e) => setTaughtSinceYear(e.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any Year</option><option value="2024">2024+</option><option value="2023">2023+</option><option value="2022">2022+</option><option value="2021">2021+</option></select></div></div>
         </div>
 
         <p className="mt-3 text-[10px] text-muted">{displayedProfs.length} of {allProfessors.length} instructors</p>
@@ -97,6 +98,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
   const [concentration, setConcentration] = useState('All')
   const [minRating, setMinRating] = useState('any')
   const [minCourses, setMinCourses] = useState('any')
+  const [taughtSinceYear, setTaughtSinceYear] = useState('any')
   const [sortBy, setSortBy] = useState('name_asc')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -141,12 +143,14 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
       ...prof,
       concentrations: [...prof.concentrationSet].sort(),
       avgMetrics: Object.fromEntries(meta.metrics.map((metric) => [metric.key, prof.cntMetrics[metric.key] ? Math.round((prof.sumMetrics[metric.key] / prof.cntMetrics[metric.key]) * 10) / 10 : null])),
+      lastTaughtYear: Math.max(...[...prof.courses].map(c => c.year || 0).filter(y => y > 0), 0) || null,
     }))
   }, [courses, meta.metrics, metricMode])
 
   const displayedProfs = useMemo(() => {
     const minRatingValue = minRating !== 'any' ? parseFloat(minRating) : null
     const minCoursesValue = minCourses !== 'any' ? parseInt(minCourses, 10) : null
+    const taughtSinceValue = taughtSinceYear !== 'any' ? parseInt(taughtSinceYear, 10) : null
     const list = allProfessors.filter((prof) => {
       if (query) {
         const normalized = query.toLowerCase()
@@ -155,6 +159,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
       if (concentration !== 'All' && !prof.concentrations.includes(concentration)) return false
       if (minRatingValue !== null && (prof.avgMetrics?.Instructor_Rating ?? -1) < minRatingValue) return false
       if (minCoursesValue !== null && prof.evalCourses < minCoursesValue) return false
+      if (taughtSinceValue !== null && (prof.lastTaughtYear ?? 0) < taughtSinceValue) return false
       return true
     })
     switch (sortBy) {
@@ -165,12 +170,12 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
       default: list.sort((a, b) => (a.professor_display || '').localeCompare(b.professor_display || ''))
     }
     return list
-  }, [allProfessors, concentration, minCourses, minRating, query, sortBy])
+  }, [allProfessors, concentration, minCourses, minRating, query, sortBy, taughtSinceYear])
 
   const selectedData = useMemo(() => selectedProf ? allProfessors.find((prof) => prof.professor === selectedProf) || null : null, [allProfessors, selectedProf])
   const profCourses = useMemo(() => selectedData ? selectedData.courses.filter((course) => course.has_eval && !course.is_average).sort((a, b) => (b.year || 0) - (a.year || 0) || (a.term || '').localeCompare(b.term || '')) : [], [selectedData])
 
-  const resetFilters = () => { setConcentration('All'); setMinRating('any'); setMinCourses('any'); setSortBy('name_asc'); setQuery('') }
+  const resetFilters = () => { setConcentration('All'); setMinRating('any'); setMinCourses('any'); setTaughtSinceYear('any'); setSortBy('name_asc'); setQuery('') }
   const handleSelectProf = (prof) => { setSelectedProf(prof.professor); setSearchParams({ prof: prof.professor }) }
 
   return (
@@ -190,6 +195,8 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           setMinRating={setMinRating}
           minCourses={minCourses}
           setMinCourses={setMinCourses}
+          taughtSinceYear={taughtSinceYear}
+          setTaughtSinceYear={setTaughtSinceYear}
           sortBy={sortBy}
           setSortBy={setSortBy}
           resetFilters={resetFilters}
@@ -212,6 +219,8 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           setMinRating={setMinRating}
           minCourses={minCourses}
           setMinCourses={setMinCourses}
+          taughtSinceYear={taughtSinceYear}
+          setTaughtSinceYear={setTaughtSinceYear}
           sortBy={sortBy}
           setSortBy={setSortBy}
           resetFilters={resetFilters}
@@ -222,7 +231,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-8 md:py-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div><p className="kicker mb-2">Teaching lens</p><h2 className="serif-display text-3xl font-semibold md:text-[2.4rem]" style={{ color: 'var(--text)' }}>Faculty Explorer</h2><p className="mt-2 text-xs text-muted md:text-sm">Browse teaching history and weighted rating averages for HKS instructors.</p></div>
-          <button onClick={() => setSidebarOpen(true)} className="rounded-full border px-3 py-2 text-xs font-medium text-white md:hidden" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.04)' }}>Browse Faculty{activeFilterCount({ concentration, minRating, minCourses }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses })})` : ''}</button>
+          <button onClick={() => setSidebarOpen(true)} className="rounded-full border px-3 py-2 text-xs font-medium text-white md:hidden" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.04)' }}>Browse Faculty{activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })})` : ''}</button>
         </div>
 
         {!selectedData && (
@@ -258,6 +267,12 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
         )}
 
         {selectedData && <>
+          <button
+            onClick={() => { setSelectedProf(null); setSearchParams({}) }}
+            className="mb-4 flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-label"
+          >
+            <span>←</span> <span>Back to faculty list</span>
+          </button>
           <div className="mb-6">
             <h2 className="serif-display mb-1 text-3xl font-semibold md:text-[2.25rem]" style={{ color: 'var(--text)' }}>{selectedData.professor_display}</h2>
             {selectedData.faculty_title && <p className="text-sm text-muted">{selectedData.faculty_title}</p>}
@@ -285,6 +300,11 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
                 <thead><tr style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.08)' }}>{['Year', 'Term', 'Course', 'Instructor %', 'Course %', 'Workload %', 'Rigor %', 'Diverse Persp.', 'N'].map((h) => <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-medium text-muted">{h}</th>)}</tr></thead>
                 <tbody>{profCourses.map((course, i) => <tr key={i} className="cursor-pointer transition-colors hover:bg-[rgba(255,255,255,0.02)]" style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.05)' }} onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}><td className="px-3 py-2 text-label">{course.year}</td><td className="px-3 py-2 text-muted">{course.term}</td><td className="px-3 py-2"><span className="font-medium" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</span><span className="ml-2 text-label">{course.course_name}</span></td><td className="px-3 py-2 font-medium" style={{ color: 'var(--accent-strong)' }}>{pct(course.metrics_pct?.Instructor_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Course_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Workload)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Rigor)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.['Diverse Perspectives'])}</td><td className="px-3 py-2 text-muted">{course.n_respondents ?? '-'}</td></tr>)}</tbody>
               </table>
+              {meta.overall_median_instructor != null && (
+                <p className="border-t px-4 py-2 text-[10px] text-muted" style={{ borderColor: 'var(--line)' }}>
+                  Overall median instructor rating: <span className="font-medium text-label">{meta.overall_median_instructor.toFixed(2)}/5</span> across all courses and years
+                </p>
+              )}
             </div>
           </div>
 

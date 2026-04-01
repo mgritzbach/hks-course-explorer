@@ -343,16 +343,17 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
 
       {/* Comparison table */}
       {selectedCourses.length >= 2 && allAttrs.length > 0 && (
-        <div className="surface-card mt-5 overflow-hidden rounded-[22px]">
-          {/* Course headers */}
-          <div
-            className="grid border-b"
-            style={{
-              gridTemplateColumns: `200px repeat(${selectedCourses.length}, 1fr)`,
-              borderColor: 'var(--line)',
-              background: 'var(--panel-subtle)',
-            }}
-          >
+        <div className="overflow-x-auto" style={{ minWidth: `${200 + selectedCourses.length * 160}px` }}>
+          <div className="surface-card mt-5 overflow-hidden rounded-[22px]">
+            {/* Course headers */}
+            <div
+              className="grid border-b"
+              style={{
+                gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
+                borderColor: 'var(--line)',
+                background: 'var(--panel-subtle)',
+              }}
+            >
             <div className="border-r px-4 py-4" style={{ borderColor: 'var(--line)' }}>
               <p className="filter-label">Attribute</p>
             </div>
@@ -383,19 +384,19 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
             ))}
           </div>
 
-          {/* Attribute rows */}
-          {allAttrs.map((attr, attrIdx) => {
-            const bestIndex = getBestIndex(selectedCourses, attr, metricMode)
-            return (
-              <div
-                key={attr.key}
-                className="grid border-b last:border-b-0"
-                style={{
-                  gridTemplateColumns: `200px repeat(${selectedCourses.length}, 1fr)`,
-                  borderColor: 'var(--line)',
-                  background: attrIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.012)',
-                }}
-              >
+            {/* Attribute rows */}
+            {allAttrs.map((attr, attrIdx) => {
+              const bestIndex = getBestIndex(selectedCourses, attr, metricMode)
+              return (
+                <div
+                  key={attr.key}
+                  className="grid border-b last:border-b-0"
+                  style={{
+                    gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
+                    borderColor: 'var(--line)',
+                    background: attrIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.012)',
+                  }}
+                >
                 {/* Attr label */}
                 <div
                   className="border-r px-4 py-3"
@@ -453,7 +454,8 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
               </div>
             )
           })}
-        </div>
+            </div>
+          </div>
       )}
 
       {selectedCourses.length === 1 && (

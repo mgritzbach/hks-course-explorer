@@ -577,6 +577,12 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
 
         {selected && (
           <>
+            <button
+              onClick={() => { setSelectedId(null); setSearchParams({}); setQuery('') }}
+              className="mb-4 flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-label"
+            >
+              <span>←</span> <span>Back to course search</span>
+            </button>
             <div className="mb-4 flex flex-wrap gap-4 text-xs text-muted">
               <span>{selectedCountText}</span>
               {biddingHistory.length > 0 && <span>{biddingHistory.length} bidding record{biddingHistory.length !== 1 ? 's' : ''}</span>}
