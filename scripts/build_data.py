@@ -3,6 +3,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 import re
+import math
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -254,6 +255,90 @@ def fill_average_bid_fields(rows):
     return updated
 
 
+def compute_similarity_coords(courses):
+    """
+    Compute 2D similarity coordinates for the Similarity Map.
+    Uses metric-based feature vectors + course description text features.
+    Falls back to PCA-style random projection if sklearn unavailable.
+
+    Returns dict mapping course id -> [x, y] or None if computation fails.
+    """
+    try:
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.decomposition import PCA
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        import numpy as np
+    except ImportError:
+        print("sklearn not available - skipping similarity map coordinates")
+        return {}
+
+    METRIC_KEYS = [
+        "Instructor_Rating", "Course_Rating", "Workload", "Rigor",
+        "Diverse Perspectives", "Feedback", "Insights", "Availability",
+        "Discussions", "Discussion Diversity", "Readings", "Assignments",
+    ]
+
+    # Only use courses that have eval data (not average rows, not bidding-only)
+    eligible = [c for c in courses if c.get("has_eval") and not c.get("is_average") and c.get("year") and c["year"] > 0]
+
+    if len(eligible) < 10:
+        return {}
+
+    ids = [c["id"] for c in eligible]
+
+    # Build metric feature matrix (normalized 0-1)
+    metric_rows = []
+    for c in eligible:
+        row = []
+        for key in METRIC_KEYS:
+            val = c.get("metrics_raw", {}).get(key)
+            # Normalize: 1-5 scale → 0-1
+            row.append((val - 1) / 4.0 if val is not None else 0.5)
+        metric_rows.append(row)
+
+    metric_matrix = np.array(metric_rows, dtype=np.float32)
+
+    # Build text feature matrix from course descriptions
+    descriptions = [
+        f"{c.get('course_name', '')} {c.get('description', '')} {c.get('concentration', '')}"
+        for c in eligible
+    ]
+
+    try:
+        tfidf = TfidfVectorizer(max_features=150, stop_words='english', min_df=2)
+        text_matrix = tfidf.fit_transform(descriptions).toarray().astype(np.float32)
+    except Exception:
+        text_matrix = np.zeros((len(eligible), 1), dtype=np.float32)
+
+    # Combine metric and text features (metrics weighted more heavily)
+    combined = np.hstack([metric_matrix * 2.5, text_matrix])
+
+    # Reduce to 2D using PCA
+    n_components = min(50, combined.shape[1], combined.shape[0] - 1)
+    if n_components > 2:
+        pca_intermediate = PCA(n_components=n_components, random_state=42)
+        reduced = pca_intermediate.fit_transform(combined)
+    else:
+        reduced = combined
+
+    pca_2d = PCA(n_components=2, random_state=42)
+    coords_2d = pca_2d.fit_transform(reduced)
+
+    # Normalize to [-100, 100] range
+    for dim in range(2):
+        col = coords_2d[:, dim]
+        col_min, col_max = col.min(), col.max()
+        if col_max > col_min:
+            coords_2d[:, dim] = ((col - col_min) / (col_max - col_min) * 200) - 100
+        else:
+            coords_2d[:, dim] = 0.0
+
+    return {
+        ids[i]: [round(float(coords_2d[i, 0]), 2), round(float(coords_2d[i, 1]), 2)]
+        for i in range(len(ids))
+    }
+
+
 def build_course(row, latest_bid_lookup):
     course_code = clean_text(row.get("course_code"))
     course_code_base = clean_text(row.get("course_code_base")) or course_code
@@ -367,6 +452,16 @@ def main():
         }
 
     courses = [build_course(row, latest_bid_lookup) for row in rows]
+
+    # Compute similarity map coordinates
+    print("Computing similarity map coordinates...")
+    sim_coords = compute_similarity_coords(courses)
+    for course in courses:
+        coords = sim_coords.get(course["id"])
+        course["sim_x"] = coords[0] if coords else None
+        course["sim_y"] = coords[1] if coords else None
+    print(f"Similarity coords computed for {len(sim_coords)} courses")
+
     payload = {"courses": courses, "meta": meta_from_courses(courses)}
     OUTPUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
