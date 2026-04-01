@@ -19,13 +19,14 @@ function RatingBadge({ label, value, color }) {
   )
 }
 
-export default function CourseCard({ course, favs }) {
+export default function CourseCard({ course, favs, metricMode = 'score' }) {
   const navigate = useNavigate()
   const starred = favs?.isFavorite(course.course_code_base)
 
-  const instructorPct = course.metrics_pct?.Instructor_Rating
-  const workloadPct = course.metrics_pct?.Workload
-  const coursePct = course.metrics_pct?.Course_Rating
+  const metricSrc = metricMode === 'score' ? course.metrics_score : course.metrics_pct
+  const instructorPct = metricSrc?.Instructor_Rating
+  const workloadPct = metricSrc?.Workload
+  const coursePct = metricSrc?.Course_Rating
   const biddingOnly = !course.has_eval && course.has_bidding
   const noEval = !course.has_eval && !course.has_bidding
 

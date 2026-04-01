@@ -274,6 +274,7 @@ export default function ScatterPlot({
   metrics,
   onXChange,
   onYChange,
+  metricMode = 'score',
 }) {
   const navigate = useNavigate()
   const [pinnedDatum, setPinnedDatum] = useState(null)
@@ -303,7 +304,11 @@ export default function ScatterPlot({
   ].filter(Boolean)
 
   const matchedIds = useMemo(() => new Set(matchedCoursesDeduped.map((course) => course.id)), [matchedCoursesDeduped])
-  const getValue = (course, mode, key) => (mode.useRaw ? course.metrics_raw?.[key] ?? null : course.metrics_pct?.[key] ?? null)
+  const getValue = (course, axisMode, key) => {
+    if (axisMode.useRaw) return course.metrics_raw?.[key] ?? null
+    if (metricMode === 'score') return course.metrics_score?.[key] ?? null
+    return course.metrics_pct?.[key] ?? null
+  }
 
   const bgData = useMemo(() => (
     allCoursesDeduped
@@ -327,6 +332,8 @@ export default function ScatterPlot({
         _yVal: getValue(course, yMode, yMetric),
         _xRaw: !xMode.useRaw && xMeta.bid_metric ? course.metrics_raw?.[xMetric] ?? null : null,
         _yRaw: !yMode.useRaw && yMeta.bid_metric ? course.metrics_raw?.[yMetric] ?? null : null,
+        _xRaw05: !xMode.useRaw ? course.metrics_raw?.[xMetric] ?? null : null,
+        _yRaw05: !yMode.useRaw ? course.metrics_raw?.[yMetric] ?? null : null,
         _xIsRaw: xMode.useRaw,
         _yIsRaw: yMode.useRaw,
         _xLabel: xMeta.label,
@@ -767,16 +774,30 @@ export default function ScatterPlot({
 
             <div className="space-y-0.5">
               {hoverState.datum._xVal != null && !hoverState.datum._isBidOnly && (
-                <p>{hoverState.datum._xLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_xVal', '_xRaw', '_xIsRaw')}</span></p>
+                <p>
+                  {hoverState.datum._xLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_xVal', '_xRaw', '_xIsRaw')}</span>
+                  {metricMode === 'score' && hoverState.datum._xRaw05 != null && (
+                    <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>({hoverState.datum._xRaw05.toFixed(1)}/5)</span>
+                  )}
+                </p>
               )}
               {hoverState.datum._yVal != null && !hoverState.datum._isBidOnly && (
-                <p>{hoverState.datum._yLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_yVal', '_yRaw', '_yIsRaw')}</span></p>
+                <p>
+                  {hoverState.datum._yLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_yVal', '_yRaw', '_yIsRaw')}</span>
+                  {metricMode === 'score' && hoverState.datum._yRaw05 != null && (
+                    <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>({hoverState.datum._yRaw05.toFixed(1)}/5)</span>
+                  )}
+                </p>
               )}
               {hoverState.datum._isBidOnly && (
                 <p className="text-[10px]" style={{ color: 'var(--gold)' }}>No eval data yet · ranked by bid competitiveness</p>
               )}
               {hoverState.datum.metrics_pct?.Instructor_Rating != null && hoverState.datum._xLabel !== 'Instructor Rating' && hoverState.datum._yLabel !== 'Instructor Rating' && (
-                <p>Instructor: <span className="font-medium" style={{ color: 'var(--blue)' }}>{Math.round(hoverState.datum.metrics_pct.Instructor_Rating)}%</span></p>
+                <p>Instructor: <span className="font-medium" style={{ color: 'var(--blue)' }}>
+                  {metricMode === 'score'
+                    ? `${Math.round(hoverState.datum.metrics_score?.Instructor_Rating ?? hoverState.datum.metrics_pct.Instructor_Rating)}%`
+                    : `${Math.round(hoverState.datum.metrics_pct.Instructor_Rating)}%`}
+                </span></p>
               )}
             </div>
 

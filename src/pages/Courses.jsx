@@ -110,7 +110,7 @@ function activeFilterCount(filters) {
   return count
 }
 
-function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = null }) {
+function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = null, metricMode = 'score', setMetricMode = null }) {
   const update = (patch) => setFilters((current) => ({ ...current, ...patch }))
   const reset = () => setFilters({
     year: 'all',
@@ -254,6 +254,27 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
         </label>
       </div>
 
+      {setMetricMode && (
+        <div className="filter-section px-4 py-3">
+          <label className="filter-label mb-2 block">Metric Display</label>
+          <div className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+            <button
+              onClick={() => setMetricMode('score')}
+              className="flex-1 rounded-full py-1.5 text-[11px] font-medium transition-colors"
+              style={{ background: metricMode === 'score' ? 'var(--accent)' : 'transparent', color: metricMode === 'score' ? '#fff' : 'var(--text-muted)' }}
+            >Score</button>
+            <button
+              onClick={() => setMetricMode('percentile')}
+              className="flex-1 rounded-full py-1.5 text-[11px] font-medium transition-colors"
+              style={{ background: metricMode === 'percentile' ? 'var(--blue)' : 'transparent', color: metricMode === 'percentile' ? '#fff' : 'var(--text-muted)' }}
+            >Percentile</button>
+          </div>
+          <p className="mt-1.5 text-[10px] leading-tight" style={{ color: 'var(--text-muted)' }}>
+            {metricMode === 'score' ? 'Avg ÷ 5 × 100% (absolute)' : 'Rank vs. all courses'}
+          </p>
+        </div>
+      )}
+
       <div className="filter-section px-4 py-3">
         <button onClick={reset} className="w-full rounded-xl border py-2 text-xs text-muted hover:border-label hover:text-label" style={{ borderColor: 'var(--line)' }}>
           Reset Filters
@@ -364,7 +385,7 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
   )
 }
 
-export default function Courses({ courses, meta, favs }) {
+export default function Courses({ courses, meta, favs, metricMode = 'score', setMetricMode }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -463,18 +484,19 @@ export default function Courses({ courses, meta, favs }) {
   const history = useMemo(() => selected ? courses.filter((course) => course.course_code_base === selected.course_code_base && course.has_eval).sort((a, b) => (b.year || 0) - (a.year || 0) || (a.term || '').localeCompare(b.term || '')) : [], [courses, selected])
   const biddingHistory = useMemo(() => selected ? courses.filter((course) => course.course_code_base === selected.course_code_base && course.has_bidding).sort((a, b) => (b.year || 0) - (a.year || 0)) : [], [courses, selected])
 
-  const instructorPct = selected?.metrics_pct?.Instructor_Rating
-  const workloadPct = selected?.metrics_pct?.Workload
+  const metricSrc = metricMode === 'score' ? selected?.metrics_score : selected?.metrics_pct
+  const instructorPct = metricSrc?.Instructor_Rating
+  const workloadPct = metricSrc?.Workload
   const selectedCountText = `${history.length} historical record${history.length !== 1 ? 's' : ''}`
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       {filterOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setFilterOpen(false)} aria-label="Close filters" />}
       <div className={`mobile-drawer md:hidden ${filterOpen ? 'open' : ''}`}>
-        <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} mobile onClose={() => setFilterOpen(false)} />
+        <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} mobile onClose={() => setFilterOpen(false)} metricMode={metricMode} setMetricMode={setMetricMode} />
       </div>
       <div className="hidden md:block">
-        <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} />
+        <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} metricMode={metricMode} setMetricMode={setMetricMode} />
       </div>
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:max-w-4xl md:px-8 md:py-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -687,32 +709,75 @@ export default function Courses({ courses, meta, favs }) {
                       <div className="mb-4 rounded-[18px] p-4" style={{ background: 'var(--panel-subtle)' }}>
                         <p className="text-sm text-muted">Instructor Rating</p>
                         <p className="text-2xl font-bold" style={{ color: LABEL_COLOR[selected.instructor_label] || 'var(--accent-strong)' }}>{selected.instructor_label}</p>
-                        <p className="text-sm text-muted">Better than {Math.round(instructorPct)}% of courses</p>
+                        {metricMode === 'score' ? (
+                          <p className="text-sm text-muted">
+                            Score: <span className="font-medium" style={{ color: 'var(--accent-strong)' }}>{Math.round(instructorPct)}%</span>
+                            {selected.metrics_raw?.Instructor_Rating != null && (
+                              <span className="ml-2 text-[11px]">({selected.metrics_raw.Instructor_Rating.toFixed(2)}/5)</span>
+                            )}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-muted">Better than {Math.round(instructorPct)}% of courses</p>
+                        )}
                       </div>
                     ) : <div className="mb-4 rounded-[18px] p-4 text-sm italic text-muted" style={{ background: 'var(--panel-subtle)' }}>No instructor rating data available</div>}
                     {workloadPct != null ? (
                       <div className="rounded-[18px] p-4" style={{ background: 'var(--panel-subtle)' }}>
                         <p className="text-sm text-muted">Course Workload</p>
                         <p className="text-2xl font-bold" style={{ color: WORKLOAD_COLOR[selected.workload_label] || 'var(--text-soft)' }}>{selected.workload_label}</p>
-                        <p className="text-sm text-muted">More intensive than {Math.round(workloadPct)}% of courses</p>
+                        {metricMode === 'score' ? (
+                          <p className="text-sm text-muted">
+                            Score: <span className="font-medium">{Math.round(workloadPct)}%</span>
+                            {selected.metrics_raw?.Workload != null && (
+                              <span className="ml-2 text-[11px]">({selected.metrics_raw.Workload.toFixed(2)}/5)</span>
+                            )}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-muted">More intensive than {Math.round(workloadPct)}% of courses</p>
+                        )}
                       </div>
                     ) : <div className="rounded-[18px] p-4 text-sm italic text-muted" style={{ background: 'var(--panel-subtle)' }}>No workload data available</div>}
                   </div>
 
                   <div className="surface-card rounded-[22px] p-5 lg:col-span-2">
-                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">All Evaluation Metrics</h4>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">All Evaluation Metrics</h4>
+                      <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        {metricMode === 'score' ? 'Avg ÷ 5 × 100%' : 'Percentile vs. all courses'}
+                      </span>
+                    </div>
                     {selected.has_eval ? (
-                      <div className="grid gap-x-8 sm:grid-cols-2">
-                        {meta.metrics.map((metric) => (
-                          <MetricRow
-                            key={metric.key}
-                            label={metric.label}
-                            value={selected.metrics_pct?.[metric.key]}
-                            higherBetter={metric.higher_is_better}
-                            neutral={metric.key === 'Workload' || metric.key === 'Rigor'}
-                          />
-                        ))}
-                      </div>
+                      <>
+                        <div className="grid gap-x-8 sm:grid-cols-2">
+                          {meta.metrics.filter((m) => !m.bid_metric).map((metric) => (
+                            <MetricRow
+                              key={metric.key}
+                              label={metric.label}
+                              value={metricMode === 'score' ? selected.metrics_score?.[metric.key] : selected.metrics_pct?.[metric.key]}
+                              higherBetter={metric.higher_is_better}
+                              neutral={metric.key === 'Workload' || metric.key === 'Rigor'}
+                            />
+                          ))}
+                        </div>
+                        {/* Raw 0-5 averages */}
+                        <details className="mt-4">
+                          <summary className="cursor-pointer text-[11px] font-medium" style={{ color: 'var(--blue)' }}>
+                            Show raw averages (0–5 scale)
+                          </summary>
+                          <div className="mt-3 grid gap-x-8 gap-y-1 sm:grid-cols-2">
+                            {meta.metrics.filter((m) => !m.bid_metric).map((metric) => {
+                              const raw = selected.metrics_raw?.[metric.key]
+                              if (raw == null) return null
+                              return (
+                                <div key={metric.key} className="flex items-center justify-between py-1 text-xs" style={{ borderBottom: '1px solid var(--line)' }}>
+                                  <span className="text-muted">{metric.label}</span>
+                                  <span className="font-medium tabular-nums" style={{ color: 'var(--text-soft)' }}>{raw.toFixed(2)} / 5</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </details>
+                      </>
                     ) : (
                       <div className="py-6 text-center">
                         <p className="text-sm text-muted">No evaluation data available for this course.</p>

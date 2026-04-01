@@ -19,7 +19,7 @@ function countActiveFilters(filters) {
   return count
 }
 
-export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false }) {
+export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null }) {
   const [searchInput, setSearchInput] = useState(filters.searchText)
   const debounceRef = useRef(null)
 
@@ -253,6 +253,40 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
           <span className="text-xs text-label">Only courses with evals</span>
         </label>
       </div>
+
+      {/* Metric display mode */}
+      {setMetricMode && (
+        <div className="filter-section px-4 py-3">
+          <label className="filter-label mb-2 block">Metric Display</label>
+          <div className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+            <button
+              onClick={() => setMetricMode('score')}
+              className="flex-1 rounded-full py-1.5 text-[11px] font-medium transition-colors"
+              style={{
+                background: metricMode === 'score' ? 'var(--accent)' : 'transparent',
+                color: metricMode === 'score' ? '#fff' : 'var(--text-muted)',
+              }}
+            >
+              Score
+            </button>
+            <button
+              onClick={() => setMetricMode('percentile')}
+              className="flex-1 rounded-full py-1.5 text-[11px] font-medium transition-colors"
+              style={{
+                background: metricMode === 'percentile' ? 'var(--blue)' : 'transparent',
+                color: metricMode === 'percentile' ? '#fff' : 'var(--text-muted)',
+              }}
+            >
+              Percentile
+            </button>
+          </div>
+          <p className="mt-1.5 text-[10px] leading-tight" style={{ color: 'var(--text-muted)' }}>
+            {metricMode === 'score'
+              ? 'Avg rating ÷ 5 × 100% (absolute)'
+              : 'Rank vs. all courses in dataset'}
+          </p>
+        </div>
+      )}
 
       {/* Reset */}
       <div className="filter-section px-4 py-3">

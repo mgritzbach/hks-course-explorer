@@ -253,6 +253,15 @@ def build_course(row, latest_bid_lookup):
     metrics_pct["Bid_Price"] = None
     metrics_pct["Bid_N_Bids"] = None
 
+    # Score = weighted average / 5 × 100  (5-point scale → 0-100%, where 5=100%)
+    metrics_score = {}
+    for metric in METRICS:
+        if not metric.get("bid_metric"):
+            raw_val = metrics_raw.get(metric["key"])
+            metrics_score[metric["key"]] = round(raw_val / 5.0 * 100, 1) if raw_val is not None else None
+    metrics_score["Bid_Price"] = None
+    metrics_score["Bid_N_Bids"] = None
+
     latest_bid = latest_bid_lookup.get(course_code, {})
     has_bidding = parse_bool(row.get("has_bidding")) or metrics_raw["Bid_Price"] is not None or metrics_raw["Bid_N_Bids"] is not None
 
@@ -279,6 +288,7 @@ def build_course(row, latest_bid_lookup):
         "n_respondents": parse_int(row.get("n_respondents")),
         "metrics_raw": metrics_raw,
         "metrics_pct": metrics_pct,
+        "metrics_score": metrics_score,
         "instructor_label": instructor_label(metrics_raw["Instructor_Rating"]),
         "workload_label": workload_label(metrics_raw["Workload"]),
         "last_bid_price": latest_bid.get("last_bid_price"),

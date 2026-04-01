@@ -89,7 +89,7 @@ function FacultySidebar({
   )
 }
 
-export default function Faculty({ courses, meta }) {
+export default function Faculty({ courses, meta, metricMode = 'score' }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -128,7 +128,7 @@ export default function Faculty({ courses, meta }) {
         entry.evalCourses += 1
         entry.totalRespondents += course.n_respondents || 0
         for (const metric of meta.metrics) {
-          const value = course.metrics_pct?.[metric.key]
+          const value = metricMode === 'score' ? course.metrics_score?.[metric.key] : course.metrics_pct?.[metric.key]
           if (value != null) {
             const weight = course.n_respondents || 1
             entry.sumMetrics[metric.key] = (entry.sumMetrics[metric.key] || 0) + value * weight
@@ -142,7 +142,7 @@ export default function Faculty({ courses, meta }) {
       concentrations: [...prof.concentrationSet].sort(),
       avgMetrics: Object.fromEntries(meta.metrics.map((metric) => [metric.key, prof.cntMetrics[metric.key] ? Math.round((prof.sumMetrics[metric.key] / prof.cntMetrics[metric.key]) * 10) / 10 : null])),
     }))
-  }, [courses, meta.metrics])
+  }, [courses, meta.metrics, metricMode])
 
   const displayedProfs = useMemo(() => {
     const minRatingValue = minRating !== 'any' ? parseFloat(minRating) : null

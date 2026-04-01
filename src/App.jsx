@@ -14,7 +14,16 @@ export default function App() {
     if (typeof window === 'undefined') return 'dark'
     return window.localStorage.getItem('hks-theme') || 'dark'
   })
+  const [metricMode, setMetricModeState] = useState(() => {
+    if (typeof window === 'undefined') return 'score'
+    return window.localStorage.getItem('hks-metric-mode') || 'score'
+  })
   const favs = useFavorites()
+
+  const setMetricMode = (mode) => {
+    window.localStorage.setItem('hks-metric-mode', mode)
+    setMetricModeState(mode)
+  }
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -153,10 +162,10 @@ export default function App() {
         {/* Page content */}
         <div className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
           <Routes>
-            <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} />} />
-            <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} />} />
-            <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} />} />
-            <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} />} />
+            <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
+            <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
+            <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} />} />
+            <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} />} />
           </Routes>
         </div>
 

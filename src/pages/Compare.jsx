@@ -50,8 +50,12 @@ function pct(value) {
   return Math.round(value)
 }
 
-function getCellValue(course, attr) {
-  if (attr.type === 'pct') return course.metrics_pct?.[attr.key] ?? null
+function getCellValue(course, attr, metricMode = 'score') {
+  if (attr.type === 'pct') {
+    return metricMode === 'score'
+      ? course.metrics_score?.[attr.key] ?? null
+      : course.metrics_pct?.[attr.key] ?? null
+  }
   if (attr.type === 'text') return course[attr.key] ?? null
   if (attr.type === 'bool') return course[attr.key]
   if (attr.type === 'stem') return course.is_stem ? (course.stem_group ? `STEM ${course.stem_group}` : 'STEM') : null
@@ -60,9 +64,9 @@ function getCellValue(course, attr) {
   return null
 }
 
-function getBestIndex(courses, attr) {
+function getBestIndex(courses, attr, metricMode = 'score') {
   if (!attr.higherBetter && attr.higherBetter !== false) return -1
-  const values = courses.map((course) => getCellValue(course, attr))
+  const values = courses.map((course) => getCellValue(course, attr, metricMode))
   const numValues = values.map((v) => (typeof v === 'number' ? v : null))
   const validValues = numValues.filter((v) => v != null)
   if (!validValues.length) return -1
@@ -116,7 +120,7 @@ function CourseChip({ course, onRemove }) {
   )
 }
 
-export default function Compare({ courses, meta, favs }) {
+export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
   const navigate = useNavigate()
   const [selected, setSelected] = useState([]) // array of course ids
   const [searchText, setSearchText] = useState('')
@@ -381,7 +385,7 @@ export default function Compare({ courses, meta, favs }) {
 
           {/* Attribute rows */}
           {allAttrs.map((attr, attrIdx) => {
-            const bestIndex = getBestIndex(selectedCourses, attr)
+            const bestIndex = getBestIndex(selectedCourses, attr, metricMode)
             return (
               <div
                 key={attr.key}
@@ -409,7 +413,7 @@ export default function Compare({ courses, meta, favs }) {
 
                 {/* Course cells */}
                 {selectedCourses.map((course, courseIdx) => {
-                  const value = getCellValue(course, attr)
+                  const value = getCellValue(course, attr, metricMode)
                   const isBest = courseIdx === bestIndex
 
                   return (

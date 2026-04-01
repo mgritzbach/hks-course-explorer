@@ -127,7 +127,7 @@ const PRESETS = [
   },
 ]
 
-export default function Home({ courses, meta, favs }) {
+export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const mainRef = useRef(null)
   const visualizationRef = useRef(null)
@@ -311,6 +311,8 @@ export default function Home({ courses, meta, favs }) {
         <Sidebar
           filters={filters}
           setFilters={setFilters}
+          metricMode={metricMode}
+          setMetricMode={setMetricMode}
           meta={meta}
           title="Search Courses"
           mobile
@@ -319,7 +321,7 @@ export default function Home({ courses, meta, favs }) {
       </div>
 
       <div className="hidden md:block">
-        <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" />
+        <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" metricMode={metricMode} setMetricMode={setMetricMode} />
       </div>
 
       <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
@@ -428,6 +430,7 @@ export default function Home({ courses, meta, favs }) {
             metrics={meta.metrics}
             onXChange={setXMetric}
             onYChange={setYMetric}
+            metricMode={metricMode}
           />
         )}
 
@@ -487,7 +490,7 @@ export default function Home({ courses, meta, favs }) {
               <p className="text-xs text-muted">Try adjusting the year, terms, concentration, or removing some filters.</p>
             </div>
           ) : (
-            visibleCourses.map((course) => <CourseCard key={course.id} course={course} favs={favs} />)
+            visibleCourses.map((course) => <CourseCard key={course.id} course={course} favs={favs} metricMode={metricMode} />)
           )}
         </div>
 
