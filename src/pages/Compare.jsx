@@ -78,22 +78,23 @@ function getBestIndex(courses, attr, metricMode = 'score') {
 function MetricBar({ value, best, higherBetter }) {
   if (value == null) return <span className="text-muted">—</span>
   const isBest = best
-  const barColor = isBest
-    ? (higherBetter ? 'var(--success)' : 'var(--accent)')
-    : 'var(--text-muted)'
-  const barOpacity = isBest ? 0.28 : 0.1
+  const rounded = Math.round(value)
+  // Color based on whether the value is genuinely good or bad, not just "best in group"
+  const barColor = higherBetter
+    ? (rounded >= 75 ? 'var(--success)' : rounded >= 50 ? 'var(--gold)' : 'var(--danger)')
+    : (rounded <= 25 ? 'var(--success)' : rounded <= 50 ? 'var(--gold)' : 'var(--danger)')
 
   return (
     <div className="flex items-center gap-2">
       <div className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: `rgba(255,255,255,0.08)` }}>
         <div
           className="absolute left-0 top-0 h-full rounded-full transition-all"
-          style={{ width: `${value}%`, background: barColor, opacity: barOpacity + 0.5 }}
+          style={{ width: `${value}%`, background: barColor, opacity: isBest ? 0.85 : 0.45 }}
         />
       </div>
       <span
         className="w-10 shrink-0 text-right text-xs font-semibold"
-        style={{ color: isBest ? barColor : 'var(--text-soft)' }}
+        style={{ color: barColor, opacity: isBest ? 1 : 0.7 }}
       >
         {value}%
       </span>
