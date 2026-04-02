@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Plot from 'react-plotly.js'
 
 const CONCENTRATION_COLORS = {
@@ -12,33 +12,46 @@ const CONCENTRATION_COLORS = {
   HBS: '#ff5722',
 }
 
-export default function CourseMap({ courses }) {
+export default function CourseMap() {
+  const [simData, setSimData] = useState(null)
+  const [loadError, setLoadError] = useState(false)
   const [filterConc, setFilterConc] = useState('All')
   const [stemOnly, setStemOnly] = useState(false)
-  const [hoveredId, setHoveredId] = useState(null)
 
-  const simCourses = useMemo(() =>
-    courses.filter(c => c.sim_x != null && c.sim_y != null && !c.is_average),
-    [courses]
-  )
+  // Self-fetch the slim coords file — independent of the courses prop/cache
+  useEffect(() => {
+    fetch('/sim_coords.json', { cache: 'no-cache' })
+      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json() })
+      .then(setSimData)
+      .catch(() => setLoadError(true))
+  }, [])
 
-  const concentrations = useMemo(() =>
-    ['All', ...new Set(simCourses.map(c => c.concentration).filter(Boolean)).values()].sort(),
-    [simCourses]
-  )
+  const concentrations = useMemo(() => {
+    if (!simData) return ['All']
+    return ['All', ...new Set(simData.map(c => c.concentration).filter(Boolean))].sort()
+  }, [simData])
 
   const filtered = useMemo(() => {
-    let list = simCourses
+    if (!simData) return []
+    let list = simData
     if (filterConc !== 'All') list = list.filter(c => c.concentration === filterConc)
     if (stemOnly) list = list.filter(c => c.is_stem)
     return list
-  }, [simCourses, filterConc, stemOnly])
+  }, [simData, filterConc, stemOnly])
 
-  if (simCourses.length === 0) {
+  if (loadError) {
     return (
       <div className="surface-card rounded-[24px] px-8 py-12 text-center">
         <p className="mb-2 font-medium text-label">Similarity Map not available</p>
         <p className="text-xs text-muted">Run <code>python scripts/build_data.py</code> with scikit-learn installed to generate similarity coordinates.</p>
+      </div>
+    )
+  }
+
+  if (!simData) {
+    return (
+      <div className="surface-card rounded-[24px] px-8 py-12 text-center">
+        <p className="text-xs text-muted">Loading similarity map…</p>
       </div>
     )
   }
@@ -88,33 +101,19 @@ export default function CourseMap({ courses }) {
 
   return (
     <div className="surface-card shrink-0 rounded-[24px] overflow-hidden">
-      {/* Controls */}
       <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3" style={{ borderColor: 'var(--line)' }}>
         <p className="text-[10px] uppercase tracking-wider text-muted">Similarity Map</p>
         <div className="select-wrap">
-          <select
-            value={filterConc}
-            onChange={e => setFilterConc(e.target.value)}
-            style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
-          >
-            {concentrations.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
+          <select value={filterConc} onChange={e => setFilterConc(e.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}>
+            {concentrations.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-label">
-          <input
-            type="checkbox"
-            checked={stemOnly}
-            onChange={e => setStemOnly(e.target.checked)}
-            className="h-3 w-3"
-            style={{ accentColor: 'var(--accent)' }}
-          />
+          <input type="checkbox" checked={stemOnly} onChange={e => setStemOnly(e.target.checked)} className="h-3 w-3" style={{ accentColor: 'var(--accent)' }} />
           STEM only
         </label>
         <p className="ml-auto text-[10px] text-muted">{filtered.length} courses · PCA of ratings + descriptions</p>
       </div>
-      {/* Plot */}
       <div style={{ height: 340 }}>
         <Plot
           data={plotData}

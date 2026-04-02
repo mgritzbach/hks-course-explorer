@@ -124,10 +124,10 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         </div>
       </div>
 
-      {/* Year */}
-      <div className="filter-section px-4 py-3">
-        <div className="mb-1.5 flex items-center justify-between">
-          <label className="filter-label">Year</label>
+      {/* Year — primary filter, visually elevated */}
+      <div className="px-4 py-3" style={{ background: 'rgba(165,28,48,0.07)', borderBottom: '1px solid var(--line)' }}>
+        <div className="mb-2 flex items-center justify-between">
+          <label className="filter-label font-semibold" style={{ color: 'var(--text)', fontSize: 11 }}>📅 Year</label>
           {filters.year !== 0 && (
             <button
               onClick={() => update({ year: 0 })}
@@ -140,7 +140,11 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
           )}
         </div>
         <div className="select-wrap">
-          <select value={filters.year} onChange={(event) => update({ year: parseInt(event.target.value, 10) })}>
+          <select
+            value={filters.year}
+            onChange={(event) => update({ year: parseInt(event.target.value, 10) })}
+            style={{ fontWeight: 600, fontSize: 13 }}
+          >
             <option value={0}>⊕ All Years Average</option>
             {[...meta.years].reverse().map((year) => (
               <option key={year} value={year}>

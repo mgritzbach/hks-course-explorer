@@ -480,7 +480,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           </div>
         )}
 
-        {activeTab === 'map' && <CourseMap courses={courses} />}
+        {activeTab === 'map' && <CourseMap />}
 
         <div className="mt-6">
           <div className="preset-pills mb-3">

@@ -121,6 +121,8 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           concentrationSet: new Set(),
           sumMetrics: {},
           cntMetrics: {},
+          sumRawInstructor: 0,
+          cntRawInstructor: 0,
         })
       }
       const entry = registry.get(course.professor)
@@ -137,12 +139,17 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
             entry.cntMetrics[metric.key] = (entry.cntMetrics[metric.key] || 0) + weight
           }
         }
+        if (course.metrics_raw?.Instructor_Rating != null) {
+          entry.sumRawInstructor += course.metrics_raw.Instructor_Rating
+          entry.cntRawInstructor += 1
+        }
       }
     }
     return [...registry.values()].filter((prof) => prof.evalCourses > 0).map((prof) => ({
       ...prof,
       concentrations: [...prof.concentrationSet].sort(),
       avgMetrics: Object.fromEntries(meta.metrics.map((metric) => [metric.key, prof.cntMetrics[metric.key] ? Math.round((prof.sumMetrics[metric.key] / prof.cntMetrics[metric.key]) * 10) / 10 : null])),
+      avgRawInstructor: prof.cntRawInstructor > 0 ? Math.round(prof.sumRawInstructor / prof.cntRawInstructor * 100) / 100 : null,
       lastTaughtYear: Math.max(...[...prof.courses].map(c => c.year || 0).filter(y => y > 0), 0) || null,
     }))
   }, [courses, meta.metrics, metricMode])
@@ -288,7 +295,21 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
             </div>
             <div className="surface-card rounded-[22px] p-4">
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Quick Stats</h4>
-              {selectedData.avgMetrics?.Instructor_Rating != null && <div className="mb-3 rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.025)' }}><p className="text-[10px] uppercase tracking-wider text-muted">Instructor Rating</p><p className="text-xl font-bold" style={{ color: 'var(--accent-strong)' }}>{Math.round(selectedData.avgMetrics.Instructor_Rating)}%</p><p className="text-[10px] text-muted">global percentile average</p></div>}
+              {selectedData.avgMetrics?.Instructor_Rating != null && (
+                <div className="mb-3 rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.025)' }}>
+                  <p className="text-[10px] uppercase tracking-wider text-muted">Instructor Rating</p>
+                  <p className="text-xl font-bold" style={{ color: 'var(--accent-strong)' }}>{Math.round(selectedData.avgMetrics.Instructor_Rating)}%</p>
+                  <p className="text-[10px] text-muted">global percentile average</p>
+                  {selectedData.avgRawInstructor != null && (
+                    <p className="mt-1 text-[10px]" style={{ color: 'var(--text-muted)', opacity: 0.72 }}>
+                      avg {selectedData.avgRawInstructor.toFixed(2)}/5
+                      {meta.overall_median_instructor != null && (
+                        <span className="ml-1.5">· all-courses med {meta.overall_median_instructor.toFixed(2)}</span>
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">{[{ key: 'Course_Rating', label: 'Course Rating', color: 'var(--success)' }, { key: 'Workload', label: 'Workload', color: 'var(--text-soft)' }, { key: 'Rigor', label: 'Rigor', color: 'var(--text-soft)' }, { key: 'Diverse Perspectives', label: 'Diverse Persp.', color: 'var(--text-soft)' }, { key: 'Feedback', label: 'Feedback', color: 'var(--text-soft)' }].map(({ key, label, color }) => selectedData.avgMetrics?.[key] != null && <div key={key} className="rounded-2xl p-2" style={{ background: 'rgba(255,255,255,0.025)' }}><p className="text-[10px] text-muted">{label}</p><p className="text-sm font-bold" style={{ color }}>{Math.round(selectedData.avgMetrics[key])}%</p></div>)}</div>
             </div>
           </div>
