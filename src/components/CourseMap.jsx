@@ -1,107 +1,78 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Plot from 'react-plotly.js'
 
-const CONCENTRATION_COLORS = {
-  API: '#4285f4',
-  DPI: '#34a853',
-  HKS: '#a51c30',
-  MPA: '#fbbc04',
-  MPP: '#ea4335',
-  SUP: '#9c27b0',
-  PAL: '#00bcd4',
-  HBS: '#ff5722',
+const COLORS = {
+  API: '#4285f4', DPI: '#34a853', HKS: '#a51c30', MPA: '#fbbc04',
+  MPP: '#ea4335', SUP: '#9c27b0', PAL: '#00bcd4', HBS: '#ff5722',
 }
 
 const VARIANTS = [
-  { key: 'combined', label: 'Ratings + Subject', xKey: 'sim_x',         yKey: 'sim_y',         desc: 'Eval metrics (2.5×) combined with course name & description similarity' },
-  { key: 'ratings',  label: 'Ratings only',      xKey: 'sim_x_ratings', yKey: 'sim_y_ratings', desc: 'Proximity based purely on evaluation scores — ignores topic/subject' },
-  { key: 'text',     label: 'Subject only',       xKey: 'sim_x_text',   yKey: 'sim_y_text',    desc: 'Proximity based on course names & descriptions — ignores ratings' },
+  { key: 'combined', label: 'Ratings + Subject', xKey: 'sim_x',         yKey: 'sim_y',         desc: 'Eval metrics (2.5×) + course subject similarity' },
+  { key: 'ratings',  label: 'Ratings only',      xKey: 'sim_x_ratings', yKey: 'sim_y_ratings', desc: 'Proximity by evaluation scores only — ignores topic' },
+  { key: 'text',     label: 'Subject only',       xKey: 'sim_x_text',   yKey: 'sim_y_text',    desc: 'Proximity by course names & descriptions — ignores ratings' },
 ]
 
+const DEFAULT_CONFIG = { variant: 'combined', conc: 'All', stem: false }
+
 export default function CourseMap() {
-  const [simData, setSimData] = useState(null)
+  const [allData, setAllData] = useState(null)   // null = loading, [] = error/empty
   const [loadError, setLoadError] = useState(false)
 
-  // "pending" = user is tweaking options; "applied" = what the plot actually shows
-  const [pendingVariant, setPendingVariant] = useState('combined')
-  const [pendingConc, setPendingConc] = useState('All')
-  const [pendingStem, setPendingStem] = useState(false)
+  // What the plot currently shows (only updated on "Generate Map")
+  const [applied, setApplied] = useState(DEFAULT_CONFIG)
+  // What the user is editing in the controls
+  const [pending, setPending] = useState(DEFAULT_CONFIG)
 
-  const [appliedVariant, setAppliedVariant] = useState('combined')
-  const [appliedConc, setAppliedConc] = useState('All')
-  const [appliedStem, setAppliedStem] = useState(false)
-
-  const isDirty =
-    pendingVariant !== appliedVariant ||
-    pendingConc !== appliedConc ||
-    pendingStem !== appliedStem
+  const isDirty = pending.variant !== applied.variant || pending.conc !== applied.conc || pending.stem !== applied.stem
 
   useEffect(() => {
     fetch('/sim_coords.json', { cache: 'no-cache' })
       .then(r => { if (!r.ok) throw new Error(r.status); return r.json() })
-      .then(data => { setSimData(data); setAppliedVariant('combined'); setAppliedConc('All'); setAppliedStem(false) })
-      .catch(() => setLoadError(true))
+      .then(data => { setAllData(data) })
+      .catch(() => { setLoadError(true); setAllData([]) })
   }, [])
 
-  const concentrations = useMemo(() => {
-    if (!simData) return ['All']
-    return ['All', ...new Set(simData.map(c => c.concentration).filter(Boolean))].sort()
-  }, [simData])
+  // ---------- derive plot data directly (no useMemo — grouping 4130 pts is ~1ms) ----------
+  const v = VARIANTS.find(x => x.key === applied.variant) || VARIANTS[0]
+  const shown = !allData ? [] : allData.filter(c =>
+    (applied.conc === 'All' || c.concentration === applied.conc) &&
+    (!applied.stem || c.is_stem)
+  )
 
-  const plotData = useMemo(() => {
-    if (!simData) return []
-    // Compute variant inside memo so the closure is always fresh
-    const v = VARIANTS.find(v => v.key === appliedVariant) || VARIANTS[0]
-    let list = simData
-    if (appliedConc !== 'All') list = list.filter(c => c.concentration === appliedConc)
-    if (appliedStem) list = list.filter(c => c.is_stem)
+  const groups = {}
+  for (const c of shown) {
+    const k = c.concentration || 'Other'
+    if (!groups[k]) groups[k] = { x: [], y: [], data: [] }
+    groups[k].x.push(c[v.xKey])
+    groups[k].y.push(c[v.yKey])
+    groups[k].data.push(c)
+  }
 
-    const byConc = {}
-    for (const c of list) {
-      const key = c.concentration || 'Other'
-      if (!byConc[key]) byConc[key] = []
-      byConc[key].push(c)
-    }
+  const traces = Object.entries(groups).map(([conc, g]) => ({
+    type: 'scattergl',
+    mode: 'markers',
+    name: conc,
+    x: g.x,
+    y: g.y,
+    customdata: g.data,
+    hovertemplate: '<b>%{customdata.course_code}</b><br>%{customdata.course_name}<br>%{customdata.professor_display}<extra></extra>',
+    marker: { size: 8, color: COLORS[conc] || '#888', opacity: 0.8, line: { color: 'rgba(255,255,255,0.18)', width: 0.5 } },
+  }))
 
-    return Object.entries(byConc).map(([conc, cs]) => ({
-      type: 'scattergl',
-      mode: 'markers',
-      name: conc,
-      x: cs.map(c => c[v.xKey]),
-      y: cs.map(c => c[v.yKey]),
-      customdata: cs,
-      hovertemplate: '<b>%{customdata.course_code}</b><br>%{customdata.course_name}<br>%{customdata.professor_display}<extra></extra>',
-      marker: {
-        size: 8,
-        color: CONCENTRATION_COLORS[conc] || '#888',
-        opacity: 0.8,
-        line: { color: 'rgba(255,255,255,0.18)', width: 0.5 },
-      },
-    }))
-  }, [simData, appliedVariant, appliedConc, appliedStem])
-
-  const variant = VARIANTS.find(v => v.key === appliedVariant) || VARIANTS[0]
-
-  const totalShown = plotData.reduce((s, t) => s + t.x.length, 0)
+  const concentrations = allData
+    ? ['All', ...new Set(allData.map(c => c.concentration).filter(Boolean))].sort()
+    : ['All']
 
   const plotLayout = {
     autosize: true,
-    uirevision: `sim-${appliedVariant}-${appliedConc}-${appliedStem}`,
+    uirevision: `${applied.variant}-${applied.conc}-${applied.stem}`,
     margin: { t: 8, r: 12, b: 32, l: 12 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     dragmode: 'pan',
     hovermode: 'closest',
     showlegend: true,
-    legend: {
-      title: { text: 'Concentration', font: { color: 'var(--text-muted)', size: 10 } },
-      font: { color: 'var(--text-muted)', size: 10 },
-      bgcolor: 'rgba(0,0,0,0)',
-      orientation: 'v',
-      x: 1,
-      xanchor: 'right',
-      y: 1,
-    },
+    legend: { title: { text: 'Concentration', font: { color: 'var(--text-muted)', size: 10 } }, font: { color: 'var(--text-muted)', size: 10 }, bgcolor: 'rgba(0,0,0,0)', orientation: 'v', x: 1, xanchor: 'right', y: 1 },
     xaxis: { showgrid: false, zeroline: false, showticklabels: false, showline: false },
     yaxis: { showgrid: false, zeroline: false, showticklabels: false, showline: false },
   }
@@ -116,86 +87,65 @@ export default function CourseMap() {
   return (
     <div className="surface-card shrink-0 rounded-[24px] overflow-hidden">
 
-      {/* Controls bar */}
+      {/* Controls */}
       <div className="border-b px-4 py-3 flex flex-wrap items-start gap-4" style={{ borderColor: 'var(--line)' }}>
         <p className="text-[10px] uppercase tracking-wider text-muted self-center shrink-0">Similarity Map</p>
 
-        {/* Feature mode */}
         <div className="flex flex-col gap-1">
           <p className="text-[9px] uppercase tracking-wider text-muted">Feature set</p>
           <div className="flex gap-2">
-            {VARIANTS.map(v => (
-              <button
-                key={v.key}
-                onClick={() => setPendingVariant(v.key)}
+            {VARIANTS.map(x => (
+              <button key={x.key} onClick={() => setPending(p => ({ ...p, variant: x.key }))}
                 className="rounded-full px-3 py-1 text-[11px] font-medium transition-all"
-                style={pendingVariant === v.key
+                style={pending.variant === x.key
                   ? { background: 'var(--accent)', color: '#fff8f5', border: '1px solid transparent' }
-                  : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
-              >
-                {v.label}
+                  : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}>
+                {x.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Concentration */}
         <div className="flex flex-col gap-1">
           <p className="text-[9px] uppercase tracking-wider text-muted">Concentration</p>
           <div className="select-wrap">
-            <select value={pendingConc} onChange={e => setPendingConc(e.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}>
+            <select value={pending.conc} onChange={e => setPending(p => ({ ...p, conc: e.target.value }))} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}>
               {concentrations.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
 
-        {/* STEM */}
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-label self-end pb-0.5">
-          <input type="checkbox" checked={pendingStem} onChange={e => setPendingStem(e.target.checked)} className="h-3 w-3" style={{ accentColor: 'var(--accent)' }} />
+          <input type="checkbox" checked={pending.stem} onChange={e => setPending(p => ({ ...p, stem: e.target.checked }))} className="h-3 w-3" style={{ accentColor: 'var(--accent)' }} />
           STEM only
         </label>
 
-        {/* Generate Map button */}
-        <button
-          onClick={() => { setAppliedVariant(pendingVariant); setAppliedConc(pendingConc); setAppliedStem(pendingStem) }}
+        <button onClick={() => setApplied({ ...pending })}
           className="ml-auto self-end rounded-full px-4 py-1.5 text-xs font-semibold transition-all"
           style={isDirty
             ? { background: 'var(--accent)', color: '#fff8f5', border: '1px solid transparent', boxShadow: '0 0 0 2px rgba(165,28,48,0.25)' }
-            : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
-        >
+            : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}>
           {isDirty ? '⟳ Generate Map' : '✓ Up to date'}
         </button>
       </div>
 
-      {/* Variant description hint */}
-      {VARIANTS.find(v => v.key === appliedVariant) && (
-        <div className="px-4 pt-2 pb-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-          <span className="font-medium" style={{ color: 'var(--text-soft)' }}>{variant.label}:</span> {variant.desc}
-          {!simData && <span className="ml-2 italic">Loading…</span>}
-          {simData && <span className="ml-3 opacity-60">{totalShown} courses shown</span>}
-        </div>
-      )}
+      {/* Hint + count */}
+      <div className="px-4 pt-2 pb-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+        <span className="font-medium" style={{ color: 'var(--text-soft)' }}>{v.label}:</span> {v.desc}
+        {allData === null && <span className="ml-2 italic">Loading…</span>}
+        {allData !== null && <span className="ml-3 opacity-60">{shown.length} courses</span>}
+      </div>
 
       {/* Plot */}
       <div style={{ height: 360 }}>
-        {simData ? (
-          <Plot
-            data={plotData}
-            layout={plotLayout}
-            config={{
-              responsive: true,
-              displaylogo: false,
-              scrollZoom: true,
-              doubleClick: 'reset',
-              modeBarButtonsToRemove: ['select2d', 'lasso2d', 'toggleSpikelines', 'hoverClosestCartesian', 'hoverCompareCartesian'],
-            }}
-            useResizeHandler
-            style={{ width: '100%', height: '360px' }}
-          />
-        ) : (
+        {allData === null ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-xs text-muted">Loading similarity data…</p>
           </div>
+        ) : (
+          <Plot data={traces} layout={plotLayout}
+            config={{ responsive: true, displaylogo: false, scrollZoom: true, doubleClick: 'reset', modeBarButtonsToRemove: ['select2d', 'lasso2d', 'toggleSpikelines', 'hoverClosestCartesian', 'hoverCompareCartesian'] }}
+            useResizeHandler style={{ width: '100%', height: '360px' }} />
         )}
       </div>
 
