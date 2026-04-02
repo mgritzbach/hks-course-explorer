@@ -16,7 +16,7 @@ export default function App() {
   })
   const [metricMode, setMetricModeState] = useState(() => {
     if (typeof window === 'undefined') return 'score'
-    return window.localStorage.getItem('hks-metric-mode') || 'score'
+    return window.localStorage.getItem('hks-metric-mode') || 'percentile'
   })
   const [colorblindMode, setColorblindModeState] = useState(() => {
     if (typeof window === 'undefined') return false
