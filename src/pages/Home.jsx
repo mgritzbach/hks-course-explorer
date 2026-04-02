@@ -1,7 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import CourseCard from '../components/CourseCard.jsx'
-import CourseMap from '../components/CourseMap.jsx'
 import ScatterPlot from '../components/ScatterPlot.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 
@@ -435,7 +434,6 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
         <div ref={visualizationRef} className="top-tabs-bar mb-5">
           {[
             { key: 'comparisons', label: 'Course Comparisons' },
-            { key: 'map',         label: 'Similarity Map' },
           ].map((tab) => {
             const isActive = activeTab === tab.key
             return (
@@ -479,8 +477,6 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           />
           </div>
         )}
-
-        {activeTab === 'map' && <CourseMap />}
 
         <div className="mt-6">
           <div className="preset-pills mb-3">
