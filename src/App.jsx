@@ -39,7 +39,7 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
-    fetch('/courses.json')
+    fetch('/courses.json', { cache: 'no-cache' })
       .then((response) => {
         if (!response.ok) throw new Error('Failed to load courses.json')
         return response.json()

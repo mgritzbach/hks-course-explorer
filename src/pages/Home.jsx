@@ -13,7 +13,17 @@ function isAverageYear(year) {
   return year === 0
 }
 
-function applyFilters(courses, filters) {
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
+
+// yearPreFiltered=true skips the year/avg check when the caller already pre-filtered by year
+function applyFilters(courses, filters, yearPreFiltered = false) {
   const {
     searchText,
     concentration,
@@ -32,13 +42,16 @@ function applyFilters(courses, filters) {
   const minPct = minInstructorPct !== 'any' ? parseFloat(minInstructorPct) : null
 
   return courses.filter((course) => {
-    if (avgMode) {
-      if (!course.is_average) return false
-    } else {
-      if (course.year !== year) return false
-      if (course.is_average) return false
-      if (!terms.includes(course.term)) return false
+    if (!yearPreFiltered) {
+      if (avgMode) {
+        if (!course.is_average) return false
+      } else {
+        if (course.year !== year) return false
+        if (course.is_average) return false
+      }
     }
+    // Always enforce term filter for non-avg mode (year pool includes all terms)
+    if (!avgMode && !terms.includes(course.term)) return false
 
     if (concentration !== 'All' && course.concentration !== concentration) return false
     if (coreFilter === 'core' && !course.is_core) return false
@@ -180,9 +193,17 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     setSearchParams(params, { replace: true })
   }, [filters.year, filters.terms, filters.concentration, sortBy, meta.default_year, setSearchParams])
 
+  // Debounce text search — only triggers a re-filter after user pauses typing (150ms)
+  const debouncedSearch = useDebounce(filters.searchText, 150)
+  // Merge debounced search back into filters before deferring
+  const filtersWithDebouncedSearch = useMemo(
+    () => ({ ...filters, searchText: debouncedSearch }),
+    [filters, debouncedSearch]
+  )
+
   // Defer heavy filter computation so the UI stays responsive while the chart/list re-render
-  const deferredFilters = useDeferredValue(filters)
-  const isStale = filters !== deferredFilters
+  const deferredFilters = useDeferredValue(filtersWithDebouncedSearch)
+  const isStale = filtersWithDebouncedSearch !== deferredFilters
 
   const avgMode = isAverageYear(filters.year)
   const bidYear = filters.year === 2026
@@ -203,6 +224,17 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [sidebarOpen])
 
+  // Build a year→courses index once on load so filter passes touch ~300 items not 5500
+  const coursesByYear = useMemo(() => {
+    const map = new Map()
+    for (const c of courses) {
+      const key = c.is_average ? 0 : (c.year ?? -1)
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(c)
+    }
+    return map
+  }, [courses])
+
   const avgBidByBase = useMemo(() => {
     const grouped = new Map()
     for (const course of courses) {
@@ -222,29 +254,30 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   // All heavy computations use deferredFilters to avoid blocking the UI thread
   const dAvgMode = isAverageYear(deferredFilters.year)
 
+  // Pre-filtered to just the current year — reduces filter work from 5500 → ~300 items
+  const yearPool = useMemo(() => (
+    coursesByYear.get(deferredFilters.year) ?? []
+  ), [coursesByYear, deferredFilters.year])
+
   const yearEvalCourses = useMemo(() => (
-    dAvgMode
-      ? courses.filter((course) => course.is_average && course.has_eval)
-      : courses.filter((course) => course.year === deferredFilters.year && course.has_eval && !course.is_average)
-  ), [dAvgMode, courses, deferredFilters.year])
+    yearPool.filter((course) => course.has_eval)
+  ), [yearPool])
 
   const biddingOnlyCourses = useMemo(() => {
     if (dAvgMode || deferredFilters.evalOnly) return []
-    return courses.filter((course) =>
-      course.year === deferredFilters.year &&
+    return yearPool.filter((course) =>
       !course.has_eval &&
       course.has_bidding &&
-      !course.is_average &&
       deferredFilters.terms.includes(course.term)
     )
-  }, [dAvgMode, courses, deferredFilters.evalOnly, deferredFilters.terms, deferredFilters.year])
+  }, [dAvgMode, yearPool, deferredFilters.evalOnly, deferredFilters.terms])
 
   const filtered = useMemo(() => (
-    applyFilters(courses, deferredFilters).map((course) => ({
+    applyFilters(yearPool, deferredFilters, true).map((course) => ({
       ...course,
       avg_bid_price: avgBidByBase.get(course.course_code_base) ?? null,
     }))
-  ), [avgBidByBase, courses, deferredFilters])
+  ), [avgBidByBase, yearPool, deferredFilters])
   const filteredEval = useMemo(() => filtered.filter((course) => course.has_eval), [filtered])
 
   const sorted = useMemo(() => {
