@@ -39,7 +39,7 @@ export default function CourseMap() {
   useEffect(() => {
     fetch('/sim_coords.json', { cache: 'no-cache' })
       .then(r => { if (!r.ok) throw new Error(r.status); return r.json() })
-      .then(setSimData)
+      .then(data => { setSimData(data); setAppliedVariant('combined'); setAppliedConc('All'); setAppliedStem(false) })
       .catch(() => setLoadError(true))
   }, [])
 
@@ -48,10 +48,10 @@ export default function CourseMap() {
     return ['All', ...new Set(simData.map(c => c.concentration).filter(Boolean))].sort()
   }, [simData])
 
-  const variant = VARIANTS.find(v => v.key === appliedVariant) || VARIANTS[0]
-
   const plotData = useMemo(() => {
     if (!simData) return []
+    // Compute variant inside memo so the closure is always fresh
+    const v = VARIANTS.find(v => v.key === appliedVariant) || VARIANTS[0]
     let list = simData
     if (appliedConc !== 'All') list = list.filter(c => c.concentration === appliedConc)
     if (appliedStem) list = list.filter(c => c.is_stem)
@@ -67,8 +67,8 @@ export default function CourseMap() {
       type: 'scattergl',
       mode: 'markers',
       name: conc,
-      x: cs.map(c => c[variant.xKey]),
-      y: cs.map(c => c[variant.yKey]),
+      x: cs.map(c => c[v.xKey]),
+      y: cs.map(c => c[v.yKey]),
       customdata: cs,
       hovertemplate: '<b>%{customdata.course_code}</b><br>%{customdata.course_name}<br>%{customdata.professor_display}<extra></extra>',
       marker: {
@@ -79,6 +79,8 @@ export default function CourseMap() {
       },
     }))
   }, [simData, appliedVariant, appliedConc, appliedStem])
+
+  const variant = VARIANTS.find(v => v.key === appliedVariant) || VARIANTS[0]
 
   const totalShown = plotData.reduce((s, t) => s + t.x.length, 0)
 
