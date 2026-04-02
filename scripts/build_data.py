@@ -175,7 +175,9 @@ def meta_from_courses(courses):
     for term in ["Fall", "Spring", "January", "Average"]:
         if any(course.get("term") == term for course in courses):
             terms.append(term)
-    default_year = max((year for year in years if year and year > 0), default=max(years or [0]))
+    # Default to the latest year that has actual evaluation data (excludes future bidding-only years)
+    eval_years = [c["year"] for c in courses if c.get("year") and c.get("has_eval") and not c.get("is_average")]
+    default_year = max(eval_years) if eval_years else max((year for year in years if year and year > 0), default=max(years or [0]))
 
     # Compute per-year median instructor ratings (raw 0-5 scale)
     year_medians = {}
