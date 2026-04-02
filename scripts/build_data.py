@@ -257,21 +257,37 @@ def fill_average_bid_fields(rows):
     return updated
 
 
-def compute_similarity_coords(courses):
-    """
-    Compute 2D similarity coordinates for the Similarity Map.
-    Uses metric-based feature vectors + course description text features.
-    Falls back to PCA-style random projection if sklearn unavailable.
+def _pca_2d(matrix, random_state=42):
+    """Reduce any matrix to 2D via PCA, normalized to [-100, 100]."""
+    from sklearn.decomposition import PCA
+    import numpy as np
+    n_components = min(50, matrix.shape[1], matrix.shape[0] - 1)
+    if n_components > 2:
+        reduced = PCA(n_components=n_components, random_state=random_state).fit_transform(matrix)
+    else:
+        reduced = matrix
+    coords = PCA(n_components=2, random_state=random_state).fit_transform(reduced)
+    for dim in range(2):
+        col = coords[:, dim]
+        col_min, col_max = col.min(), col.max()
+        coords[:, dim] = ((col - col_min) / (col_max - col_min) * 200 - 100) if col_max > col_min else np.zeros_like(col)
+    return coords
 
-    Returns dict mapping course id -> [x, y] or None if computation fails.
+
+def compute_all_similarity_coords(courses):
+    """
+    Compute three PCA variants for the Similarity Map:
+      combined  → ratings (2.5×) + text    [sim_x / sim_y]
+      ratings   → eval metrics only         [sim_x_ratings / sim_y_ratings]
+      text      → course names/descriptions [sim_x_text / sim_y_text]
+
+    Returns dict mapping course id -> {x, y, x_ratings, y_ratings, x_text, y_text}.
     """
     try:
-        from sklearn.preprocessing import StandardScaler
-        from sklearn.decomposition import PCA
         from sklearn.feature_extraction.text import TfidfVectorizer
         import numpy as np
     except ImportError:
-        print("sklearn not available - skipping similarity map coordinates")
+        print("sklearn not available – skipping similarity map coordinates")
         return {}
 
     METRIC_KEYS = [
@@ -280,63 +296,43 @@ def compute_similarity_coords(courses):
         "Discussions", "Discussion Diversity", "Readings", "Assignments",
     ]
 
-    # Only use courses that have eval data (not average rows, not bidding-only)
     eligible = [c for c in courses if c.get("has_eval") and not c.get("is_average") and c.get("year") and c["year"] > 0]
-
     if len(eligible) < 10:
         return {}
 
     ids = [c["id"] for c in eligible]
 
-    # Build metric feature matrix (normalized 0-1)
-    metric_rows = []
-    for c in eligible:
-        row = []
-        for key in METRIC_KEYS:
-            val = c.get("metrics_raw", {}).get(key)
-            # Normalize: 1-5 scale → 0-1
-            row.append((val - 1) / 4.0 if val is not None else 0.5)
-        metric_rows.append(row)
+    # Metric matrix (0-1 normalised)
+    metric_matrix = np.array([
+        [(c.get("metrics_raw", {}).get(k) - 1) / 4.0 if c.get("metrics_raw", {}).get(k) is not None else 0.5
+         for k in METRIC_KEYS]
+        for c in eligible
+    ], dtype=np.float32)
 
-    metric_matrix = np.array(metric_rows, dtype=np.float32)
-
-    # Build text feature matrix from course descriptions
+    # Text matrix (TF-IDF)
     descriptions = [
         f"{c.get('course_name', '')} {c.get('description', '')} {c.get('concentration', '')}"
         for c in eligible
     ]
-
     try:
         tfidf = TfidfVectorizer(max_features=150, stop_words='english', min_df=2)
         text_matrix = tfidf.fit_transform(descriptions).toarray().astype(np.float32)
     except Exception:
         text_matrix = np.zeros((len(eligible), 1), dtype=np.float32)
 
-    # Combine metric and text features (metrics weighted more heavily)
-    combined = np.hstack([metric_matrix * 2.5, text_matrix])
-
-    # Reduce to 2D using PCA
-    n_components = min(50, combined.shape[1], combined.shape[0] - 1)
-    if n_components > 2:
-        pca_intermediate = PCA(n_components=n_components, random_state=42)
-        reduced = pca_intermediate.fit_transform(combined)
-    else:
-        reduced = combined
-
-    pca_2d = PCA(n_components=2, random_state=42)
-    coords_2d = pca_2d.fit_transform(reduced)
-
-    # Normalize to [-100, 100] range
-    for dim in range(2):
-        col = coords_2d[:, dim]
-        col_min, col_max = col.min(), col.max()
-        if col_max > col_min:
-            coords_2d[:, dim] = ((col - col_min) / (col_max - col_min) * 200) - 100
-        else:
-            coords_2d[:, dim] = 0.0
+    coords_combined = _pca_2d(np.hstack([metric_matrix * 2.5, text_matrix]))
+    coords_ratings  = _pca_2d(metric_matrix)
+    coords_text     = _pca_2d(text_matrix)
 
     return {
-        ids[i]: [round(float(coords_2d[i, 0]), 2), round(float(coords_2d[i, 1]), 2)]
+        ids[i]: {
+            "x":          round(float(coords_combined[i, 0]), 2),
+            "y":          round(float(coords_combined[i, 1]), 2),
+            "x_ratings":  round(float(coords_ratings[i, 0]),  2),
+            "y_ratings":  round(float(coords_ratings[i, 1]),  2),
+            "x_text":     round(float(coords_text[i, 0]),     2),
+            "y_text":     round(float(coords_text[i, 1]),     2),
+        }
         for i in range(len(ids))
     }
 
@@ -455,14 +451,37 @@ def main():
 
     courses = [build_course(row, latest_bid_lookup) for row in rows]
 
-    # Compute similarity map coordinates
-    print("Computing similarity map coordinates...")
-    sim_coords = compute_similarity_coords(courses)
+    # Compute similarity map coordinates (3 variants)
+    print("Computing similarity map coordinates (combined / ratings / text)...")
+    sim_coords = compute_all_similarity_coords(courses)
     for course in courses:
-        coords = sim_coords.get(course["id"])
-        course["sim_x"] = coords[0] if coords else None
-        course["sim_y"] = coords[1] if coords else None
+        c = sim_coords.get(course["id"])
+        course["sim_x"] = c["x"]          if c else None
+        course["sim_y"] = c["y"]          if c else None
     print(f"Similarity coords computed for {len(sim_coords)} courses")
+
+    # Write slim sim_coords.json for the CourseMap component
+    sim_slim = [
+        {
+            "id":           course["id"],
+            "course_code":  course.get("course_code"),
+            "course_name":  course.get("course_name"),
+            "professor_display": course.get("professor_display"),
+            "concentration": course.get("concentration"),
+            "is_stem":      course.get("is_stem", False),
+            "sim_x":        c["x"],
+            "sim_y":        c["y"],
+            "sim_x_ratings": c["x_ratings"],
+            "sim_y_ratings": c["y_ratings"],
+            "sim_x_text":   c["x_text"],
+            "sim_y_text":   c["y_text"],
+        }
+        for course in courses
+        if (c := sim_coords.get(course["id"]))
+    ]
+    SIM_JSON = ROOT / "public" / "sim_coords.json"
+    SIM_JSON.write_text(json.dumps(sim_slim, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"Wrote {len(sim_slim)} sim coords to {SIM_JSON}")
 
     payload = {"courses": courses, "meta": meta_from_courses(courses)}
     OUTPUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
