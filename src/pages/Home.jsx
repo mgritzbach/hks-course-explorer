@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import CourseCard from '../components/CourseCard.jsx'
 import CourseMap from '../components/CourseMap.jsx'
@@ -180,6 +180,10 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     setSearchParams(params, { replace: true })
   }, [filters.year, filters.terms, filters.concentration, sortBy, meta.default_year, setSearchParams])
 
+  // Defer heavy filter computation so the UI stays responsive while the chart/list re-render
+  const deferredFilters = useDeferredValue(filters)
+  const isStale = filters !== deferredFilters
+
   const avgMode = isAverageYear(filters.year)
   const bidYear = filters.year === 2026
   const activeFilterCount = countFilterBadges(filters)
@@ -215,29 +219,32 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     return averages
   }, [courses])
 
+  // All heavy computations use deferredFilters to avoid blocking the UI thread
+  const dAvgMode = isAverageYear(deferredFilters.year)
+
   const yearEvalCourses = useMemo(() => (
-    avgMode
+    dAvgMode
       ? courses.filter((course) => course.is_average && course.has_eval)
-      : courses.filter((course) => course.year === filters.year && course.has_eval && !course.is_average)
-  ), [avgMode, courses, filters.year])
+      : courses.filter((course) => course.year === deferredFilters.year && course.has_eval && !course.is_average)
+  ), [dAvgMode, courses, deferredFilters.year])
 
   const biddingOnlyCourses = useMemo(() => {
-    if (avgMode || filters.evalOnly) return []
+    if (dAvgMode || deferredFilters.evalOnly) return []
     return courses.filter((course) =>
-      course.year === filters.year &&
+      course.year === deferredFilters.year &&
       !course.has_eval &&
       course.has_bidding &&
       !course.is_average &&
-      filters.terms.includes(course.term)
+      deferredFilters.terms.includes(course.term)
     )
-  }, [avgMode, courses, filters.evalOnly, filters.terms, filters.year])
+  }, [dAvgMode, courses, deferredFilters.evalOnly, deferredFilters.terms, deferredFilters.year])
 
   const filtered = useMemo(() => (
-    applyFilters(courses, filters).map((course) => ({
+    applyFilters(courses, deferredFilters).map((course) => ({
       ...course,
       avg_bid_price: avgBidByBase.get(course.course_code_base) ?? null,
     }))
-  ), [avgBidByBase, courses, filters])
+  ), [avgBidByBase, courses, deferredFilters])
   const filteredEval = useMemo(() => filtered.filter((course) => course.has_eval), [filtered])
 
   const sorted = useMemo(() => {
@@ -423,6 +430,8 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
         </div>
 
         {activeTab === 'comparisons' && (
+          <div style={{ position: 'relative' }}>
+          {isStale && <div style={{ position: 'absolute', top: 8, right: 52, zIndex: 10, fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>updating…</div>}
           <ScatterPlot
             allCourses={yearEvalCourses}
             matchedCourses={filteredEval}
@@ -435,9 +444,10 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             metricMode={metricMode}
             colorblindMode={colorblindMode}
           />
+          </div>
         )}
 
-        {activeTab === 'map' && <CourseMap courses={filtered} />}
+        {activeTab === 'map' && <CourseMap courses={courses} />}
 
         <div className="mt-6">
           <div className="preset-pills mb-3">
@@ -493,7 +503,19 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
               <p className="text-xs text-muted">Try adjusting the year, terms, concentration, or removing some filters.</p>
             </div>
           ) : (
-            visibleCourses.map((course) => <CourseCard key={course.id} course={course} favs={favs} metricMode={metricMode} />)
+            visibleCourses.map((course) => (
+              <CourseCard
+                key={course.id}
+                course={course}
+                favs={favs}
+                metricMode={metricMode}
+                yearMedianInstructor={
+                  course.is_average
+                    ? meta.overall_median_instructor ?? null
+                    : meta.year_medians_instructor?.[String(course.year)] ?? null
+                }
+              />
+            ))
           )}
         </div>
 

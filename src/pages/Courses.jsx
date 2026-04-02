@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useDeferredValue, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 
@@ -441,24 +441,26 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
     return [...map.values()].sort((a, b) => (a.course_name || a.course_code).localeCompare(b.course_name || b.course_code))
   }, [courses])
 
+  const deferredFilters = useDeferredValue(filters)
+
   const filteredOptions = useMemo(() => {
-    const minPct = filters.minInstructorPct !== 'any' ? parseFloat(filters.minInstructorPct) : null
+    const minPct = deferredFilters.minInstructorPct !== 'any' ? parseFloat(deferredFilters.minInstructorPct) : null
     let list = allOptions.filter((course) => {
-      if (filters.year !== 'all') {
-        const hasYear = courses.some((row) => row.course_code_base === course.course_code_base && row.year === filters.year && filters.terms.includes(row.term))
+      if (deferredFilters.year !== 'all') {
+        const hasYear = courses.some((row) => row.course_code_base === course.course_code_base && row.year === deferredFilters.year && deferredFilters.terms.includes(row.term))
         if (!hasYear) return false
       }
-      if (filters.concentration !== 'All' && getConcentration(course.course_code) !== filters.concentration) return false
-      if (filters.academicArea !== 'All' && course.academic_area !== filters.academicArea) return false
-      if (filters.coreFilter === 'core' && !course.is_core) return false
-      if (filters.coreFilter === 'no-core' && course.is_core) return false
-      if (filters.stemGroup === 'A' && course.stem_group !== 'A') return false
-      if (filters.stemGroup === 'B' && course.stem_group !== 'B') return false
+      if (deferredFilters.concentration !== 'All' && getConcentration(course.course_code) !== deferredFilters.concentration) return false
+      if (deferredFilters.academicArea !== 'All' && course.academic_area !== deferredFilters.academicArea) return false
+      if (deferredFilters.coreFilter === 'core' && !course.is_core) return false
+      if (deferredFilters.coreFilter === 'no-core' && course.is_core) return false
+      if (deferredFilters.stemGroup === 'A' && course.stem_group !== 'A') return false
+      if (deferredFilters.stemGroup === 'B' && course.stem_group !== 'B') return false
       if (minPct !== null) {
         const rating = course.metrics_pct?.Instructor_Rating
         if (rating != null && rating < minPct) return false
       }
-      if (filters.evalOnly && !course.has_eval) return false
+      if (deferredFilters.evalOnly && !course.has_eval) return false
       return true
     })
 
@@ -478,7 +480,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
       (course.description || '').toLowerCase().includes(normalized) ||
       (course.academic_area || '').toLowerCase().includes(normalized)
     ).slice(0, 100)
-  }, [allOptions, courses, filters, query])
+  }, [allOptions, courses, deferredFilters, query])
 
   const topByBidding = useMemo(() => filteredOptions.filter((course) => course.last_bid_price != null).slice(0, 5), [filteredOptions])
   const history = useMemo(() => selected ? courses.filter((course) => course.course_code_base === selected.course_code_base && course.has_eval).sort((a, b) => (b.year || 0) - (a.year || 0) || (a.term || '').localeCompare(b.term || '')) : [], [courses, selected])
@@ -719,11 +721,28 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                           <p className="text-sm text-muted">
                             Score: <span className="font-medium" style={{ color: 'var(--accent-strong)' }}>{Math.round(instructorPct)}%</span>
                             {selected.metrics_raw?.Instructor_Rating != null && (
-                              <span className="ml-2 text-[11px]">({selected.metrics_raw.Instructor_Rating.toFixed(2)}/5)</span>
+                              <span className="ml-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                ({selected.metrics_raw.Instructor_Rating.toFixed(2)}/5
+                                {meta.year_medians_instructor?.[String(selected.year)] != null && (
+                                  <span style={{ opacity: 0.75 }}> · yr med {meta.year_medians_instructor[String(selected.year)].toFixed(2)}</span>
+                                )}
+                                )
+                              </span>
                             )}
                           </p>
                         ) : (
-                          <p className="text-sm text-muted">Better than {Math.round(instructorPct)}% of courses</p>
+                          <p className="text-sm text-muted">
+                            Better than {Math.round(instructorPct)}% of courses
+                            {selected.metrics_raw?.Instructor_Rating != null && (
+                              <span className="ml-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                ({selected.metrics_raw.Instructor_Rating.toFixed(2)}/5
+                                {meta.year_medians_instructor?.[String(selected.year)] != null && (
+                                  <span style={{ opacity: 0.75 }}> · yr med {meta.year_medians_instructor[String(selected.year)].toFixed(2)}</span>
+                                )}
+                                )
+                              </span>
+                            )}
+                          </p>
                         )}
                       </div>
                     ) : <div className="mb-4 rounded-[18px] p-4 text-sm italic text-muted" style={{ background: 'var(--panel-subtle)' }}>No instructor rating data available</div>}

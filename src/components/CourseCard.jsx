@@ -19,7 +19,7 @@ function RatingBadge({ label, value, color }) {
   )
 }
 
-export default function CourseCard({ course, favs, metricMode = 'score' }) {
+export default function CourseCard({ course, favs, metricMode = 'score', yearMedianInstructor = null }) {
   const navigate = useNavigate()
   const starred = favs?.isFavorite(course.course_code_base)
 
@@ -95,6 +95,17 @@ export default function CourseCard({ course, favs, metricMode = 'score' }) {
           ) : (
             <div className="grid gap-1">
               <RatingBadge label="Instructor" value={instructorPct} color="var(--accent-strong)" />
+              {/* Raw rating + year median, greyed out */}
+              {course.metrics_raw?.Instructor_Rating != null && (
+                <div className="text-[10px] leading-4 text-right" style={{ color: 'var(--text-muted)' }}>
+                  <span>{course.metrics_raw.Instructor_Rating.toFixed(2)}/5</span>
+                  {yearMedianInstructor != null && (
+                    <span className="ml-1.5" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
+                      · med {yearMedianInstructor.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
               <RatingBadge label="Course" value={coursePct} color="var(--success)" />
               <RatingBadge label="Workload" value={workloadPct} color="var(--text-soft)" />
             </div>
