@@ -479,9 +479,14 @@ def main():
         for course in courses
         if (c := sim_coords.get(course["id"]))
     ]
+    sim_json_str = json.dumps(sim_slim, ensure_ascii=False, separators=(",", ":"))
     SIM_JSON = ROOT / "public" / "sim_coords.json"
-    SIM_JSON.write_text(json.dumps(sim_slim, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(f"Wrote {len(sim_slim)} sim coords to {SIM_JSON}")
+    SIM_JSON.write_text(sim_json_str, encoding="utf-8")
+    # Also write to src/data/ so CourseMap can import it statically (no fetch required)
+    SIM_SRC = ROOT / "src" / "data" / "sim_coords.json"
+    SIM_SRC.parent.mkdir(parents=True, exist_ok=True)
+    SIM_SRC.write_text(sim_json_str, encoding="utf-8")
+    print(f"Wrote {len(sim_slim)} sim coords to {SIM_JSON} and {SIM_SRC}")
 
     payload = {"courses": courses, "meta": meta_from_courses(courses)}
     OUTPUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
