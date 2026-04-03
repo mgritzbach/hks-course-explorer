@@ -101,6 +101,8 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
     return null
   }
 
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light'
+
   const PAD = 8
   const spotX = rect.left - PAD
   const spotY = rect.top - PAD
@@ -138,7 +140,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
           width: spotW, height: spotH,
           borderRadius: 12,
           boxShadow: [
-            '0 0 0 9999px rgba(0,0,0,0.60)',
+            isLight ? '0 0 0 9999px rgba(140,110,100,0.55)' : '0 0 0 9999px rgba(0,0,0,0.60)',
             '0 0 0 2px var(--accent)',
             '0 0 0 4px rgba(212,168,106,0.22)',
           ].join(', '),
@@ -153,11 +155,13 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
           position: 'fixed',
           left: tipLeft, top: tipTop,
           width: TW,
-          background: 'var(--surface)',
-          border: '1px solid var(--line)',
+          background: 'var(--panel-strong)',
+          border: '1px solid var(--line-strong)',
           borderRadius: 18,
           padding: '16px 18px 14px',
-          boxShadow: '0 20px 48px rgba(0,0,0,0.48)',
+          boxShadow: isLight
+            ? '0 16px 48px rgba(80,40,40,0.18), 0 1px 0 rgba(255,255,255,0.9) inset'
+            : '0 20px 48px rgba(0,0,0,0.48)',
           pointerEvents: 'all',
           transition: 'left 0.18s ease, top 0.18s ease',
         }}
