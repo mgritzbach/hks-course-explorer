@@ -204,6 +204,13 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     localStorage.removeItem('hks-tour-home')
     setReplayTour(true)
   }
+
+  const handleTourStepChange = (stepIndex) => {
+    // Step 0 targets 'year-filter' which lives in the sidebar drawer
+    if (stepIndex === 0) setSidebarOpen(true)
+    else setSidebarOpen(false)
+  }
+
   const [activeTab, setActiveTab] = useState('comparisons')
 
   const scrollToVisualization = () => {
@@ -374,7 +381,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      <OnboardingTour steps={HOME_TOUR_STEPS} storageKey="hks-tour-home" autoStart={replayTour} onDone={() => setReplayTour(false)} />
+      <OnboardingTour steps={HOME_TOUR_STEPS} storageKey="hks-tour-home" autoStart={replayTour} onDone={() => { setReplayTour(false); setSidebarOpen(false) }} onStepChange={handleTourStepChange} />
       {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close filters" />}
 
       <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>

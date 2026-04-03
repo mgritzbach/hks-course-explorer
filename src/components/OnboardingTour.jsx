@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom'
  *   autoStart    — boolean; if true, shows even if user skipped the splash
  *   onDone       — called when the tour finishes or is skipped
  */
-export default function OnboardingTour({ steps, storageKey, autoStart = false, onDone }) {
+export default function OnboardingTour({ steps, storageKey, autoStart = false, onDone, onStepChange }) {
   const [index, setIndex] = useState(0)
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
@@ -31,6 +31,10 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   useEffect(() => {
     if (visible) setIndex(0)
   }, [visible])
+
+  useEffect(() => {
+    if (visible) onStepChange?.(index)
+  }, [index, visible]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const step = steps[index]
   const rect = step

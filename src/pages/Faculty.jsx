@@ -236,9 +236,15 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
     setReplayTour(true)
   }
 
+  const handleTourStepChange = (stepIndex) => {
+    // Steps 0 and 1 target 'faculty-search' and 'faculty-active-since' — both in the sidebar drawer
+    if (stepIndex === 0 || stepIndex === 1) setSidebarOpen(true)
+    else setSidebarOpen(false)
+  }
+
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      <OnboardingTour steps={FACULTY_TOUR_STEPS} storageKey="hks-tour-faculty" autoStart={replayTour} onDone={() => setReplayTour(false)} />
+      <OnboardingTour steps={FACULTY_TOUR_STEPS} storageKey="hks-tour-faculty" autoStart={replayTour} onDone={() => { setReplayTour(false); setSidebarOpen(false) }} onStepChange={handleTourStepChange} />
       {selectedData && <OnboardingTour steps={FACULTY_DETAIL_TOUR_STEPS} storageKey="hks-tour-faculty-detail" />}
       {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close faculty list" />}
       <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>

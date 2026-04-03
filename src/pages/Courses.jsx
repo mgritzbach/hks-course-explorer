@@ -468,6 +468,12 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
     setReplayTour(true)
   }
 
+  const handleTourStepChange = (stepIndex) => {
+    // Step 0 targets 'year-filter' which lives in the filter sidebar drawer
+    if (stepIndex === 0) setFilterOpen(true)
+    else setFilterOpen(false)
+  }
+
   const [filters, setFilters] = useState({
     year: 'all',
     terms: [...ALL_TERMS],
@@ -568,7 +574,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      <OnboardingTour steps={COURSES_TOUR_STEPS} storageKey="hks-tour-courses" autoStart={replayTour} onDone={() => setReplayTour(false)} />
+      <OnboardingTour steps={COURSES_TOUR_STEPS} storageKey="hks-tour-courses" autoStart={replayTour} onDone={() => { setReplayTour(false); setFilterOpen(false) }} onStepChange={handleTourStepChange} />
       {selected && <OnboardingTour steps={COURSE_DETAIL_TOUR_STEPS} storageKey="hks-tour-course-detail" />}
       {filterOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setFilterOpen(false)} aria-label="Close filters" />}
       <div className={`mobile-drawer md:hidden ${filterOpen ? 'open' : ''}`}>
