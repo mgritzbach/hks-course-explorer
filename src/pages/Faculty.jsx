@@ -299,7 +299,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-8 md:py-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div><p className="kicker mb-2">Teaching lens</p><h2 className="serif-display text-3xl font-semibold md:text-[2.4rem]" style={{ color: 'var(--text)' }}>Faculty Explorer</h2><p className="mt-2 text-xs text-muted md:text-sm">Browse teaching history and weighted rating averages for HKS instructors.</p></div>
-          <button onClick={() => setSidebarOpen(true)} className="rounded-full border px-3 py-2 text-xs font-medium text-white md:hidden" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.04)' }}>Browse Faculty{activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })})` : ''}</button>
+          <button onClick={() => setSidebarOpen(true)} className="rounded-full border px-3 py-2 text-xs font-medium text-label md:hidden" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', minHeight: 44 }}>Browse Faculty{activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })})` : ''}</button>
         </div>
 
         {!selectedData && (
