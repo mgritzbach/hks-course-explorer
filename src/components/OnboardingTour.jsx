@@ -36,9 +36,15 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   const rect = step
     ? (() => {
         const elements = document.querySelectorAll(`[data-tour="${step.target}"]`)
+        const viewportWidth = window.innerWidth
+        const viewportHeight = window.innerHeight
         for (const element of elements) {
           const nextRect = element.getBoundingClientRect()
-          if (nextRect.width > 0 && nextRect.height > 0) return nextRect
+          if (
+            nextRect.width > 0 && nextRect.height > 0 &&
+            nextRect.right > 0 && nextRect.bottom > 0 &&
+            nextRect.left < viewportWidth && nextRect.top < viewportHeight
+          ) return nextRect
         }
     // All matching elements exist but are hidden — return null so we wait
         return null
@@ -89,15 +95,14 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   if (!rect) {
     const step = steps[index]
     const anyEl = step ? document.querySelectorAll(`[data-tour="${step.target}"]`).length > 0 : false
-    if (!anyEl) {
-      // Element truly absent from DOM — skip this step
+    if (!anyEl || tick >= 15) {
+      // Element absent OR has been hidden/off-screen too long — skip this step
       if (index + 1 < steps.length) {
         setTimeout(() => setIndex((i) => i + 1), 0)
       } else {
         setTimeout(dismiss, 0)
       }
     }
-    // Element exists but hidden (e.g. waiting for data) — just wait for rect update
     return null
   }
 
@@ -109,19 +114,20 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   const spotW = rect.width + PAD * 2
   const spotH = rect.height + PAD * 2
 
-  // Tooltip size
-  const TW = 272
-  const TH_EST = 150
+  // Tooltip size — responsive on small screens
   const vw = window.innerWidth
   const vh = window.innerHeight
+  const TW = Math.min(272, vw - 24)
+  const TH_EST = 150
 
-  // Prefer below, fallback above
+  // Prefer below, fallback above; account for mobile bottom nav (88px)
+  const BOTTOM_SAFE = vw < 768 ? 88 : 12
   let tipTop = rect.bottom + 14
-  if (tipTop + TH_EST > vh - 12) tipTop = rect.top - TH_EST - 14
+  if (tipTop + TH_EST > vh - BOTTOM_SAFE) tipTop = rect.top - TH_EST - 14
   tipTop = Math.max(8, tipTop)
 
   let tipLeft = rect.left + rect.width / 2 - TW / 2
-  tipLeft = Math.max(10, Math.min(tipLeft, vw - TW - 10))
+  tipLeft = Math.max(8, Math.min(tipLeft, vw - TW - 8))
 
   return createPortal(
     <div
@@ -218,7 +224,8 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: 11, color: 'var(--text-muted)',
-                padding: '4px 2px',
+                padding: '6px 8px',
+                minHeight: 44,
                 transition: 'color 0.15s',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-soft)' }}
@@ -229,10 +236,11 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
             <button
               onClick={next}
               style={{
-                borderRadius: 999, padding: '5px 16px',
+                borderRadius: 999, padding: '8px 18px',
                 fontSize: 12, fontWeight: 600,
                 background: 'var(--accent)', color: '#fff8f5',
                 border: 'none', cursor: 'pointer',
+                minHeight: 44,
                 boxShadow: '0 4px 12px rgba(165,28,48,0.28)',
               }}
             >
