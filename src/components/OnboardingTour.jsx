@@ -33,7 +33,10 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   }, [visible])
 
   useEffect(() => {
-    if (visible) onStepChange?.(index)
+    if (visible) {
+      setTick(0) // reset retry counter so each step gets a fresh window
+      onStepChange?.(index)
+    }
   }, [index, visible]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const step = steps[index]
@@ -69,7 +72,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   }, [visible])
 
   useEffect(() => {
-    if (!visible || rect || tick >= 15) return undefined
+    if (!visible || rect || tick >= 40) return undefined
     const t = setTimeout(() => {
       setTick((value) => value + 1)
     }, 60)
@@ -99,7 +102,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   if (!rect) {
     const step = steps[index]
     const anyEl = step ? document.querySelectorAll(`[data-tour="${step.target}"]`).length > 0 : false
-    if (!anyEl || tick >= 15) {
+    if (!anyEl || tick >= 40) {
       // Element absent OR has been hidden/off-screen too long — skip this step
       if (index + 1 < steps.length) {
         setTimeout(() => setIndex((i) => i + 1), 0)

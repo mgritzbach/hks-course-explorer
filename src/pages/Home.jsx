@@ -420,8 +420,8 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden rounded-full border px-3 py-2 text-xs font-medium text-white shadow-sm"
-              style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.04)', minHeight: 44 }}
+              className="md:hidden rounded-full border px-3 py-2 text-xs font-medium text-label shadow-sm"
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', minHeight: 44 }}
             >
               Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </button>
