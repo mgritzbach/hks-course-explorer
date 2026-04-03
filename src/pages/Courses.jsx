@@ -167,7 +167,7 @@ function activeFilterCount(filters) {
   return count
 }
 
-function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = null, metricMode = 'score', setMetricMode = null }) {
+function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = null, metricMode = 'score', setMetricMode = null, onReplayTour = null }) {
   const update = (patch) => setFilters((current) => ({ ...current, ...patch }))
   const reset = () => setFilters({
     year: 'all',
@@ -336,6 +336,16 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
         <button onClick={reset} className="w-full rounded-xl border py-2 text-xs text-muted hover:border-label hover:text-label" style={{ borderColor: 'var(--line)' }}>
           Reset Filters
         </button>
+        {onReplayTour && (
+          <button
+            type="button"
+            onClick={onReplayTour}
+            className="mt-3 block w-full text-xs transition-colors hover:text-label"
+            style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            ↺ Replay tour
+          </button>
+        )}
       </div>
     </aside>
   )
@@ -450,6 +460,14 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
   const [activeTab, setActiveTab] = useState('details')
   const [descOpen, setDescOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
+  const [replayTour, setReplayTour] = useState(false)
+
+  const handleReplayTour = () => {
+    localStorage.removeItem('hks-tour-courses')
+    localStorage.removeItem('hks-tour-course-detail')
+    setReplayTour(true)
+  }
+
   const [filters, setFilters] = useState({
     year: 'all',
     terms: [...ALL_TERMS],
@@ -550,14 +568,14 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      <OnboardingTour steps={COURSES_TOUR_STEPS} storageKey="hks-tour-courses" />
+      <OnboardingTour steps={COURSES_TOUR_STEPS} storageKey="hks-tour-courses" autoStart={replayTour} onDone={() => setReplayTour(false)} />
       {selected && <OnboardingTour steps={COURSE_DETAIL_TOUR_STEPS} storageKey="hks-tour-course-detail" />}
       {filterOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setFilterOpen(false)} aria-label="Close filters" />}
       <div className={`mobile-drawer md:hidden ${filterOpen ? 'open' : ''}`}>
-        <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} mobile onClose={() => setFilterOpen(false)} metricMode={metricMode} setMetricMode={setMetricMode} />
+        <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} mobile onClose={() => setFilterOpen(false)} metricMode={metricMode} setMetricMode={setMetricMode} onReplayTour={handleReplayTour} />
       </div>
       <div className="hidden md:block">
-        <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} metricMode={metricMode} setMetricMode={setMetricMode} />
+        <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} metricMode={metricMode} setMetricMode={setMetricMode} onReplayTour={handleReplayTour} />
       </div>
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:max-w-4xl md:px-8 md:py-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">

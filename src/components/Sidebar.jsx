@@ -19,7 +19,7 @@ function countActiveFilters(filters) {
   return count
 }
 
-export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null, colorblindMode = false, setColorblindMode = null }) {
+export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null, colorblindMode = false, setColorblindMode = null, onReplayTour = null }) {
   const [searchInput, setSearchInput] = useState(filters.searchText)
   const debounceRef = useRef(null)
 
@@ -334,17 +334,16 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         >
           Share Feedback →
         </a>
-        <button
-          type="button"
-          onClick={() => {
-            ['hks-splash-shown','hks-tour-home','hks-tour-courses','hks-tour-course-detail','hks-tour-faculty','hks-tour-faculty-detail','hks-tour-compare'].forEach(k => localStorage.removeItem(k))
-            window.location.reload()
-          }}
-          className="mt-3 block text-xs transition-colors hover:text-label"
-          style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-        >
-          ↺ Replay intro &amp; tour
-        </button>
+        {onReplayTour && (
+          <button
+            type="button"
+            onClick={onReplayTour}
+            className="mt-3 block text-xs transition-colors hover:text-label"
+            style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            ↺ Replay tour
+          </button>
+        )}
       </div>
     </aside>
   )

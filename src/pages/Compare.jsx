@@ -136,6 +136,12 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
   const [searchText, setSearchText] = useState('')
   const [selectedAttrs, setSelectedAttrs] = useState(DEFAULT_SELECTED)
   const [attrPanelOpen, setAttrPanelOpen] = useState(false)
+  const [replayTour, setReplayTour] = useState(false)
+
+  const handleReplayTour = () => {
+    localStorage.removeItem('hks-tour-compare')
+    setReplayTour(true)
+  }
 
   // Dedupe to averages if available, else latest year
   const candidatePool = useMemo(() => {
@@ -199,7 +205,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
-      <OnboardingTour steps={COMPARE_TOUR_STEPS} storageKey="hks-tour-compare" />
+      <OnboardingTour steps={COMPARE_TOUR_STEPS} storageKey="hks-tour-compare" autoStart={replayTour} onDone={() => setReplayTour(false)} />
       {/* Header */}
       <div className="panel-shell mb-5 overflow-hidden">
         <div className="px-5 py-5 md:px-7 md:py-6">
@@ -475,8 +481,16 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
         </div>
       )}
 
-      <div className="app-footer mt-8">
-        HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> MPA&apos;26 · Data from HKS QReports · {new Date().getFullYear()}
+      <div className="app-footer mt-8 flex flex-wrap items-center justify-between gap-3">
+        <span>HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> MPA&apos;26 · Data from HKS QReports · {new Date().getFullYear()}</span>
+        <button
+          type="button"
+          onClick={handleReplayTour}
+          style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 12 }}
+          className="transition-colors hover:text-label"
+        >
+          ↺ Replay tour
+        </button>
       </div>
     </div>
   )

@@ -66,7 +66,7 @@ function activeFilterCount({ concentration, minRating, minCourses, taughtSinceYe
 function FacultySidebar({
   meta, displayedProfs, allProfessors, selectedProf, query, setQuery, concentration, setConcentration,
   minRating, setMinRating, minCourses, setMinCourses, taughtSinceYear, setTaughtSinceYear, sortBy, setSortBy, resetFilters, handleSelectProf,
-  mobile = false, onClose = null,
+  mobile = false, onClose = null, onReplayTour = null,
 }) {
   const filters = activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })
 
@@ -118,6 +118,18 @@ function FacultySidebar({
         })}
         {displayedProfs.length === 0 && <p className="px-4 py-6 text-center text-xs text-muted">No instructors match the current filters.</p>}
       </div>
+      {onReplayTour && (
+        <div className="shrink-0 border-t px-4 py-3" style={{ borderColor: 'var(--line)' }}>
+          <button
+            type="button"
+            onClick={onReplayTour}
+            className="block text-xs transition-colors hover:text-label"
+            style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            ↺ Replay tour
+          </button>
+        </div>
+      )}
     </aside>
   )
 }
@@ -217,9 +229,16 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
   const resetFilters = () => { setConcentration('All'); setMinRating('any'); setMinCourses('any'); setTaughtSinceYear('any'); setSortBy('name_asc'); setQuery('') }
   const handleSelectProf = (prof) => { setSelectedProf(prof.professor); setSearchParams({ prof: prof.professor }) }
 
+  const [replayTour, setReplayTour] = useState(false)
+  const handleReplayTour = () => {
+    localStorage.removeItem('hks-tour-faculty')
+    localStorage.removeItem('hks-tour-faculty-detail')
+    setReplayTour(true)
+  }
+
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      <OnboardingTour steps={FACULTY_TOUR_STEPS} storageKey="hks-tour-faculty" />
+      <OnboardingTour steps={FACULTY_TOUR_STEPS} storageKey="hks-tour-faculty" autoStart={replayTour} onDone={() => setReplayTour(false)} />
       {selectedData && <OnboardingTour steps={FACULTY_DETAIL_TOUR_STEPS} storageKey="hks-tour-faculty-detail" />}
       {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close faculty list" />}
       <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>
@@ -244,6 +263,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           handleSelectProf={handleSelectProf}
           mobile
           onClose={() => setSidebarOpen(false)}
+          onReplayTour={handleReplayTour}
         />
       </div>
       <div className="hidden md:block">
@@ -266,6 +286,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           setSortBy={setSortBy}
           resetFilters={resetFilters}
           handleSelectProf={handleSelectProf}
+          onReplayTour={handleReplayTour}
         />
       </div>
 

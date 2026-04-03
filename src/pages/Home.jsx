@@ -198,6 +198,12 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const [sortBy, setSortBy] = useState(initSort)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortlistOnly, setShowShortlistOnly] = useState(false)
+  const [replayTour, setReplayTour] = useState(false)
+
+  const handleReplayTour = () => {
+    localStorage.removeItem('hks-tour-home')
+    setReplayTour(true)
+  }
   const [activeTab, setActiveTab] = useState('comparisons')
 
   const scrollToVisualization = () => {
@@ -368,7 +374,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      <OnboardingTour steps={HOME_TOUR_STEPS} storageKey="hks-tour-home" />
+      <OnboardingTour steps={HOME_TOUR_STEPS} storageKey="hks-tour-home" autoStart={replayTour} onDone={() => setReplayTour(false)} />
       {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close filters" />}
 
       <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>
@@ -383,11 +389,12 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           title="Search Courses"
           mobile
           onClose={() => setSidebarOpen(false)}
+          onReplayTour={handleReplayTour}
         />
       </div>
 
       <div className="hidden md:block">
-        <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />
+        <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} onReplayTour={handleReplayTour} />
       </div>
 
       <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
