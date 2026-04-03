@@ -476,7 +476,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
       )}
 
       <div className="app-footer mt-8">
-        HKS Course Explorer by Michael Gritzbach MPA&apos;26 · Data from HKS QReports · {new Date().getFullYear()}
+        HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> MPA&apos;26 · Data from HKS QReports · {new Date().getFullYear()}
       </div>
     </div>
   )

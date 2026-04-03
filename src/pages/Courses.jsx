@@ -962,7 +962,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
           </div>
         )}
 
-        <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach VUS&apos;18, MPA&apos;26 - {new Date().getFullYear()}</div>
+        <div className="app-footer mt-8">HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}</div>
       </main>
     </div>
   )

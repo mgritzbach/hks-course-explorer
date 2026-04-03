@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HKS Course Explorer — User Guide</title>
+  <style>
+    :root {
+      --accent: #a51c30;
+      --gold: #c8963a;
+      --blue: #4a7fa5;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --bg: #ffffff;
+      --text: #111827;
+      --text-soft: #374151;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 48px 40px 80px;
+    }
+
+    /* Print button — hidden in print */
+    .print-bar {
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+      padding: 12px 0 14px;
+      margin-bottom: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+    .print-bar p { font-size: 12px; color: var(--muted); }
+    .btn-print {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.01em;
+    }
+    .btn-print:hover { opacity: 0.88; }
+
+    /* Header */
+    .doc-header { margin-bottom: 48px; }
+    .kicker {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+    .subtitle { font-size: 15px; color: var(--muted); }
+
+    /* TOC */
+    .toc {
+      background: #f9fafb;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-bottom: 48px;
+    }
+    .toc h2 { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin-bottom: 5px; }
+    .toc a { color: var(--accent); text-decoration: none; font-size: 13px; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* Sections */
+    section { margin-bottom: 52px; }
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--line);
+      letter-spacing: -0.01em;
+    }
+    .section-intro { font-size: 14px; color: var(--muted); margin-bottom: 20px; margin-top: 4px; }
+    h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 24px 0 8px;
+    }
+    h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-soft);
+      margin: 16px 0 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    p { margin-bottom: 10px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    li { margin-bottom: 4px; }
+
+    /* Callout boxes */
+    .callout {
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+    .callout-tip { background: rgba(74, 127, 165, 0.09); border-left: 3px solid var(--blue); }
+    .callout-warn { background: rgba(200, 150, 58, 0.10); border-left: 3px solid var(--gold); }
+    .callout-info { background: rgba(165, 28, 48, 0.07); border-left: 3px solid var(--accent); }
+    .callout strong { display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .callout-tip strong { color: var(--blue); }
+    .callout-warn strong { color: var(--gold); }
+    .callout-info strong { color: var(--accent); }
+
+    /* Metric table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 13px;
+    }
+    th {
+      text-align: left;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      padding: 6px 12px;
+      border-bottom: 2px solid var(--line);
+    }
+    td { padding: 7px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .badge-green { background: rgba(74, 180, 100, 0.15); color: #2d7a48; }
+    .badge-amber { background: rgba(200, 150, 58, 0.15); color: #8a6020; }
+    .badge-red   { background: rgba(165, 28, 48, 0.12); color: var(--accent); }
+    .badge-blue  { background: rgba(74, 127, 165, 0.12); color: var(--blue); }
+
+    /* Footer */
+    .doc-footer {
+      margin-top: 64px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .doc-footer a { color: var(--accent); text-decoration: none; }
+
+    /* Print styles */
+    @media print {
+      .print-bar { display: none; }
+      body { padding: 0; max-width: 100%; font-size: 12px; }
+      h1 { font-size: 26px; }
+      h2 { font-size: 18px; break-before: page; }
+      h2:first-of-type { break-before: avoid; }
+      section { break-inside: avoid; }
+      .callout { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="print-bar">
+    <p>HKS Course Explorer — User Guide</p>
+    <button class="btn-print" onclick="window.print()">⬇ Download as PDF</button>
+  </div>
+
+  <div class="doc-header">
+    <p class="kicker">Harvard Kennedy School</p>
+    <h1>Course Explorer<br>User Guide</h1>
+    <p class="subtitle">Student-built · Independent · Updated for 2025–2026 bidding cycle</p>
+  </div>
+
+  <div class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#home">Home — Scatter Plot &amp; Course Cards</a></li>
+      <li><a href="#courses">Course Explorer — Detail View</a></li>
+      <li><a href="#faculty">Faculty Explorer</a></li>
+      <li><a href="#compare">Compare Tab</a></li>
+      <li><a href="#bidding">Understanding Bidding Data</a></li>
+      <li><a href="#metrics">Evaluation Metrics Explained</a></li>
+      <li><a href="#tips">Tips &amp; Settings</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. Overview -->
+  <section id="overview">
+    <h2>1. Overview</h2>
+    <p class="section-intro">HKS Course Explorer aggregates Harvard Kennedy School course evaluation data (QReports) and bidding history into one searchable, visual tool. It is independently built and not affiliated with Harvard or HKS.</p>
+
+    <h3>What data is included?</h3>
+    <ul>
+      <li><strong>Evaluation scores</strong> — Student ratings across 12 dimensions (instructor quality, course rating, workload, rigor, readings, assignments, feedback, class discussions, diverse perspectives, discussion diversity, availability, insights) collected via end-of-term QReports.</li>
+      <li><strong>Bidding history</strong> — Clearing prices, capacity, and bid counts per semester, sourced from HKS course selection records.</li>
+      <li><strong>Faculty profiles</strong> — Instructor titles, categories, and aggregated multi-year ratings.</li>
+    </ul>
+
+    <div class="callout callout-warn">
+      <strong>Important</strong>
+      Evaluation data reflects past semesters. Instructors, course content, and bidding dynamics change. Use this tool to inform — not replace — your own research and conversations with current students.
+    </div>
+
+    <h3>Navigation</h3>
+    <p>The app has four sections accessible from the left sidebar (desktop) or bottom navigation bar (mobile):</p>
+    <ul>
+      <li><strong>Home</strong> — Scatter plot overview of the full course catalog</li>
+      <li><strong>Courses</strong> — Deep-dive into individual course detail, performance, and bidding</li>
+      <li><strong>Faculty</strong> — Instructor profiles with aggregated ratings and teaching history</li>
+      <li><strong>Compare</strong> — Side-by-side comparison of shortlisted courses</li>
+    </ul>
+  </section>
+
+  <!-- 2. Home -->
+  <section id="home">
+    <h2>2. Home — Scatter Plot &amp; Course Cards</h2>
+    <p class="section-intro">The Home page gives a bird's-eye view of the entire course catalog, with each dot representing one course offering.</p>
+
+    <h3>Scatter Plot</h3>
+    <p>The plot places courses on two axes simultaneously:</p>
+    <ul>
+      <li><strong>X-axis — Instructor Rating percentile</strong>: How this instructor ranks versus all HKS instructors in the dataset. Further right = higher-rated instructor.</li>
+      <li><strong>Y-axis — Course Rating percentile</strong>: How the course itself is rated by students. Further up = higher overall course satisfaction.</li>
+    </ul>
+    <p>This creates four natural quadrants:</p>
+    <table>
+      <tr><th>Quadrant</th><th>Interpretation</th></tr>
+      <tr><td><span class="badge badge-green">Top-right</span></td><td>Great instructor <em>and</em> great course — the sweet spot.</td></tr>
+      <tr><td><span class="badge badge-amber">Top-left</span></td><td>Course content rated highly even if instructor rating is lower.</td></tr>
+      <tr><td><span class="badge badge-amber">Bottom-right</span></td><td>Well-regarded instructor; course rating lags — possibly experimental or heavy.</td></tr>
+      <tr><td><span class="badge badge-red">Bottom-left</span></td><td>Lower ratings on both axes — worth investigating why before enrolling.</td></tr>
+    </table>
+
+    <div class="callout callout-tip">
+      <strong>Tip</strong>
+      Hover over (desktop) or tap (mobile) any dot to see the course name, instructor, and key stats. Click it to jump directly to the Course Explorer detail view.
+    </div>
+
+    <h3>Preset Pills</h3>
+    <p>Quick-filter buttons above the scatter plot let you surface specific course categories:</p>
+    <ul>
+      <li><strong>Top-Rated</strong> — Courses in the top quartile on both axes</li>
+      <li><strong>STEM A / STEM B</strong> — Courses eligible for STEM designation</li>
+      <li><strong>Core</strong> — Required core curriculum courses</li>
+      <li><strong>Cross-Reg OK</strong> — Open to cross-registration</li>
+      <li><strong>Low Bidding</strong> — Historically accessible without committing many points</li>
+    </ul>
+
+    <h3>Left Sidebar Filters</h3>
+    <p>Use the sidebar to narrow the visible dots in the scatter plot and the course list below:</p>
+    <ul>
+      <li><strong>Year</strong> — View a specific academic year or the all-time weighted average</li>
+      <li><strong>Keywords</strong> — Searches course name, code, and instructor name</li>
+      <li><strong>Concentration</strong> — Filter by academic area prefix (IGA, DPI, MLD, etc.)</li>
+      <li><strong>Core Courses</strong> — Show all, core only, or electives only</li>
+      <li><strong>Term</strong> — Filter to Fall, Spring, or January term (when a specific year is selected)</li>
+      <li><strong>Min Instructor Rating</strong> — Hide courses below a percentile threshold</li>
+      <li><strong>STEM</strong> — Filter to STEM A, STEM B, or both</li>
+      <li><strong>Only courses with evals</strong> — Hide courses that have no evaluation data yet</li>
+    </ul>
+
+    <h3>Metric Display Toggle</h3>
+    <p>Switch between two display modes using the sidebar toggle:</p>
+    <ul>
+      <li><strong>Score</strong> — Raw average score divided by 5, shown as a percentage (absolute measure)</li>
+      <li><strong>Percentile</strong> — Rank vs. all courses in the dataset (relative measure) — useful for comparing instructors across years</li>
+    </ul>
+
+    <div class="callout callout-info">
+      <strong>All Years Average</strong>
+      Selecting "All Years Average" in the Year filter computes weighted averages across all recorded offerings, weighting by number of respondents. Best for comparing instructors who have taught the same course multiple times.
+    </div>
+  </section>
+
+  <!-- 3. Courses -->
+  <section id="courses">
+    <h2>3. Course Explorer — Detail View</h2>
+    <p class="section-intro">The Courses page lets you search for a specific course and explore its full evaluation history, year-over-year trends, and bidding data.</p>
+
+    <h3>Searching</h3>
+    <p>Type a course name, code, or instructor into the search box. Results appear as you type. You can comma-separate multiple terms to match any of them (e.g., "Levy, climate, IGA").</p>
+    <p>Click any result to open the detail panel. The URL updates so you can bookmark or share a specific course.</p>
+
+    <h3>Most Competitive Courses Panel</h3>
+    <p>When no course is selected, a panel shows the top courses ranked by last clearing price. Each badge shows the clearing price in bid points. Higher = more competitive. This is useful for early-stage planning — if a course clears at 999 pts every semester, you need to commit accordingly.</p>
+
+    <h3>Course Details Tab</h3>
+    <p>The first tab shows two cards side by side:</p>
+
+    <h4>Course Information</h4>
+    <ul>
+      <li>Academic area, STEM designation, Core/Cross-reg status</li>
+      <li>Course code, term, credits, grading basis</li>
+      <li>Schedule (days and times)</li>
+      <li>Enrollment bar — current enrolled vs. capacity (red if at capacity)</li>
+      <li>Instructor name (clickable — jumps to their Faculty profile)</li>
+      <li><strong>Last Bid Snapshot</strong> — Clearing price, capacity, and number of bids from the most recent bidding round (see Section 6 for interpretation)</li>
+    </ul>
+
+    <h4>Student Experience</h4>
+    <ul>
+      <li><strong>Instructor Rating</strong> — A label (Outstanding, Excellent, Good, Average, Poor) based on the percentile bracket, plus the raw score (0–5) and year median for context</li>
+      <li><strong>Course Workload</strong> — A label (Very Light → Very Heavy) with the percentile and raw score. Workload at the 97th percentile means this course is more intensive than 97% of all HKS courses.</li>
+    </ul>
+
+    <h4>All Evaluation Metrics</h4>
+    <p>Percentile bars for all 12 evaluation dimensions. Color coding:</p>
+    <table>
+      <tr><th>Color</th><th>Meaning</th></tr>
+      <tr><td><span class="badge badge-green">Green</span></td><td>≥ 75th percentile — top quartile</td></tr>
+      <tr><td><span class="badge badge-amber">Amber</span></td><td>25th–75th percentile — median range</td></tr>
+      <tr><td><span class="badge badge-red">Red</span></td><td>≤ 25th percentile — bottom quartile</td></tr>
+      <tr><td><span class="badge badge-blue">Blue</span></td><td>Workload and Rigor — higher isn't inherently better</td></tr>
+    </table>
+    <p>Toggle "Show raw averages (0–5 scale)" below the bars to see the absolute scores.</p>
+
+    <h3>Past Performance Tab</h3>
+    <p>A line chart of key metrics across all semesters for which evaluation data exists. Use this to see whether a course has improved, declined, or stayed consistent over time. Multiple offerings in the same year (e.g., Spring and Fall) each appear as separate data points.</p>
+
+    <h3>Bidding History Tab</h3>
+    <p>A table of every semester with recorded bidding data, showing:</p>
+    <ul>
+      <li><strong>Clearing Price</strong> — Minimum bid that secured a seat</li>
+      <li><strong>Capacity</strong> — Number of seats available</li>
+      <li><strong>Bids</strong> — Number of students who bid</li>
+      <li><strong>Oversubscribed</strong> — Whether bids exceeded capacity</li>
+    </ul>
+    <p>Scroll right on mobile to see all columns.</p>
+
+    <h3>Shortlist Button</h3>
+    <p>The "Add to Shortlist" button (star icon) saves the course to your shortlist, stored in your browser. Shortlisted courses appear in the Compare tab for side-by-side analysis.</p>
+  </section>
+
+  <!-- 4. Faculty -->
+  <section id="faculty">
+    <h2>4. Faculty Explorer</h2>
+    <p class="section-intro">The Faculty page provides instructor-level profiles aggregating all their recorded course offerings.</p>
+
+    <h3>Searching &amp; Filtering</h3>
+    <ul>
+      <li><strong>Search by name</strong> — Type any part of an instructor's name</li>
+      <li><strong>Sort</strong> — Name A–Z, Instructor Rating (desc), Course Rating (desc), Most Courses taught, Most Respondents</li>
+      <li><strong>Concentration</strong> — Filter by academic area</li>
+      <li><strong>Min Instructor Rating</strong> — Hide instructors below a percentile threshold</li>
+      <li><strong>Min Courses</strong> — Show only instructors with N or more courses with evaluation data</li>
+      <li><strong>Active Since</strong> — Hide instructors who haven't taught since a given year. Set to 2024 or 2025 to find currently active faculty.</li>
+    </ul>
+
+    <h3>Average Ratings</h3>
+    <p>Once you click an instructor, the detail panel shows percentile bars for all evaluation dimensions, weighted across all their courses. Color coding is identical to the Course Details view (green/amber/red, with blue for Workload and Rigor).</p>
+
+    <h3>Quick Stats</h3>
+    <p>The Quick Stats card shows:</p>
+    <ul>
+      <li><strong>Headline Instructor Rating %</strong> — The instructor's overall percentile across all their offerings</li>
+      <li><strong>avg X.XX/5</strong> — The raw 0–5 average score (absolute, not relative)</li>
+      <li><strong>all-courses med X.XX</strong> — The median raw score across all courses in the entire dataset — so you can see whether this instructor's raw score is above or below the typical HKS course, independently of percentile shifts over time</li>
+      <li>Sub-stats for Course Rating, Workload, Rigor, Diverse Perspectives, and Feedback</li>
+    </ul>
+
+    <div class="callout callout-tip">
+      <strong>Tip — Why raw scores matter</strong>
+      A 92nd percentile instructor rating with a 4.85/5 raw score is very strong. A 92nd percentile rating with a 4.30/5 raw score tells a different story — it means the entire cohort scored lower that year. Always check both the percentile and the raw score.
+    </div>
+
+    <h3>Full Teaching History</h3>
+    <p>A table of every course this instructor has taught with evaluation data. Click any row to jump directly to that course's detail page in the Course Explorer. Columns include: Year, Term, Course code &amp; name, Instructor %, Course %, Workload %, Rigor %, Diverse Perspectives %, and N (number of respondents).</p>
+  </section>
+
+  <!-- 5. Compare -->
+  <section id="compare">
+    <h2>5. Compare Tab</h2>
+    <p class="section-intro">The Compare tab lets you stack up to 5 shortlisted courses side by side across all evaluation dimensions and bidding history.</p>
+
+    <h3>Building Your Shortlist</h3>
+    <ol>
+      <li>Navigate to any course in the Course Explorer</li>
+      <li>Click <strong>"Add to Shortlist"</strong> (star button at the bottom of the detail panel)</li>
+      <li>Repeat for up to 5 courses</li>
+      <li>Switch to the <strong>Compare</strong> tab</li>
+    </ol>
+
+    <h3>Reading the Comparison Table</h3>
+    <p>Each column represents one shortlisted course. Rows show evaluation metrics with the same color coding as the rest of the app. The last row shows the most recent clearing price for quick bidding comparison.</p>
+    <p>Remove a course from the comparison by clicking the × next to its name.</p>
+
+    <div class="callout callout-tip">
+      <strong>Tip</strong>
+      Shortlist data is stored in your browser's localStorage. It persists across sessions on the same device but is not synced across devices.
+    </div>
+  </section>
+
+  <!-- 6. Bidding -->
+  <section id="bidding">
+    <h2>6. Understanding Bidding Data</h2>
+    <p class="section-intro">HKS uses a bid-point auction system for course selection. Understanding the data helps you allocate your points strategically.</p>
+
+    <h3>Key Terms</h3>
+    <table>
+      <tr><th>Term</th><th>Definition</th></tr>
+      <tr><td><strong>Clearing Price</strong></td><td>The minimum bid that secured a seat in that round. Every student who bid at or above this amount got in. Anyone who bid below did not.</td></tr>
+      <tr><td><strong>Capacity</strong></td><td>Number of seats available in that round.</td></tr>
+      <tr><td><strong>Bids</strong></td><td>Number of students who submitted a bid for the course.</td></tr>
+      <tr><td><strong>Oversubscribed</strong></td><td>Bids exceeded capacity. Not everyone who bid secured a seat — only those at or above the clearing price.</td></tr>
+    </table>
+
+    <h3>How to Use This Data</h3>
+    <ul>
+      <li>Check the <strong>Bidding History tab</strong> to see whether a course consistently clears high or has become more/less competitive over time.</li>
+      <li>A course that cleared at 50–100 pts historically is unlikely to require 500 pts this cycle unless circumstances change.</li>
+      <li>A course that was oversubscribed every semester at a high clearing price is a "high-risk" bid — you may need to commit a large portion of your points.</li>
+      <li>Courses that were <em>not</em> oversubscribed (bids ≤ capacity) often cleared at a nominal price (sometimes as low as 1 pt) — these are safer to bid on with fewer points.</li>
+      <li>The <strong>Most Competitive Courses</strong> panel on the Courses page ranks by last clearing price for quick reference.</li>
+    </ul>
+
+    <div class="callout callout-warn">
+      <strong>Caution</strong>
+      Bidding dynamics can shift significantly year to year based on cohort size, competing courses, and instructor reputation. Historical data is a guide, not a guarantee. Use it alongside conversations with classmates and your academic advisor.
+    </div>
+
+    <h3>Example: IGA-211 (Graham Allison)</h3>
+    <p>IGA-211 has historically cleared at 999 pts — the maximum. This means it is consistently the most demanded course in the catalog. If you want a seat, you need to bid your entire point allocation. The bidding history tab will show whether this pattern held every semester, helping you decide if it's worth the commitment.</p>
+  </section>
+
+  <!-- 7. Metrics -->
+  <section id="metrics">
+    <h2>7. Evaluation Metrics Explained</h2>
+    <p class="section-intro">All metrics come from HKS end-of-term student evaluations (QReports). Each is rated on a 1–5 scale by enrolled students and then converted to a percentile rank vs. all courses in the dataset.</p>
+
+    <table>
+      <tr><th>Metric</th><th>What it measures</th><th>Note</th></tr>
+      <tr><td><strong>Instructor Rating</strong></td><td>Overall quality of the instructor — preparation, engagement, clarity</td><td>The primary faculty quality signal</td></tr>
+      <tr><td><strong>Course Rating</strong></td><td>Overall satisfaction with the course itself, independent of instructor</td><td>Reflects curriculum design, relevance, and intellectual value</td></tr>
+      <tr><td><strong>Workload</strong></td><td>Volume of work required — readings, assignments, projects</td><td>Higher = heavier workload. <span class="badge badge-blue">Blue bars</span> — neutral</td></tr>
+      <tr><td><strong>Rigor</strong></td><td>Intellectual and analytical difficulty</td><td>Higher = more demanding. <span class="badge badge-blue">Blue bars</span> — neutral</td></tr>
+      <tr><td><strong>Assignment Value</strong></td><td>Whether assignments contributed meaningfully to learning</td><td></td></tr>
+      <tr><td><strong>Readings</strong></td><td>Quality and relevance of assigned readings</td><td></td></tr>
+      <tr><td><strong>Feedback</strong></td><td>Quality and timeliness of feedback from the instructor</td><td></td></tr>
+      <tr><td><strong>Class Discussions</strong></td><td>Quality of in-class discussion and student participation</td><td></td></tr>
+      <tr><td><strong>Diverse Perspectives</strong></td><td>Inclusion of diverse viewpoints and representation in course content</td><td></td></tr>
+      <tr><td><strong>Discussion Diversity</strong></td><td>Range of student voices and backgrounds in discussions</td><td></td></tr>
+      <tr><td><strong>Availability</strong></td><td>Instructor availability outside class (office hours, email)</td><td></td></tr>
+      <tr><td><strong>Insights</strong></td><td>Whether the course provided new insights or changed how students think</td><td>High-level intellectual impact</td></tr>
+    </table>
+
+    <div class="callout callout-info">
+      <strong>N (Respondents)</strong>
+      Metrics based on fewer than ~10 respondents should be treated with caution — they are more volatile. The N value is shown on every course and faculty card.
+    </div>
+  </section>
+
+  <!-- 8. Tips -->
+  <section id="tips">
+    <h2>8. Tips &amp; Settings</h2>
+
+    <h3>Guided Tour</h3>
+    <p>An interactive spotlight tour runs automatically on your first visit to each section. If you want to replay it:</p>
+    <ol>
+      <li>Open the left sidebar filter panel on any page</li>
+      <li>Scroll to the bottom</li>
+      <li>Click <strong>"↺ Replay intro &amp; tour"</strong></li>
+    </ol>
+    <p>This clears all tour and splash state and reloads the page from the beginning.</p>
+
+    <h3>Colorblind Mode</h3>
+    <p>Available in the sidebar filter panel under <strong>Accessibility</strong>. Replaces the default red/green color scheme with orange/blue for all scatter plot quadrant shading.</p>
+
+    <h3>Light / Dark Mode</h3>
+    <p>Toggle between dark and light themes using the button in the top-left of the navigation panel (desktop) or the top-right of the mobile header. Your preference is saved to your browser.</p>
+
+    <h3>Shareable URLs</h3>
+    <p>Navigating to a course detail or faculty profile updates the URL with a query parameter. You can copy and share the URL to link directly to a specific course or instructor.</p>
+
+    <h3>Shortlist Persistence</h3>
+    <p>Your shortlist (starred courses) is stored in browser localStorage. It persists across sessions on the same device. Clearing your browser data will reset it.</p>
+
+    <div class="callout callout-tip">
+      <strong>Best practice for bidding season</strong>
+      Build your shortlist of 5–8 target courses in the Compare tab. Check their bidding history to estimate required point commitments. Then rank them by priority and allocate points accordingly, keeping some in reserve for Round 2.
+    </div>
+  </section>
+
+  <div class="doc-footer">
+    <p>HKS Course Explorer — independently built by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank">Michael Gritzbach</a> VUS'18, MPA'26.</p>
+    <p style="margin-top:4px;">Data sourced from HKS QReports and course selection records. Not affiliated with Harvard University or Harvard Kennedy School.</p>
+  </div>
+
+</body>
+</html>

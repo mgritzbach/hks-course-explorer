@@ -123,6 +123,15 @@ export default function App() {
           <button type="button" onClick={toggleTheme} className="theme-toggle mt-4">
             {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
           </button>
+          <a
+            href="/user-guide.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="theme-toggle mt-2 block text-center"
+            style={{ textDecoration: 'none' }}
+          >
+            ? User Guide
+          </a>
         </div>
 
         {navItems.map((item) => (
@@ -162,9 +171,15 @@ export default function App() {
               <button type="button" onClick={toggleTheme} className="theme-toggle">
                 {theme === 'dark' ? 'Light' : 'Dark'}
               </button>
-              <div className="rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.16em]" style={{ borderColor: 'rgba(212, 168, 106, 0.26)', color: 'var(--gold)' }}>
-                Student-built
-              </div>
+              <a
+                href="/user-guide.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="theme-toggle"
+                style={{ textDecoration: 'none' }}
+              >
+                ? Guide
+              </a>
             </div>
           </div>
         </header>
