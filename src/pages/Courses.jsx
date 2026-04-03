@@ -23,9 +23,19 @@ const COURSES_TOUR_STEPS = [
 
 const COURSE_DETAIL_TOUR_STEPS = [
   {
-    target: 'course-tabs',
-    title: 'Three Detail Tabs',
-    body: 'Course Details: evaluations + description. Past Performance: how ratings changed year over year. Bidding History: every semester\'s clearing price, capacity, and whether it was oversubscribed.',
+    target: 'tab-details',
+    title: 'Course Details',
+    body: 'Evaluation scores, course description, schedule, enrollment cap, and the instructor profile. The full picture for any offering.',
+  },
+  {
+    target: 'tab-performance',
+    title: 'Past Performance',
+    body: 'How ratings trended year over year across all recorded offerings. Useful for spotting whether a course improved or declined over time.',
+  },
+  {
+    target: 'tab-bidding',
+    title: 'Bidding History',
+    body: 'Every semester\'s clearing price, capacity, and number of bids. If bids exceeded capacity, the course was oversubscribed — calibrate how many points to commit accordingly.',
   },
   {
     target: 'course-student-experience',
@@ -199,7 +209,7 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
         </div>
       </div>
 
-      <div className="filter-section px-4 py-3">
+      <div data-tour="year-filter" className="filter-section px-4 py-3">
         <label className="filter-label mb-1 block">Year:</label>
         <div className="select-wrap">
           <select value={filters.year} onChange={(event) => update({ year: event.target.value === 'all' ? 'all' : parseInt(event.target.value, 10) })}>
@@ -640,16 +650,17 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
               {selected.n_respondents != null && <span>N={selected.n_respondents} respondents</span>}
             </div>
 
-            <div data-tour="course-tabs" className="mb-6 flex flex-wrap gap-2 border-b pb-3" style={{ borderColor: 'var(--line)' }}>
+            <div className="mb-6 flex flex-wrap gap-2 border-b pb-3" style={{ borderColor: 'var(--line)' }}>
               {[
-                ['details', 'Course Details'],
-                ['performance', 'Past Performance'],
-                ['bidding', 'Bidding History'],
-              ].map(([key, label]) => {
+                ['details', 'Course Details', 'tab-details'],
+                ['performance', 'Past Performance', 'tab-performance'],
+                ['bidding', 'Bidding History', 'tab-bidding'],
+              ].map(([key, label, tourKey]) => {
                 const active = activeTab === key
                 return (
                   <button
                     key={key}
+                    data-tour={tourKey}
                     onClick={() => setActiveTab(key)}
                     className="rounded-full border px-4 py-2 text-sm font-semibold transition-colors"
                     style={active
