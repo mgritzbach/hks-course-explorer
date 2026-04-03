@@ -360,8 +360,8 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
 
       {/* Comparison table */}
       {selectedCourses.length >= 2 && allAttrs.length > 0 && (
-        <div className="overflow-x-auto" style={{ minWidth: `${200 + selectedCourses.length * 160}px` }}>
-          <div className="surface-card mt-5 overflow-hidden rounded-[22px]">
+        <div className="overflow-x-auto">
+          <div className="surface-card mt-5 overflow-hidden rounded-[22px]" style={{ minWidth: `${200 + selectedCourses.length * 160}px` }}>
             {/* Course headers */}
             <div
               className="grid border-b"
