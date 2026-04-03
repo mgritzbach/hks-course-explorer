@@ -15,7 +15,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   const [index, setIndex] = useState(0)
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
-  const [tick, setTick] = useState(0)
+  const [tick, setTick] = useState(-1)
 
   useEffect(() => {
     const alreadySeen = localStorage.getItem(storageKey)
@@ -33,10 +33,15 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   }, [visible])
 
   useEffect(() => {
-    if (visible) {
-      setTick(0) // reset retry counter so each step gets a fresh window
-      onStepChange?.(index)
-    }
+    if (!visible) return undefined
+    onStepChange?.(index)
+    // Use -1 as a "waiting for drawer animation" sentinel so tick=0 is always
+    // a fresh state transition (avoids React bailing out on same-value setState).
+    // On mobile give 360ms for the 260ms drawer CSS transition to finish.
+    setTick(-1)
+    const delay = window.innerWidth < 768 ? 360 : 0
+    const t = setTimeout(() => setTick(0), delay)
+    return () => clearTimeout(t)
   }, [index, visible]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const step = steps[index]
@@ -72,7 +77,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   }, [visible])
 
   useEffect(() => {
-    if (!visible || rect || tick >= 40) return undefined
+    if (!visible || rect || tick < 0 || tick >= 40) return undefined
     const t = setTimeout(() => {
       setTick((value) => value + 1)
     }, 60)
@@ -100,6 +105,8 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   if (!visible) return null
 
   if (!rect) {
+    // tick=-1 means we're in the drawer-open delay — don't evaluate yet
+    if (tick < 0) return null
     const step = steps[index]
     const anyEl = step ? document.querySelectorAll(`[data-tour="${step.target}"]`).length > 0 : false
     if (!anyEl || tick >= 40) {
