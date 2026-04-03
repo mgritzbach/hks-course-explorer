@@ -12,12 +12,27 @@ const COURSES_TOUR_STEPS = [
   {
     target: 'course-search',
     title: 'Search Courses',
-    body: 'Type a name, professor, or course code. Comma-separate terms to match any — e.g. "Levy, climate".',
+    body: 'Type a name, professor, or course code. Comma-separate terms to match any — e.g. "Levy, climate". Click a result to open its full profile.',
   },
   {
-    target: 'course-detail',
-    title: 'Course Detail View',
-    body: 'Select a course to see full evaluations, score trends over time, and bidding history.',
+    target: 'top-bidding',
+    title: 'Most Competitive Courses',
+    body: 'Each badge shows the clearing price from the last bidding round — the minimum bid points needed to secure a seat. Higher price = more demand. Think of it like an auction.',
+  },
+  {
+    target: 'course-tabs',
+    title: 'Three Detail Tabs',
+    body: 'Course Details: evaluations + description. Past Performance: how ratings changed year over year. Bidding History: every semester\'s clearing price, capacity, and whether it was oversubscribed.',
+  },
+  {
+    target: 'course-bid-summary',
+    title: 'Last Bid Snapshot',
+    body: 'Clearing Price is the minimum bid that won a seat. If Bids > Capacity, the course was oversubscribed — not everyone who bid got in. Use this to calibrate how many points to commit.',
+  },
+  {
+    target: 'course-shortlist-btn',
+    title: 'Shortlist & Compare',
+    body: 'Star a course to add it to your shortlist. Then visit the Compare tab to stack up to 5 courses side by side — ratings, workload, and bidding history all in one table.',
   },
 ]
 
@@ -571,7 +586,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
           <div>
             <p className="mb-4 text-xs text-muted">Search or filter above to find a course, then tap into the full detail view.</p>
             {topByBidding.length > 0 && (
-              <div className="surface-card rounded-[22px] p-4">
+              <div data-tour="top-bidding" className="surface-card rounded-[22px] p-4">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Most Competitive Courses</p>
                 <div className="flex flex-col gap-2">
                   {topByBidding.map((course, index) => (
@@ -611,7 +626,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
               {selected.n_respondents != null && <span>N={selected.n_respondents} respondents</span>}
             </div>
 
-            <div className="mb-6 flex flex-wrap gap-2 border-b pb-3" style={{ borderColor: 'var(--line)' }}>
+            <div data-tour="course-tabs" className="mb-6 flex flex-wrap gap-2 border-b pb-3" style={{ borderColor: 'var(--line)' }}>
               {[
                 ['details', 'Course Details'],
                 ['performance', 'Past Performance'],
@@ -719,7 +734,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                     )}
 
                     {selected.last_bid_price != null && (
-                      <div className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
+                      <div data-tour="course-bid-summary" className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
                         <p className="mb-3 text-[10px] uppercase tracking-wider text-muted">Last Bid ({selected.last_bid_acad} {selected.last_bid_term})</p>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted">Clearing Price</span>
@@ -852,6 +867,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                         const starred = favs.isFavorite(selected.course_code_base)
                         return (
                           <button
+                            data-tour="course-shortlist-btn"
                             onClick={() => favs.toggle(selected.course_code_base)}
                             className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-medium transition-colors"
                             style={{

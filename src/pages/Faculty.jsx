@@ -6,12 +6,27 @@ const FACULTY_TOUR_STEPS = [
   {
     target: 'faculty-search',
     title: 'Search Instructors',
-    body: 'Type a professor\'s name to find their profile. The list shows all instructors with evaluation data.',
+    body: 'Type a professor\'s name to find their profile. The list shows all instructors with evaluation data — sorted by name, rating, or number of courses.',
   },
   {
     target: 'faculty-active-since',
     title: 'Filter by Recency',
-    body: '"Active Since" hides instructors who haven\'t taught since a chosen year — useful if you want currently active faculty.',
+    body: '"Active Since" hides instructors who haven\'t taught since a chosen year. Set it to 2023 or 2024 to see only currently active faculty.',
+  },
+  {
+    target: 'faculty-ratings',
+    title: 'Average Ratings Breakdown',
+    body: 'Percentile bars across all evaluation dimensions — instructor quality, course value, workload, rigor, diverse perspectives. Green = top 25%, amber = median range, red = bottom 25%.',
+  },
+  {
+    target: 'faculty-quick-stats',
+    title: 'Quick Stats & Raw Scores',
+    body: 'The headline percentile plus the raw 0–5 average score. The grey "yr med" and "all-courses med" lines tell you how this instructor compares to the typical course — not just a number in isolation.',
+  },
+  {
+    target: 'faculty-courses-table',
+    title: 'Full Teaching History',
+    body: 'Every course this instructor has taught with evaluation data. Click any row to jump directly to that course\'s detail page — useful for seeing how a professor performs across different subjects.',
   },
 ]
 
@@ -304,11 +319,11 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           </div>
 
           <div className="mb-6 grid gap-4 lg:grid-cols-2">
-            <div className="surface-card rounded-[22px] p-4">
+            <div data-tour="faculty-ratings" className="surface-card rounded-[22px] p-4">
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Average Ratings</h4>
               {meta.metrics.filter((metric) => !metric.bid_metric).map((metric) => <MetricBar key={metric.key} label={metric.label} value={selectedData.avgMetrics?.[metric.key]} higherBetter={metric.higher_is_better} neutral={metric.key === 'Workload' || metric.key === 'Rigor'} />)}
             </div>
-            <div className="surface-card rounded-[22px] p-4">
+            <div data-tour="faculty-quick-stats" className="surface-card rounded-[22px] p-4">
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Quick Stats</h4>
               {selectedData.avgMetrics?.Instructor_Rating != null && (
                 <div className="mb-3 rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.025)' }}>
@@ -329,7 +344,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
             </div>
           </div>
 
-          <div className="surface-card rounded-[22px]">
+          <div data-tour="faculty-courses-table" className="surface-card rounded-[22px]">
             <div className="border-b px-4 py-3" style={{ borderColor: 'var(--line)' }}><h4 className="text-xs font-semibold uppercase tracking-wider text-muted">All Courses Taught ({profCourses.length})</h4></div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
