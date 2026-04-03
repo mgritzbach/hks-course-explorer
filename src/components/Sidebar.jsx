@@ -328,7 +328,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       {/* Footer */}
       <div className="mt-auto border-t px-4 pb-5 pt-4" style={{ borderColor: 'var(--line)' }}>
         <a
-          href="mailto:feedback@hks.harvard.edu"
+          href="mailto:mgritzbach@hks.harvard.edu"
           className="text-xs transition-colors hover:text-label"
           style={{ color: 'var(--gold)' }}
         >
