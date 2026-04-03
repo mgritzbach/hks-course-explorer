@@ -185,7 +185,7 @@ export default function AuthGate({ onAuthSuccess }) {
                   border: '1px solid var(--line)',
                   background: 'var(--panel-subtle)',
                   color: 'var(--text)',
-                  fontSize: 14,
+                  fontSize: 'max(16px, 14px)',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}

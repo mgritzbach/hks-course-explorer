@@ -415,11 +415,6 @@ html[data-theme='light'] .sort-bar {
   flex-shrink: 0;
 }
 
-.js-plotly-plot .plotly .modebar {
-  top: -36px !important;
-  right: 0 !important;
-}
-
 html[data-theme='light'] .top-tabs-bar {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.68)),
@@ -606,5 +601,16 @@ html[data-theme='light'] .app-footer {
     transform: none;
     transition: none;
     box-shadow: none;
+  }
+}
+
+/* ─── Mobile: prevent iOS Safari auto-zoom on input focus ───────────────────── */
+
+@media (max-width: 767px) {
+  select,
+  input[type="text"],
+  input[type="email"],
+  input[type="number"] {
+    font-size: 16px !important;
   }
 }

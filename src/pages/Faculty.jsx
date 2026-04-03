@@ -105,7 +105,7 @@ function FacultySidebar({
             <button
               key={prof.professor}
               onClick={() => { handleSelectProf(prof); if (mobile && onClose) onClose() }}
-              className="w-full border-b px-4 py-3 text-left transition-colors"
+              className="w-full border-b px-4 py-4 text-left transition-colors"
               style={{ background: selected ? 'rgba(165, 28, 48, 0.12)' : undefined, borderColor: 'rgba(243, 233, 226, 0.06)', borderLeft: selected ? '3px solid var(--accent)' : '3px solid transparent' }}
             >
               <p className="text-xs font-medium leading-tight text-label">{prof.professor_display}</p>
@@ -332,6 +332,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           <button
             onClick={() => { setSelectedProf(null); setSearchParams({}) }}
             className="mb-4 flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-label"
+            style={{ minHeight: 44, padding: '8px 0' }}
           >
             <span>←</span> <span>Back to faculty list</span>
           </button>
