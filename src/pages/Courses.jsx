@@ -19,10 +19,23 @@ const COURSES_TOUR_STEPS = [
     title: 'Most Competitive Courses',
     body: 'Each badge shows the clearing price from the last bidding round — the minimum bid points needed to secure a seat. Higher price = more demand. Think of it like an auction.',
   },
+]
+
+const COURSE_DETAIL_TOUR_STEPS = [
   {
     target: 'course-tabs',
     title: 'Three Detail Tabs',
     body: 'Course Details: evaluations + description. Past Performance: how ratings changed year over year. Bidding History: every semester\'s clearing price, capacity, and whether it was oversubscribed.',
+  },
+  {
+    target: 'course-student-experience',
+    title: 'Student Experience at a Glance',
+    body: 'The headline Instructor Rating (Outstanding → Poor) and Workload (Very Light → Very Heavy) let you quickly gauge fit. The score below each label shows the percentile vs. all courses.',
+  },
+  {
+    target: 'course-metrics',
+    title: 'All Evaluation Dimensions',
+    body: 'Each bar is a percentile vs. every HKS course in the dataset. Green ≥ 75th, amber = median range, red ≤ 25th. Workload and Rigor use blue — higher isn\'t inherently better there.',
   },
   {
     target: 'course-bid-summary',
@@ -528,6 +541,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       <OnboardingTour steps={COURSES_TOUR_STEPS} storageKey="hks-tour-courses" />
+      {selected && <OnboardingTour steps={COURSE_DETAIL_TOUR_STEPS} storageKey="hks-tour-course-detail" />}
       {filterOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setFilterOpen(false)} aria-label="Close filters" />}
       <div className={`mobile-drawer md:hidden ${filterOpen ? 'open' : ''}`}>
         <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} mobile onClose={() => setFilterOpen(false)} metricMode={metricMode} setMetricMode={setMetricMode} />
@@ -746,7 +760,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                     )}
                   </div>
 
-                  <div className="surface-card rounded-[22px] p-5">
+                  <div data-tour="course-student-experience" className="surface-card rounded-[22px] p-5">
                     <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Student Experience</h4>
                     {instructorPct != null ? (
                       <div className="mb-4 rounded-[18px] p-4" style={{ background: 'var(--panel-subtle)' }}>
@@ -799,7 +813,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                     ) : <div className="rounded-[18px] p-4 text-sm italic text-muted" style={{ background: 'var(--panel-subtle)' }}>No workload data available</div>}
                   </div>
 
-                  <div className="surface-card rounded-[22px] p-5 lg:col-span-2">
+                  <div data-tour="course-metrics" className="surface-card rounded-[22px] p-5 lg:col-span-2">
                     <div className="mb-3 flex items-center justify-between">
                       <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">All Evaluation Metrics</h4>
                       <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>

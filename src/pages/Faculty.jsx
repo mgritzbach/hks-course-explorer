@@ -13,6 +13,9 @@ const FACULTY_TOUR_STEPS = [
     title: 'Filter by Recency',
     body: '"Active Since" hides instructors who haven\'t taught since a chosen year. Set it to 2023 or 2024 to see only currently active faculty.',
   },
+]
+
+const FACULTY_DETAIL_TOUR_STEPS = [
   {
     target: 'faculty-ratings',
     title: 'Average Ratings Breakdown',
@@ -21,7 +24,7 @@ const FACULTY_TOUR_STEPS = [
   {
     target: 'faculty-quick-stats',
     title: 'Quick Stats & Raw Scores',
-    body: 'The headline percentile plus the raw 0–5 average score. The grey "yr med" and "all-courses med" lines tell you how this instructor compares to the typical course — not just a number in isolation.',
+    body: 'The headline percentile plus the raw 0–5 average score. The "all-courses med" line tells you how this instructor compares to the typical HKS course — so 92% means better than 92% of all courses ever taught.',
   },
   {
     target: 'faculty-courses-table',
@@ -217,6 +220,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       <OnboardingTour steps={FACULTY_TOUR_STEPS} storageKey="hks-tour-faculty" />
+      {selectedData && <OnboardingTour steps={FACULTY_DETAIL_TOUR_STEPS} storageKey="hks-tour-faculty-detail" />}
       {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close faculty list" />}
       <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>
         <FacultySidebar

@@ -337,7 +337,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         <button
           type="button"
           onClick={() => {
-            ['hks-splash-shown','hks-tour-home','hks-tour-courses','hks-tour-faculty','hks-tour-compare'].forEach(k => localStorage.removeItem(k))
+            ['hks-splash-shown','hks-tour-home','hks-tour-courses','hks-tour-course-detail','hks-tour-faculty','hks-tour-faculty-detail','hks-tour-compare'].forEach(k => localStorage.removeItem(k))
             window.location.reload()
           }}
           className="mt-3 block text-xs transition-colors hover:text-label"
