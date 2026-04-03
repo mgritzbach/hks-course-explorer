@@ -1,6 +1,25 @@
 import { useEffect, useDeferredValue, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
+import OnboardingTour from '../components/OnboardingTour.jsx'
+
+const COURSES_TOUR_STEPS = [
+  {
+    target: 'year-filter',
+    title: 'Set the Year',
+    body: 'Pick a year to scope results, or choose "All Years Average" for aggregated ratings across the full dataset.',
+  },
+  {
+    target: 'course-search',
+    title: 'Search Courses',
+    body: 'Type a name, professor, or course code. Comma-separate terms to match any — e.g. "Levy, climate".',
+  },
+  {
+    target: 'course-detail',
+    title: 'Course Detail View',
+    body: 'Select a course to see full evaluations, score trends over time, and bidding history.',
+  },
+]
 
 const LABEL_COLOR = { Outstanding: 'var(--success)', Excellent: '#86efac', Good: 'var(--gold)', Average: 'var(--warning)', Poor: 'var(--danger)' }
 const WORKLOAD_COLOR = { 'Very Light': 'var(--blue)', Light: '#7fb1d1', Moderate: 'var(--gold)', Heavy: 'var(--warning)', 'Very Heavy': '#c95d4f' }
@@ -493,6 +512,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
+      <OnboardingTour steps={COURSES_TOUR_STEPS} storageKey="hks-tour-courses" />
       {filterOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setFilterOpen(false)} aria-label="Close filters" />}
       <div className={`mobile-drawer md:hidden ${filterOpen ? 'open' : ''}`}>
         <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} mobile onClose={() => setFilterOpen(false)} metricMode={metricMode} setMetricMode={setMetricMode} />
@@ -512,7 +532,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
           </button>
         </div>
 
-        <div className="relative mb-4">
+        <div data-tour="course-search" className="relative mb-4">
           <label className="mb-1 block text-xs text-muted">Search by course or instructor</label>
           <input
             type="text"
@@ -578,7 +598,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
         )}
 
         {selected && (
-          <>
+          <div data-tour="course-detail">
             <button
               onClick={() => { setSelectedId(null); setSearchParams({}); setQuery('') }}
               className="mb-4 flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-label"
@@ -898,7 +918,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                 <BiddingTab biddingHistory={biddingHistory} selected={selected} navigate={navigate} />
               </section>
             )}
-          </>
+          </div>
         )}
 
         <div className="app-footer mt-8">HKS Course Explorer by Michael Gritzbach VUS&apos;18, MPA&apos;26 - {new Date().getFullYear()}</div>

@@ -1,5 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import OnboardingTour from '../components/OnboardingTour.jsx'
+
+const FACULTY_TOUR_STEPS = [
+  {
+    target: 'faculty-search',
+    title: 'Search Instructors',
+    body: 'Type a professor\'s name to find their profile. The list shows all instructors with evaluation data.',
+  },
+  {
+    target: 'faculty-active-since',
+    title: 'Filter by Recency',
+    body: '"Active Since" hides instructors who haven\'t taught since a chosen year — useful if you want currently active faculty.',
+  },
+]
 
 function pct(value) { return value != null ? `${Math.round(value)}%` : '-' }
 
@@ -52,14 +66,14 @@ function FacultySidebar({
           </div>
         </div>
 
-        <input type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name..." className="mb-3 w-full" style={{ fontSize: 12 }} />
+        <input data-tour="faculty-search" type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name..." className="mb-3 w-full" style={{ fontSize: 12 }} />
 
         <div className="grid gap-2">
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Sort</p><div className="select-wrap"><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}>{SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></div>
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Concentration</p><div className="select-wrap"><select value={concentration} onChange={(event) => setConcentration(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="All">All</option>{meta.concentrations.map((item) => <option key={item} value={item}>{item}</option>)}</select></div></div>
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Min Instructor Rating</p><div className="select-wrap"><select value={minRating} onChange={(event) => setMinRating(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any</option><option value="90">Top 10%</option><option value="75">Top 25%</option><option value="50">Top 50%</option></select></div></div>
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Min Courses Taught</p><div className="select-wrap"><select value={minCourses} onChange={(event) => setMinCourses(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any</option><option value="3">3+</option><option value="5">5+</option><option value="10">10+</option><option value="20">20+</option></select></div></div>
-          <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Active Since (exclude older)</p><div className="select-wrap"><select value={taughtSinceYear} onChange={(e) => setTaughtSinceYear(e.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any Year</option><option value="2024">Since 2024</option><option value="2023">Since 2023</option><option value="2022">Since 2022</option><option value="2021">Since 2021</option><option value="2020">Since 2020</option><option value="2019">Since 2019</option><option value="2018">Since 2018</option><option value="2017">Since 2017</option><option value="2016">Since 2016</option><option value="2015">Since 2015</option></select></div></div>
+          <div data-tour="faculty-active-since"><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Active Since (exclude older)</p><div className="select-wrap"><select value={taughtSinceYear} onChange={(e) => setTaughtSinceYear(e.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any Year</option><option value="2024">Since 2024</option><option value="2023">Since 2023</option><option value="2022">Since 2022</option><option value="2021">Since 2021</option><option value="2020">Since 2020</option><option value="2019">Since 2019</option><option value="2018">Since 2018</option><option value="2017">Since 2017</option><option value="2016">Since 2016</option><option value="2015">Since 2015</option></select></div></div>
         </div>
 
         <p className="mt-3 text-[10px] text-muted">{displayedProfs.length} of {allProfessors.length} instructors</p>
@@ -187,6 +201,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
+      <OnboardingTour steps={FACULTY_TOUR_STEPS} storageKey="hks-tour-faculty" />
       {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close faculty list" />}
       <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>
         <FacultySidebar

@@ -125,7 +125,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       </div>
 
       {/* Year — primary filter, visually elevated */}
-      <div className="px-4 py-3" style={{ background: 'rgba(165,28,48,0.07)', borderBottom: '1px solid var(--line)' }}>
+      <div data-tour="year-filter" className="px-4 py-3" style={{ background: 'rgba(165,28,48,0.07)', borderBottom: '1px solid var(--line)' }}>
         <div className="mb-2 flex items-center justify-between">
           <label className="filter-label font-semibold" style={{ color: 'var(--text)', fontSize: 11 }}>📅 Year</label>
           {filters.year !== 0 && (
@@ -334,6 +334,17 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         >
           Share Feedback →
         </a>
+        <button
+          type="button"
+          onClick={() => {
+            ['hks-splash-shown','hks-tour-home','hks-tour-courses','hks-tour-faculty','hks-tour-compare'].forEach(k => localStorage.removeItem(k))
+            window.location.reload()
+          }}
+          className="mt-3 block text-xs transition-colors hover:text-label"
+          style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          ↺ Replay intro &amp; tour
+        </button>
       </div>
     </aside>
   )

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
+import LandingSplash from './components/LandingSplash.jsx'
 import Compare from './pages/Compare.jsx'
 import Courses from './pages/Courses.jsx'
 import Faculty from './pages/Faculty.jsx'
@@ -101,6 +102,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen md:h-screen" style={{ background: 'transparent' }}>
+      <LandingSplash />
       {/* Desktop sidebar nav */}
       <nav
         className="hidden shrink-0 flex-col px-3 py-4 md:flex"

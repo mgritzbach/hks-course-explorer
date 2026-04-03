@@ -1,5 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import OnboardingTour from '../components/OnboardingTour.jsx'
+
+const COMPARE_TOUR_STEPS = [
+  {
+    target: 'compare-add',
+    title: 'Add Courses to Compare',
+    body: 'Search for any course and add up to 5 side by side. You can also pull directly from your shortlist.',
+  },
+]
 
 const MAX_COURSES = 5
 
@@ -190,6 +199,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
+      <OnboardingTour steps={COMPARE_TOUR_STEPS} storageKey="hks-tour-compare" />
       {/* Header */}
       <div className="panel-shell mb-5 overflow-hidden">
         <div className="px-5 py-5 md:px-7 md:py-6">
@@ -207,7 +217,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
         {/* Left: selector + results */}
         <div className="space-y-4">
           {/* Search & shortlist */}
-          <div className="surface-card rounded-[22px] p-5">
+          <div data-tour="compare-add" className="surface-card rounded-[22px] p-5">
             <p className="filter-label mb-3">Add Courses ({selected.length}/{MAX_COURSES})</p>
 
             {/* Selected chips */}

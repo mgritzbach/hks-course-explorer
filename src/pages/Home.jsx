@@ -1,8 +1,32 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import CourseCard from '../components/CourseCard.jsx'
+import OnboardingTour from '../components/OnboardingTour.jsx'
 import ScatterPlot from '../components/ScatterPlot.jsx'
 import Sidebar from '../components/Sidebar.jsx'
+
+const HOME_TOUR_STEPS = [
+  {
+    target: 'year-filter',
+    title: 'Start with the Year',
+    body: 'Pick the academic year you\'re planning for. 2025 has the most complete evaluations; 2026 shows the active bidding season.',
+  },
+  {
+    target: 'scatter-plot',
+    title: 'Visual Course Explorer',
+    body: 'Every dot is a course. Change the X and Y axes to compare any two metrics — workload vs. rating, rigor vs. instructor quality, and more.',
+  },
+  {
+    target: 'preset-pills',
+    title: 'Quick Filters',
+    body: 'One-click presets for Top Rated, STEM A/B, Bidding 2026, or your personal shortlist.',
+  },
+  {
+    target: 'course-list',
+    title: 'Course Cards',
+    body: 'Click any card to expand full evaluations, score history, and add to your shortlist. Star it to track across sessions.',
+  },
+]
 
 const DEFAULT_X = 'Workload'
 const DEFAULT_Y = 'Course_Rating'
@@ -344,6 +368,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
+      <OnboardingTour steps={HOME_TOUR_STEPS} storageKey="hks-tour-home" />
       {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close filters" />}
 
       <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>
@@ -461,7 +486,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
         </div>
 
         {activeTab === 'comparisons' && (
-          <div style={{ position: 'relative' }}>
+          <div data-tour="scatter-plot" style={{ position: 'relative' }}>
           {isStale && <div style={{ position: 'absolute', top: 8, right: 52, zIndex: 10, fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>updating…</div>}
           <ScatterPlot
             allCourses={yearEvalCourses}
@@ -479,7 +504,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
         )}
 
         <div className="mt-6">
-          <div className="preset-pills mb-3">
+          <div data-tour="preset-pills" className="preset-pills mb-3">
             {PRESETS.map((preset) => (
               <button
                 key={preset.key}
@@ -526,6 +551,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             </div>
           </div>
 
+          <div data-tour="course-list">
           {visibleCourses.length === 0 ? (
             <div className="surface-card rounded-2xl py-12 text-center">
               <p className="mb-1 font-medium text-label">No courses match the current filters</p>
@@ -546,6 +572,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
               />
             ))
           )}
+          </div>
         </div>
 
         <div className="app-footer mt-8">
