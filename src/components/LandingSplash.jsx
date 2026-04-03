@@ -6,6 +6,7 @@ const STORAGE_KEY = 'hks-splash-shown'
 export default function LandingSplash({ onStart, onSkip }) {
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light'
 
   useEffect(() => {
     if (!localStorage.getItem(STORAGE_KEY)) setVisible(true)
@@ -27,7 +28,7 @@ export default function LandingSplash({ onStart, onSkip }) {
       style={{
         position: 'fixed', inset: 0, zIndex: 9100,
         backdropFilter: 'blur(28px)',
-        background: 'rgba(8, 8, 16, 0.84)',
+        background: isLight ? 'rgba(180, 160, 148, 0.72)' : 'rgba(8, 8, 16, 0.84)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '1rem',
         transition: 'opacity 0.28s ease',
@@ -37,12 +38,14 @@ export default function LandingSplash({ onStart, onSkip }) {
       <div
         style={{
           maxWidth: 460, width: '100%',
-          background: 'var(--surface)',
+          background: 'var(--panel-strong)',
           borderRadius: 28,
-          border: '1px solid var(--line)',
+          border: '1px solid var(--line-strong)',
           padding: '40px 36px 32px',
           textAlign: 'center',
-          boxShadow: '0 48px 96px rgba(0,0,0,0.56)',
+          boxShadow: isLight
+            ? '0 32px 80px rgba(80,40,40,0.18), 0 2px 0 rgba(255,255,255,0.9) inset'
+            : '0 48px 96px rgba(0,0,0,0.56)',
         }}
       >
         <p className="kicker mb-4">Harvard Kennedy School</p>
