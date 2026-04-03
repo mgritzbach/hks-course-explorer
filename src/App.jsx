@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
+import AuthGate from './components/AuthGate.jsx'
 import LandingSplash from './components/LandingSplash.jsx'
 import Compare from './pages/Compare.jsx'
 import Courses from './pages/Courses.jsx'
 import Faculty from './pages/Faculty.jsx'
 import Home from './pages/Home.jsx'
+import { useAuth } from './hooks/useAuth.js'
 import { useFavorites } from './useFavorites.js'
 
 export default function App() {
+  const { loading: authLoading, authenticated, onAuthSuccess, logout, email: authEmail } = useAuth()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -40,9 +43,13 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
-    fetch('/courses.json', { cache: 'no-cache' })
+    // Only fetch course data once authenticated
+    if (authLoading || !authenticated) return
+
+    fetch('/api/courses', { credentials: 'include', cache: 'no-cache' })
       .then((response) => {
-        if (!response.ok) throw new Error('Failed to load courses.json')
+        if (response.status === 401) throw new Error('auth')
+        if (!response.ok) throw new Error('Failed to load course data')
         return response.json()
       })
       .then((payload) => {
@@ -50,10 +57,29 @@ export default function App() {
         setLoading(false)
       })
       .catch((err) => {
+        if (err.message === 'auth') {
+          // Session expired between status check and fetch — reload to re-auth
+          window.location.reload()
+          return
+        }
         setError(err.message)
         setLoading(false)
       })
-  }, [])
+  }, [authLoading, authenticated])
+
+  // Show auth gate if not yet authenticated
+  if (authLoading) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4" style={{ background: 'transparent' }}>
+        <div className="spinner" />
+        <p className="text-muted text-sm">Checking session…</p>
+      </div>
+    )
+  }
+
+  if (!authenticated) {
+    return <AuthGate onAuthSuccess={onAuthSuccess} />
+  }
 
   if (loading) {
     return (
@@ -132,6 +158,19 @@ export default function App() {
           >
             ? User Guide
           </a>
+          {authEmail && (
+            <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--line)' }}>
+              <p className="text-[10px] leading-tight" style={{ color: 'var(--text-muted)', marginBottom: 6, wordBreak: 'break-all' }}>{authEmail}</p>
+              <button
+                type="button"
+                onClick={logout}
+                className="theme-toggle w-full"
+                style={{ color: 'var(--text-muted)', fontSize: 10 }}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
 
         {navItems.map((item) => (
