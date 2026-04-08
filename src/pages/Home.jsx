@@ -470,35 +470,9 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           </div>
         )}
 
-        <div ref={visualizationRef} className="top-tabs-bar mb-5">
-          {[
-            { key: 'comparisons', label: 'Course Comparisons' },
-          ].map((tab) => {
-            const isActive = activeTab === tab.key
-            return (
-              <button
-                key={tab.key}
-                onClick={() => { setActiveTab(tab.key); window.requestAnimationFrame(scrollToVisualization) }}
-                className="top-tab-button whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold transition-colors"
-                style={isActive
-                  ? {
-                      background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.28), rgba(165, 28, 48, 0.12))',
-                      border: '1px solid rgba(212, 168, 106, 0.3)',
-                      color: '#fff7f4',
-                      boxShadow: 'inset 0 -2px 0 rgba(165, 28, 48, 0.9), 0 8px 22px rgba(15, 10, 8, 0.14)',
-                      minHeight: 44,
-                    }
-                  : {
-                      border: '1px solid var(--line)',
-                      color: 'var(--text-muted)',
-                      background: 'transparent',
-                      minHeight: 44,
-                    }}
-              >
-                {tab.label}
-              </button>
-            )
-          })}
+        <div ref={visualizationRef} className="mb-4">
+          <p className="kicker mb-1">Visual explorer</p>
+          <h2 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>Course Comparisons</h2>
         </div>
 
         {activeTab === 'comparisons' && (
