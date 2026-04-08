@@ -332,7 +332,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
           className="text-xs transition-colors hover:text-label"
           style={{ color: 'var(--gold)' }}
         >
-          Share Feedback →
+          Contact
         </a>
         {onReplayTour && (
           <button
