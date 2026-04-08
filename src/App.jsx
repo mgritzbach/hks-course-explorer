@@ -135,17 +135,19 @@ export default function App() {
           >
             ? User Guide
           </a>
-          <button
-            type="button"
-            data-tally-open={TALLY_FORM_ID}
-            data-tally-width="400"
-            data-tally-overlay="1"
-            data-tally-emoji-text="🐛"
-            data-tally-emoji-animation="wave"
-            className="theme-toggle mt-2 w-full"
-          >
-            🐛 Feedback
-          </button>
+          {TALLY_FORM_ID !== 'YOUR_FORM_ID' && (
+            <button
+              type="button"
+              data-tally-open={TALLY_FORM_ID}
+              data-tally-width="400"
+              data-tally-overlay="1"
+              data-tally-emoji-text="🐛"
+              data-tally-emoji-animation="wave"
+              className="theme-toggle mt-2 w-full"
+            >
+              🐛 Feedback
+            </button>
+          )}
         </div>
 
         {navItems.map((item) => (
@@ -194,17 +196,19 @@ export default function App() {
               >
                 ? Guide
               </a>
-              <button
-                type="button"
-                data-tally-open={TALLY_FORM_ID}
-                data-tally-width="400"
-                data-tally-overlay="1"
-                data-tally-emoji-text="🐛"
-                data-tally-emoji-animation="wave"
-                className="theme-toggle"
-              >
-                🐛
-              </button>
+              {TALLY_FORM_ID !== 'YOUR_FORM_ID' && (
+                <button
+                  type="button"
+                  data-tally-open={TALLY_FORM_ID}
+                  data-tally-width="400"
+                  data-tally-overlay="1"
+                  data-tally-emoji-text="🐛"
+                  data-tally-emoji-animation="wave"
+                  className="theme-toggle"
+                >
+                  🐛
+                </button>
+              )}
             </div>
           </div>
         </header>
