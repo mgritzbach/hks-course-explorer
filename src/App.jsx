@@ -115,7 +115,13 @@ export default function App() {
   const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
   const handleShareShortlist = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href)
+      // Always share the home page with the ?favs= param — never the current URL
+      // (so sharing from /compare or /faculty still produces a working shortlist link)
+      const favsParam = [...(favs?.favorites || [])].join(',')
+      const shareUrl = favsParam
+        ? `${window.location.origin}/?favs=${encodeURIComponent(favsParam)}`
+        : window.location.origin + '/'
+      await navigator.clipboard.writeText(shareUrl)
       setShareCopied(true)
       if (shareToastTimeoutRef.current) clearTimeout(shareToastTimeoutRef.current)
       shareToastTimeoutRef.current = setTimeout(() => setShareCopied(false), 1800)
