@@ -218,6 +218,13 @@ export default function ChatBot({ courses, favs }) {
             </button>
           </div>
 
+          {/* Disclaimer */}
+          <div style={{ padding: '7px 14px', borderBottom: '1px solid var(--line)', background: 'rgba(165,28,48,0.04)' }}>
+            <p style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              ⚠️ Based on free AI models — use as orientation only, not a reliable source of truth.
+            </p>
+          </div>
+
           {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {messages.map((msg, i) => (
