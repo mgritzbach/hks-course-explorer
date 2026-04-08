@@ -102,18 +102,50 @@ export default function ChatBot({ courses, favs }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg,
-          history: next.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+          history: next.slice(-4).map((m) => ({ role: m.role, content: m.content })),
           courses: condenseCourses(courses, userMsg, shortlistedCodes),
-          context: {
-            shortlisted: shortlistedNames,
-          },
+          context: { shortlisted: shortlistedNames },
         }),
       })
-      const data = await res.json()
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: data.reply || `Error: ${data.error || 'Unknown error (status ' + res.status + ')'}` },
-      ])
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}))
+        setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${data.error || res.status}` }])
+        return
+      }
+
+      // Stream tokens in as they arrive
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let reply = ''
+      setLoading(false)
+      setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const payload = line.slice(6).trim()
+          if (payload === '[DONE]') break
+          try {
+            const { token, error } = JSON.parse(payload)
+            if (error) { reply = `Error: ${error}`; break }
+            if (token) {
+              reply += token
+              setMessages((prev) => {
+                const updated = [...prev]
+                updated[updated.length - 1] = { role: 'assistant', content: reply }
+                return updated
+              })
+            }
+          } catch {}
+        }
+      }
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }])
     } finally {

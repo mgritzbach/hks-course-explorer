@@ -1,6 +1,5 @@
 export async function onRequestPost({ request, env }) {
-  const headers = {
-    'Content-Type': 'application/json',
+  const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
   }
 
@@ -9,19 +8,17 @@ export async function onRequestPost({ request, env }) {
     const shortlisted = Array.isArray(context?.shortlisted) ? context.shortlisted.filter(Boolean) : []
 
     const courseList = courses.length > 0
-      ? '\n\nRelevant HKS courses (percentile scores vs all courses; bid_price in points):\n' +
-        JSON.stringify(courses, null, 1)
+      ? '\n\nRelevant HKS courses (percentile scores; bid_price in points):\n' +
+        JSON.stringify(courses.slice(0, 15), null, 1)
       : ''
 
     const shortlistContext = shortlisted.length > 0
-      ? `The student has already shortlisted: ${shortlisted.join(', ')}. Consider their existing choices when making recommendations — avoid duplicates, suggest complementary courses, or flag if their load seems heavy.\n\n`
+      ? `Student has shortlisted: ${shortlisted.join(', ')}. Suggest complementary courses or flag heavy load.\n\n`
       : ''
 
-    const system = `${shortlistContext}You are a course advisor for Harvard Kennedy School (HKS). Help students find the right courses.
+    const system = `${shortlistContext}You are a concise HKS course advisor. Metrics are percentiles vs all HKS courses. bid_price = last bidding clearing price in points.
 
-Metrics are percentiles vs all HKS courses: rating = course quality, workload = amount of work (higher = more), instructor_rating = instructor quality. bid_price = last bidding clearing price in points (higher = more competitive to get in).
-
-Give 2–3 specific recommendations. For each include: course code, name, instructor, and one concise sentence on why it fits. Be direct and practical.${courseList}`
+Give 2–3 specific recommendations. For each: course code, name, instructor, one sentence why it fits. Be brief and direct.${courseList}`
 
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -33,29 +30,76 @@ Give 2–3 specific recommendations. For each include: course code, name, instru
       },
       body: JSON.stringify({
         model: 'openrouter/free',
-        max_tokens: 600,
+        max_tokens: 350,
+        stream: true,
         messages: [
           { role: 'system', content: system },
-          ...history,
+          ...history.slice(-4),
           { role: 'user', content: message },
         ],
       }),
     })
 
-    const data = await resp.json()
     if (!resp.ok) {
+      const data = await resp.json()
       return new Response(
-        JSON.stringify({ error: data.error?.message || 'OpenRouter error' }),
-        { status: 502, headers }
+        JSON.stringify({ error: data.error?.message || `OpenRouter error ${resp.status}` }),
+        { status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       )
     }
 
-    return new Response(
-      JSON.stringify({ reply: data.choices[0].message.content }),
-      { headers }
-    )
+    // Stream SSE tokens back to the client
+    const { readable, writable } = new TransformStream()
+    const writer = writable.getWriter()
+    const encoder = new TextEncoder()
+    const decoder = new TextDecoder()
+
+    ;(async () => {
+      const reader = resp.body.getReader()
+      let buffer = ''
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop()
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const payload = line.slice(6).trim()
+            if (payload === '[DONE]') {
+              await writer.write(encoder.encode('data: [DONE]\n\n'))
+              return
+            }
+            try {
+              const parsed = JSON.parse(payload)
+              const token = parsed.choices?.[0]?.delta?.content
+              if (token) {
+                await writer.write(encoder.encode(`data: ${JSON.stringify({ token })}\n\n`))
+              }
+            } catch {}
+          }
+        }
+        await writer.write(encoder.encode('data: [DONE]\n\n'))
+      } catch (err) {
+        await writer.write(encoder.encode(`data: ${JSON.stringify({ error: err.message })}\n\n`))
+      } finally {
+        await writer.close()
+      }
+    })()
+
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        ...corsHeaders,
+      },
+    })
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers })
+    return new Response(
+      JSON.stringify({ error: err.message }),
+      { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+    )
   }
 }
 
