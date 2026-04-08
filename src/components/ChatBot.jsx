@@ -69,7 +69,7 @@ export default function ChatBot({ courses }) {
       const data = await res.json()
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: data.reply || 'Sorry, something went wrong. Try again.' },
+        { role: 'assistant', content: data.reply || `Error: ${data.error || 'Unknown error (status ' + res.status + ')'}` },
       ])
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }])
