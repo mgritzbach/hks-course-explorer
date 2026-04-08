@@ -8,7 +8,7 @@ import Home from './pages/Home.jsx'
 import { useFavorites } from './useFavorites.js'
 
 // Tally form ID — create a form at tally.so, then paste the ID from the share URL here
-const TALLY_FORM_ID = 'YOUR_FORM_ID'
+const TALLY_FORM_ID = 'LZYAQv'
 
 export default function App() {
   const [data, setData] = useState(null)
