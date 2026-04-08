@@ -604,6 +604,52 @@ html[data-theme='light'] .app-footer {
   }
 }
 
+/* ─── Chat bot ───────────────────────────────────────────────────────────────── */
+
+.chat-fab {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); /* above mobile nav */
+  right: 16px;
+  z-index: 6001;
+  border-radius: 999px;
+  padding: 11px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.chat-fab:hover { transform: translateY(-2px); }
+
+.chat-panel {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: min(400px, 100vw);
+  height: min(580px, 82vh);
+  z-index: 6000;
+  border-radius: 22px 22px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .chat-fab {
+    bottom: 24px;
+    right: 24px;
+  }
+  .chat-panel {
+    bottom: 80px;
+    right: 24px;
+    border-radius: 22px;
+    height: min(580px, 82vh);
+  }
+}
+
 /* ─── Mobile: prevent iOS Safari auto-zoom on input focus ───────────────────── */
 
 @media (max-width: 767px) {

@@ -1,0 +1,204 @@
+import { useEffect, useRef, useState } from 'react'
+
+const WELCOME = "Hi! I'm your HKS course advisor. Tell me what you're looking for — topic, workload, instructor, bidding pressure — and I'll find the best matches from the 2025 catalog."
+
+function condenseCourses(courses, query) {
+  if (!courses?.length) return []
+  const keywords = query.toLowerCase().split(/\W+/).filter((w) => w.length > 2)
+  return courses
+    .filter((c) => !c.is_average && c.year === 2025)
+    .map((c) => {
+      const haystack = [c.course_name, c.course_code, c.professor_display, c.concentration].join(' ').toLowerCase()
+      const score = keywords.reduce((s, kw) => s + (haystack.includes(kw) ? 1 : 0), 0)
+      return { c, score }
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 25)
+    .map(({ c }) => ({
+      code: c.course_code,
+      name: c.course_name,
+      instructor: c.professor_display || c.professor,
+      concentration: c.concentration,
+      term: c.term,
+      rating: Math.round(c.metrics_pct?.Course_Rating ?? 0),
+      workload: Math.round(c.metrics_pct?.Workload ?? 0),
+      instructor_rating: Math.round(c.metrics_pct?.Instructor_Rating ?? 0),
+      bid_price: c.last_bid_price ?? null,
+      is_core: c.is_core,
+      stem: c.stem_group ?? null,
+    }))
+}
+
+export default function ChatBot({ courses }) {
+  const [open, setOpen] = useState(false)
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    if (open && messages.length === 0) {
+      setMessages([{ role: 'assistant', content: WELCOME }])
+    }
+    if (open) setTimeout(() => inputRef.current?.focus(), 120)
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
+
+  const send = async () => {
+    if (!input.trim() || loading) return
+    const userMsg = input.trim()
+    setInput('')
+    const next = [...messages, { role: 'user', content: userMsg }]
+    setMessages(next)
+    setLoading(true)
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg,
+          history: next.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+          courses: condenseCourses(courses, userMsg),
+        }),
+      })
+      const data = await res.json()
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: data.reply || 'Sorry, something went wrong. Try again.' },
+      ])
+    } catch {
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light'
+
+  return (
+    <>
+      {/* Floating button */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label={open ? 'Close course advisor' : 'Open course advisor'}
+        className="chat-fab"
+        style={{
+          background: open ? 'var(--panel-strong)' : 'var(--accent)',
+          color: open ? 'var(--text-muted)' : '#fff8f5',
+          border: open ? '1px solid var(--line)' : 'none',
+          boxShadow: open ? 'none' : '0 8px 24px rgba(165,28,48,0.42)',
+        }}
+      >
+        {open ? '✕' : '✦ Find my course'}
+      </button>
+
+      {/* Panel */}
+      {open && (
+        <div
+          className="chat-panel"
+          style={{
+            background: 'var(--panel-strong)',
+            border: '1px solid var(--line-strong)',
+            boxShadow: isLight
+              ? '0 -16px 48px rgba(80,40,40,0.14)'
+              : '0 -16px 48px rgba(0,0,0,0.48)',
+          }}
+        >
+          {/* Header */}
+          <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 16, color: 'var(--accent)' }}>✦</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Course Advisor</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>AI · HKS 2025 data · free</p>
+            </div>
+            <button
+              onClick={() => setOpen(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18, padding: '0 2px', lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {messages.map((msg, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div
+                  style={{
+                    maxWidth: '86%',
+                    padding: '10px 14px',
+                    borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                    background: msg.role === 'user'
+                      ? 'linear-gradient(160deg, rgba(165,28,48,0.30), rgba(165,28,48,0.14))'
+                      : 'var(--panel-subtle)',
+                    border: '1px solid var(--line)',
+                    fontSize: 13,
+                    lineHeight: 1.65,
+                    color: 'var(--text)',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <div style={{ padding: '10px 16px', borderRadius: '18px 18px 18px 4px', background: 'var(--panel-subtle)', border: '1px solid var(--line)', fontSize: 13, color: 'var(--text-muted)' }}>
+                  thinking…
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input */}
+          <div style={{ padding: '8px 12px calc(env(safe-area-inset-bottom, 0px) + 12px)', borderTop: '1px solid var(--line)', display: 'flex', gap: 8 }}>
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+              placeholder="light workload, climate policy, good ratings…"
+              style={{
+                flex: 1,
+                background: 'var(--panel-subtle)',
+                border: '1px solid var(--line)',
+                borderRadius: 12,
+                padding: '10px 14px',
+                fontSize: 13,
+                color: 'var(--text)',
+                outline: 'none',
+                minHeight: 44,
+              }}
+            />
+            <button
+              onClick={send}
+              disabled={!input.trim() || loading}
+              style={{
+                background: 'var(--accent)',
+                color: '#fff8f5',
+                border: 'none',
+                borderRadius: 12,
+                padding: '10px 16px',
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: input.trim() && !loading ? 'pointer' : 'not-allowed',
+                opacity: input.trim() && !loading ? 1 : 0.45,
+                minHeight: 44,
+                transition: 'opacity 0.15s',
+              }}
+            >
+              →
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
