@@ -240,6 +240,8 @@ function CustomTooltip({ active, payload }) {
 
 function CustomDot({ cx, cy, payload, onClick }) {
   if (cx == null || cy == null) return null
+  const light = document.documentElement.getAttribute('data-theme') === 'light'
+  const dotStroke = light ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.22)'
 
   const color = payload._color || 'var(--blue)'
   const opacity = payload._opacity ?? 1
@@ -252,7 +254,7 @@ function CustomDot({ cx, cy, payload, onClick }) {
         points={`${cx},${cy - delta} ${cx + delta},${cy} ${cx},${cy + delta} ${cx - delta},${cy}`}
         fill={color}
         fillOpacity={opacity}
-        stroke="rgba(255,255,255,0.22)"
+        stroke={dotStroke}
         strokeWidth={0.5}
         style={{ cursor: 'pointer' }}
         onClick={() => onClick && onClick(payload)}
@@ -267,7 +269,7 @@ function CustomDot({ cx, cy, payload, onClick }) {
       r={size}
       fill={color}
       fillOpacity={opacity}
-      stroke="rgba(255,255,255,0.18)"
+      stroke={dotStroke}
       strokeWidth={0.5}
       style={{ cursor: payload._noHover ? 'default' : 'pointer', pointerEvents: payload._noHover ? 'none' : 'auto' }}
       onClick={payload._noHover ? undefined : () => onClick && onClick(payload)}
@@ -286,6 +288,7 @@ export default function ScatterPlot({
   onYChange,
   metricMode = 'score',
   colorblindMode = false,
+  isLight = false,
 }) {
   const navigate = useNavigate()
   const [pinnedDatum, setPinnedDatum] = useState(null)
@@ -498,7 +501,7 @@ export default function ScatterPlot({
         marker: {
           size: 11,
           color: matchedData.map((datum) => datum._color),
-          line: { color: 'rgba(255,255,255,0.16)', width: 0.8 },
+          line: { color: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.16)', width: 0.8 },
         },
       })
     }
@@ -516,7 +519,7 @@ export default function ScatterPlot({
           size: 12,
           symbol: 'diamond',
           color: '#d4a86a',
-          line: { color: 'rgba(255,255,255,0.22)', width: 0.8 },
+          line: { color: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.22)', width: 0.8 },
         },
       })
     }

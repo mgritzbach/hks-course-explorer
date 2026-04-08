@@ -105,7 +105,7 @@ function MetricBar({ value, best, higherBetter }) {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <div className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+        <div className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--track-bg)' }}>
           <div
             className="absolute left-0 top-0 h-full rounded-full transition-all"
             style={{ width: `${value}%`, background: barColor, opacity: best ? 0.9 : 0.45 }}
@@ -502,7 +502,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
                           style={{
                             gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
                             borderColor: 'var(--line)',
-                            background: attrIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.012)',
+                            background: attrIdx % 2 === 0 ? 'transparent' : 'var(--panel-subtle)',
                           }}
                         >
                           {/* Attr label */}
@@ -530,7 +530,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
                                 className="border-r px-3 py-3 last:border-r-0"
                                 style={{
                                   borderColor: 'var(--line)',
-                                  background: isBest ? (attr.higherBetter ? 'rgba(123,176,138,0.06)' : 'rgba(165,28,48,0.06)') : 'transparent',
+                                  background: isBest ? (attr.higherBetter ? 'rgba(123,176,138,0.12)' : 'rgba(165,28,48,0.10)') : 'transparent',
                                 }}
                               >
                                 {attr.type === 'pct' ? (

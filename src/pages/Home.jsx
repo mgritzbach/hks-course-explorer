@@ -493,6 +493,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             onYChange={setYMetric}
             metricMode={metricMode}
             colorblindMode={colorblindMode}
+            isLight={document.documentElement.getAttribute('data-theme') === 'light'}
           />
           </div>
         )}

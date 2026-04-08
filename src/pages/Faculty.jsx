@@ -46,7 +46,7 @@ function MetricBar({ label, value, higherBetter = true, neutral = false }) {
   return (
     <div className="mb-2">
       <div className="mb-0.5 flex justify-between text-xs"><span className="text-muted">{label}</span><span className="font-medium text-label">{rounded}%</span></div>
-      <div className="h-1 w-full rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}><div className="h-1 rounded-full" style={{ width: `${rounded}%`, background: color }} /></div>
+      <div className="h-1 w-full rounded-full" style={{ background: 'var(--track-bg)' }}><div className="h-1 rounded-full" style={{ width: `${rounded}%`, background: color }} /></div>
     </div>
   )
 }
