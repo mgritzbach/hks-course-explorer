@@ -55,6 +55,12 @@ const DEFAULT_SELECTED = new Set([
   'Diverse Perspectives', 'concentration', 'is_core', 'ever_bidding', 'last_bid_price',
 ])
 
+// Keys that belong to the "Key Metrics" group — everything else goes in "Detailed Evaluation"
+const KEY_METRIC_KEYS = new Set([
+  'Instructor_Rating', 'Course_Rating', 'Workload', 'Rigor',
+  'concentration', 'is_core', 'ever_bidding', 'last_bid_price',
+])
+
 function pct(value) {
   if (value == null) return null
   return Math.round(value)
@@ -87,27 +93,35 @@ function getBestIndex(courses, attr, metricMode = 'score') {
 
 function MetricBar({ value, best, higherBetter }) {
   if (value == null) return <span className="text-muted">—</span>
-  const isBest = best
   const rounded = Math.round(value)
-  // Color based on whether the value is genuinely good or bad, not just "best in group"
   const barColor = higherBetter
     ? (rounded >= 75 ? 'var(--success)' : rounded >= 50 ? 'var(--gold)' : 'var(--danger)')
     : (rounded <= 25 ? 'var(--success)' : rounded <= 50 ? 'var(--gold)' : 'var(--danger)')
+  // Text label for colorblind accessibility
+  const label = higherBetter
+    ? (rounded >= 75 ? 'Strong' : rounded >= 50 ? 'Avg' : 'Weak')
+    : (rounded <= 25 ? 'Light' : rounded <= 50 ? 'Moderate' : 'Heavy')
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: `rgba(255,255,255,0.08)` }}>
-        <div
-          className="absolute left-0 top-0 h-full rounded-full transition-all"
-          style={{ width: `${value}%`, background: barColor, opacity: isBest ? 0.85 : 0.45 }}
-        />
+    <div>
+      <div className="flex items-center gap-2">
+        <div className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+          <div
+            className="absolute left-0 top-0 h-full rounded-full transition-all"
+            style={{ width: `${value}%`, background: barColor, opacity: best ? 0.9 : 0.45 }}
+          />
+        </div>
+        <span
+          className="w-10 shrink-0 text-right text-xs font-semibold"
+          style={{ color: barColor, opacity: best ? 1 : 0.7 }}
+        >
+          {value}%
+        </span>
       </div>
-      <span
-        className="w-10 shrink-0 text-right text-xs font-semibold"
-        style={{ color: barColor, opacity: isBest ? 1 : 0.7 }}
-      >
-        {value}%
-      </span>
+      <div className="flex items-center justify-between" style={{ marginTop: 2 }}>
+        <span style={{ fontSize: 10, color: barColor, opacity: best ? 0.85 : 0.5 }}>{label}</span>
+        {best && <span style={{ fontSize: 9, color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.04em' }}>★ best</span>}
+      </div>
     </div>
   )
 }
@@ -139,6 +153,16 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
   const [attrPanelOpen, setAttrPanelOpen] = useState(false)
   const [plannerOpen, setPlannerOpen] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set(['Detailed Evaluation']))
+
+  const toggleGroup = (label) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
+  }
 
   const handleReplayTour = () => {
     localStorage.removeItem('hks-tour-compare')
@@ -204,6 +228,12 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
   }
 
   const allAttrs = ATTRIBUTE_GROUPS.flatMap((g) => g.attrs).filter((a) => selectedAttrs.has(a.key))
+
+  // Group attrs for collapsible table sections
+  const tableGroups = [
+    { label: 'Key Metrics',        attrs: allAttrs.filter((a) =>  KEY_METRIC_KEYS.has(a.key)) },
+    { label: 'Detailed Evaluation', attrs: allAttrs.filter((a) => !KEY_METRIC_KEYS.has(a.key)) },
+  ].filter((g) => g.attrs.length > 0)
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
@@ -380,115 +410,153 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
 
           <div className="overflow-x-auto">
             <div className="surface-card mt-5 overflow-hidden rounded-[22px]" style={{ minWidth: `${200 + selectedCourses.length * 160}px` }}>
-            {/* Course headers */}
-            <div
-              className="grid border-b"
-              style={{
-                gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
-                borderColor: 'var(--line)',
-                background: 'var(--panel-subtle)',
-              }}
-            >
-            <div className="border-r px-4 py-4" style={{ borderColor: 'var(--line)' }}>
-              <p className="filter-label">Attribute</p>
-            </div>
-            {selectedCourses.map((course) => (
+
+              {/* Sticky course headers */}
               <div
-                key={course.id}
-                className="border-r px-3 py-3 last:border-r-0"
-                style={{ borderColor: 'var(--line)' }}
+                className="grid border-b"
+                style={{
+                  gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
+                  borderColor: 'var(--line)',
+                  background: 'var(--panel-subtle)',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10,
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                }}
               >
-                <button
-                  onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}
-                  className="block text-left transition-opacity hover:opacity-80"
-                >
-                  <p className="text-xs font-bold" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</p>
-                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-label">{course.course_name}</p>
-                  <p className="mt-1 truncate text-[10px] text-muted">{course.professor_display}</p>
-                  <p className="text-[10px] text-muted">
-                    {course.is_average ? `avg ${course.year_range}` : `${course.term} ${course.year}`}
-                  </p>
-                </button>
-                <button
-                  onClick={() => removeCourse(course.id)}
-                  className="mt-2 text-[10px] text-muted transition-colors hover:text-label"
-                >
-                  Remove ×
-                </button>
-              </div>
-            ))}
-          </div>
-
-            {/* Attribute rows */}
-            {allAttrs.map((attr, attrIdx) => {
-              const bestIndex = getBestIndex(selectedCourses, attr, metricMode)
-              return (
-                <div
-                  key={attr.key}
-                  className="grid border-b last:border-b-0"
-                  style={{
-                    gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
-                    borderColor: 'var(--line)',
-                    background: attrIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.012)',
-                  }}
-                >
-                {/* Attr label */}
-                <div
-                  className="border-r px-4 py-3"
-                  style={{ borderColor: 'var(--line)', display: 'flex', alignItems: 'center' }}
-                >
-                  <div>
-                    <p className="text-[11px] font-semibold text-label">{attr.label}</p>
-                    {attr.type === 'pct' && (
-                      <p className="text-[10px] text-muted">
-                        {attr.higherBetter ? 'higher better' : 'lower better'}
-                      </p>
-                    )}
-                  </div>
+                <div className="border-r px-4 py-4" style={{ borderColor: 'var(--line)' }}>
+                  <p className="filter-label">Attribute</p>
                 </div>
+                {selectedCourses.map((course) => (
+                  <div
+                    key={course.id}
+                    className="border-r px-3 py-3 last:border-r-0"
+                    style={{ borderColor: 'var(--line)' }}
+                  >
+                    <button
+                      onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}
+                      className="block text-left transition-opacity hover:opacity-80"
+                    >
+                      <p className="text-xs font-bold" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</p>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-label">{course.course_name}</p>
+                      <p className="mt-1 truncate text-[10px] text-muted">{course.professor_display}</p>
+                      <p className="text-[10px] text-muted">
+                        {course.is_average ? `avg ${course.year_range}` : `${course.term} ${course.year}`}
+                      </p>
+                    </button>
+                    <button
+                      onClick={() => removeCourse(course.id)}
+                      className="mt-2 text-[10px] text-muted transition-colors hover:text-label"
+                    >
+                      Remove ×
+                    </button>
+                  </div>
+                ))}
+              </div>
 
-                {/* Course cells */}
-                {selectedCourses.map((course, courseIdx) => {
-                  const value = getCellValue(course, attr, metricMode)
-                  const isBest = courseIdx === bestIndex
-
-                  return (
-                    <div
-                      key={course.id}
-                      className="border-r px-3 py-3 last:border-r-0"
+              {/* Grouped attribute rows */}
+              {tableGroups.map((group) => {
+                const isCollapsed = collapsedGroups.has(group.label)
+                return (
+                  <div key={group.label}>
+                    {/* Group header row */}
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group.label)}
+                      className="grid w-full border-b text-left"
                       style={{
+                        gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
                         borderColor: 'var(--line)',
-                        background: isBest ? (attr.higherBetter ? 'rgba(123,176,138,0.06)' : 'rgba(165,28,48,0.06)') : 'transparent',
+                        background: 'linear-gradient(90deg, rgba(165,28,48,0.07), rgba(165,28,48,0.02))',
                       }}
                     >
-                      {attr.type === 'pct' ? (
-                        <MetricBar
-                          value={pct(value)}
-                          best={isBest}
-                          higherBetter={attr.higherBetter}
-                        />
-                      ) : attr.type === 'bool' ? (
+                      <div
+                        className="col-span-full flex items-center gap-2 px-4 py-2"
+                        style={{ gridColumn: `1 / -1` }}
+                      >
                         <span
-                          className="text-xs font-semibold"
-                          style={{ color: value ? 'var(--success)' : 'var(--text-muted)' }}
+                          style={{
+                            fontSize: 10,
+                            color: 'var(--accent-strong)',
+                            fontWeight: 700,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                          }}
                         >
-                          {value ? 'Yes' : 'No'}
+                          {group.label}
                         </span>
-                      ) : attr.type === 'bid' ? (
-                        <span className="text-xs font-semibold" style={{ color: value ? 'var(--gold)' : 'var(--text-muted)' }}>
-                          {value != null ? `${value} pts` : '—'}
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                          {isCollapsed ? `▶ Show ${group.attrs.length}` : `▼ Hide`}
                         </span>
-                      ) : (
-                        <span className="text-xs" style={{ color: value ? 'var(--text-soft)' : 'var(--text-muted)' }}>
-                          {value ?? '—'}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })}
+                      </div>
+                    </button>
+
+                    {/* Rows (hidden when collapsed) */}
+                    {!isCollapsed && group.attrs.map((attr, attrIdx) => {
+                      const bestIndex = getBestIndex(selectedCourses, attr, metricMode)
+                      return (
+                        <div
+                          key={attr.key}
+                          className="grid border-b last:border-b-0"
+                          style={{
+                            gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
+                            borderColor: 'var(--line)',
+                            background: attrIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.012)',
+                          }}
+                        >
+                          {/* Attr label */}
+                          <div
+                            className="border-r px-4 py-3"
+                            style={{ borderColor: 'var(--line)', display: 'flex', alignItems: 'center' }}
+                          >
+                            <div>
+                              <p className="text-[11px] font-semibold text-label">{attr.label}</p>
+                              {attr.type === 'pct' && (
+                                <p className="text-[10px] text-muted">
+                                  {attr.higherBetter ? 'higher better' : 'lower better'}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Course cells */}
+                          {selectedCourses.map((course, courseIdx) => {
+                            const value = getCellValue(course, attr, metricMode)
+                            const isBest = courseIdx === bestIndex
+                            return (
+                              <div
+                                key={course.id}
+                                className="border-r px-3 py-3 last:border-r-0"
+                                style={{
+                                  borderColor: 'var(--line)',
+                                  background: isBest ? (attr.higherBetter ? 'rgba(123,176,138,0.06)' : 'rgba(165,28,48,0.06)') : 'transparent',
+                                }}
+                              >
+                                {attr.type === 'pct' ? (
+                                  <MetricBar value={pct(value)} best={isBest} higherBetter={attr.higherBetter} />
+                                ) : attr.type === 'bool' ? (
+                                  <span className="text-xs font-semibold" style={{ color: value ? 'var(--success)' : 'var(--text-muted)' }}>
+                                    {value ? 'Yes' : 'No'}
+                                  </span>
+                                ) : attr.type === 'bid' ? (
+                                  <span className="text-xs font-semibold" style={{ color: value ? 'var(--gold)' : 'var(--text-muted)' }}>
+                                    {value != null ? `${value} pts` : '—'}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs" style={{ color: value ? 'var(--text-soft)' : 'var(--text-muted)' }}>
+                                    {value ?? '—'}
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </>
