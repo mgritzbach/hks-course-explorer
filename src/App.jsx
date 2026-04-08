@@ -7,6 +7,9 @@ import Faculty from './pages/Faculty.jsx'
 import Home from './pages/Home.jsx'
 import { useFavorites } from './useFavorites.js'
 
+// Tally form ID — create a form at tally.so, then paste the ID from the share URL here
+const TALLY_FORM_ID = 'YOUR_FORM_ID'
+
 export default function App() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -132,6 +135,17 @@ export default function App() {
           >
             ? User Guide
           </a>
+          <button
+            type="button"
+            data-tally-open={TALLY_FORM_ID}
+            data-tally-width="400"
+            data-tally-overlay="1"
+            data-tally-emoji-text="🐛"
+            data-tally-emoji-animation="wave"
+            className="theme-toggle mt-2 w-full"
+          >
+            🐛 Feedback
+          </button>
         </div>
 
         {navItems.map((item) => (
@@ -180,6 +194,17 @@ export default function App() {
               >
                 ? Guide
               </a>
+              <button
+                type="button"
+                data-tally-open={TALLY_FORM_ID}
+                data-tally-width="400"
+                data-tally-overlay="1"
+                data-tally-emoji-text="🐛"
+                data-tally-emoji-animation="wave"
+                className="theme-toggle"
+              >
+                🐛
+              </button>
             </div>
           </div>
         </header>

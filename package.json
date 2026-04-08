@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "plotly.js-dist-min": "^2.29.0",
+    "posthog-js": "^1.365.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-plotly.js": "^2.6.0",
