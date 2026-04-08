@@ -413,7 +413,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
                 {pageTitle(filters)}
               </h1>
               <p className="mt-3 max-w-3xl text-sm md:text-[15px]" style={{ color: 'var(--text-soft)' }}>
-                Compare course quality, scan bidding pressure, and move through HKS offerings with a cleaner, more editorial experience inspired by a polished Harvard of the 2030s.
+                Cut through the HKS course selection chaos. Compare ratings, workload, and bidding history across every offering — so you can actually make an informed choice.
               </p>
             </div>
 

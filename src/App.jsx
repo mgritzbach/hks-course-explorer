@@ -133,7 +133,7 @@ export default function App() {
             className="theme-toggle mt-2 block text-center"
             style={{ textDecoration: 'none' }}
           >
-            ? User Guide
+            ⓘ User Guide
           </a>
           {TALLY_FORM_ID !== 'YOUR_FORM_ID' && (
             <button
@@ -194,7 +194,7 @@ export default function App() {
                 className="theme-toggle"
                 style={{ textDecoration: 'none' }}
               >
-                ? Guide
+                ⓘ Guide
               </a>
               {TALLY_FORM_ID !== 'YOUR_FORM_ID' && (
                 <button
