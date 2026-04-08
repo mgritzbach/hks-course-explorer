@@ -16,9 +16,9 @@ export async function onRequestPost({ request, env }) {
       ? `Student has shortlisted: ${shortlisted.join(', ')}. Suggest complementary courses or flag heavy load.\n\n`
       : ''
 
-    const system = `${shortlistContext}You are a concise HKS course advisor. Metrics are percentiles vs all HKS courses. bid_price = last bidding clearing price in points.
+    const system = `${shortlistContext}You are a concise HKS course advisor. All _pct fields are percentile scores (0–100) vs all HKS courses — NOT hours or raw scores. Higher rating_pct = better rated. Higher workload_pct = heavier workload. bid_price_pts = last bidding clearing price in points.
 
-Give 2–3 specific recommendations. For each: course code, name, instructor, one sentence why it fits. Be brief and direct.${courseList}`
+Give 2–3 specific recommendations. For each: course code, name, instructor, one sentence why it fits. When citing metrics always say e.g. "workload: 68th percentile", never "68 hours". Be brief and direct.${courseList}`
 
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
