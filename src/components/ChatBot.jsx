@@ -1,3 +1,4 @@
+import posthog from 'posthog-js'
 import { useEffect, useRef, useState } from 'react'
 
 const WELCOME = "Hi! I'm your HKS course advisor. Tell me what you're looking for — topic, workload, instructor, bidding pressure — and I'll find the best matches from the 2025 catalog."
@@ -75,6 +76,7 @@ export default function ChatBot({ courses, favs }) {
   useEffect(() => {
     if (open && messages.length === 0) {
       setMessages([{ role: 'assistant', content: WELCOME }])
+      posthog.capture('chatbot_opened')
     }
     if (open) setTimeout(() => inputRef.current?.focus(), 120)
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -87,6 +89,7 @@ export default function ChatBot({ courses, favs }) {
     if (!input.trim() || loading) return
     const userMsg = input.trim()
     setInput('')
+    posthog.capture('chatbot_message_sent', { message_length: userMsg.length, turn: messages.filter(m => m.role === 'user').length + 1 })
     const next = [...messages, { role: 'user', content: userMsg }]
     setMessages(next)
     setLoading(true)

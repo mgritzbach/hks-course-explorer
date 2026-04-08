@@ -1,3 +1,4 @@
+import posthog from 'posthog-js'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import ChatBot from './components/ChatBot.jsx'
@@ -35,10 +36,12 @@ export default function App() {
 
   const setMetricMode = (mode) => {
     window.localStorage.setItem('hks-metric-mode', mode)
+    posthog.capture('metric_mode_changed', { mode })
     setMetricModeState(mode)
   }
   const setColorblindMode = (val) => {
     window.localStorage.setItem('hks-colorblind', String(val))
+    if (val) posthog.capture('colorblind_mode_enabled')
     setColorblindModeState(val)
   }
 
@@ -112,7 +115,11 @@ export default function App() {
       isActive ? 'text-white' : 'text-label'
     }`
 
-  const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    posthog.capture('theme_switched', { theme: next })
+    setTheme(next)
+  }
   const handleShareShortlist = async () => {
     try {
       // Always share the home page with the ?favs= param — never the current URL
@@ -122,6 +129,7 @@ export default function App() {
         ? `${window.location.origin}/?favs=${encodeURIComponent(favsParam)}`
         : window.location.origin + '/'
       await navigator.clipboard.writeText(shareUrl)
+      posthog.capture('shortlist_shared', { course_count: favs?.count || 0 })
       setShareCopied(true)
       if (shareToastTimeoutRef.current) clearTimeout(shareToastTimeoutRef.current)
       shareToastTimeoutRef.current = setTimeout(() => setShareCopied(false), 1800)

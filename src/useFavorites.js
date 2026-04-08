@@ -1,3 +1,4 @@
+import posthog from 'posthog-js'
 import { useCallback, useEffect, useState } from 'react'
 
 const KEY = 'hks_favorites'
@@ -49,8 +50,13 @@ export function useFavorites() {
 
   const toggle = useCallback((courseCodeBase) => {
     setFavorites((prev) => {
+      const adding = !prev.has(courseCodeBase)
+      posthog.capture(adding ? 'course_shortlisted' : 'course_unshortlisted', {
+        course_code: courseCodeBase,
+        shortlist_size: prev.size + (adding ? 1 : -1),
+      })
       const next = new Set(prev)
-      next.has(courseCodeBase) ? next.delete(courseCodeBase) : next.add(courseCodeBase)
+      adding ? next.add(courseCodeBase) : next.delete(courseCodeBase)
       return next
     })
   }, [])
