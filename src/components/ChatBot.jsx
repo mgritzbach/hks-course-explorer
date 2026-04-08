@@ -2,10 +2,50 @@ import { useEffect, useRef, useState } from 'react'
 
 const WELCOME = "Hi! I'm your HKS course advisor. Tell me what you're looking for — topic, workload, instructor, bidding pressure — and I'll find the best matches from the 2025 catalog."
 
-function condenseCourses(courses, query) {
+function dedupeCourseSummaries(items, limit = 30) {
+  const seen = new Set()
+  const deduped = []
+  for (const item of items) {
+    if (!item?.code || seen.has(item.code)) continue
+    seen.add(item.code)
+    deduped.push(item)
+    if (deduped.length >= limit) break
+  }
+  return deduped
+}
+
+function toCourseSummary(course) {
+  return {
+    code: course.course_code,
+    name: course.course_name,
+    instructor: course.professor_display || course.professor,
+    concentration: course.concentration,
+    term: course.term,
+    rating: Math.round(coursesafe(course.metrics_pct?.Course_Rating)),
+    workload: Math.round(coursesafe(course.metrics_pct?.Workload)),
+    instructor_rating: Math.round(coursesafe(course.metrics_pct?.Instructor_Rating)),
+    bid_price: course.last_bid_price ?? null,
+    is_core: course.is_core,
+    stem: course.stem_group ?? null,
+  }
+}
+
+function coursesafe(value) {
+  return Number.isFinite(value) ? value : 0
+}
+
+function rankCourse(course) {
+  if (course.is_average) return 3
+  if (course.year === 2025) return 2
+  return 1
+}
+
+function condenseCourses(courses, query, shortlistedCodes = []) {
   if (!courses?.length) return []
   const keywords = query.toLowerCase().split(/\W+/).filter((w) => w.length > 2)
-  return courses
+  const shortlistedSet = new Set(shortlistedCodes)
+
+  const keywordMatches = courses
     .filter((c) => !c.is_average && c.year === 2025)
     .map((c) => {
       const haystack = [c.course_name, c.course_code, c.professor_display, c.concentration].join(' ').toLowerCase()
@@ -14,22 +54,17 @@ function condenseCourses(courses, query) {
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 25)
-    .map(({ c }) => ({
-      code: c.course_code,
-      name: c.course_name,
-      instructor: c.professor_display || c.professor,
-      concentration: c.concentration,
-      term: c.term,
-      rating: Math.round(c.metrics_pct?.Course_Rating ?? 0),
-      workload: Math.round(c.metrics_pct?.Workload ?? 0),
-      instructor_rating: Math.round(c.metrics_pct?.Instructor_Rating ?? 0),
-      bid_price: c.last_bid_price ?? null,
-      is_core: c.is_core,
-      stem: c.stem_group ?? null,
-    }))
+    .map(({ c }) => toCourseSummary(c))
+
+  const shortlistedCourses = courses
+    .filter((course) => shortlistedSet.has(course.course_code_base || course.course_code))
+    .sort((a, b) => rankCourse(b) - rankCourse(a) || (b.year || 0) - (a.year || 0))
+    .map((course) => toCourseSummary(course))
+
+  return dedupeCourseSummaries([...shortlistedCourses, ...keywordMatches], 30)
 }
 
-export default function ChatBot({ courses }) {
+export default function ChatBot({ courses, favs }) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -57,13 +92,21 @@ export default function ChatBot({ courses }) {
     setLoading(true)
 
     try {
+      const shortlistedCodes = Array.from(favs?.favorites || [])
+      const shortlistedNames = shortlistedCodes
+        .map((code) => courses.find((course) => (course.course_code_base || course.course_code) === code)?.course_name)
+        .filter(Boolean)
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg,
           history: next.slice(-6).map((m) => ({ role: m.role, content: m.content })),
-          courses: condenseCourses(courses, userMsg),
+          courses: condenseCourses(courses, userMsg, shortlistedCodes),
+          context: {
+            shortlisted: shortlistedNames,
+          },
         }),
       })
       const data = await res.json()

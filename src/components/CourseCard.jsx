@@ -19,9 +19,10 @@ function RatingBadge({ label, value, color }) {
   )
 }
 
-export default function CourseCard({ course, favs, metricMode = 'score', yearMedianInstructor = null }) {
+export default function CourseCard({ course, favs, metricMode = 'score', yearMedianInstructor = null, notes, setNote }) {
   const navigate = useNavigate()
   const starred = favs?.isFavorite(course.course_code_base)
+  const note = notes?.[course.course_code_base] || ''
 
   const metricSrc = metricMode === 'score' ? course.metrics_score : course.metrics_pct
   const instructorPct = metricSrc?.Instructor_Rating
@@ -206,6 +207,24 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
           </button>
         )}
       </div>
+
+      {starred && setNote && (
+        <textarea
+          value={note}
+          onChange={(event) => setNote(course.course_code_base, event.target.value)}
+          placeholder="Add a note… (visible only to you)"
+          rows={3}
+          className="mt-3 w-full rounded-xl px-3 py-2"
+          style={{
+            background: 'var(--panel-subtle)',
+            border: '1px solid var(--line)',
+            color: 'var(--text)',
+            fontSize: 11,
+            lineHeight: 1.45,
+            resize: 'none',
+          }}
+        />
+      )}
     </div>
   )
 }

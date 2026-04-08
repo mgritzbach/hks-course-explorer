@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import ChatBot from './components/ChatBot.jsx'
 import LandingSplash from './components/LandingSplash.jsx'
@@ -7,6 +7,7 @@ import Courses from './pages/Courses.jsx'
 import Faculty from './pages/Faculty.jsx'
 import Home from './pages/Home.jsx'
 import { useFavorites } from './useFavorites.js'
+import { useNotes } from './useNotes.js'
 
 // Tally form ID — create a form at tally.so, then paste the ID from the share URL here
 const TALLY_FORM_ID = 'LZYAQv'
@@ -27,7 +28,10 @@ export default function App() {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem('hks-colorblind') === 'true'
   })
+  const [shareCopied, setShareCopied] = useState(false)
   const favs = useFavorites()
+  const { notes, setNote } = useNotes()
+  const shareToastTimeoutRef = useRef(null)
 
   const setMetricMode = (mode) => {
     window.localStorage.setItem('hks-metric-mode', mode)
@@ -42,6 +46,12 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme)
     window.localStorage.setItem('hks-theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    return () => {
+      if (shareToastTimeoutRef.current) clearTimeout(shareToastTimeoutRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     fetch('/courses.json', { cache: 'no-cache' })
@@ -103,11 +113,19 @@ export default function App() {
     }`
 
   const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+  const handleShareShortlist = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setShareCopied(true)
+      if (shareToastTimeoutRef.current) clearTimeout(shareToastTimeoutRef.current)
+      shareToastTimeoutRef.current = setTimeout(() => setShareCopied(false), 1800)
+    } catch {}
+  }
 
   return (
     <div className="flex min-h-screen md:h-screen" style={{ background: 'transparent' }}>
       <LandingSplash />
-      {data && <ChatBot courses={data.courses} />}
+      {data && <ChatBot courses={data.courses} favs={favs} />}
       {/* Desktop sidebar nav */}
       <nav
         className="hidden shrink-0 flex-col px-3 py-4 md:flex"
@@ -167,6 +185,13 @@ export default function App() {
             {item.label}
           </NavLink>
         ))}
+        {favs.count > 0 && (
+          <div className="mt-auto">
+            <button type="button" onClick={handleShareShortlist} className="theme-toggle mx-2">
+              Share Shortlist
+            </button>
+          </div>
+        )}
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -218,7 +243,7 @@ export default function App() {
         {/* Page content */}
         <div className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
           <Routes>
-            <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />} />
+            <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} notes={notes} setNote={setNote} />} />
             <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />} />
             <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} />} />
             <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} />} />
@@ -235,6 +260,13 @@ export default function App() {
             paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
           }}
         >
+          {favs.count > 0 && (
+            <div className="mx-auto mb-2 flex max-w-md justify-center">
+              <button type="button" onClick={handleShareShortlist} className="theme-toggle" style={{ minHeight: 44 }}>
+                Share Shortlist
+              </button>
+            </div>
+          )}
           <div className="mx-auto flex max-w-md gap-1 rounded-[24px] border p-2 shadow-[0_-12px_28px_rgba(0,0,0,0.28)]" style={{ borderColor: 'var(--line)', background: 'var(--nav-shell-strong)' }}>
             {navItems.map((item) => (
               <NavLink
@@ -253,6 +285,18 @@ export default function App() {
           </div>
         </nav>
       </div>
+      {shareCopied && (
+        <div
+          className="fixed bottom-[160px] right-4 z-50 rounded-full px-3 py-2 text-xs font-medium md:bottom-20"
+          style={{
+            background: 'var(--panel-subtle)',
+            border: '1px solid var(--line)',
+            color: 'var(--text)',
+          }}
+        >
+          Copied!
+        </div>
+      )}
     </div>
   )
 }

@@ -158,6 +158,9 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
             Weighted averages across all years — best for comparing instructors long-term.
           </p>
         )}
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
+          Data: HKS evals through 2025 · Bidding 2024–25
+        </div>
       </div>
 
       {/* Concentration */}
@@ -327,6 +330,20 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
 
       {/* Footer */}
       <div className="mt-auto border-t px-4 pb-5 pt-4" style={{ borderColor: 'var(--line)' }}>
+        <div
+          style={{
+            fontSize: 10,
+            color: 'var(--text-muted)',
+            lineHeight: 1.6,
+            paddingBottom: 8,
+            borderBottom: '1px solid var(--line)',
+            marginBottom: 8,
+          }}
+        >
+          <div>Built by Michael Gritzbach</div>
+          <div>MPA '26 · KSSG 2025 & 2026</div>
+          <div>For future HKS generations</div>
+        </div>
         <a
           href="mailto:mgritzbach@hks.harvard.edu"
           className="text-xs transition-colors hover:text-label"

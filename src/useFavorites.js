@@ -3,7 +3,23 @@ import { useCallback, useEffect, useState } from 'react'
 const KEY = 'hks_favorites'
 
 function load() {
-  try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]')) }
+  if (typeof window !== 'undefined') {
+    try {
+      const favsParam = new URLSearchParams(window.location.search).get('favs')
+      if (favsParam) {
+        return new Set(
+          favsParam
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean)
+        )
+      }
+    } catch {}
+  }
+
+  if (typeof window === 'undefined') return new Set()
+
+  try { return new Set(JSON.parse(window.localStorage.getItem(KEY) || '[]')) }
   catch { return new Set() }
 }
 
@@ -12,7 +28,23 @@ export function useFavorites() {
 
   // Sync to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify([...favorites]))
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify([...(favorites || [])]))
+    } catch {
+      return undefined
+    }
+    return undefined
+  }, [favorites])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const url = new URL(window.location.href)
+    if ((favorites?.size || 0) > 0) url.searchParams.set('favs', [...favorites].join(','))
+    else url.searchParams.delete('favs')
+
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+    return undefined
   }, [favorites])
 
   const toggle = useCallback((courseCodeBase) => {
@@ -23,7 +55,7 @@ export function useFavorites() {
     })
   }, [])
 
-  const isFavorite = useCallback((courseCodeBase) => favorites.has(courseCodeBase), [favorites])
+  const isFavorite = useCallback((courseCodeBase) => favorites?.has(courseCodeBase) || false, [favorites])
 
-  return { favorites, toggle, isFavorite, count: favorites.size }
+  return { favorites, toggle, isFavorite, count: favorites?.size || 0 }
 }

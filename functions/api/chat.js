@@ -5,14 +5,19 @@ export async function onRequestPost({ request, env }) {
   }
 
   try {
-    const { message, history = [], courses = [] } = await request.json()
+    const { message, history = [], courses = [], context = {} } = await request.json()
+    const shortlisted = Array.isArray(context?.shortlisted) ? context.shortlisted.filter(Boolean) : []
 
     const courseList = courses.length > 0
       ? '\n\nRelevant HKS courses (percentile scores vs all courses; bid_price in points):\n' +
         JSON.stringify(courses, null, 1)
       : ''
 
-    const system = `You are a course advisor for Harvard Kennedy School (HKS). Help students find the right courses.
+    const shortlistContext = shortlisted.length > 0
+      ? `The student has already shortlisted: ${shortlisted.join(', ')}. Consider their existing choices when making recommendations — avoid duplicates, suggest complementary courses, or flag if their load seems heavy.\n\n`
+      : ''
+
+    const system = `${shortlistContext}You are a course advisor for Harvard Kennedy School (HKS). Help students find the right courses.
 
 Metrics are percentiles vs all HKS courses: rating = course quality, workload = amount of work (higher = more), instructor_rating = instructor quality. bid_price = last bidding clearing price in points (higher = more competitive to get in).
 

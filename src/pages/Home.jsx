@@ -163,7 +163,7 @@ const PRESETS = [
   },
 ]
 
-export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode, colorblindMode = false, setColorblindMode }) {
+export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode, colorblindMode = false, setColorblindMode, notes, setNote }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const mainRef = useRef(null)
   const visualizationRef = useRef(null)
@@ -440,6 +440,10 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
               <span style={{ color: 'var(--text-muted)' }}>Built for</span>
               <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>Harvard Kennedy School students</p>
             </div>
+            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.025)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Last updated</span>
+              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>Spring 2025</p>
+            </div>
           </div>
         </section>
 
@@ -554,6 +558,8 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
                 course={course}
                 favs={favs}
                 metricMode={metricMode}
+                notes={notes}
+                setNote={setNote}
                 yearMedianInstructor={
                   course.is_average
                     ? meta.overall_median_instructor ?? null

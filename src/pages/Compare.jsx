@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BiddingPlanner from '../components/BiddingPlanner.jsx'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 
 const COMPARE_TOUR_STEPS = [
@@ -136,6 +137,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
   const [searchText, setSearchText] = useState('')
   const [selectedAttrs, setSelectedAttrs] = useState(DEFAULT_SELECTED)
   const [attrPanelOpen, setAttrPanelOpen] = useState(false)
+  const [plannerOpen, setPlannerOpen] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
 
   const handleReplayTour = () => {
@@ -360,8 +362,24 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
 
       {/* Comparison table */}
       {selectedCourses.length >= 2 && allAttrs.length > 0 && (
-        <div className="overflow-x-auto">
-          <div className="surface-card mt-5 overflow-hidden rounded-[22px]" style={{ minWidth: `${200 + selectedCourses.length * 160}px` }}>
+        <>
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={() => setPlannerOpen((open) => !open)}
+              className="theme-toggle"
+            >
+              {plannerOpen ? '📊 Hide Planner' : '📊 Bidding Planner'}
+            </button>
+            {plannerOpen && (
+              <div className="mt-3">
+                <BiddingPlanner courses={courses} favs={favs} />
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <div className="surface-card mt-5 overflow-hidden rounded-[22px]" style={{ minWidth: `${200 + selectedCourses.length * 160}px` }}>
             {/* Course headers */}
             <div
               className="grid border-b"
@@ -473,6 +491,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
           })}
             </div>
           </div>
+        </>
       )}
 
       {selectedCourses.length === 1 && (
