@@ -108,9 +108,19 @@ export default function ChatBot({ courses, favs }) {
         }),
       })
 
-      if (!res.ok || !res.body) {
+      if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${data.error || res.status}` }])
+        return
+      }
+
+      const contentType = res.headers.get('content-type') || ''
+      const isStream = contentType.includes('text/event-stream')
+
+      if (!isStream) {
+        // Fallback: plain JSON response
+        const data = await res.json().catch(() => ({}))
+        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply || `Error: ${data.error || 'No response'}` }])
         return
       }
 
@@ -120,7 +130,7 @@ export default function ChatBot({ courses, favs }) {
       let buffer = ''
       let reply = ''
       setLoading(false)
-      setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+      setMessages((prev) => [...prev, { role: 'assistant', content: '…' }])
 
       while (true) {
         const { done, value } = await reader.read()
@@ -145,6 +155,15 @@ export default function ChatBot({ courses, favs }) {
             }
           } catch {}
         }
+      }
+
+      // If stream ended with nothing, surface an error
+      if (!reply) {
+        setMessages((prev) => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { role: 'assistant', content: 'No response received. Please try again.' }
+          return updated
+        })
       }
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }])
