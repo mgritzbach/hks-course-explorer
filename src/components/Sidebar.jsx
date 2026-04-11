@@ -2,6 +2,90 @@ import { useEffect, useRef, useState } from 'react'
 
 const TERM_LABELS = { Fall: 'Fall', Spring: 'Spring', January: 'Jan' }
 
+const HKS_RESOURCES = [
+  {
+    group: 'Data & Evaluations',
+    links: [
+      { label: 'Course Evals 2007–2023', url: 'https://docs.google.com/spreadsheets/d/1gAvxVSPGc2sF4Uv4CmHyFcNW9pRy8Pe_DfTHofBzhtI/edit?usp=sharing', auth: 'Google login' },
+      { label: 'QReports (FAS)', url: 'https://qreports.fas.harvard.edu/browse/index', auth: 'HarvardKey' },
+      { label: 'Professor Dashboard', url: 'https://public.tableau.com/app/profile/sean.norick.long/viz/HKSProfessorDashboard/IndividualPerformance-Dashboard', auth: null },
+      { label: 'Bidding Results History', url: 'https://hu-my.sharepoint.com/:x:/g/personal/lilykang_hks_harvard_edu/EWo4fNnLBWBGuv1L9uhKLNMBpj4i25bA0BBWtGjQGkYMQw?e=WHVoc4', auth: 'HarvardKey' },
+    ],
+  },
+  {
+    group: 'Registration',
+    links: [
+      { label: 'my.harvard.edu', url: 'https://my.harvard.edu/', auth: null },
+      { label: 'Course Registration', url: 'https://www.hks.harvard.edu/courses/course-registration', auth: null },
+      { label: 'Academic Calendar', url: 'https://www.hks.harvard.edu/educational-programs/academic-calendars-policies/current-academic-calendar', auth: null },
+      { label: 'Registrar', url: 'https://hub.hks.harvard.edu/s/article/Registrar-Contact-About-US', auth: 'HKS Hub' },
+    ],
+  },
+  {
+    group: 'Programs & Pathways',
+    links: [
+      { label: 'Degree Programs', url: 'https://hub.hks.harvard.edu/s/degree-programs', auth: 'HKS Hub' },
+      { label: 'Certificate: MLDS', url: 'https://hub.hks.harvard.edu/s/article/Certificate-in-Management-Leadership-and-Decision-Sciences', auth: 'HKS Hub' },
+      { label: 'Data & Research Pathway', url: 'https://hub.hks.harvard.edu/s/article/Data-and-Research-Methods-Pathway', auth: 'HKS Hub' },
+    ],
+  },
+  {
+    group: 'MIT Cross-Registration',
+    links: [
+      { label: 'How to Cross-Register', url: 'https://registrar.mit.edu/registration-academics/registration-information/cross-registration/harvard/instructions-harvard', auth: null },
+      { label: 'MIT Course Catalog', url: 'https://student.mit.edu/catalog/extsearch.cgi', auth: null },
+      { label: 'Hydrant (MIT Scheduler)', url: 'https://hydrant.mit.edu/', auth: null },
+    ],
+  },
+]
+
+function ResourcesSection() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ borderTop: '1px solid var(--line)', marginTop: 4 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-white/[0.03]"
+      >
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)' }}>
+          🔗 HKS Resources
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 space-y-4">
+          {HKS_RESOURCES.map((section) => (
+            <div key={section.group}>
+              <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', paddingLeft: 6, marginBottom: 3 }}>
+                {section.group}
+              </p>
+              {section.links.map((link) => (
+                <a
+                  key={link.url}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between rounded-[10px] px-2.5 py-1.5 transition-colors hover:bg-white/5"
+                  style={{ textDecoration: 'none' }}
+                  title={link.auth ? `Requires ${link.auth}` : undefined}
+                >
+                  <span style={{ fontSize: 11.5, color: 'var(--text-soft)' }}>{link.label}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, marginLeft: 6 }}>
+                    {link.auth && <span title={`Requires ${link.auth}`}>🔒</span>}
+                    <span style={{ opacity: 0.5 }}>↗</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function countActiveFilters(filters) {
   let count = 0
   if (filters.searchText.trim()) count++
@@ -328,8 +412,13 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         </button>
       </div>
 
+      {/* HKS Resources */}
+      <div className="mt-auto">
+        <ResourcesSection />
+      </div>
+
       {/* Footer */}
-      <div className="mt-auto border-t px-4 pb-5 pt-4" style={{ borderColor: 'var(--line)' }}>
+      <div className="border-t px-4 pb-5 pt-4" style={{ borderColor: 'var(--line)' }}>
         <div
           style={{
             fontSize: 10,
