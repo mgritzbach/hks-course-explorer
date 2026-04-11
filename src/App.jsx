@@ -7,8 +7,67 @@ import Compare from './pages/Compare.jsx'
 import Courses from './pages/Courses.jsx'
 import Faculty from './pages/Faculty.jsx'
 import Home from './pages/Home.jsx'
+import Resources from './pages/Resources.jsx'
+import { HKS_RESOURCES } from './resourceLinks.js'
 import { useFavorites } from './useFavorites.js'
 import { useNotes } from './useNotes.js'
+
+function NavResourcesSection() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ borderTop: '1px solid var(--line)', marginTop: 8 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: 'flex',
+          width: '100%',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 16px',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+        }}
+        className="transition-colors hover:bg-white/[0.03]"
+      >
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)' }}>
+          🔗 HKS Resources
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 8px 8px' }}>
+          {HKS_RESOURCES.map((section) => (
+            <div key={section.group} style={{ marginBottom: 10 }}>
+              <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', paddingLeft: 6, marginBottom: 2 }}>
+                {section.group}
+              </p>
+              {section.links.map((link) => (
+                <a
+                  key={link.url}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={link.auth ? `Requires ${link.auth}` : link.desc}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px', borderRadius: 8, textDecoration: 'none', gap: 4 }}
+                  className="transition-colors hover:bg-white/5"
+                >
+                  <span style={{ fontSize: 11, color: 'var(--text-soft)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link.label}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                    {link.auth && <span>🔒</span>}
+                    <span style={{ opacity: 0.45 }}>↗</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Tally form ID — create a form at tally.so, then paste the ID from the share URL here
 const TALLY_FORM_ID = 'LZYAQv'
@@ -99,10 +158,11 @@ export default function App() {
   }
 
   const navItems = [
-    { to: '/',        label: 'Home',    end: true },
-    { to: '/courses', label: 'Courses' },
-    { to: '/faculty', label: 'Faculty' },
-    { to: '/compare', label: 'Compare' },
+    { to: '/',           label: 'Home',      end: true },
+    { to: '/courses',    label: 'Courses' },
+    { to: '/faculty',    label: 'Faculty' },
+    { to: '/compare',    label: 'Compare' },
+    { to: '/resources',  label: 'Resources', mobileOnly: true },
   ]
 
   const desktopNavItem = ({ isActive }) =>
@@ -184,7 +244,7 @@ export default function App() {
           )}
         </div>
 
-        {navItems.map((item) => (
+        {navItems.filter((item) => !item.mobileOnly).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -199,6 +259,7 @@ export default function App() {
             {item.label}
           </NavLink>
         ))}
+        <NavResourcesSection />
         {favs.count > 0 && (
           <div className="mt-auto">
             <button type="button" onClick={handleShareShortlist} className="theme-toggle mx-2">
@@ -261,6 +322,7 @@ export default function App() {
             <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />} />
             <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} />} />
             <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} />} />
+            <Route path="/resources" element={<Resources />} />
           </Routes>
         </div>
 
