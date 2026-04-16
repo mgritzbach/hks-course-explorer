@@ -1,3 +1,73 @@
+// Hardcoded fallback — updated from OpenRouter's free model list April 2026
+// The function auto-refreshes this list from OpenRouter API and caches in KV
+const FALLBACK_FREE_MODELS = [
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'minimax/minimax-m2.5:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3-nano-30b-a3b:free',
+  'openrouter/elephant-alpha',
+  'openrouter/free',
+]
+
+const KV_MODELS_KEY = 'openrouter_free_models_v2'
+const MODELS_TTL_MS = 6 * 60 * 60 * 1000 // 6 hours
+
+/**
+ * Fetches the live list of free models from OpenRouter and caches in KV.
+ * Falls back to FALLBACK_FREE_MODELS if anything goes wrong.
+ * This means the chatbot automatically adapts when OpenRouter adds/removes free models.
+ */
+async function getAvailableFreeModels(env) {
+  // 1. Try KV cache
+  try {
+    const cached = await env.HKS_KV.get(KV_MODELS_KEY, 'json')
+    if (cached?.models?.length && cached.expires > Date.now()) {
+      return cached.models
+    }
+  } catch {}
+
+  // 2. Fetch fresh list from OpenRouter
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: {
+        'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://hks-course-explorer.pages.dev',
+      },
+      cf: { cacheTtl: 300 }, // Cloudflare edge cache 5 min
+    })
+    if (!resp.ok) throw new Error(`Models API ${resp.status}`)
+    const data = await resp.json()
+
+    // Keep only zero-cost text models (exclude music, image, etc.)
+    const freeModels = (data.data || [])
+      .filter(m =>
+        m.pricing?.prompt === '0' &&
+        m.pricing?.completion === '0' &&
+        !m.id.includes('lyria') &&
+        !m.id.includes('imagen') &&
+        !m.id.includes('whisper') &&
+        m.id !== 'openrouter/free' // put generic router last
+      )
+      .map(m => m.id)
+
+    // Add generic router as last-resort fallback
+    freeModels.push('openrouter/free')
+
+    if (freeModels.length > 0) {
+      await env.HKS_KV.put(KV_MODELS_KEY, JSON.stringify({
+        models: freeModels,
+        expires: Date.now() + MODELS_TTL_MS,
+        refreshed_at: new Date().toISOString(),
+      }))
+      return freeModels
+    }
+  } catch {}
+
+  // 3. Last resort: hardcoded fallback
+  return FALLBACK_FREE_MODELS
+}
+
 export async function onRequestPost({ request, env }) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -20,6 +90,9 @@ export async function onRequestPost({ request, env }) {
 
 Give 2–3 specific recommendations. For each: course code, name, instructor, one sentence why it fits. When citing metrics always say e.g. "workload: 68th percentile", never "68 hours". Be brief and direct.${courseList}`
 
+    // Get the current best free models (auto-refreshed from OpenRouter every 6 hours)
+    const freeModels = await getAvailableFreeModels(env)
+
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -29,7 +102,8 @@ Give 2–3 specific recommendations. For each: course code, name, instructor, on
         'X-Title': 'HKS Course Explorer',
       },
       body: JSON.stringify({
-        model: 'openrouter/free',
+        models: freeModels,   // ordered priority list
+        route: 'fallback',    // OpenRouter tries each in order if one fails/rate-limits
         max_tokens: 350,
         stream: true,
         messages: [
@@ -41,7 +115,7 @@ Give 2–3 specific recommendations. For each: course code, name, instructor, on
     })
 
     if (!resp.ok) {
-      const data = await resp.json()
+      const data = await resp.json().catch(() => ({}))
       return new Response(
         JSON.stringify({ error: data.error?.message || `OpenRouter error ${resp.status}` }),
         { status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
