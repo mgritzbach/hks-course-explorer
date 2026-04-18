@@ -1,12 +1,9 @@
 // Hardcoded fallback — updated from OpenRouter's free model list April 2026
 // The function auto-refreshes this list from OpenRouter API and caches in KV
+// NOTE: OpenRouter's `route: fallback` accepts max 3 models
 const FALLBACK_FREE_MODELS = [
   'google/gemma-4-31b-it:free',
-  'google/gemma-4-26b-a4b-it:free',
   'minimax/minimax-m2.5:free',
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'nvidia/nemotron-3-nano-30b-a3b:free',
-  'openrouter/elephant-alpha',
   'openrouter/free',
 ]
 
@@ -40,6 +37,7 @@ async function getAvailableFreeModels(env) {
     const data = await resp.json()
 
     // Keep only zero-cost text models (exclude music, image, etc.)
+    // OpenRouter route:fallback allows max 3 models
     const freeModels = (data.data || [])
       .filter(m =>
         m.pricing?.prompt === '0' &&
@@ -47,11 +45,12 @@ async function getAvailableFreeModels(env) {
         !m.id.includes('lyria') &&
         !m.id.includes('imagen') &&
         !m.id.includes('whisper') &&
-        m.id !== 'openrouter/free' // put generic router last
+        m.id !== 'openrouter/free'
       )
       .map(m => m.id)
+      .slice(0, 2) // leave room for the generic fallback
 
-    // Add generic router as last-resort fallback
+    // Generic router as last-resort (slot 3)
     freeModels.push('openrouter/free')
 
     if (freeModels.length > 0) {
