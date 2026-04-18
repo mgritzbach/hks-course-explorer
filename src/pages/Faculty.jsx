@@ -72,7 +72,7 @@ function activeFilterCount({ concentration, minRating, minCourses, taughtSinceYe
 function FacultySidebar({
   meta, displayedProfs, allProfessors, selectedProf, query, setQuery, concentration, setConcentration,
   minRating, setMinRating, minCourses, setMinCourses, taughtSinceYear, setTaughtSinceYear, sortBy, setSortBy, resetFilters, handleSelectProf,
-  metricMode = 'score', mobile = false, onClose = null, onReplayTour = null,
+  metricMode = 'score', setMetricMode = null, mobile = false, onClose = null, onReplayTour = null,
 }) {
   const filters = activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })
 
@@ -99,6 +99,31 @@ function FacultySidebar({
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Min Courses Taught</p><div className="select-wrap"><select value={minCourses} onChange={(event) => setMinCourses(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any</option><option value="3">3+</option><option value="5">5+</option><option value="10">10+</option><option value="20">20+</option></select></div></div>
           <div data-tour="faculty-active-since"><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Active Since (exclude older)</p><div className="select-wrap"><select value={taughtSinceYear} onChange={(e) => setTaughtSinceYear(e.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}><option value="any">Any Year</option><option value="2024">Since 2024</option><option value="2023">Since 2023</option><option value="2022">Since 2022</option><option value="2021">Since 2021</option><option value="2020">Since 2020</option><option value="2019">Since 2019</option><option value="2018">Since 2018</option><option value="2017">Since 2017</option><option value="2016">Since 2016</option><option value="2015">Since 2015</option></select></div></div>
         </div>
+
+        {setMetricMode && (
+          <div className="mt-3">
+            <p className="mb-1.5 text-[10px] uppercase tracking-wider text-muted">Metric Display</p>
+            <div className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+              <button
+                onClick={() => setMetricMode('score')}
+                className="flex-1 rounded-full py-1.5 text-[11px] font-medium transition-colors"
+                style={{ background: metricMode === 'score' ? 'var(--accent)' : 'transparent', color: metricMode === 'score' ? '#fff' : 'var(--text-muted)' }}
+              >
+                Score
+              </button>
+              <button
+                onClick={() => setMetricMode('percentile')}
+                className="flex-1 rounded-full py-1.5 text-[11px] font-medium transition-colors"
+                style={{ background: metricMode === 'percentile' ? 'var(--blue)' : 'transparent', color: metricMode === 'percentile' ? '#fff' : 'var(--text-muted)' }}
+              >
+                Percentile
+              </button>
+            </div>
+            <p className="mt-1 text-[10px] leading-tight" style={{ color: 'var(--text-muted)' }}>
+              {metricMode === 'score' ? 'Avg ÷ 5 × 100% (absolute)' : 'Rank vs. all courses in dataset'}
+            </p>
+          </div>
+        )}
 
         <p className="mt-3 text-[10px] text-muted">{displayedProfs.length} of {allProfessors.length} instructors</p>
       </div>
@@ -140,7 +165,7 @@ function FacultySidebar({
   )
 }
 
-export default function Faculty({ courses, meta, metricMode = 'score' }) {
+export default function Faculty({ courses, meta, metricMode = 'score', setMetricMode = null }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -274,6 +299,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           resetFilters={resetFilters}
           handleSelectProf={handleSelectProf}
           metricMode={metricMode}
+          setMetricMode={setMetricMode}
           mobile
           onClose={() => setSidebarOpen(false)}
           onReplayTour={handleReplayTour}
@@ -300,6 +326,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           resetFilters={resetFilters}
           handleSelectProf={handleSelectProf}
           metricMode={metricMode}
+          setMetricMode={setMetricMode}
           onReplayTour={handleReplayTour}
         />
       </div>

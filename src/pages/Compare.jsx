@@ -148,7 +148,7 @@ function CourseChip({ course, onRemove }) {
   )
 }
 
-export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
+export default function Compare({ courses, meta, favs, metricMode = 'score', setMetricMode = null }) {
   const navigate = useNavigate()
   const [selected, setSelected] = useState([]) // array of course ids
   const [searchText, setSearchText] = useState('')
@@ -251,6 +251,29 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
           <p className="mt-2 max-w-2xl text-sm" style={{ color: 'var(--text-soft)' }}>
             Select up to {MAX_COURSES} courses and choose which attributes to compare side by side.
           </p>
+          {setMetricMode && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+                <button
+                  onClick={() => setMetricMode('score')}
+                  className="rounded-full px-4 py-1.5 text-[11px] font-medium transition-colors"
+                  style={{ background: metricMode === 'score' ? 'var(--accent)' : 'transparent', color: metricMode === 'score' ? '#fff' : 'var(--text-muted)' }}
+                >
+                  Score
+                </button>
+                <button
+                  onClick={() => setMetricMode('percentile')}
+                  className="rounded-full px-4 py-1.5 text-[11px] font-medium transition-colors"
+                  style={{ background: metricMode === 'percentile' ? 'var(--blue)' : 'transparent', color: metricMode === 'percentile' ? '#fff' : 'var(--text-muted)' }}
+                >
+                  Percentile
+                </button>
+              </div>
+              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                {metricMode === 'score' ? 'Avg ÷ 5 × 100% (absolute)' : 'Rank vs. all courses in dataset'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
