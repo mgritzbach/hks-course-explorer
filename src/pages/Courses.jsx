@@ -2,6 +2,7 @@ import { useEffect, useDeferredValue, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 import OnboardingTour from '../components/OnboardingTour.jsx'
+import { formatMetric, fmtShort, modeUnit } from '../utils/formatMetric.js'
 
 const COURSES_TOUR_STEPS = [
   {
@@ -64,16 +65,12 @@ const WORKLOAD_COLOR = { 'Very Light': 'var(--blue)', Light: '#7fb1d1', Moderate
 const TERM_LABELS = { Fall: 'Fall', Spring: 'Spring', January: 'Jan' }
 const ALL_TERMS = ['Fall', 'Spring', 'January']
 
-function pct(value) {
-  return value != null ? `${Math.round(value)}%` : '-'
-}
-
 function getConcentration(code) {
   const match = code?.match(/^([A-Z]+)/)
   return match ? match[1] : 'Other'
 }
 
-function MetricRow({ label, value, higherBetter = true, neutral = false }) {
+function MetricRow({ label, value, higherBetter = true, neutral = false, metricMode = 'score' }) {
   if (value == null) return null
   const rounded = Math.round(value)
   let color
@@ -85,7 +82,7 @@ function MetricRow({ label, value, higherBetter = true, neutral = false }) {
     <div className="mb-3">
       <div className="mb-1 flex justify-between text-xs">
         <span className="text-muted">{label}</span>
-        <span className="font-medium text-label">{rounded}%</span>
+        <span className="font-medium text-label">{fmtShort(value, metricMode)}</span>
       </div>
       <div className="h-1.5 w-full rounded-full" style={{ background: 'var(--line)' }}>
         <div className="h-1.5 rounded-full" style={{ width: `${rounded}%`, background: color }} />
@@ -94,7 +91,7 @@ function MetricRow({ label, value, higherBetter = true, neutral = false }) {
   )
 }
 
-function HistoryTable({ history }) {
+function HistoryTable({ history, metricMode = 'score' }) {
   if (!history.length) {
     return (
       <div className="surface-card rounded-[22px] py-8 text-center">
@@ -103,30 +100,36 @@ function HistoryTable({ history }) {
     )
   }
 
+  const unit = modeUnit(metricMode)
+  const headers = ['Year', 'Term', 'Professor', `Instructor (${unit})`, `Course (${unit})`, `Workload (${unit})`, `Rigor (${unit})`, `Diverse Persp. (${unit})`, 'N']
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr style={{ borderBottom: '1px solid var(--line)' }}>
-            {['Year', 'Term', 'Professor', 'Instructor %', 'Course %', 'Workload %', 'Rigor %', 'Diverse Persp. %', 'N'].map((header) => (
+            {headers.map((header) => (
               <th key={header} className="whitespace-nowrap py-2 pr-4 text-left font-medium text-muted">{header}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {history.map((row, index) => (
-            <tr key={index} style={{ borderBottom: '1px solid var(--line)' }}>
-              <td className="py-2 pr-4 text-label">{row.year}</td>
-              <td className="py-2 pr-4 text-muted">{row.term}</td>
-              <td className="py-2 pr-4 text-label">{row.professor_display || row.professor}</td>
-              <td className="py-2 pr-4 font-medium" style={{ color: 'var(--accent-strong)' }}>{pct(row.metrics_pct?.Instructor_Rating)}</td>
-              <td className="py-2 pr-4 text-label">{pct(row.metrics_pct?.Course_Rating)}</td>
-              <td className="py-2 pr-4 text-label">{pct(row.metrics_pct?.Workload)}</td>
-              <td className="py-2 pr-4 text-label">{pct(row.metrics_pct?.Rigor)}</td>
-              <td className="py-2 pr-4 text-label">{pct(row.metrics_pct?.['Diverse Perspectives'])}</td>
-              <td className="py-2 pr-4 text-muted">{row.n_respondents ?? '-'}</td>
-            </tr>
-          ))}
+          {history.map((row, index) => {
+            const src = metricMode === 'score' ? row.metrics_score : row.metrics_pct
+            return (
+              <tr key={index} style={{ borderBottom: '1px solid var(--line)' }}>
+                <td className="py-2 pr-4 text-label">{row.year}</td>
+                <td className="py-2 pr-4 text-muted">{row.term}</td>
+                <td className="py-2 pr-4 text-label">{row.professor_display || row.professor}</td>
+                <td className="py-2 pr-4 font-medium" style={{ color: 'var(--accent-strong)' }}>{fmtShort(src?.Instructor_Rating, metricMode)}</td>
+                <td className="py-2 pr-4 text-label">{fmtShort(src?.Course_Rating, metricMode)}</td>
+                <td className="py-2 pr-4 text-label">{fmtShort(src?.Workload, metricMode)}</td>
+                <td className="py-2 pr-4 text-label">{fmtShort(src?.Rigor, metricMode)}</td>
+                <td className="py-2 pr-4 text-label">{fmtShort(src?.['Diverse Perspectives'], metricMode)}</td>
+                <td className="py-2 pr-4 text-muted">{row.n_respondents ?? '-'}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -819,7 +822,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                           </p>
                         ) : (
                           <p className="text-sm text-muted">
-                            Better than {Math.round(instructorPct)}% of courses
+                            Better than {Math.round(instructorPct)} pct of courses
                             {selected.metrics_raw?.Instructor_Rating != null && (
                               <span className="ml-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
                                 ({selected.metrics_raw.Instructor_Rating.toFixed(2)}/5
@@ -845,7 +848,12 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                             )}
                           </p>
                         ) : (
-                          <p className="text-sm text-muted">More intensive than {Math.round(workloadPct)}% of courses</p>
+                          <p className="text-sm text-muted">
+                            More intensive than <span className="font-medium">{Math.round(workloadPct)} pct</span> of courses
+                            {selected.metrics_raw?.Workload != null && (
+                              <span className="ml-2 text-[11px]">({selected.metrics_raw.Workload.toFixed(2)}/5)</span>
+                            )}
+                          </p>
                         )}
                       </div>
                     ) : <div className="rounded-[18px] p-4 text-sm italic text-muted" style={{ background: 'var(--panel-subtle)' }}>No workload data available</div>}
@@ -868,6 +876,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                               value={metricMode === 'score' ? selected.metrics_score?.[metric.key] : selected.metrics_pct?.[metric.key]}
                               higherBetter={metric.higher_is_better}
                               neutral={metric.key === 'Workload' || metric.key === 'Rigor'}
+                              metricMode={metricMode}
                             />
                           ))}
                         </div>
@@ -974,7 +983,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                       <p className="mb-4 text-xs text-muted">
                         Showing all {history.length} evaluation record{history.length !== 1 ? 's' : ''} for <span style={{ color: 'var(--accent-strong)' }}>{selected.course_code_base}</span>.
                       </p>
-                      <HistoryTable history={history} />
+                      <HistoryTable history={history} metricMode={metricMode} />
                     </>
                   )}
                 </div>

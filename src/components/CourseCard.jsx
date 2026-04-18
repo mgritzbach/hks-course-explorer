@@ -1,20 +1,16 @@
 import { useNavigate } from 'react-router-dom'
+import { fmtShort } from '../utils/formatMetric.js'
 
 function encodeProf(professor) {
   return encodeURIComponent(professor)
 }
 
-function pct(value) {
-  if (value == null) return null
-  return `${Math.round(value)}%`
-}
-
-function RatingBadge({ label, value, color }) {
+function RatingBadge({ label, value, color, metricMode }) {
   if (value == null) return null
   return (
     <div className="text-xs leading-5 md:text-right">
       <span className="text-muted">{label}: </span>
-      <span className="font-medium" style={{ color: color || 'var(--text-soft)' }}>{pct(value)}</span>
+      <span className="font-medium" style={{ color: color || 'var(--text-soft)' }}>{fmtShort(value, metricMode)}</span>
     </div>
   )
 }
@@ -95,8 +91,8 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
             <div className="text-xs" style={{ color: 'var(--text-muted)' }}>No eval data</div>
           ) : (
             <div className="grid gap-1">
-              <RatingBadge label="Instructor" value={instructorPct} color="var(--accent-strong)" />
-              {/* Raw rating + year median, greyed out */}
+              <RatingBadge label="Instructor" value={instructorPct} color="var(--accent-strong)" metricMode={metricMode} />
+              {/* Raw rating + year median, always visible for grounding */}
               {course.metrics_raw?.Instructor_Rating != null && (
                 <div className="text-[10px] leading-4 text-right" style={{ color: 'var(--text-muted)' }}>
                   <span>{course.metrics_raw.Instructor_Rating.toFixed(2)}/5</span>
@@ -107,8 +103,8 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
                   )}
                 </div>
               )}
-              <RatingBadge label="Course" value={coursePct} color="var(--success)" />
-              <RatingBadge label="Workload" value={workloadPct} color="var(--text-soft)" />
+              <RatingBadge label="Course" value={coursePct} color="var(--success)" metricMode={metricMode} />
+              <RatingBadge label="Workload" value={workloadPct} color="var(--text-soft)" metricMode={metricMode} />
             </div>
           )}
         </div>

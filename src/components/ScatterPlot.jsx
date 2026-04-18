@@ -168,15 +168,16 @@ function coverageWarning(courses, metricMeta) {
   }
 }
 
-function formatMetricValue(datum, valueKey, rawKey, rawModeKey) {
+function formatMetricValue(datum, valueKey, rawKey, rawModeKey, metricMode = 'score') {
   const value = datum[valueKey]
   const rawValue = datum[rawKey]
   const rawMode = datum[rawModeKey]
 
   if (value == null) return null
   if (rawMode) return rawValue != null ? `${rawValue} pts` : `${Math.round(value)}`
-  if (rawValue != null) return `${rawValue} pts (${Math.round(value)}%)`
-  return `${Math.round(value)}%`
+  const suffix = metricMode === 'score' ? '%' : ' pct'
+  if (rawValue != null) return `${rawValue} pts (${Math.round(value)}${suffix})`
+  return `${Math.round(value)}${suffix}`
 }
 
 function CustomTooltip({ active, payload }) {
@@ -212,7 +213,7 @@ function CustomTooltip({ active, payload }) {
         )}
         {datum._isBidOnly && <p className="text-[10px]" style={{ color: 'var(--gold)' }}>No eval data yet · ranked by bid competitiveness</p>}
         {datum.metrics_pct?.Instructor_Rating != null && datum._xLabel !== 'Instructor Rating' && datum._yLabel !== 'Instructor Rating' && (
-          <p>Instructor: <span className="font-medium" style={{ color: 'var(--blue)' }}>{Math.round(datum.metrics_pct.Instructor_Rating)}%</span></p>
+          <p>Instructor: <span className="font-medium" style={{ color: 'var(--blue)' }}>{Math.round(datum.metrics_pct.Instructor_Rating)} pct</span></p>
         )}
       </div>
 
@@ -608,7 +609,7 @@ export default function ScatterPlot({
         minallowed: xMode.domain[0],
         maxallowed: xMode.domain[1],
         tickfont: { color: 'var(--text-muted)', size: 11 },
-        ticksuffix: xMode.useRaw ? '' : '%',
+        ticksuffix: xMode.useRaw ? '' : (metricMode === 'score' ? '%' : ' pct'),
         showline: true,
         linecolor: 'rgba(243, 233, 226, 0.2)',
         tickcolor: 'rgba(243, 233, 226, 0.2)',
@@ -622,7 +623,7 @@ export default function ScatterPlot({
         minallowed: yMode.domain[0],
         maxallowed: yMode.domain[1],
         tickfont: { color: 'var(--text-muted)', size: 11 },
-        ticksuffix: yMode.useRaw ? '' : '%',
+        ticksuffix: yMode.useRaw ? '' : (metricMode === 'score' ? '%' : ' pct'),
         showline: true,
         linecolor: 'rgba(243, 233, 226, 0.2)',
         tickcolor: 'rgba(243, 233, 226, 0.2)',
@@ -635,6 +636,24 @@ export default function ScatterPlot({
         bordercolor: 'var(--line-strong)',
         font: { color: 'var(--text)', size: 12 },
       },
+      annotations: showQuadrants && !isZoomed ? [
+        {
+          xref: 'x', yref: 'paper',
+          x: 50, y: 1.0,
+          text: 'avg',
+          showarrow: false,
+          font: { size: 10, color: 'rgba(243,233,226,0.45)' },
+          xanchor: 'center', yanchor: 'bottom',
+        },
+        {
+          xref: 'paper', yref: 'y',
+          x: 0, y: 50,
+          text: 'avg',
+          showarrow: false,
+          font: { size: 10, color: 'rgba(243,233,226,0.45)' },
+          xanchor: 'right', yanchor: 'middle',
+        },
+      ] : [],
     }
   }, [effectiveXDomain, effectiveYDomain, greenX0, greenX1, greenY0, greenY1, isZoomed, metricMode, quadBadBorder, quadBadColor, quadGoodBorder, quadGoodColor, redX0, redX1, redY0, redY1, showQuadrants, xMeta.label, xMetric, xMode.useRaw, yMeta.label, yMetric, yMode.useRaw])
 
@@ -810,16 +829,16 @@ export default function ScatterPlot({
             <div className="space-y-0.5">
               {hoverState.datum._xVal != null && !hoverState.datum._isBidOnly && (
                 <p>
-                  {hoverState.datum._xLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_xVal', '_xRaw', '_xIsRaw')}</span>
-                  {metricMode === 'score' && hoverState.datum._xRaw05 != null && (
+                  {hoverState.datum._xLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_xVal', '_xRaw', '_xIsRaw', metricMode)}</span>
+                  {hoverState.datum._xRaw05 != null && (
                     <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>({hoverState.datum._xRaw05.toFixed(1)}/5)</span>
                   )}
                 </p>
               )}
               {hoverState.datum._yVal != null && !hoverState.datum._isBidOnly && (
                 <p>
-                  {hoverState.datum._yLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_yVal', '_yRaw', '_yIsRaw')}</span>
-                  {metricMode === 'score' && hoverState.datum._yRaw05 != null && (
+                  {hoverState.datum._yLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_yVal', '_yRaw', '_yIsRaw', metricMode)}</span>
+                  {hoverState.datum._yRaw05 != null && (
                     <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>({hoverState.datum._yRaw05.toFixed(1)}/5)</span>
                   )}
                 </p>
@@ -831,7 +850,7 @@ export default function ScatterPlot({
                 <p>Instructor: <span className="font-medium" style={{ color: 'var(--blue)' }}>
                   {metricMode === 'score'
                     ? `${Math.round(hoverState.datum.metrics_score?.Instructor_Rating ?? hoverState.datum.metrics_pct.Instructor_Rating)}%`
-                    : `${Math.round(hoverState.datum.metrics_pct.Instructor_Rating)}%`}
+                    : `${Math.round(hoverState.datum.metrics_pct.Instructor_Rating)} pct`}
                 </span></p>
               )}
             </div>
@@ -877,8 +896,8 @@ export default function ScatterPlot({
 
           <div className="space-y-1 text-xs text-muted">
             <p>{pinnedDatum.is_average ? `Average ${pinnedDatum.year_range}` : `${pinnedDatum.term} ${pinnedDatum.year}`}</p>
-            {pinnedDatum._xVal != null && <p>{pinnedDatum._xLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_xVal', '_xRaw', '_xIsRaw')}</span></p>}
-            {pinnedDatum._yVal != null && <p>{pinnedDatum._yLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_yVal', '_yRaw', '_yIsRaw')}</span></p>}
+            {pinnedDatum._xVal != null && <p>{pinnedDatum._xLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_xVal', '_xRaw', '_xIsRaw', metricMode)}</span></p>}
+            {pinnedDatum._yVal != null && <p>{pinnedDatum._yLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_yVal', '_yRaw', '_yIsRaw', metricMode)}</span></p>}
             {pinnedDatum.n_respondents != null && <p>N=<span className="text-label">{pinnedDatum.n_respondents}</span> survey respondents</p>}
             {pinnedDatum.last_bid_price != null && <p>Last clearing price: <span className="text-label">{pinnedDatum.last_bid_price} pts</span></p>}
           </div>

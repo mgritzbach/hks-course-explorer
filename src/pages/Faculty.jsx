@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import OnboardingTour from '../components/OnboardingTour.jsx'
+import { fmtShort, modeSubLabel, modeUnit } from '../utils/formatMetric.js'
 
 const FACULTY_TOUR_STEPS = [
   {
@@ -33,9 +34,7 @@ const FACULTY_DETAIL_TOUR_STEPS = [
   },
 ]
 
-function pct(value) { return value != null ? `${Math.round(value)}%` : '-' }
-
-function MetricBar({ label, value, higherBetter = true, neutral = false }) {
+function MetricBar({ label, value, higherBetter = true, neutral = false, metricMode = 'score' }) {
   if (value == null) return null
   const rounded = Math.round(value)
   let color
@@ -45,8 +44,15 @@ function MetricBar({ label, value, higherBetter = true, neutral = false }) {
 
   return (
     <div className="mb-2">
-      <div className="mb-0.5 flex justify-between text-xs"><span className="text-muted">{label}</span><span className="font-medium text-label">{rounded}%</span></div>
-      <div className="h-1 w-full rounded-full" style={{ background: 'var(--track-bg)' }}><div className="h-1 rounded-full" style={{ width: `${rounded}%`, background: color }} /></div>
+      <div className="mb-0.5 flex justify-between text-xs">
+        <span className="text-muted">{label}</span>
+        <span className="font-medium text-label">{fmtShort(value, metricMode)}</span>
+      </div>
+      <div className="h-1 w-full rounded-full" style={{ background: 'var(--track-bg)', position: 'relative' }}>
+        <div className="h-1 rounded-full" style={{ width: `${rounded}%`, background: color }} />
+        {/* Average reference tick at 50% */}
+        <div style={{ position: 'absolute', top: -2, left: '50%', width: 1, height: 7, background: 'rgba(243,233,226,0.35)', transform: 'translateX(-50%)' }} title="50th pct = average" />
+      </div>
     </div>
   )
 }
@@ -66,7 +72,7 @@ function activeFilterCount({ concentration, minRating, minCourses, taughtSinceYe
 function FacultySidebar({
   meta, displayedProfs, allProfessors, selectedProf, query, setQuery, concentration, setConcentration,
   minRating, setMinRating, minCourses, setMinCourses, taughtSinceYear, setTaughtSinceYear, sortBy, setSortBy, resetFilters, handleSelectProf,
-  mobile = false, onClose = null, onReplayTour = null,
+  metricMode = 'score', mobile = false, onClose = null, onReplayTour = null,
 }) {
   const filters = activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })
 
@@ -111,7 +117,7 @@ function FacultySidebar({
               <p className="text-xs font-medium leading-tight text-label">{prof.professor_display}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="text-[10px] text-muted">{prof.evalCourses} course{prof.evalCourses !== 1 ? 's' : ''}</span>
-                {avg != null && <span className="rounded px-1 py-0.5 text-[10px] font-medium" style={{ background: avg >= 75 ? 'rgba(123,176,138,0.12)' : avg >= 50 ? 'rgba(212,168,106,0.12)' : 'rgba(216,112,112,0.12)', color: avg >= 75 ? 'var(--success)' : avg >= 50 ? 'var(--gold)' : 'var(--danger)' }}>{Math.round(avg)}% instr.</span>}
+                {avg != null && <span className="rounded px-1 py-0.5 text-[10px] font-medium" style={{ background: avg >= 75 ? 'rgba(123,176,138,0.12)' : avg >= 50 ? 'rgba(212,168,106,0.12)' : 'rgba(216,112,112,0.12)', color: avg >= 75 ? 'var(--success)' : avg >= 50 ? 'var(--gold)' : 'var(--danger)' }}>{fmtShort(avg, metricMode)} instr.</span>}
               </div>
             </button>
           )
@@ -267,6 +273,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           setSortBy={setSortBy}
           resetFilters={resetFilters}
           handleSelectProf={handleSelectProf}
+          metricMode={metricMode}
           mobile
           onClose={() => setSidebarOpen(false)}
           onReplayTour={handleReplayTour}
@@ -292,6 +299,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           setSortBy={setSortBy}
           resetFilters={resetFilters}
           handleSelectProf={handleSelectProf}
+          metricMode={metricMode}
           onReplayTour={handleReplayTour}
         />
       </div>
@@ -325,7 +333,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
                         style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.03)' }}
                       >
                         {prof.professor_display}
-                        <span className="ml-1.5 font-medium" style={{ color: 'var(--success)' }}>{Math.round(prof.avgMetrics.Instructor_Rating)}%</span>
+                        <span className="ml-1.5 font-medium" style={{ color: 'var(--success)' }}>{fmtShort(prof.avgMetrics.Instructor_Rating, metricMode)}</span>
                       </button>
                     ))}
                 </div>
@@ -353,15 +361,15 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
           <div className="mb-6 grid gap-4 lg:grid-cols-2">
             <div data-tour="faculty-ratings" className="surface-card rounded-[22px] p-4">
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Average Ratings</h4>
-              {meta.metrics.filter((metric) => !metric.bid_metric).map((metric) => <MetricBar key={metric.key} label={metric.label} value={selectedData.avgMetrics?.[metric.key]} higherBetter={metric.higher_is_better} neutral={metric.key === 'Workload' || metric.key === 'Rigor'} />)}
+              {meta.metrics.filter((metric) => !metric.bid_metric).map((metric) => <MetricBar key={metric.key} label={metric.label} value={selectedData.avgMetrics?.[metric.key]} higherBetter={metric.higher_is_better} neutral={metric.key === 'Workload' || metric.key === 'Rigor'} metricMode={metricMode} />)}
             </div>
             <div data-tour="faculty-quick-stats" className="surface-card rounded-[22px] p-4">
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Quick Stats</h4>
               {selectedData.avgMetrics?.Instructor_Rating != null && (
                 <div className="mb-3 rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.025)' }}>
                   <p className="text-[10px] uppercase tracking-wider text-muted">Instructor Rating</p>
-                  <p className="text-xl font-bold" style={{ color: 'var(--accent-strong)' }}>{Math.round(selectedData.avgMetrics.Instructor_Rating)}%</p>
-                  <p className="text-[10px] text-muted">global percentile average</p>
+                  <p className="text-xl font-bold" style={{ color: 'var(--accent-strong)' }}>{fmtShort(selectedData.avgMetrics.Instructor_Rating, metricMode)}</p>
+                  <p className="text-[10px] text-muted">{modeSubLabel(metricMode)}</p>
                   {selectedData.avgRawInstructor != null && (
                     <p className="mt-1 text-[10px]" style={{ color: 'var(--text-muted)', opacity: 0.72 }}>
                       avg {selectedData.avgRawInstructor.toFixed(2)}/5
@@ -372,7 +380,7 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
                   )}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">{[{ key: 'Course_Rating', label: 'Course Rating', color: 'var(--success)' }, { key: 'Workload', label: 'Workload', color: 'var(--text-soft)' }, { key: 'Rigor', label: 'Rigor', color: 'var(--text-soft)' }, { key: 'Diverse Perspectives', label: 'Diverse Persp.', color: 'var(--text-soft)' }, { key: 'Feedback', label: 'Feedback', color: 'var(--text-soft)' }].map(({ key, label, color }) => selectedData.avgMetrics?.[key] != null && <div key={key} className="rounded-2xl p-2" style={{ background: 'rgba(255,255,255,0.025)' }}><p className="text-[10px] text-muted">{label}</p><p className="text-sm font-bold" style={{ color }}>{Math.round(selectedData.avgMetrics[key])}%</p></div>)}</div>
+              <div className="grid grid-cols-2 gap-2">{[{ key: 'Course_Rating', label: 'Course Rating', color: 'var(--success)' }, { key: 'Workload', label: 'Workload', color: 'var(--text-soft)' }, { key: 'Rigor', label: 'Rigor', color: 'var(--text-soft)' }, { key: 'Diverse Perspectives', label: 'Diverse Persp.', color: 'var(--text-soft)' }, { key: 'Feedback', label: 'Feedback', color: 'var(--text-soft)' }].map(({ key, label, color }) => selectedData.avgMetrics?.[key] != null && <div key={key} className="rounded-2xl p-2" style={{ background: 'rgba(255,255,255,0.025)' }}><p className="text-[10px] text-muted">{label}</p><p className="text-sm font-bold" style={{ color }}>{fmtShort(selectedData.avgMetrics[key], metricMode)}</p></div>)}</div>
             </div>
           </div>
 
@@ -380,8 +388,11 @@ export default function Faculty({ courses, meta, metricMode = 'score' }) {
             <div className="border-b px-4 py-3" style={{ borderColor: 'var(--line)' }}><h4 className="text-xs font-semibold uppercase tracking-wider text-muted">All Courses Taught ({profCourses.length})</h4></div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.08)' }}>{['Year', 'Term', 'Course', 'Instructor %', 'Course %', 'Workload %', 'Rigor %', 'Diverse Persp.', 'N'].map((h) => <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-medium text-muted">{h}</th>)}</tr></thead>
-                <tbody>{profCourses.map((course, i) => <tr key={i} className="cursor-pointer transition-colors hover:bg-[rgba(255,255,255,0.02)]" style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.05)' }} onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}><td className="px-3 py-2 text-label">{course.year}</td><td className="px-3 py-2 text-muted">{course.term}</td><td className="px-3 py-2"><span className="font-medium" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</span><span className="ml-2 text-label">{course.course_name}</span></td><td className="px-3 py-2 font-medium" style={{ color: 'var(--accent-strong)' }}>{pct(course.metrics_pct?.Instructor_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Course_Rating)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Workload)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.Rigor)}</td><td className="px-3 py-2 text-label">{pct(course.metrics_pct?.['Diverse Perspectives'])}</td><td className="px-3 py-2 text-muted">{course.n_respondents ?? '-'}</td></tr>)}</tbody>
+                <thead><tr style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.08)' }}>{['Year', 'Term', 'Course', `Instructor (${modeUnit(metricMode)})`, `Course (${modeUnit(metricMode)})`, `Workload (${modeUnit(metricMode)})`, `Rigor (${modeUnit(metricMode)})`, 'Diverse Persp.', 'N'].map((h) => <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-medium text-muted">{h}</th>)}</tr></thead>
+                <tbody>{profCourses.map((course, i) => {
+                  const src = metricMode === 'score' ? course.metrics_score : course.metrics_pct
+                  return <tr key={i} className="cursor-pointer transition-colors hover:bg-[rgba(255,255,255,0.02)]" style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.05)' }} onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}><td className="px-3 py-2 text-label">{course.year}</td><td className="px-3 py-2 text-muted">{course.term}</td><td className="px-3 py-2"><span className="font-medium" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</span><span className="ml-2 text-label">{course.course_name}</span></td><td className="px-3 py-2 font-medium" style={{ color: 'var(--accent-strong)' }}>{fmtShort(src?.Instructor_Rating, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.Course_Rating, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.Workload, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.Rigor, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.['Diverse Perspectives'], metricMode)}</td><td className="px-3 py-2 text-muted">{course.n_respondents ?? '-'}</td></tr>
+                })}</tbody>
               </table>
               {meta.overall_median_instructor != null && (
                 <p className="border-t px-4 py-2 text-[10px] text-muted" style={{ borderColor: 'var(--line)' }}>

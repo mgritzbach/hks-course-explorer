@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BiddingPlanner from '../components/BiddingPlanner.jsx'
 import OnboardingTour from '../components/OnboardingTour.jsx'
+import { fmtShort } from '../utils/formatMetric.js'
 
 const COMPARE_TOUR_STEPS = [
   {
@@ -91,7 +92,7 @@ function getBestIndex(courses, attr, metricMode = 'score') {
   return bestIndex
 }
 
-function MetricBar({ value, best, higherBetter }) {
+function MetricBar({ value, best, higherBetter, metricMode = 'score' }) {
   if (value == null) return <span className="text-muted">—</span>
   const rounded = Math.round(value)
   const barColor = higherBetter
@@ -105,17 +106,19 @@ function MetricBar({ value, best, higherBetter }) {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <div className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--track-bg)' }}>
+        <div className="relative h-1.5 flex-1 rounded-full" style={{ background: 'var(--track-bg)' }}>
           <div
             className="absolute left-0 top-0 h-full rounded-full transition-all"
             style={{ width: `${value}%`, background: barColor, opacity: best ? 0.9 : 0.45 }}
           />
+          {/* Average reference tick */}
+          <div style={{ position: 'absolute', top: -2, left: '50%', width: 1, height: 7, background: 'rgba(243,233,226,0.35)', transform: 'translateX(-50%)' }} title="50th pct = average" />
         </div>
         <span
-          className="w-10 shrink-0 text-right text-xs font-semibold"
+          className="w-12 shrink-0 text-right text-xs font-semibold"
           style={{ color: barColor, opacity: best ? 1 : 0.7 }}
         >
-          {value}%
+          {fmtShort(value, metricMode)}
         </span>
       </div>
       <div className="flex items-center justify-between" style={{ marginTop: 2 }}>
@@ -534,7 +537,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score' }) {
                                 }}
                               >
                                 {attr.type === 'pct' ? (
-                                  <MetricBar value={pct(value)} best={isBest} higherBetter={attr.higherBetter} />
+                                  <MetricBar value={pct(value)} best={isBest} higherBetter={attr.higherBetter} metricMode={metricMode} />
                                 ) : attr.type === 'bool' ? (
                                   <span className="text-xs font-semibold" style={{ color: value ? 'var(--success)' : 'var(--text-muted)' }}>
                                     {value ? 'Yes' : 'No'}
