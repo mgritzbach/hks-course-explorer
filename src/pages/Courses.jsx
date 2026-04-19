@@ -730,6 +730,11 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                       <span className="text-2xl font-bold tracking-tight" style={{ color: 'var(--accent-strong)' }}>{selected.course_code}</span>
                       <CopyButton text={selected.course_code_base || selected.course_code} />
                       {selected.term && <span className="text-sm text-muted">{selected.term} {selected.year}</span>}
+                      {selected.historical_code && (
+                        <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: 'var(--panel-subtle)', color: 'var(--text-muted)', border: '1px solid var(--line)' }}>
+                          formerly {selected.historical_code}
+                        </span>
+                      )}
                     </div>
 
                     {(selected.credits_min != null || selected.grading_basis) && (

@@ -71,6 +71,11 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
               <span style={{ color: biddingOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>:</span>
               <span style={{ color: 'var(--text)' }}>{` ${course.course_name || '(Untitled)'}`}</span>
             </button>
+            {course.historical_code && (
+              <span className="ml-2 text-[10px] font-normal align-middle" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
+                formerly {course.historical_code}
+              </span>
+            )}
           </h3>
         </div>
 

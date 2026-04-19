@@ -10,6 +10,52 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE_CSV = ROOT / "data" / "canonical_courses_enriched.csv"
 OUTPUT_JSON = ROOT / "public" / "courses.json"
 
+# Maps old course_code_base values to their current canonical equivalent.
+# Rows with an old code get historical_code=<old> and canonical_code_base=<new>.
+HISTORICAL_CODE_MAP = {
+    # PED → DEV (Development dept renamed ~2017)
+    "PED-250":    "DEV-250",
+    "PED-130":    "DEV-130",
+    "PED-210":    "DEV-210",
+    "PED-309":    "DEV-309",
+    "PED-308":    "DEV-308",
+    "PED-150":    "DEV-150",
+    "PED-502":    "DEV-502",
+    "PED-501-M":  "DEV-501-M",
+    "PED-312":    "DPI-450",
+    # PAL / MLD-717 family → DPI-802-M (Arts of Communication)
+    "PAL-117":    "DPI-802-M",
+    "PAL-117-M":  "DPI-802-M",
+    "MLD-717":    "DPI-802-M",
+    "MLD-717-M":  "DPI-802-M",
+    "DPI-801":    "DPI-802-M",
+    # Other PAL → DPI/MLD migrations
+    "PAL-110":    "DPI-101",
+    "PAL-115":    "DPI-115",
+    "PAL-210":    "DPI-120",
+    "PAL-230":    "DPI-330",
+    "PAL-142":    "MLD-342",
+    "DPI-890":    "DPI-330",
+    # STM → MLD (Strategic Management moved)
+    "STM-221":    "MLD-221",
+    "STM-101":    "MLD-101",
+    "STM-102":    "MLD-102",
+    "STM-110":    "MLD-110",
+    "STM-301":    "MLD-601",
+    "STM-401-M":  "MLD-401-M",
+    "STM-117-M":  "MLD-617-M",
+    # HUT / HCP → SUP
+    "HUT-268":    "SUP-668",
+    "HUT-201":    "SUP-601",
+    "HCP-272":    "SUP-572",
+    # ISP → IGA
+    "ISP-103":    "IGA-103",
+    # Sequential renumbers
+    "IGA-306":    "IGA-220",
+    "DPI-810-M":  "MLD-718-M",
+    "DPI-811-M":  "MLD-719-M",
+}
+
 METRICS = [
     {"key": "Instructor_Rating", "label": "Instructor Rating", "higher_is_better": True},
     {"key": "Course_Rating", "label": "Course Rating", "higher_is_better": True},
@@ -376,6 +422,8 @@ def build_course(row, latest_bid_lookup):
         "id": f"{course_code}||{year if year is not None else ''}||{term}||{professor}",
         "course_code": course_code,
         "course_code_base": course_code_base,
+        "historical_code": course_code_base if course_code_base in HISTORICAL_CODE_MAP else None,
+        "canonical_code_base": HISTORICAL_CODE_MAP.get(course_code_base, course_code_base),
         "concentration": concentration,
         "year": year,
         "term": term,
