@@ -504,7 +504,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
               <button
                 key={preset.key}
                 onClick={() => handlePreset(preset)}
-                className={`preset-pill ${(preset.isActive(filters) || sortBy === preset.sortKey) ? 'active' : ''}`}
+                className={`preset-pill touch-manipulation min-h-[44px] ${(preset.isActive(filters) || sortBy === preset.sortKey) ? 'active' : ''}`}
               >
                 {preset.label}
               </button>
@@ -512,7 +512,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             {favs && favs.count > 0 && (
               <button
                 onClick={() => setShowShortlistOnly((v) => !v)}
-                className={`preset-pill ${showShortlistOnly ? 'active' : ''}`}
+                className={`preset-pill touch-manipulation min-h-[44px] ${showShortlistOnly ? 'active' : ''}`}
                 style={showShortlistOnly ? { borderColor: 'rgba(212, 168, 106, 0.38)', color: 'var(--gold)' } : {}}
               >
                 ★ Shortlist ({favs.count})

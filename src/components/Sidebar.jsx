@@ -22,6 +22,7 @@ function countActiveFilters(filters) {
 
 export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null, colorblindMode = false, setColorblindMode = null, onReplayTour = null }) {
   const [searchInput, setSearchInput] = useState(filters.searchText)
+  const [tourPending, setTourPending] = useState(false)
   const debounceRef = useRef(null)
 
   const update = (patch) => setFilters((current) => ({ ...current, ...patch }))
@@ -208,13 +209,13 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
                 <button
                   key={term}
                   onClick={() => toggleTerm(term)}
-                  className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-all"
+                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all touch-manipulation min-h-[36px]"
                   style={active
                     ? { background: 'var(--accent)', color: '#fff8f5', border: '1px solid transparent' }
                     : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
                 >
                   {TERM_LABELS[term]}
-                  {active && <span style={{ fontSize: 9, opacity: 0.75 }}>✕</span>}
+                  {active && <span style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
                 </button>
               )
             })}
@@ -288,10 +289,10 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
               Percentile
             </button>
           </div>
-          <p className="mt-1.5 text-[10px] leading-tight" style={{ color: 'var(--text-muted)' }}>
+          <p className="mt-1.5 text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
             {metricMode === 'score'
-              ? 'Avg rating ÷ 5 × 100% (absolute)'
-              : 'Rank vs. all courses in dataset'}
+              ? 'Absolute quality: avg rating ÷ 5 × 100. E.g. 4.2/5 → 84%.'
+              : 'Relative rank: 80 pct = better than 80% of all courses.'}
           </p>
         </div>
       )}
@@ -355,11 +356,18 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         {onReplayTour && (
           <button
             type="button"
-            onClick={onReplayTour}
-            className="mt-3 block text-xs transition-colors hover:text-label"
-            style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            disabled={tourPending}
+            onClick={() => {
+              setTourPending(true)
+              setTimeout(() => {
+                onReplayTour()
+                setTourPending(false)
+              }, 150)
+            }}
+            className="mt-3 block text-xs transition-colors hover:text-label touch-manipulation"
+            style={{ color: tourPending ? 'var(--accent)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: tourPending ? 'default' : 'pointer', padding: 0, opacity: tourPending ? 0.7 : 1 }}
           >
-            ↺ Replay tour
+            {tourPending ? '↺ Starting…' : '↺ Replay tour'}
           </button>
         )}
       </div>

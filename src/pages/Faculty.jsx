@@ -90,7 +90,7 @@ function FacultySidebar({
           </div>
         </div>
 
-        <input data-tour="faculty-search" type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name..." className="mb-3 w-full" style={{ fontSize: 12 }} />
+        <input data-tour="faculty-search" type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name..." className="mb-3 w-full touch-manipulation" style={{ fontSize: 16, minHeight: 44 }} />
 
         <div className="grid gap-2">
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Sort</p><div className="select-wrap"><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}>{SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></div>
@@ -119,8 +119,8 @@ function FacultySidebar({
                 Percentile
               </button>
             </div>
-            <p className="mt-1 text-[10px] leading-tight" style={{ color: 'var(--text-muted)' }}>
-              {metricMode === 'score' ? 'Avg ÷ 5 × 100% (absolute)' : 'Rank vs. all courses in dataset'}
+            <p className="mt-1.5 text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+              {metricMode === 'score' ? 'Absolute quality: avg rating ÷ 5 × 100. E.g. 4.2/5 → 84%.' : 'Relative rank: 80 pct = better than 80% of all courses.'}
             </p>
           </div>
         )}

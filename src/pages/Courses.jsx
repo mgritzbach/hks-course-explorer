@@ -171,6 +171,7 @@ function activeFilterCount(filters) {
 }
 
 function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = null, metricMode = 'score', setMetricMode = null, onReplayTour = null }) {
+  const [tourPending, setTourPending] = useState(false)
   const update = (patch) => setFilters((current) => ({ ...current, ...patch }))
   const reset = () => setFilters({
     year: 'all',
@@ -237,13 +238,13 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
                 <button
                   key={term}
                   onClick={() => toggleTerm(term)}
-                  className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors"
+                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors touch-manipulation min-h-[36px]"
                   style={active
                     ? { background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.95), rgba(132, 18, 36, 0.95))', color: '#fff' }
                     : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
                 >
                   {TERM_LABELS[term]}
-                  {active && <span className="text-[10px] leading-none">x</span>}
+                  {active && <span style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
                 </button>
               )
             })}
@@ -329,8 +330,8 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
               style={{ background: metricMode === 'percentile' ? 'var(--blue)' : 'transparent', color: metricMode === 'percentile' ? '#fff' : 'var(--text-muted)' }}
             >Percentile</button>
           </div>
-          <p className="mt-1.5 text-[10px] leading-tight" style={{ color: 'var(--text-muted)' }}>
-            {metricMode === 'score' ? 'Avg ÷ 5 × 100% (absolute)' : 'Rank vs. all courses'}
+          <p className="mt-1.5 text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+            {metricMode === 'score' ? 'Absolute quality: avg rating ÷ 5 × 100. E.g. 4.2/5 → 84%.' : 'Relative rank: 80 pct = better than 80% of all courses.'}
           </p>
         </div>
       )}
@@ -342,11 +343,18 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
         {onReplayTour && (
           <button
             type="button"
-            onClick={onReplayTour}
-            className="mt-3 block w-full text-xs transition-colors hover:text-label"
-            style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            disabled={tourPending}
+            onClick={() => {
+              setTourPending(true)
+              setTimeout(() => {
+                onReplayTour()
+                setTourPending(false)
+              }, 150)
+            }}
+            className="mt-3 block w-full text-xs transition-colors hover:text-label touch-manipulation"
+            style={{ color: tourPending ? 'var(--accent)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: tourPending ? 'default' : 'pointer', padding: 0, opacity: tourPending ? 0.7 : 1 }}
           >
-            ↺ Replay tour
+            {tourPending ? '↺ Starting…' : '↺ Replay tour'}
           </button>
         )}
       </div>
@@ -464,6 +472,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
   const [descOpen, setDescOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
+  const [showRaw, setShowRaw] = useState(false)
 
   const handleReplayTour = () => {
     localStorage.removeItem('hks-tour-courses')
@@ -886,23 +895,30 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                           ))}
                         </div>
                         {/* Raw 0-5 averages */}
-                        <details className="mt-4">
-                          <summary className="cursor-pointer text-[11px] font-medium" style={{ color: 'var(--blue)' }}>
+                        <div className="mt-4">
+                          <button
+                            onClick={() => setShowRaw((v) => !v)}
+                            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors hover:bg-white/5 touch-manipulation min-h-[36px]"
+                            style={{ color: 'var(--blue)' }}
+                          >
+                            <span style={{ display: 'inline-block', transform: showRaw ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.18s', fontSize: 9, lineHeight: 1 }}>▶</span>
                             Show raw averages (0–5 scale)
-                          </summary>
-                          <div className="mt-3 grid gap-x-8 gap-y-1 sm:grid-cols-2">
-                            {meta.metrics.filter((m) => !m.bid_metric).map((metric) => {
-                              const raw = selected.metrics_raw?.[metric.key]
-                              if (raw == null) return null
-                              return (
-                                <div key={metric.key} className="flex items-center justify-between py-1 text-xs" style={{ borderBottom: '1px solid var(--line)' }}>
-                                  <span className="text-muted">{metric.label}</span>
-                                  <span className="font-medium tabular-nums" style={{ color: 'var(--text-soft)' }}>{raw.toFixed(2)} / 5</span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </details>
+                          </button>
+                          {showRaw && (
+                            <div className="mt-3 grid gap-x-8 gap-y-1 sm:grid-cols-2">
+                              {meta.metrics.filter((m) => !m.bid_metric).map((metric) => {
+                                const raw = selected.metrics_raw?.[metric.key]
+                                if (raw == null) return null
+                                return (
+                                  <div key={metric.key} className="flex items-center justify-between py-1 text-xs" style={{ borderBottom: '1px solid var(--line)' }}>
+                                    <span className="text-muted">{metric.label}</span>
+                                    <span className="font-medium tabular-nums" style={{ color: 'var(--text-soft)' }}>{raw.toFixed(2)} / 5</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </>
                     ) : (
                       <div className="py-6 text-center">
