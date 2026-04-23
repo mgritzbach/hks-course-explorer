@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useEffect, useDeferredValue, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 import OnboardingTour from '../components/OnboardingTour.jsx'
@@ -487,6 +487,21 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
     setPlanCodes((prev) => new Set([...prev, code]))
   }, [planCodes])
 
+  // "/" shortcut focuses the search input (skip if already in an input/textarea)
+  const searchInputRef = useRef(null)
+  useEffect(() => {
+    const handler = (event) => {
+      if (event.key !== '/') return
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      event.preventDefault()
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
+
   const handleReplayTour = () => {
     localStorage.removeItem('hks-tour-courses')
     localStorage.removeItem('hks-tour-course-detail')
@@ -646,8 +661,12 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
         </div>
 
         <div data-tour="course-search" className="relative mb-4">
-          <label className="mb-1 block text-xs text-muted">Search by course or instructor</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-xs text-muted">Search by course or instructor</label>
+            <span className="hidden rounded border px-1.5 py-0.5 text-[10px] font-mono text-muted md:inline" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>/</span>
+          </div>
           <input
+            ref={searchInputRef}
             type="text"
             value={selected && !query ? `${selected.course_code}: ${selected.course_name} - ${selected.professor_display}` : query}
             placeholder="Start typing a course name, code, or instructor..."
