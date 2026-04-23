@@ -209,6 +209,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
                 <button
                   key={term}
                   onClick={() => toggleTerm(term)}
+                  aria-pressed={active}
                   className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all touch-manipulation min-h-[44px]"
                   style={active
                     ? { background: 'var(--accent)', color: '#fff8f5', border: '1px solid transparent' }

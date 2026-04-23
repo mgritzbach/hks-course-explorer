@@ -115,10 +115,10 @@ function HistoryTable({ history, metricMode = 'score' }) {
           </tr>
         </thead>
         <tbody>
-          {history.map((row, index) => {
+          {history.map((row) => {
             const src = metricMode === 'score' ? row.metrics_score : row.metrics_pct
             return (
-              <tr key={index} style={{ borderBottom: '1px solid var(--line)' }}>
+              <tr key={`${row.year}-${row.term}-${row.professor}`} style={{ borderBottom: '1px solid var(--line)' }}>
                 <td className="py-2 pr-4 text-label">{row.year}</td>
                 <td className="py-2 pr-4 text-muted">{row.term}</td>
                 <td className="py-2 pr-4 text-label">{row.professor_display || row.professor}</td>
@@ -440,10 +440,10 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
             </tr>
           </thead>
           <tbody>
-            {biddingHistory.map((row, index) => {
+            {biddingHistory.map((row) => {
               const over = row.bid_n_bids != null && row.bid_capacity != null && row.bid_n_bids > row.bid_capacity ? row.bid_n_bids - row.bid_capacity : null
               return (
-                <tr key={index} style={{ borderBottom: '1px solid var(--line)' }}>
+                <tr key={`${row.year}-${row.term}-${row.professor}`} style={{ borderBottom: '1px solid var(--line)' }}>
                   <td className="py-2 pr-4 text-label">{row.year}</td>
                   <td className="py-2 pr-4 text-muted">{row.term}</td>
                   <td className="py-2 pr-4 text-label">
@@ -1126,6 +1126,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                         <div className="space-y-2">
                           {similarCourses.map((sim) => {
                             const c = courses.find((x) => x.course_code === sim.course_code && x.is_average) || courses.find((x) => x.course_code === sim.course_code)
+                            const instrVal = metricMode === 'score' ? c?.metrics_score?.Instructor_Rating : c?.metrics_pct?.Instructor_Rating
                             const instrPct = c?.metrics_pct?.Instructor_Rating
                             return (
                               <button
@@ -1145,9 +1146,9 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                                   <p className="text-xs font-bold" style={{ color: 'var(--accent-strong)' }}>{sim.course_code}</p>
                                   <p className="truncate text-[11px] text-muted">{sim.course_name}</p>
                                 </div>
-                                {instrPct != null && (
+                                {instrVal != null && instrPct != null && (
                                   <span className="shrink-0 text-[10px] font-medium" style={{ color: instrPct >= 75 ? 'var(--success)' : instrPct >= 50 ? 'var(--gold)' : 'var(--danger)' }}>
-                                    {metricMode === 'score' ? `${Math.round(instrPct)}%` : `${Math.round(c?.metrics_pct?.Instructor_Rating)} pct`}
+                                    {metricMode === 'score' ? `${Math.round(instrVal)}%` : `${Math.round(instrPct)} pct`}
                                   </span>
                                 )}
                               </button>

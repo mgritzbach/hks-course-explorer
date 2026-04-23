@@ -105,6 +105,8 @@ function NavResourcesSection() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="hks-resources-list"
         style={{
           display: 'flex',
           width: '100%',
@@ -126,7 +128,7 @@ function NavResourcesSection() {
       </button>
 
       {open && (
-        <div style={{ padding: '0 8px 8px' }}>
+        <div id="hks-resources-list" style={{ padding: '0 8px 8px' }}>
           {HKS_RESOURCES.map((section) => (
             <div key={section.group} style={{ marginBottom: 10 }}>
               <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', paddingLeft: 6, marginBottom: 2 }}>

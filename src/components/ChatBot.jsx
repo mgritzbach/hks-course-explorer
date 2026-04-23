@@ -78,16 +78,17 @@ export default function ChatBot({ courses, favs }) {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
-  // Don't render on routes where the FAB collides with tool UI
-  if (HIDDEN_ROUTES.some((route) => location.pathname.startsWith(route))) return null
+  const isHidden = HIDDEN_ROUTES.some((route) => location.pathname.startsWith(route))
 
   useEffect(() => {
-    if (open && messages.length === 0) {
+    if (isHidden || !open) return
+    if (messages.length === 0) {
       setMessages([{ role: 'assistant', content: WELCOME }])
       posthog.capture('chatbot_opened')
     }
-    if (open) setTimeout(() => inputRef.current?.focus(), 120)
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+    const timer = setTimeout(() => inputRef.current?.focus(), 120)
+    return () => clearTimeout(timer)
+  }, [open, isHidden]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -182,6 +183,9 @@ export default function ChatBot({ courses, favs }) {
       setLoading(false)
     }
   }
+
+  // Don't render on routes where the FAB collides with tool UI (guard is here, after all hooks)
+  if (isHidden) return null
 
   const isLight = document.documentElement.getAttribute('data-theme') === 'light'
 

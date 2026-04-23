@@ -306,7 +306,7 @@ export default function ScatterPlot({
           _noHover: true,
         }
       })
-  ), [allCoursesDeduped, matchedIds, xMetric, xMode, yMetric, yMode])
+  ), [allCoursesDeduped, matchedIds, metricMode, xMetric, xMode, yMetric, yMode])
 
   const matchedData = useMemo(() => (
     matchedCoursesDeduped
@@ -335,7 +335,7 @@ export default function ScatterPlot({
           _starred: starred,
         }
       })
-  ), [matchedCoursesDeduped, xMeta, xMetric, xMode, yMeta, yMetric, yMode, favorites])
+  ), [matchedCoursesDeduped, metricMode, xMeta, xMetric, xMode, yMeta, yMetric, yMode, favorites])
 
   const bidOnlyData = useMemo(() => (
     (biddingOnlyCourses || [])
@@ -701,6 +701,7 @@ export default function ScatterPlot({
       <div className="flex items-center gap-2 md:col-span-2">
         <button
           onClick={() => handleZoomButton('out')}
+          aria-label="Zoom out"
           className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
           style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
         >
@@ -708,6 +709,7 @@ export default function ScatterPlot({
         </button>
         <button
           onClick={() => handleZoomButton('in')}
+          aria-label="Zoom in"
           className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
           style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
         >

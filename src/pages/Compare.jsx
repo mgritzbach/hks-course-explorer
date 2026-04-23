@@ -435,13 +435,15 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
           <div className="surface-card rounded-[22px] p-5">
             <button
               onClick={() => setAttrPanelOpen((v) => !v)}
+              aria-expanded={attrPanelOpen}
+              aria-controls="compare-attr-panel"
               className="flex w-full items-center justify-between"
             >
               <span className="filter-label">Attributes to Compare ({selectedAttrs.size} selected)</span>
               <span className="text-xs text-muted">{attrPanelOpen ? '▲ Hide' : '▼ Show'}</span>
             </button>
             {attrPanelOpen && (
-              <div className="mt-4 space-y-5">
+              <div id="compare-attr-panel" className="mt-4 space-y-5">
                 {ATTRIBUTE_GROUPS.map((group) => (
                   <div key={group.label}>
                     <p className="filter-label mb-2">{group.label}</p>
@@ -489,12 +491,14 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
             <button
               type="button"
               onClick={() => setPlannerOpen((open) => !open)}
+              aria-expanded={plannerOpen}
+              aria-controls="compare-bidding-planner"
               className="theme-toggle"
             >
               {plannerOpen ? '📊 Hide Planner' : '📊 Bidding Planner'}
             </button>
             {plannerOpen && (
-              <div className="mt-3">
+              <div id="compare-bidding-planner" className="mt-3">
                 <BiddingPlanner courses={courses} favs={favs} />
               </div>
             )}
