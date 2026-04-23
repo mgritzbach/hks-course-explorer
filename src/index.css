@@ -538,7 +538,7 @@ html[data-theme='light'] .preset-pill.active {
 .spinner {
   width: 32px;
   height: 32px;
-  border: 2.5px solid rgba(243, 233, 226, 0.1);
+  border: 2.5px solid var(--track-bg);
   border-top-color: var(--gold);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;

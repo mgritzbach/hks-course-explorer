@@ -960,7 +960,9 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                         <div className="mt-4">
                           <button
                             onClick={() => setShowRaw((v) => !v)}
-                            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors hover:bg-white/5 touch-manipulation min-h-[36px]"
+                            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors touch-manipulation min-h-[36px]"
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--panel-subtle)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
                             style={{ color: 'var(--blue)' }}
                           >
                             <span style={{ display: 'inline-block', transform: showRaw ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.18s', fontSize: 9, lineHeight: 1 }}>▶</span>

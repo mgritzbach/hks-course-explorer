@@ -372,7 +372,9 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
                       <button
                         key={course.id}
                         onClick={() => addCourse(course.id)}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5"
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors"
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--panel-subtle)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
                         style={{ borderBottom: '1px solid var(--line)' }}
                       >
                         <span className="mt-0.5 shrink-0 text-xs font-bold" style={{ color: 'var(--accent-strong)' }}>
