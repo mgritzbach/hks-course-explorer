@@ -55,7 +55,7 @@ function selectPacCourses(courses, category) {
 
   let chosenPrefix = null
   let chosenCourses = []
-  let bestCredits = -1
+  let bestCredits = 0  // Only pick a prefix if it has at least some credits
 
   for (const [prefix, items] of buckets.entries()) {
     const credits = items.reduce((sum, item) => sum + item._credits, 0)

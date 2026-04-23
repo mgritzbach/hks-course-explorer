@@ -285,7 +285,7 @@ export default function Requirements({ courses = [] }) {
                 )}
 
                 <div className="mt-4">
-                  <ProgressBar value={category.percent} color={accentColor} label={`${category.label}: ${category.appliedCredits} of ${category.requiredCredits} credits`} />
+                  <ProgressBar value={category.percent} color={category.isComplete ? 'var(--success)' : accentColor} label={`${category.label}: ${category.appliedCredits} of ${category.requiredCredits} credits`} />
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
