@@ -18,18 +18,21 @@ const SEMESTER_OPTIONS = [
   { value: 'January', label: 'J-term' },
 ]
 
-function fallbackSearch(q, allCourses) {
+function fallbackSearch(q, allCourses, filters = {}) {
   const query = String(q || '').trim().toLowerCase()
-  if (!query) return []
+  const { concentration, stem, coreOnly } = filters
+  const hasFilters = (concentration && concentration !== 'All') || (stem && stem !== 'all') || coreOnly
+  if (!query && !hasFilters) return []
   return (Array.isArray(allCourses) ? allCourses : [])
     .filter((c) => !c?.is_average && Number(c?.year || 0) >= 2024)
-    .filter((c) =>
-      [c?.course_code, c?.course_name, c?.professor, c?.professor_display]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
-    )
+    .filter((c) => {
+      if (query && !([c?.course_code, c?.course_name, c?.professor, c?.professor_display].filter(Boolean).join(' ').toLowerCase().includes(query))) return false
+      if (concentration && concentration !== 'All' && c?.concentration !== concentration) return false
+      if (stem === 'stem' && !c?.is_stem) return false
+      if (stem === 'nonstem' && c?.is_stem) return false
+      if (coreOnly && !c?.is_core) return false
+      return true
+    })
     .sort((a, b) => Number(b?.year || 0) - Number(a?.year || 0))
     .slice(0, 12)
     .map((c) => ({
@@ -250,6 +253,9 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [semester, setSemester] = useState('Spring')
   const [showWeekends, setShowWeekends] = useState(false)
   const [searchQ, setSearchQ] = useState('')
+  const [searchConcentration, setSearchConcentration] = useState('All')
+  const [searchStem, setSearchStem] = useState('all')
+  const [searchCoreOnly, setSearchCoreOnly] = useState(false)
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [apiMode, setApiMode] = useState('unknown') // 'live' | 'db' | 'unknown'
@@ -278,7 +284,9 @@ export default function ScheduleBuilder({ courses = [] }) {
 
   useEffect(() => {
     const query = searchQ.trim()
-    if (!query) {
+    const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly }
+    const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly
+    if (!query && !hasFilters) {
       setSearching(false)
       setSearchResults([])
       return undefined
@@ -287,22 +295,34 @@ export default function ScheduleBuilder({ courses = [] }) {
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
-        const semesterKey = semester === 'January' ? 'January' : semester
-        const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
-        const remote = await searchHarvardCourses(query, { term: `${termYear}${semesterKey}`, school: 'HKS' })
-        if (cancelled) return
-        const normalized = (Array.isArray(remote) ? remote : []).map((item, index) => normalizeCourse(item, index)).slice(0, 12)
-        if (normalized.length) {
-          setApiMode('live')
-          setSearchResults(normalized)
+        if (query) {
+          const semesterKey = semester === 'January' ? 'January' : semester
+          const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
+          const remote = await searchHarvardCourses(query, { term: `${termYear}${semesterKey}`, school: 'HKS' })
+          if (cancelled) return
+          let normalized = (Array.isArray(remote) ? remote : []).map((item, index) => normalizeCourse(item, index))
+          // Apply client-side filters to live results
+          if (searchStem === 'stem') normalized = normalized.filter((c) => c.enrichment?.is_stem)
+          if (searchStem === 'nonstem') normalized = normalized.filter((c) => !c.enrichment?.is_stem)
+          if (searchCoreOnly) normalized = normalized.filter((c) => c.enrichment?.is_core)
+          normalized = normalized.slice(0, 12)
+          if (normalized.length) {
+            setApiMode('live')
+            setSearchResults(normalized)
+          } else {
+            setApiMode('db')
+            setSearchResults(fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
+          }
         } else {
+          // Filter-only mode — use DB
+          if (cancelled) return
           setApiMode('db')
-          setSearchResults(fallbackSearch(query, courses).map((item, index) => normalizeCourse(item, index)))
+          setSearchResults(fallbackSearch('', courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
         }
       } catch {
         if (!cancelled) {
           setApiMode('db')
-          setSearchResults(fallbackSearch(query, courses).map((item, index) => normalizeCourse(item, index)))
+          setSearchResults(fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
         }
       } finally {
         if (!cancelled) setSearching(false)
@@ -312,7 +332,13 @@ export default function ScheduleBuilder({ courses = [] }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [courses, searchQ, semester])
+  }, [courses, searchQ, searchConcentration, searchStem, searchCoreOnly, semester])
+
+  const concentrationOptions = useMemo(() => {
+    const seen = new Set()
+    ;(Array.isArray(courses) ? courses : []).forEach((c) => { if (c?.concentration) seen.add(c.concentration) })
+    return ['All', ...[...seen].sort()]
+  }, [courses])
 
   const normalizedPlanCourses = useMemo(() => (Array.isArray(planData?.courses) ? planData.courses : []).map((course, index) => normalizeCourse(course, index)), [planData])
   const gridCourses = useMemo(() => normalizedPlanCourses.filter((course) => course.isOnGrid), [normalizedPlanCourses])
@@ -634,6 +660,44 @@ export default function ScheduleBuilder({ courses = [] }) {
                 )}
               </div>
               <input id="course-search" aria-label="Search courses and instructors" value={searchQ} onChange={(event) => setSearchQ(event.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Search courses, instructors..." className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }} />
+              {/* Filter row */}
+              <div className="mt-2 flex flex-col gap-1.5">
+                <select
+                  value={searchConcentration}
+                  onChange={(e) => setSearchConcentration(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+                  aria-label="Filter by concentration"
+                >
+                  {concentrationOptions.map((opt) => <option key={opt} value={opt}>{opt === 'All' ? 'All concentrations' : opt}</option>)}
+                </select>
+                <div className="flex gap-1.5">
+                  <select
+                    value={searchStem}
+                    onChange={(e) => setSearchStem(e.target.value)}
+                    className="flex-1 rounded-xl border px-2 py-1.5 text-xs"
+                    style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+                    aria-label="Filter by STEM"
+                  >
+                    <option value="all">All types</option>
+                    <option value="stem">STEM only</option>
+                    <option value="nonstem">Non-STEM</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setSearchCoreOnly((v) => !v)}
+                    className="shrink-0 rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
+                    style={{
+                      background: searchCoreOnly ? 'var(--accent-soft)' : 'var(--panel-soft)',
+                      borderColor: searchCoreOnly ? 'var(--accent)' : 'var(--line-strong)',
+                      color: searchCoreOnly ? 'var(--text)' : 'var(--text-muted)',
+                    }}
+                    aria-pressed={searchCoreOnly}
+                  >
+                    Core
+                  </button>
+                </div>
+              </div>
               {searchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result</p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
@@ -867,6 +931,25 @@ export default function ScheduleBuilder({ courses = [] }) {
                           <span style={{ color: 'var(--text)' }}>{category.appliedCredits}/{category.requiredCredits} cr</span>
                         </div>
                         <ProgressBar value={category.percent} tone={category.isComplete ? 'var(--success)' : 'var(--accent)'} label={`${category.label}: ${category.appliedCredits}/${category.requiredCredits} credits`} />
+                        {category.selectedCourses?.length > 0 && (
+                          <div className="mt-1.5 space-y-1">
+                            {category.selectedCourses.map((sc) => (
+                              <div key={sc._courseCode} className="flex items-center justify-between gap-1.5 rounded-xl px-2 py-1" style={{ background: 'var(--panel-soft)' }}>
+                                <span className="truncate text-[11px] font-semibold" style={{ color: 'var(--text-soft)' }}>{sc._courseCode}</span>
+                                <div className="flex shrink-0 items-center gap-1.5">
+                                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{sc._credits}cr</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeCourse(sc._courseCode)}
+                                    aria-label={`Remove ${sc._courseCode}`}
+                                    className="flex h-4 w-4 items-center justify-center rounded-full text-[11px] font-bold transition-colors hover:opacity-70"
+                                    style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}
+                                  >×</button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                     <div className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
