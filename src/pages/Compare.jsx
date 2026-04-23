@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import BiddingPlanner from '../components/BiddingPlanner.jsx'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import { fmtShort } from '../utils/formatMetric.js'
@@ -150,6 +150,7 @@ function CourseChip({ course, onRemove }) {
 
 export default function Compare({ courses, meta, favs, metricMode = 'score', setMetricMode = null }) {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [selected, setSelected] = useState([]) // array of course ids
   const [searchText, setSearchText] = useState('')
   const [selectedAttrs, setSelectedAttrs] = useState(DEFAULT_SELECTED)
@@ -157,6 +158,8 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
   const [plannerOpen, setPlannerOpen] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState(new Set(['Detailed Evaluation']))
+  const [copyMsg, setCopyMsg] = useState(null)
+  const initializedFromUrl = useRef(false)
 
   const toggleGroup = (label) => {
     setCollapsedGroups((prev) => {
@@ -195,6 +198,44 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
     () => selected.map((id) => candidatePool.find((c) => c.id === id)).filter(Boolean),
     [selected, candidatePool]
   )
+
+  // Initialize selected from ?ids= URL param (runs once after candidatePool is ready)
+  useEffect(() => {
+    if (initializedFromUrl.current || !candidatePool.length) return
+    const idsParam = searchParams.get('ids')
+    if (!idsParam) { initializedFromUrl.current = true; return }
+    initializedFromUrl.current = true
+    const codes = idsParam.split(',').map((s) => s.trim()).filter(Boolean)
+    const ids = codes.flatMap((code) => {
+      const found = candidatePool.find((c) => (c.course_code_base || c.course_code) === code || c.id === code)
+      return found ? [found.id] : []
+    })
+    if (ids.length) setSelected(ids.slice(0, MAX_COURSES))
+  }, [candidatePool]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync selected courses to URL as ?ids=CODE1,CODE2
+  useEffect(() => {
+    const codes = selected.map((id) => {
+      const course = candidatePool.find((c) => c.id === id)
+      return course ? (course.course_code_base || course.course_code) : null
+    }).filter(Boolean)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (codes.length) next.set('ids', codes.join(','))
+      else next.delete('ids')
+      return next
+    }, { replace: true })
+  }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const copyShareLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopyMsg('Copied!')
+      setTimeout(() => setCopyMsg(null), 2000)
+    }).catch(() => {
+      setCopyMsg('Copy failed')
+      setTimeout(() => setCopyMsg(null), 2000)
+    })
+  }
 
   const shortlistCourses = useMemo(() => {
     if (!favs?.count) return []
@@ -248,9 +289,21 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
           <h1 className="serif-display text-3xl font-semibold md:text-[2.5rem]" style={{ color: 'var(--text)' }}>
             Compare Courses
           </h1>
-          <p className="mt-2 max-w-2xl text-sm" style={{ color: 'var(--text-soft)' }}>
-            Select up to {MAX_COURSES} courses and choose which attributes to compare side by side.
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="text-sm" style={{ color: 'var(--text-soft)' }}>
+              Select up to {MAX_COURSES} courses and choose which attributes to compare side by side.
+            </p>
+            {selected.length > 0 && (
+              <button
+                type="button"
+                onClick={copyShareLink}
+                className="rounded-full border px-3 py-1 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
+                style={{ background: copyMsg ? 'var(--success-soft, rgba(80,200,120,0.1))' : 'var(--panel-soft)', borderColor: copyMsg ? 'var(--success)' : 'var(--line-strong)', color: copyMsg ? 'var(--success)' : 'var(--text-soft)' }}
+              >
+                {copyMsg ? `✓ ${copyMsg}` : '🔗 Share'}
+              </button>
+            )}
+          </div>
           {setMetricMode && (
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <div className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
