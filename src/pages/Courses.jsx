@@ -465,7 +465,7 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
   )
 }
 
-export default function Courses({ courses, meta, favs, metricMode = 'score', setMetricMode }) {
+export default function Courses({ courses, meta, favs, metricMode = 'score', setMetricMode, simIndex = null }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState(() => searchParams.get('q') || '')
@@ -632,6 +632,28 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
   const topByBidding = useMemo(() => filteredOptions.filter((course) => course.last_bid_price != null).slice(0, 5), [filteredOptions])
   const history = useMemo(() => selected ? courses.filter((course) => course.course_code_base === selected.course_code_base && course.has_eval).sort((a, b) => (b.year || 0) - (a.year || 0) || (a.term || '').localeCompare(b.term || '')) : [], [courses, selected])
   const biddingHistory = useMemo(() => selected ? courses.filter((course) => course.course_code_base === selected.course_code_base && course.has_bidding).sort((a, b) => (b.year || 0) - (a.year || 0)) : [], [courses, selected])
+
+  // Find similar courses by PCA similarity coords
+  const similarCourses = useMemo(() => {
+    if (!simIndex || !selected) return []
+    const selfCoords = simIndex.get(selected.id)
+    if (!selfCoords) return []
+    const { sim_x, sim_y } = selfCoords
+    const selfBase = selected.course_code_base || selected.course_code
+    // Build a deduplicated set (by course_code_base) then find nearest neighbors
+    const seen = new Set()
+    const candidates = []
+    for (const [id, coords] of simIndex) {
+      const dist = Math.sqrt((coords.sim_x - sim_x) ** 2 + (coords.sim_y - sim_y) ** 2)
+      const base = coords.course_code || id.split('||')[0]
+      if (base === selfBase) continue
+      if (seen.has(base)) continue
+      seen.add(base)
+      candidates.push({ id, dist, course_code: coords.course_code, course_name: coords.course_name, professor_display: coords.professor_display, concentration: coords.concentration })
+    }
+    candidates.sort((a, b) => a.dist - b.dist)
+    return candidates.slice(0, 6)
+  }, [simIndex, selected])
 
   const metricSrc = metricMode === 'score' ? selected?.metrics_score : selected?.metrics_pct
   const instructorPct = metricSrc?.Instructor_Rating
@@ -1076,6 +1098,44 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                       <div className="surface-card rounded-[22px] px-4 py-4">
                         <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted">Section Notes</p>
                         {selected.section_notes.map((note, index) => <p key={index} className="mb-1 text-sm leading-relaxed text-label">{note}</p>)}
+                      </div>
+                    )}
+
+                    {similarCourses.length > 0 && (
+                      <div className="surface-card rounded-[22px] px-4 py-4">
+                        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted">Similar Courses</p>
+                        <div className="space-y-2">
+                          {similarCourses.map((sim) => {
+                            const c = courses.find((x) => (x.course_code_base || x.course_code) === sim.course_code && x.is_average) || courses.find((x) => (x.course_code_base || x.course_code) === sim.course_code)
+                            const instrPct = c?.metrics_pct?.Instructor_Rating
+                            return (
+                              <button
+                                key={sim.id}
+                                onClick={() => {
+                                  if (c) {
+                                    setSelectedId(c.id)
+                                    setSearchParams({ id: c.id })
+                                  }
+                                }}
+                                className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:text-label"
+                                style={{ border: '1px solid var(--line)', background: 'var(--panel)' }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--panel-subtle)' }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--panel)' }}
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold" style={{ color: 'var(--accent-strong)' }}>{sim.course_code}</p>
+                                  <p className="truncate text-[11px] text-muted">{sim.course_name}</p>
+                                </div>
+                                {instrPct != null && (
+                                  <span className="shrink-0 text-[10px] font-medium" style={{ color: instrPct >= 75 ? 'var(--success)' : instrPct >= 50 ? 'var(--gold)' : 'var(--danger)' }}>
+                                    {metricMode === 'score' ? `${Math.round(instrPct)}%` : `${Math.round(c?.metrics_pct?.Instructor_Rating)} pct`}
+                                  </span>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <p className="mt-2 text-[10px] text-muted">Based on content similarity (PCA of course descriptions + topics)</p>
                       </div>
                     )}
                   </div>

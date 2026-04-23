@@ -168,6 +168,7 @@ export default function App() {
   const [loadCount, setLoadCount] = useState(0)
   const [error, setError] = useState(null)
   const [retryKey, setRetryKey] = useState(0)
+  const [simIndex, setSimIndex] = useState(null)
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'dark'
     return window.localStorage.getItem('hks-theme') || 'dark'
@@ -205,6 +206,20 @@ export default function App() {
     return () => {
       if (shareToastTimeoutRef.current) clearTimeout(shareToastTimeoutRef.current)
     }
+  }, [])
+
+  // Fetch similarity index in the background — not blocking
+  useEffect(() => {
+    fetch('/sim_coords.json')
+      .then((r) => r.json())
+      .then((coords) => {
+        const map = new Map()
+        for (const entry of coords) {
+          map.set(entry.id, { sim_x: entry.sim_x, sim_y: entry.sim_y, course_code: entry.course_code, course_name: entry.course_name, professor_display: entry.professor_display, concentration: entry.concentration })
+        }
+        setSimIndex(map)
+      })
+      .catch(() => { /* sim coords are optional — fail silently */ })
   }, [])
 
   useEffect(() => {
@@ -477,7 +492,7 @@ export default function App() {
             <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center', fontSize: 14 }}>Loading…</div>}>
               <Routes>
                 <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} notes={notes} setNote={setNote} />} />
-                <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />} />
+                <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} simIndex={simIndex} />} />
                 <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
                 <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
                 <Route path="/resources" element={<Resources />} />

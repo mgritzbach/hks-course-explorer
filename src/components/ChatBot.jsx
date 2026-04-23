@@ -223,6 +223,8 @@ export default function ChatBot({ courses, favs }) {
             </div>
             <button
               onClick={() => setOpen(false)}
+              aria-label="Close Course Advisor"
+              title="Close"
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18, padding: '0 2px', lineHeight: 1 }}
             >
               ×
@@ -292,6 +294,8 @@ export default function ChatBot({ courses, favs }) {
             <button
               onClick={send}
               disabled={!input.trim() || loading}
+              aria-label="Send message"
+              title="Send"
               style={{
                 background: 'var(--accent)',
                 color: '#fff8f5',
