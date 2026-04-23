@@ -242,7 +242,15 @@
       <li><strong>Home</strong> — Scatter plot overview of the full course catalog</li>
       <li><strong>Courses</strong> — Deep-dive into individual course detail, performance, and bidding</li>
       <li><strong>Faculty</strong> — Instructor profiles with aggregated ratings and teaching history</li>
-      <li><strong>Compare</strong> — Side-by-side comparison of shortlisted courses</li>
+      <li><strong>Compare</strong> — Side-by-side comparison of up to 5 courses across all metrics</li>
+    </ul>
+
+    <h3>Hidden Tools (Power User)</h3>
+    <p>Three additional tools are accessible via direct URL and not shown in the main navigation:</p>
+    <ul>
+      <li><a href="/schedule-builder"><strong>/schedule-builder</strong></a> — Build a semester schedule with a visual timetable grid. Drag courses from your shortlist, detect time conflicts, and export to iCal.</li>
+      <li><a href="/requirements"><strong>/requirements</strong></a> — Track degree requirements across all 5 HKS programs (MPP, MPA, MC/MPA, MPA-ID, MPA-MC). Compares your scheduled courses against program milestones.</li>
+      <li><a href="/admin"><strong>/admin</strong></a> — Password-protected admin interface for updating course data.</li>
     </ul>
   </section>
 
@@ -267,8 +275,13 @@
     </table>
 
     <div class="callout callout-tip">
-      <strong>Tip</strong>
-      Hover over (desktop) or tap (mobile) any dot to see the course name, instructor, and key stats. Click it to jump directly to the Course Explorer detail view.
+      <strong>Tip: Scatter Plot Interactions</strong>
+      <ul style="margin:6px 0 0 1.2em; padding:0;">
+        <li><strong>Hover</strong> over a dot to see course name, instructor, concentration, and key metrics.</li>
+        <li><strong>Click</strong> a dot to pin a detail panel below the plot — from there you can ⭐ star the course, ⇄ jump to Compare, or go to full Course Details.</li>
+        <li><strong>Scroll/pinch</strong> to zoom in; double-click to reset view.</li>
+        <li><strong>Change axes</strong> using the X/Y dropdowns to plot any two metrics against each other.</li>
+      </ul>
     </div>
 
     <h3>Preset Pills</h3>
@@ -504,7 +517,14 @@
     <p>Toggle between dark and light themes using the button in the top-left of the navigation panel (desktop) or the top-right of the mobile header. Your preference is saved to your browser.</p>
 
     <h3>Shareable URLs</h3>
-    <p>Navigating to a course detail or faculty profile updates the URL with a query parameter. You can copy and share the URL to link directly to a specific course or instructor.</p>
+    <p>All pages sync their state to the URL automatically. You can share any URL to reproduce an exact view:</p>
+    <ul>
+      <li><strong>Course detail</strong> — <code>/courses?id=COURSE_ID</code></li>
+      <li><strong>Faculty profile</strong> — <code>/faculty?prof=Name</code></li>
+      <li><strong>Compare view</strong> — <code>/compare?ids=MLD-601,DPI-622</code> (up to 5 comma-separated codes)</li>
+      <li><strong>Home filters</strong> — Year, concentration, STEM, core, sort, scatter axes all persist in the URL</li>
+      <li><strong>Shortlist share</strong> — The "Share Shortlist" button copies a link that pre-loads your starred courses for anyone who opens it</li>
+    </ul>
 
     <h3>Shortlist Persistence</h3>
     <p>Your shortlist (starred courses) is stored in browser localStorage. It persists across sessions on the same device. Clearing your browser data will reset it.</p>
