@@ -44,7 +44,7 @@ function median(values) {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
 }
 
-async function fetchAllCourses() {
+async function fetchAllCourses(onProgress) {
   const PAGE = 1000
   let all = [], from = 0, done = false
   while (!done) {
@@ -56,6 +56,7 @@ async function fetchAllCourses() {
     all = all.concat(data)
     done = data.length < PAGE
     from += PAGE
+    if (onProgress) onProgress(all.length)
   }
   return all
 }
@@ -164,6 +165,7 @@ const TALLY_FORM_ID = 'LZYAQv'
 export default function App() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadCount, setLoadCount] = useState(0)
   const [error, setError] = useState(null)
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'dark'
@@ -205,7 +207,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    fetchAllCourses()
+    fetchAllCourses((n) => setLoadCount(n))
       .then((courses) => {
         // Compute metrics_score client-side (not stored in Supabase)
         courses.forEach(c => {
@@ -231,7 +233,12 @@ export default function App() {
         style={{ background: 'transparent' }}
       >
         <div className="spinner" />
-        <p className="text-muted text-sm">Loading course data…</p>
+        <div className="text-center">
+          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Loading HKS Course Explorer</p>
+          <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+            {loadCount > 0 ? `${loadCount.toLocaleString()} courses loaded…` : 'Connecting to database…'}
+          </p>
+        </div>
       </div>
     )
   }
