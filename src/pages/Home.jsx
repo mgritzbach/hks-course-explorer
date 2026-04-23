@@ -132,7 +132,7 @@ function countFilterBadges(filters) {
   return count
 }
 
-const PRESETS = [
+const STATIC_PRESETS = [
   {
     key: 'top_rated',
     label: 'Top Rated',
@@ -159,19 +159,24 @@ const PRESETS = [
     isActive: (filters) => filters.stemGroup === 'B',
   },
   {
-    key: 'bidding_2026',
-    label: 'Bidding 2026',
-    apply: (filters) => ({ ...filters, year: 2026, evalOnly: false }),
-    isActive: (filters) => filters.year === 2026,
-    sortKey: 'bid_price_desc',
-  },
-  {
     key: 'core_only',
     label: 'Core Courses',
     apply: (filters) => ({ ...filters, coreFilter: 'core' }),
     isActive: (filters) => filters.coreFilter === 'core',
   },
 ]
+
+function buildPresets(biddingYear) {
+  const biddingPreset = {
+    key: `bidding_${biddingYear}`,
+    label: `Bidding ${biddingYear}`,
+    apply: (filters) => ({ ...filters, year: biddingYear, evalOnly: false }),
+    isActive: (filters) => filters.year === biddingYear,
+    sortKey: 'bid_price_desc',
+  }
+  // Insert bidding preset after STEM B (index 3)
+  return [...STATIC_PRESETS.slice(0, 4), biddingPreset, ...STATIC_PRESETS.slice(4)]
+}
 
 export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode, colorblindMode = false, setColorblindMode, notes, setNote, isLight = false }) {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -265,7 +270,9 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const isStale = filtersWithDebouncedSearch !== deferredFilters
 
   const avgMode = isAverageYear(filters.year)
-  const bidYear = filters.year === 2026
+  const biddingYearNum = meta.default_year + 1
+  const bidYear = filters.year === biddingYearNum
+  const PRESETS = useMemo(() => buildPresets(biddingYearNum), [biddingYearNum])
   const activeFilterCount = countFilterBadges(filters)
 
   // Derive "last updated" label dynamically from the data
@@ -519,14 +526,14 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             className="mb-4 rounded-2xl px-4 py-3 text-xs md:text-sm"
             style={{ background: 'var(--gold-soft)', border: '1px solid var(--gold-soft)', color: 'var(--gold)' }}
           >
-            Bidding Season 2026 is active. Courses without evaluation data still appear, and amber diamonds are spread by competitiveness rank.
+            Bidding Season {biddingYearNum} is active. Courses without evaluation data still appear, and amber diamonds are spread by competitiveness rank.
           </div>
         )}
 
         {resultText && (
           <div
             className="mb-4 rounded-2xl px-4 py-3 text-sm"
-            style={{ background: 'rgba(123, 176, 138, 0.12)', border: '1px solid rgba(123, 176, 138, 0.2)', color: 'var(--success)' }}
+            style={{ background: 'var(--success-soft)', border: '1px solid var(--success)', color: 'var(--success)' }}
           >
             {resultText}
           </div>
