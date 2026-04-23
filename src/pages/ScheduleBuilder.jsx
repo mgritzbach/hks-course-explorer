@@ -178,10 +178,15 @@ function EmptyScheduleState() {
   )
 }
 
-function buildIcs(courses) {
+// Term start dates: Fall 2025 = Sep 2, Spring 2026 = Jan 27
+const TERM_START = { Q1: '20250902', Q2: '20251027', FULL: '20250902', SPRING: '20260127' }
+
+function buildIcs(courses, term = 'FULL') {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//HKS Course Explorer//Schedule Builder//EN']
   const dayMap = { MON: 'MO', TUE: 'TU', WED: 'WE', THU: 'TH', FRI: 'FR' }
+  const dateBase = TERM_START[term] || TERM_START.FULL
+  const weekCount = term === 'Q1' || term === 'Q2' ? 7 : 14
   courses.filter((c) => c.isOnGrid && courseHasSchedule(c)).forEach((course, index) => {
     const start = parseTimeParts(course.time_start)
     const end = parseTimeParts(course.time_end)
@@ -191,9 +196,9 @@ function buildIcs(courses) {
     lines.push(`UID:${course.courseCode}-${index}@hks-course-explorer`)
     lines.push(`DTSTAMP:${stamp}`)
     lines.push(`SUMMARY:${String(course.courseCode).replace(/,/g, '\\,')} ${String(course.title).replace(/,/g, '\\,')}`)
-    lines.push(`DTSTART:20260105T${String(start.hours).padStart(2, '0')}${String(start.minutes).padStart(2, '0')}00`)
-    lines.push(`DTEND:20260105T${String(end.hours).padStart(2, '0')}${String(end.minutes).padStart(2, '0')}00`)
-    lines.push(`RRULE:FREQ=WEEKLY;BYDAY=${days.join(',')};COUNT=14`)
+    lines.push(`DTSTART:${dateBase}T${String(start.hours).padStart(2, '0')}${String(start.minutes).padStart(2, '0')}00`)
+    lines.push(`DTEND:${dateBase}T${String(end.hours).padStart(2, '0')}${String(end.minutes).padStart(2, '0')}00`)
+    lines.push(`RRULE:FREQ=WEEKLY;BYDAY=${days.join(',')};COUNT=${weekCount}`)
     if (course.location) lines.push(`LOCATION:${String(course.location).replace(/,/g, '\\,')}`)
     lines.push('END:VEVENT')
   })
@@ -368,13 +373,19 @@ export default function ScheduleBuilder({ courses = [] }) {
     })
   }
   const handleExport = () => {
-    const blob = buildIcs(normalizedPlanCourses)
+    const blob = buildIcs(normalizedPlanCourses, term)
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `${activePlan.toLowerCase().replace(/\s+/g, '-')}.ics`
+    anchor.download = `${activePlan.toLowerCase().replace(/\s+/g, '-')}-${term.toLowerCase()}.ics`
     anchor.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleSearchKeyDown = (event) => {
+    if (event.key !== 'Enter') return
+    const firstUnadded = searchResults.find((r) => !addedCourseCodes.has(r.courseCode))
+    if (firstUnadded) addToShortlist(firstUnadded)
   }
 
   const timeLabels = useMemo(() => {
@@ -451,7 +462,10 @@ export default function ScheduleBuilder({ courses = [] }) {
           <aside className="flex h-full w-[280px] shrink-0 flex-col border-r" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
             <div className="border-b p-4" style={{ borderColor: 'var(--line)' }}>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Course Search</label>
-              <input value={searchQ} onChange={(event) => setSearchQ(event.target.value)} placeholder="Search courses, instructors..." className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }} />
+              <input value={searchQ} onChange={(event) => setSearchQ(event.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Search courses, instructors..." className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }} />
+              {searchResults.length > 0 && searchQ.trim() && (
+                <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result</p>
+              )}
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col p-4">
@@ -491,6 +505,12 @@ export default function ScheduleBuilder({ courses = [] }) {
 
           <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto" style={{ background: 'var(--panel-strong)' }}>
             <div className="min-w-[720px] p-6">
+              {conflicts.length > 0 && (
+                <div className="mb-4 flex items-center gap-3 rounded-[20px] border px-4 py-3 text-sm font-semibold" style={{ background: 'var(--panel-soft)', borderColor: 'var(--danger)', color: 'var(--danger)' }}>
+                  <span>⚠</span>
+                  <span>{conflicts.length} time conflict{conflicts.length > 1 ? 's' : ''} detected — overlapping courses are highlighted in red</span>
+                </div>
+              )}
               <div className="min-w-[720px] rounded-[28px] border" style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}>
                 <div className="grid min-w-[720px] border-b" style={{ borderColor: 'var(--line)', gridTemplateColumns: '52px repeat(5, minmax(0, 1fr))' }}>
                   <div className="border-r px-2 py-4 text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ borderColor: 'var(--line)', color: 'var(--text-muted)' }}>Time</div>
@@ -540,7 +560,14 @@ export default function ScheduleBuilder({ courses = [] }) {
             <div className="flex min-h-0 flex-1 flex-col p-4">
               <div className="shrink-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Shortlist</p>
-                <p className="mt-1 text-sm" style={{ color: 'var(--text-soft)' }}>{normalizedPlanCourses.length} course{normalizedPlanCourses.length === 1 ? '' : 's'}</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <p className="text-sm" style={{ color: 'var(--text-soft)' }}>{normalizedPlanCourses.length} course{normalizedPlanCourses.length === 1 ? '' : 's'}</p>
+                  {normalizedPlanCourses.length > 0 && (
+                    <p className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>
+                      {normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)} cr
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
@@ -559,7 +586,10 @@ export default function ScheduleBuilder({ courses = [] }) {
                     <div key={course.courseCode} className="rounded-[24px] border p-4" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold" style={{ color: 'var(--text)' }}>{course.courseCode}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-semibold" style={{ color: 'var(--text)' }}>{course.courseCode}</p>
+                            <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>{course.credits || 4} cr</span>
+                          </div>
                           <p className="mt-1 truncate text-sm" style={{ color: 'var(--text-soft)' }}>{course.title}</p>
                         </div>
                         <button type="button" onClick={() => removeCourse(course.courseCode)} className="text-sm font-semibold" style={{ color: 'var(--danger)' }} aria-label={`Remove ${course.courseCode}`}>×</button>

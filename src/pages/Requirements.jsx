@@ -48,14 +48,23 @@ export default function Requirements({ courses = [] }) {
 
     window.localStorage.setItem(PROGRAM_STORAGE_KEY, selectedProgram)
 
+    const syncPlanCourses = () => {
+      setScheduledCourses(getPlanCourses())
+    }
     const handleStorage = (event) => {
       if (event.key === `hks_plan_${DEFAULT_PLAN}`) {
-        setScheduledCourses(getPlanCourses())
+        syncPlanCourses()
       }
     }
 
+    window.addEventListener('focus', syncPlanCourses)
+    document.addEventListener('visibilitychange', syncPlanCourses)
     window.addEventListener('storage', handleStorage)
-    return () => window.removeEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener('focus', syncPlanCourses)
+      document.removeEventListener('visibilitychange', syncPlanCourses)
+      window.removeEventListener('storage', handleStorage)
+    }
   }, [selectedProgram])
 
   const progress = useMemo(
@@ -142,6 +151,15 @@ export default function Requirements({ courses = [] }) {
               <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
                 scheduled course{scheduledCourses.length === 1 ? '' : 's'} loaded from local storage
               </p>
+              {scheduledCourses.length === 0 && (
+                <a
+                  href="/schedule-builder"
+                  className="mt-4 inline-flex text-sm font-semibold transition-transform hover:-translate-y-[1px]"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  Build your schedule →
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -215,10 +233,17 @@ export default function Requirements({ courses = [] }) {
                     className="rounded-full px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
                     style={{ background: 'var(--gold-soft)', color: 'var(--text)', border: '1px solid var(--line)' }}
                   >
-                    {showSuggestions ? 'Hide completing courses' : 'Find completing courses'}
+                    {showSuggestions ? 'Hide suggestions' : 'Find completing courses'}
                   </button>
+                  <a
+                    href="/schedule-builder"
+                    className="rounded-full px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
+                    style={{ background: 'var(--panel-strong)', color: 'var(--text-soft)', border: '1px solid var(--line)' }}
+                  >
+                    Open in Schedule Builder →
+                  </a>
                   <span className="text-xs uppercase tracking-[0.12em]" style={{ color: category.isComplete ? 'var(--success)' : 'var(--warning)' }}>
-                    {category.isComplete ? 'Complete' : `${category.remainingCredits} credits remaining`}
+                    {category.isComplete ? '✓ Complete' : `${category.remainingCredits} cr remaining`}
                   </span>
                 </div>
 
@@ -234,10 +259,10 @@ export default function Requirements({ courses = [] }) {
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                                  {course.course_code}
+                                  {course.course_code || course.course_code_base || course.code}
                                 </p>
                                 <p className="mt-1 text-sm" style={{ color: 'var(--text-soft)' }}>
-                                  {course.course_name}
+                                  {course.course_name || course.title || 'Untitled course'}
                                 </p>
                               </div>
                               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>

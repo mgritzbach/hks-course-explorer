@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { parseXlsx } from '../lib/xlsxParser.js'
 
@@ -133,8 +133,38 @@ function UploadSection({ config, state, onSelectFile, onUpload }) {
   )
 }
 
+function UploadHistoryTable({ rows }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--line)' }}>
+            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Type</th>
+            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Filename</th>
+            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Rows</th>
+            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Status</th>
+            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Uploaded</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id ?? `${row.filename}-${row.created_at}`} style={{ borderBottom: '1px solid var(--line)' }}>
+              <td className="px-3 py-2" style={{ color: 'var(--text)' }}>{row.type || '—'}</td>
+              <td className="px-3 py-2" style={{ color: 'var(--text-muted)' }}>{row.filename || '—'}</td>
+              <td className="px-3 py-2" style={{ color: 'var(--text-muted)' }}>{row.row_count ?? row.rows ?? '—'}</td>
+              <td className="px-3 py-2" style={{ color: 'var(--text-muted)' }}>{row.status || '—'}</td>
+              <td className="px-3 py-2" style={{ color: 'var(--text-muted)' }}>{row.created_at ? new Date(row.created_at).toLocaleString() : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function Admin() {
   const [password, setPassword] = useState('')
+  const [authError, setAuthError] = useState(false)
   const [isAuthed, setIsAuthed] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.sessionStorage.getItem(ADMIN_TOKEN_KEY) === DEV_PASSWORD
@@ -147,12 +177,43 @@ export default function Admin() {
       ])
     )
   )
+  const [recentUploads, setRecentUploads] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
 
   const sections = useMemo(() => UPLOAD_CONFIG, [])
 
+  const loadRecentUploads = useCallback(async () => {
+    setHistoryLoading(true)
+    setHistoryError('')
+    try {
+      const { data, error } = await supabase
+        .from('uploads')
+        .select('id,type,filename,row_count,status,created_at')
+        .order('created_at', { ascending: false })
+        .limit(10)
+      if (error) throw error
+      setRecentUploads(Array.isArray(data) ? data : [])
+    } catch (error) {
+      setRecentUploads([])
+      setHistoryError(error.message || 'Could not load upload history.')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isAuthed) return
+    void loadRecentUploads()
+  }, [isAuthed, loadRecentUploads])
+
   const handleAuth = (event) => {
     event.preventDefault()
-    if (password !== DEV_PASSWORD) return
+    if (password !== DEV_PASSWORD) {
+      setAuthError(true)
+      return
+    }
+    setAuthError(false)
     window.sessionStorage.setItem(ADMIN_TOKEN_KEY, DEV_PASSWORD)
     setIsAuthed(true)
   }
@@ -211,6 +272,7 @@ export default function Admin() {
           message: `Uploaded ${payload.length} rows to ${config.table}`,
         },
       }))
+      void loadRecentUploads()
     } catch (error) {
       setUploads((current) => ({
         ...current,
@@ -240,14 +302,20 @@ export default function Admin() {
               Password
             </label>
             <input
-              type="text"
+              type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => { setPassword(event.target.value); setAuthError(false) }}
               placeholder="Enter admin password"
+              style={{ borderColor: authError ? 'var(--danger)' : undefined }}
             />
+            {authError && (
+              <p className="mt-2 text-sm font-semibold" style={{ color: 'var(--danger)' }}>
+                Incorrect password. Try again.
+              </p>
+            )}
             <button
               type="submit"
-              className="mt-4 rounded-full px-4 py-2 text-sm font-semibold"
+              className="mt-4 rounded-full px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
               style={{ background: 'var(--gold-soft)', border: '1px solid var(--line)', color: 'var(--text)' }}
             >
               Unlock admin
@@ -270,6 +338,26 @@ export default function Admin() {
             Use these import panels to stage Excel uploads before pushing rows into Supabase.
           </p>
         </div>
+
+        <section className="rounded-[24px] p-5" style={{ background: 'var(--panel)', border: '1px solid var(--line)' }}>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--gold)' }}>
+            Recent Uploads
+          </p>
+          <h2 className="mt-2 text-xl font-semibold" style={{ color: 'var(--text)' }}>
+            Upload History
+          </h2>
+          <div className="mt-4 rounded-[20px] p-4" style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}>
+            {historyLoading ? (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading upload history...</p>
+            ) : recentUploads.length > 0 ? (
+              <UploadHistoryTable rows={recentUploads} />
+            ) : (
+              <p className="text-sm" style={{ color: historyError ? 'var(--danger)' : 'var(--text-muted)' }}>
+                {historyError || 'No uploads yet'}
+              </p>
+            )}
+          </div>
+        </section>
 
         <div className="grid gap-5">
           {sections.map((config) => (
