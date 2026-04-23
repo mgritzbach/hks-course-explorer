@@ -465,7 +465,7 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
   )
 }
 
-export default function Courses({ courses, meta, favs, metricMode = 'score', setMetricMode, simIndex = null }) {
+export default function Courses({ courses, meta, favs, metricMode = 'score', setMetricMode, simIndex = null, notes = {}, setNote = null }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState(() => searchParams.get('q') || '')
@@ -1077,6 +1077,24 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                       </button>
                     </div>
 
+                    {setNote && (
+                      <div className="overflow-hidden rounded-[22px]" style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)' }}>
+                        <label className="block px-4 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted" htmlFor="course-note">
+                          My Notes
+                          {notes[selected.course_code_base] && <span className="ml-2 normal-case tracking-normal" style={{ color: 'var(--gold)' }}>saved</span>}
+                        </label>
+                        <textarea
+                          id="course-note"
+                          value={notes[selected.course_code_base] || ''}
+                          onChange={(e) => setNote(selected.course_code_base, e.target.value)}
+                          placeholder="Add personal notes about this course…"
+                          rows={2}
+                          className="w-full resize-none bg-transparent px-4 pb-3 pt-1.5 text-sm text-label placeholder:text-muted"
+                          style={{ outline: 'none', border: 'none', fontFamily: 'inherit', lineHeight: 1.5 }}
+                        />
+                      </div>
+                    )}
+
                     {selected.description && (
                       <div className="overflow-hidden rounded-[22px]" style={{ border: '1px solid var(--line)' }}>
                         <button onClick={() => setDescOpen((current) => !current)} className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-label" style={{ background: 'var(--panel-strong)' }}>
@@ -1106,7 +1124,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                         <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted">Similar Courses</p>
                         <div className="space-y-2">
                           {similarCourses.map((sim) => {
-                            const c = courses.find((x) => (x.course_code_base || x.course_code) === sim.course_code && x.is_average) || courses.find((x) => (x.course_code_base || x.course_code) === sim.course_code)
+                            const c = courses.find((x) => x.course_code === sim.course_code && x.is_average) || courses.find((x) => x.course_code === sim.course_code)
                             const instrPct = c?.metrics_pct?.Instructor_Rating
                             return (
                               <button
