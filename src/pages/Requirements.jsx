@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_PLAN, PLANS, loadPlan, savePlan } from '../lib/scheduleStorage.js'
+import { DEFAULT_PLAN, PLANS, loadCompleted, loadPlan, savePlan } from '../lib/scheduleStorage.js'
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
 
 const PROGRAM_STORAGE_KEY = 'hks_req_program'
@@ -61,6 +61,7 @@ export default function Requirements({ courses = [] }) {
   // Which plan A/B/C/D to show requirements for
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
   const [scheduledCourses, setScheduledCourses] = useState(() => getPlanCourses(DEFAULT_PLAN))
+  const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
   const [openSuggestions, setOpenSuggestions] = useState({})
   const [addedToPlan, setAddedToPlan] = useState(() => {
     const codes = new Set(getPlanCourses(DEFAULT_PLAN).map(getCourseCode).filter(Boolean))
@@ -133,6 +134,9 @@ export default function Requirements({ courses = [] }) {
       if (event.key === `hks_plan_${activePlan}`) {
         syncPlanCourses()
       }
+      if (event.key === 'hks_completed_courses') {
+        setCompletedCourses(loadCompleted())
+      }
     }
 
     window.addEventListener('focus', syncPlanCourses)
@@ -146,8 +150,8 @@ export default function Requirements({ courses = [] }) {
   }, [selectedProgram, activePlan])
 
   const progress = useMemo(
-    () => computeProgress(selectedProgram, scheduledCourses),
-    [scheduledCourses, selectedProgram]
+    () => computeProgress(selectedProgram, scheduledCourses, completedCourses),
+    [scheduledCourses, selectedProgram, completedCourses]
   )
 
   const suggestionMap = useMemo(() => {
@@ -268,7 +272,12 @@ export default function Requirements({ courses = [] }) {
               <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
                 scheduled course{scheduledCourses.length === 1 ? '' : 's'} in {activePlan}
               </p>
-              {scheduledCourses.length === 0 && (
+              {completedCourses.length > 0 && (
+                <p className="mt-2 text-sm" style={{ color: 'var(--success)' }}>
+                  + {completedCourses.length} completed course{completedCourses.length === 1 ? '' : 's'}
+                </p>
+              )}
+              {scheduledCourses.length === 0 && completedCourses.length === 0 && (
                 <a
                   href="/schedule-builder"
                   className="mt-4 inline-flex text-sm font-semibold transition-transform hover:-translate-y-[1px]"
@@ -421,7 +430,7 @@ export default function Requirements({ courses = [] }) {
                                     color: isAdded ? 'var(--success)' : 'var(--text)',
                                   }}
                                 >
-                                  {isAdded ? 'Added ✓' : '+ Plan A'}
+                                  {isAdded ? 'Added ✓' : `+ ${activePlan}`}
                                 </button>
                               </div>
                             </div>
