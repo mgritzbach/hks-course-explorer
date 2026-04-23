@@ -162,6 +162,10 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
   const [collapsedGroups, setCollapsedGroups] = useState(new Set(['Detailed Evaluation']))
   const [copyMsg, setCopyMsg] = useState(null)
   const initializedFromUrl = useRef(false)
+  const copyTimeoutRef = useRef(null)
+
+  // Cleanup copy timeout on unmount
+  useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
 
   const toggleGroup = (label) => {
     setCollapsedGroups((prev) => {
@@ -231,11 +235,13 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
 
   const copyShareLink = () => {
     navigator.clipboard.writeText(window.location.href).then(() => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
       setCopyMsg('Copied!')
-      setTimeout(() => setCopyMsg(null), 2000)
+      copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2000)
     }).catch(() => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
       setCopyMsg('Copy failed')
-      setTimeout(() => setCopyMsg(null), 2000)
+      copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2000)
     })
   }
 

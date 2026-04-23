@@ -139,17 +139,20 @@ function HistoryTable({ history, metricMode = 'score' }) {
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false)
+  const timeoutRef = useRef(null)
+  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }, [])
 
   return (
     <button
       onClick={() => navigator.clipboard.writeText(text).then(() => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current)
         setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+        timeoutRef.current = setTimeout(() => setCopied(false), 2000)
       })}
       className="ml-2 rounded-xl border px-2 py-0.5 text-xs transition-colors"
       style={{
         borderColor: 'var(--line)',
-        background: copied ? 'rgba(123, 176, 138, 0.14)' : 'var(--panel-subtle)',
+        background: copied ? 'var(--success-soft)' : 'var(--panel-subtle)',
         color: copied ? 'var(--success)' : 'var(--text-muted)',
       }}
     >
