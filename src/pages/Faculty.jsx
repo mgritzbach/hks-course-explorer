@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import { fmtShort, modeSubLabel, modeUnit } from '../utils/formatMetric.js'
@@ -72,7 +72,7 @@ function activeFilterCount({ concentration, minRating, minCourses, taughtSinceYe
 function FacultySidebar({
   meta, displayedProfs, allProfessors, selectedProf, query, setQuery, concentration, setConcentration,
   minRating, setMinRating, minCourses, setMinCourses, taughtSinceYear, setTaughtSinceYear, sortBy, setSortBy, resetFilters, handleSelectProf,
-  metricMode = 'score', setMetricMode = null, mobile = false, onClose = null, onReplayTour = null,
+  metricMode = 'score', setMetricMode = null, mobile = false, onClose = null, onReplayTour = null, searchInputRef = null,
 }) {
   const filters = activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })
 
@@ -90,7 +90,7 @@ function FacultySidebar({
           </div>
         </div>
 
-        <input data-tour="faculty-search" type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name..." className="mb-3 w-full touch-manipulation" style={{ fontSize: 16, minHeight: 44 }} />
+        <input ref={searchInputRef} data-tour="faculty-search" type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name..." className="mb-3 w-full touch-manipulation" style={{ fontSize: 16, minHeight: 44 }} />
 
         <div className="grid gap-2">
           <div><p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Sort</p><div className="select-wrap"><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}>{SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></div>
@@ -179,6 +179,21 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
 
   useEffect(() => { const professor = searchParams.get('prof'); if (professor) setSelectedProf(professor) }, [searchParams])
   useEffect(() => { document.title = 'HKS Faculty Explorer' }, [])
+
+  // "/" shortcut to focus faculty search
+  const facultySearchRef = useRef(null)
+  useEffect(() => {
+    const handler = (event) => {
+      if (event.key !== '/') return
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      event.preventDefault()
+      facultySearchRef.current?.focus()
+      facultySearchRef.current?.select()
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   const allProfessors = useMemo(() => {
     const registry = new Map()
@@ -328,6 +343,7 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
           metricMode={metricMode}
           setMetricMode={setMetricMode}
           onReplayTour={handleReplayTour}
+          searchInputRef={facultySearchRef}
         />
       </div>
 
