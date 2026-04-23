@@ -289,6 +289,47 @@ export default function App() {
     } catch {}
   }
 
+  const handleExportShortlist = () => {
+    if (!data?.courses || !favs?.count) return
+    const starred = data.courses.filter((c) => !c.is_average && favs.isFavorite(c.course_code_base))
+    const seen = new Set()
+    const deduped = starred.filter((c) => {
+      const code = c.course_code_base || c.course_code
+      if (seen.has(code)) return false
+      seen.add(code)
+      return true
+    })
+    const headers = ['Code', 'Title', 'Instructor', 'Year', 'Term', 'Concentration', 'Core', 'STEM', 'Instructor %', 'Course %', 'Workload %', 'N Respondents', 'Last Bid Price', 'Note']
+    const rows = deduped.map((c) => {
+      const note = notes[c.course_code_base] || ''
+      return [
+        c.course_code || '',
+        (c.course_name || '').replace(/,/g, ';'),
+        (c.professor_display || c.professor || '').replace(/,/g, ';'),
+        c.year || '',
+        c.term || '',
+        c.concentration || '',
+        c.is_core ? 'Yes' : 'No',
+        c.is_stem ? (c.stem_group ? `STEM ${c.stem_group}` : 'Yes') : 'No',
+        c.metrics_pct?.Instructor_Rating != null ? Math.round(c.metrics_pct.Instructor_Rating) : '',
+        c.metrics_pct?.Course_Rating != null ? Math.round(c.metrics_pct.Course_Rating) : '',
+        c.metrics_pct?.Workload != null ? Math.round(c.metrics_pct.Workload) : '',
+        c.n_respondents ?? '',
+        c.last_bid_price ?? '',
+        note.replace(/,/g, ';').replace(/\n/g, ' '),
+      ].join(',')
+    })
+    const csv = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `hks-shortlist-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    posthog.capture('shortlist_exported_csv', { course_count: deduped.length })
+  }
+
   return (
     <div className="flex min-h-screen md:h-screen" style={{ background: 'transparent' }}>
       <LandingSplash />
@@ -354,9 +395,12 @@ export default function App() {
         ))}
         <NavResourcesSection />
         {favs.count > 0 && (
-          <div className="mt-auto">
-            <button type="button" onClick={handleShareShortlist} className="theme-toggle mx-2">
-              Share Shortlist
+          <div className="mt-auto flex flex-col gap-1 px-1 pb-1">
+            <button type="button" onClick={handleShareShortlist} className="theme-toggle" style={{ width: '100%' }}>
+              {shareCopied ? '✓ Copied!' : `🔗 Share Shortlist (${favs.count})`}
+            </button>
+            <button type="button" onClick={handleExportShortlist} className="theme-toggle" style={{ width: '100%' }}>
+              ⬇ Export CSV
             </button>
           </div>
         )}
@@ -447,9 +491,12 @@ export default function App() {
           }}
         >
           {favs.count > 0 && (
-            <div className="mx-auto mb-2 flex max-w-md justify-center">
+            <div className="mx-auto mb-2 flex max-w-md justify-center gap-2">
               <button type="button" onClick={handleShareShortlist} className="theme-toggle" style={{ minHeight: 44 }}>
-                Share Shortlist
+                {shareCopied ? '✓ Copied!' : `🔗 Share (${favs.count})`}
+              </button>
+              <button type="button" onClick={handleExportShortlist} className="theme-toggle" style={{ minHeight: 44 }}>
+                ⬇ CSV
               </button>
             </div>
           )}
@@ -471,18 +518,6 @@ export default function App() {
           </div>
         </nav>
       </div>
-      {shareCopied && (
-        <div
-          className="fixed bottom-[160px] right-4 z-50 rounded-full px-3 py-2 text-xs font-medium md:bottom-20"
-          style={{
-            background: 'var(--panel-subtle)',
-            border: '1px solid var(--line)',
-            color: 'var(--text)',
-          }}
-        >
-          Copied!
-        </div>
-      )}
     </div>
   )
 }
