@@ -1056,7 +1056,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                             onClick={() => favs.toggle(selected.course_code_base)}
                             className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-medium transition-colors"
                             style={{
-                              borderColor: starred ? 'rgba(212, 168, 106, 0.45)' : 'var(--line)',
+                              borderColor: starred ? 'var(--gold)' : 'var(--line)',
                               color: starred ? 'var(--gold)' : 'var(--text-muted)',
                               background: starred ? 'var(--gold-soft)' : 'var(--panel-subtle)',
                             }}

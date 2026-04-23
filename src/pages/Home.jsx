@@ -484,7 +484,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
         {bidYear && (
           <div
             className="mb-4 rounded-2xl px-4 py-3 text-xs md:text-sm"
-            style={{ background: 'var(--gold-soft)', border: '1px solid rgba(212, 168, 106, 0.18)', color: 'var(--gold)' }}
+            style={{ background: 'var(--gold-soft)', border: '1px solid var(--gold-soft)', color: 'var(--gold)' }}
           >
             Bidding Season 2026 is active. Courses without evaluation data still appear, and amber diamonds are spread by competitiveness rank.
           </div>
@@ -546,7 +546,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
               <button
                 onClick={() => setShowShortlistOnly((v) => !v)}
                 className={`preset-pill touch-manipulation min-h-[44px] ${showShortlistOnly ? 'active' : ''}`}
-                style={showShortlistOnly ? { borderColor: 'rgba(212, 168, 106, 0.38)', color: 'var(--gold)' } : {}}
+                style={showShortlistOnly ? { borderColor: 'var(--gold)', color: 'var(--gold)' } : {}}
               >
                 ★ Shortlist ({favs.count})
               </button>
