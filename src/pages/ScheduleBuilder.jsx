@@ -701,7 +701,10 @@ export default function ScheduleBuilder({ courses = [] }) {
                     {progress.categories.map((category) => (
                       <div key={category.id}>
                         <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-                          <span style={{ color: 'var(--text-soft)' }}>{category.label}</span>
+                          <span style={{ color: category.isComplete ? 'var(--success)' : 'var(--text-soft)' }}>
+                            {category.isComplete ? '✓ ' : ''}{category.label}
+                            {category.chosenArea ? ` (${category.chosenArea})` : ''}
+                          </span>
                           <span style={{ color: 'var(--text)' }}>{category.appliedCredits}/{category.requiredCredits} cr</span>
                         </div>
                         <ProgressBar value={category.percent} tone={category.isComplete ? 'var(--success)' : 'var(--accent)'} label={`${category.label}: ${category.appliedCredits}/${category.requiredCredits} credits`} />
@@ -714,6 +717,13 @@ export default function ScheduleBuilder({ courses = [] }) {
                       </div>
                       <ProgressBar value={progress.overallPercent} tone="var(--gold)" label={`Total: ${progress.overallAppliedCredits}/${progress.totalRequiredCredits} credits`} />
                     </div>
+                    <a
+                      href={`/requirements?p=${reqProgram}`}
+                      className="mt-1 block text-center text-xs font-semibold transition-transform hover:-translate-y-[1px]"
+                      style={{ color: 'var(--accent)' }}
+                    >
+                      Full tracker →
+                    </a>
                   </div>
                 ) : <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>No program definitions available.</p>}
               </div>
