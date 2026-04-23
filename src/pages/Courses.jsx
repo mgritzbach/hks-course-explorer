@@ -778,7 +778,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
               {selected.n_respondents != null && <span>N={selected.n_respondents} respondents</span>}
             </div>
 
-            <div className="mb-6 flex gap-2 overflow-x-auto border-b pb-3" style={{ borderColor: 'var(--line)', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            <div role="tablist" aria-label="Course detail sections" className="mb-6 flex gap-2 overflow-x-auto border-b pb-3" style={{ borderColor: 'var(--line)', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
               {[
                 ['details', 'Course Details', 'tab-details'],
                 ['performance', 'Past Performance', 'tab-performance'],
@@ -788,6 +788,8 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                 return (
                   <button
                     key={key}
+                    role="tab"
+                    aria-selected={active}
                     data-tour={tourKey}
                     onClick={() => setActiveTab(key)}
                     className="rounded-full border px-4 py-2 text-sm font-semibold transition-colors shrink-0"
