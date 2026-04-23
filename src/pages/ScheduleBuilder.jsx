@@ -20,9 +20,16 @@ const SEMESTER_OPTIONS = [
 
 function fallbackSearch(q, allCourses, filters = {}) {
   const query = String(q || '').trim().toLowerCase()
-  const { concentration, stem, coreOnly } = filters
+  const { concentration, stem, coreOnly, semester } = filters
   const hasFilters = (concentration && concentration !== 'All') || (stem && stem !== 'all') || coreOnly
   if (!query && !hasFilters) return []
+  // Map semester → (year, term) used in the courses table
+  const semesterTermMap = {
+    Spring:  { year: 2026, term: 'Spring' },
+    Fall:    { year: 2025, term: 'Fall' },
+    January: { year: 2025, term: 'January' },
+  }
+  const termFilter = semesterTermMap[semester] || null
   return (Array.isArray(allCourses) ? allCourses : [])
     .filter((c) => !c?.is_average && Number(c?.year || 0) >= 2024)
     .filter((c) => {
@@ -31,6 +38,8 @@ function fallbackSearch(q, allCourses, filters = {}) {
       if (stem === 'stem' && !c?.is_stem) return false
       if (stem === 'nonstem' && c?.is_stem) return false
       if (coreOnly && !c?.is_core) return false
+      // Filter by semester/term if a matching entry exists in the catalog
+      if (termFilter && (Number(c?.year) !== termFilter.year || c?.term !== termFilter.term)) return false
       return true
     })
     .sort((a, b) => Number(b?.year || 0) - Number(a?.year || 0))
@@ -313,7 +322,7 @@ export default function ScheduleBuilder({ courses = [] }) {
 
   useEffect(() => {
     const query = searchQ.trim()
-    const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly }
+    const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly, semester }
     const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly
     if (!query && !hasFilters) {
       setSearching(false)
