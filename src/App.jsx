@@ -375,6 +375,7 @@ export default function App() {
       {data && <ChatBot courses={data.courses} favs={favs} isLight={theme === 'light'} />}
       {/* Desktop sidebar nav */}
       <nav
+        aria-label="Main navigation"
         className="hidden shrink-0 flex-col px-3 py-4 md:flex"
         style={{
           width: 178,
@@ -492,7 +493,7 @@ export default function App() {
         </header>
 
         {/* Page content */}
-        <div className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
+        <main className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
           <ErrorBoundary>
             <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center', fontSize: 14 }}>Loading…</div>}>
               <Routes>
@@ -517,10 +518,11 @@ export default function App() {
               </Routes>
             </Suspense>
           </ErrorBoundary>
-        </div>
+        </main>
 
         {/* Mobile bottom nav */}
         <nav
+          aria-label="Mobile navigation"
           className="fixed inset-x-0 bottom-0 z-40 border-t px-3 pt-3 md:hidden"
           style={{
             background: 'var(--nav-shell)',
