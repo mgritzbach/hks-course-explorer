@@ -193,8 +193,8 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     minInstructorPct: 'any',
     evalOnly: false,
   })
-  const [xMetric, setXMetric] = useState(DEFAULT_X)
-  const [yMetric, setYMetric] = useState(DEFAULT_Y)
+  const [xMetric, setXMetric] = useState(searchParams.get('x') || DEFAULT_X)
+  const [yMetric, setYMetric] = useState(searchParams.get('y') || DEFAULT_Y)
   const [sortBy, setSortBy] = useState(initSort)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortlistOnly, setShowShortlistOnly] = useState(false)
@@ -226,8 +226,10 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     if (filters.terms.length !== ALL_TERMS.length) params.terms = filters.terms.join(',')
     if (filters.concentration !== 'All') params.conc = filters.concentration
     if (sortBy !== 'bid_price_desc') params.sort = sortBy
+    if (xMetric !== DEFAULT_X) params.x = xMetric
+    if (yMetric !== DEFAULT_Y) params.y = yMetric
     setSearchParams(params, { replace: true })
-  }, [filters.year, filters.terms, filters.concentration, sortBy, meta.default_year, setSearchParams])
+  }, [filters.year, filters.terms, filters.concentration, sortBy, xMetric, yMetric, meta.default_year, setSearchParams])
 
   // Debounce text search — only triggers a re-filter after user pauses typing (150ms)
   const debouncedSearch = useDebounce(filters.searchText, 150)
