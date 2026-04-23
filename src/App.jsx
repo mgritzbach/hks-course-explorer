@@ -7,6 +7,7 @@ const ScheduleBuilder = lazy(() => import('./pages/ScheduleBuilder.jsx'))
 const Requirements    = lazy(() => import('./pages/Requirements.jsx'))
 const Admin           = lazy(() => import('./pages/Admin.jsx'))
 import ChatBot from './components/ChatBot.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import LandingSplash from './components/LandingSplash.jsx'
 import { supabase } from './lib/supabase.js'
 import Compare from './pages/Compare.jsx'
@@ -405,19 +406,21 @@ export default function App() {
 
         {/* Page content */}
         <div className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
-          <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center', fontSize: 14 }}>Loading…</div>}>
-            <Routes>
-              <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} notes={notes} setNote={setNote} />} />
-              <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />} />
-              <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
-              <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
-              <Route path="/resources" element={<Resources />} />
-              {/* Hidden routes — not linked from nav */}
-              <Route path="/schedule-builder" element={<ScheduleBuilder courses={data?.courses || []} meta={data?.meta} />} />
-              <Route path="/requirements"     element={<Requirements courses={data?.courses || []} />} />
-              <Route path="/admin"            element={<Admin />} />
-            </Routes>
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center', fontSize: 14 }}>Loading…</div>}>
+              <Routes>
+                <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} notes={notes} setNote={setNote} />} />
+                <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} />} />
+                <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
+                <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
+                <Route path="/resources" element={<Resources />} />
+                {/* Hidden routes — not linked from nav */}
+                <Route path="/schedule-builder" element={<ScheduleBuilder courses={data?.courses || []} meta={data?.meta} />} />
+                <Route path="/requirements"     element={<Requirements courses={data?.courses || []} />} />
+                <Route path="/admin"            element={<Admin />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </div>
 
         {/* Mobile bottom nav */}

@@ -111,7 +111,10 @@ export default function Requirements({ courses = [] }) {
                 Requirements Tracker
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
-                Progress is calculated from the locally saved courses in <span style={{ color: 'var(--text)' }}>{DEFAULT_PLAN}</span>.
+                Progress is calculated from courses saved in <span style={{ color: 'var(--text)' }}>{DEFAULT_PLAN}</span>.
+                {' '}Add courses in the{' '}
+                <a href="/schedule-builder" style={{ color: 'var(--accent)', fontWeight: 600 }}>Schedule Builder</a>
+                {' '}to track fulfillment live.
               </p>
             </div>
 
@@ -180,7 +183,12 @@ export default function Requirements({ courses = [] }) {
               <section
                 key={category.id}
                 className="rounded-[24px] p-5"
-                style={{ background: 'var(--panel)', border: '1px solid var(--line)' }}
+                style={{
+                  background: category.isComplete
+                    ? 'linear-gradient(160deg, rgba(123,176,138,0.07), var(--panel))'
+                    : 'var(--panel)',
+                  border: `1px solid ${category.isComplete ? 'rgba(123,176,138,0.3)' : 'var(--line)'}`,
+                }}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -191,8 +199,14 @@ export default function Requirements({ courses = [] }) {
                       {category.label}
                     </h2>
                   </div>
-                  <div className="rounded-full px-3 py-1 text-xs font-semibold" style={{ background: 'var(--accent-soft)', color: 'var(--text)' }}>
-                    {category.appliedCredits} / {category.requiredCredits} cr
+                  <div
+                    className="rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{
+                      background: category.isComplete ? 'rgba(123,176,138,0.18)' : 'var(--accent-soft)',
+                      color: category.isComplete ? 'var(--success)' : 'var(--text)',
+                    }}
+                  >
+                    {category.isComplete ? '✓ ' : ''}{category.appliedCredits} / {category.requiredCredits} cr
                   </div>
                 </div>
 
