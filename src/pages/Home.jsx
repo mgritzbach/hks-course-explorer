@@ -177,6 +177,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const [searchParams, setSearchParams] = useSearchParams()
   const mainRef = useRef(null)
   const visualizationRef = useRef(null)
+  const sidebarSearchRef = useRef(null)
 
   const initYear = (() => {
     const y = searchParams.get('year')
@@ -292,6 +293,26 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [sidebarOpen])
+
+  // "/" shortcut — focus the sidebar keyword search (desktop) or open drawer first (mobile)
+  useEffect(() => {
+    const handler = (event) => {
+      if (event.key !== '/') return
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      event.preventDefault()
+      const isMobile = window.matchMedia('(max-width: 767px)').matches
+      if (isMobile) {
+        setSidebarOpen(true)
+        setTimeout(() => { sidebarSearchRef.current?.focus(); sidebarSearchRef.current?.select() }, 150)
+      } else {
+        sidebarSearchRef.current?.focus()
+        sidebarSearchRef.current?.select()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   // Build a year→courses index once on load so filter passes touch ~300 items not 5500
   const coursesByYear = useMemo(() => {
@@ -433,11 +454,12 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           mobile
           onClose={() => setSidebarOpen(false)}
           onReplayTour={handleReplayTour}
+          searchRef={sidebarSearchRef}
         />
       </div>
 
       <div className="hidden md:block">
-        <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} onReplayTour={handleReplayTour} />
+        <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} onReplayTour={handleReplayTour} searchRef={sidebarSearchRef} />
       </div>
 
       <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">

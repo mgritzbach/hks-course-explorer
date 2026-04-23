@@ -20,7 +20,7 @@ function countActiveFilters(filters) {
   return count
 }
 
-export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null, colorblindMode = false, setColorblindMode = null, onReplayTour = null }) {
+export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null, colorblindMode = false, setColorblindMode = null, onReplayTour = null, searchRef = null }) {
   const [searchInput, setSearchInput] = useState(filters.searchText)
   const [tourPending, setTourPending] = useState(false)
   const debounceRef = useRef(null)
@@ -112,6 +112,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         <label className="filter-label mb-1.5 block">Keywords</label>
         <div className="search-input-wrap">
           <input
+            ref={searchRef}
             type="text"
             value={searchInput}
             placeholder="Leadership, climate, Levy…"
