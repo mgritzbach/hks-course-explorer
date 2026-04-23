@@ -405,7 +405,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     anchor.click()
     URL.revokeObjectURL(url)
     if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current)
-    setExportMsg({ text: `Downloaded ${exportable.length} event${exportable.length === 1 ? '' : 's'}`, error: false })
+    setExportMsg({ text: `Downloaded ${exportable.length} event${exportable.length === 1 ? '' : 's'} ↓`, error: false })
     exportMsgTimeoutRef.current = setTimeout(() => setExportMsg(null), 3000)
   }
 
@@ -484,16 +484,19 @@ export default function ScheduleBuilder({ courses = [] }) {
                 )
               })}
             </div>
-            <div className="flex flex-col items-end gap-1">
-              <button type="button" onClick={handleExport} className="rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--gold-soft)', borderColor: 'var(--gold)', color: 'var(--text)' }}>
-                {'\u{1F4C5}'} Export iCal
-              </button>
-              {exportMsg && (
-                <p className="text-[11px] font-semibold" style={{ color: exportMsg.error ? 'var(--warning)' : 'var(--success)' }}>
-                  {exportMsg.text}
-                </p>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={handleExport}
+              title={exportMsg?.text}
+              className="rounded-full border px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
+              style={{
+                background: exportMsg?.error ? 'rgba(220,90,40,0.12)' : exportMsg ? 'rgba(100,180,100,0.12)' : 'var(--gold-soft)',
+                borderColor: exportMsg?.error ? 'var(--warning)' : exportMsg ? 'var(--success)' : 'var(--gold)',
+                color: exportMsg?.error ? 'var(--warning)' : exportMsg ? 'var(--success)' : 'var(--text)',
+              }}
+            >
+              {exportMsg?.error ? '⚠ No grid courses' : exportMsg ? `✓ ${exportMsg.text}` : `${'\u{1F4C5}'} Export iCal`}
+            </button>
           </div>
         </div>
 
