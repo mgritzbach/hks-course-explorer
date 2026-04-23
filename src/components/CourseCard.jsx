@@ -24,6 +24,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
   const instructorPct = metricSrc?.Instructor_Rating
   const workloadPct = metricSrc?.Workload
   const coursePct = metricSrc?.Course_Rating
+  const instrColor = instructorPct == null ? 'var(--text-muted)' : instructorPct >= 75 ? 'var(--success)' : instructorPct >= 50 ? 'var(--gold)' : 'var(--danger)'
   const biddingOnly = !course.has_eval && course.has_bidding
   const noEval = !course.has_eval && !course.has_bidding
 
@@ -83,7 +84,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
           {biddingOnly ? (
             <div
               className="inline-flex rounded-2xl border px-3 py-2 text-xs font-bold md:flex md:flex-col md:items-end"
-              style={{ background: 'var(--gold-soft)', color: 'var(--gold)', borderColor: 'rgba(212, 168, 106, 0.24)' }}
+              style={{ background: 'var(--gold-soft)', color: 'var(--gold)', borderColor: 'var(--gold-soft)' }}
             >
               <span>Most Competitive</span>
               {course.last_bid_price != null && (
@@ -96,7 +97,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
             <div className="text-xs" style={{ color: 'var(--text-muted)' }}>No eval data</div>
           ) : (
             <div className="grid gap-1">
-              <RatingBadge label="Instructor" value={instructorPct} color="var(--accent-strong)" metricMode={metricMode} />
+              <RatingBadge label="Instructor" value={instructorPct} color={instrColor} metricMode={metricMode} />
               {/* Raw rating + year median, always visible for grounding */}
               {course.metrics_raw?.Instructor_Rating != null && (
                 <div className="text-[10px] leading-4 text-right" style={{ color: 'var(--text-muted)' }}>
@@ -211,7 +212,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
             style={{
               color: starred ? 'var(--gold)' : 'var(--text-muted)',
               background: starred ? 'var(--gold-soft)' : 'transparent',
-              border: `1px solid ${starred ? 'rgba(212, 168, 106, 0.22)' : 'transparent'}`,
+              border: `1px solid ${starred ? 'var(--gold-soft)' : 'transparent'}`,
             }}
           >
             {starred ? '★' : '☆'}
