@@ -524,15 +524,19 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
         <div className="mt-6">
           <div data-tour="preset-pills" className="preset-pills mb-3">
-            {PRESETS.map((preset) => (
-              <button
-                key={preset.key}
-                onClick={() => handlePreset(preset)}
-                className={`preset-pill touch-manipulation min-h-[44px] ${(preset.isActive(filters) || sortBy === preset.sortKey) ? 'active' : ''}`}
-              >
-                {preset.label}
-              </button>
-            ))}
+            {PRESETS.map((preset) => {
+              const active = preset.isActive(filters) || sortBy === preset.sortKey
+              return (
+                <button
+                  key={preset.key}
+                  onClick={() => handlePreset(preset)}
+                  aria-pressed={active}
+                  className={`preset-pill touch-manipulation min-h-[44px] ${active ? 'active' : ''}`}
+                >
+                  {preset.label}
+                </button>
+              )
+            })}
             {favs && favs.count > 0 && (
               <button
                 onClick={() => setShowShortlistOnly((v) => !v)}

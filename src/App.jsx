@@ -361,8 +361,11 @@ export default function App() {
     const a = document.createElement('a')
     a.href = url
     a.download = `hks-shortlist-${new Date().toISOString().slice(0, 10)}.csv`
+    a.style.display = 'none'
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 100)
     posthog.capture('shortlist_exported_csv', { course_count: deduped.length })
   }
 

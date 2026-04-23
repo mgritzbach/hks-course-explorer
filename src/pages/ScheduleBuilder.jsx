@@ -442,8 +442,11 @@ export default function ScheduleBuilder({ courses = [] }) {
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = `${activePlan.toLowerCase().replace(/\s+/g, '-')}-${term.toLowerCase()}.ics`
+    anchor.style.display = 'none'
+    document.body.appendChild(anchor)
     anchor.click()
-    URL.revokeObjectURL(url)
+    document.body.removeChild(anchor)
+    setTimeout(() => URL.revokeObjectURL(url), 100)
     if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current)
     setExportMsg({ text: `Downloaded ${exportable.length} event${exportable.length === 1 ? '' : 's'} ↓`, error: false })
     exportMsgTimeoutRef.current = setTimeout(() => setExportMsg(null), 3000)
