@@ -110,7 +110,7 @@ function HistoryTable({ history, metricMode = 'score' }) {
         <thead>
           <tr style={{ borderBottom: '1px solid var(--line)' }}>
             {headers.map((header) => (
-              <th key={header} className="whitespace-nowrap py-2 pr-4 text-left font-medium text-muted">{header}</th>
+              <th key={header} scope="col" className="whitespace-nowrap py-2 pr-4 text-left font-medium text-muted">{header}</th>
             ))}
           </tr>
         </thead>
@@ -239,6 +239,7 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
                 <button
                   key={term}
                   onClick={() => toggleTerm(term)}
+                  aria-pressed={active}
                   className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors touch-manipulation min-h-[44px]"
                   style={active
                     ? { background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.95), rgba(132, 18, 36, 0.95))', color: '#fff' }
@@ -435,7 +436,7 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--line)' }}>
               {['Year', 'Term', 'Instructor', 'Clearing Price', 'Capacity', 'Bids', 'Oversubscribed by'].map((header) => (
-                <th key={header} className="whitespace-nowrap py-2 pr-4 text-left font-medium text-muted">{header}</th>
+                <th key={header} scope="col" className="whitespace-nowrap py-2 pr-4 text-left font-medium text-muted">{header}</th>
               ))}
             </tr>
           </thead>

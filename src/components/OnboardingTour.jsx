@@ -84,6 +84,21 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
     return () => clearTimeout(t)
   }, [visible, index, tick, rect])
 
+  // Skip a step whose target element is absent or permanently off-screen.
+  // Runs after render so state updates happen outside the render cycle.
+  useEffect(() => {
+    if (!visible || rect || tick < 0) return
+    const currentStep = steps[index]
+    const anyEl = currentStep ? document.querySelectorAll(`[data-tour="${currentStep.target}"]`).length > 0 : false
+    if (!anyEl || tick >= 40) {
+      if (index + 1 < steps.length) {
+        setIndex((i) => i + 1)
+      } else {
+        dismiss()
+      }
+    }
+  }, [visible, tick]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const dismiss = () => {
     setFading(true)
     setTimeout(() => {
@@ -107,16 +122,12 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   if (!rect) {
     // tick=-1 means we're in the drawer-open delay — don't evaluate yet
     if (tick < 0) return null
-    const step = steps[index]
+    // Use the outer `step` variable (no re-declaration needed — same value)
     const anyEl = step ? document.querySelectorAll(`[data-tour="${step.target}"]`).length > 0 : false
-    if (!anyEl || tick >= 40) {
-      // Element absent OR has been hidden/off-screen too long — skip this step
-      if (index + 1 < steps.length) {
-        setTimeout(() => setIndex((i) => i + 1), 0)
-      } else {
-        setTimeout(dismiss, 0)
-      }
-    }
+    // Element absent or has been hidden/off-screen too long — the skip
+    // itself is handled by the useEffect below to avoid calling setState
+    // during render (anti-pattern). Just return null here.
+    if (!anyEl || tick >= 40) return null
     return null
   }
 
