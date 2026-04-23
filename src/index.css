@@ -45,7 +45,7 @@
 
 html[data-theme='light'] {
   --bg:               #f4ede4;
-  --track-bg:         rgba(0, 0, 0, 0.08);
+  --track-bg:         rgba(0, 0, 0, 0.14);
   --bg-elevated:      #fbf7f2;
   --panel:            rgba(255, 252, 248, 0.92);
   --panel-strong:     #fffbf7;

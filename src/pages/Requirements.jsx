@@ -27,7 +27,7 @@ function ProgressBar({ value, color, label }) {
       aria-valuemax={100}
       aria-label={label || `Progress: ${pct}%`}
       className="h-3 overflow-hidden rounded-full"
-      style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}
+      style={{ background: 'var(--track-bg)', border: '1px solid var(--line-strong)' }}
     >
       <div
         className="h-full rounded-full transition-all"
@@ -214,7 +214,7 @@ export default function Requirements({ courses = [] }) {
 
             <div
               className="rounded-[22px] p-4"
-              style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}
+              style={{ background: 'var(--track-bg)', border: '1px solid var(--line-strong)' }}
             >
               <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
                 Plan Snapshot
