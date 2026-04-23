@@ -248,6 +248,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [gridMessages, setGridMessages] = useState({})
   const [exportMsg, setExportMsg] = useState(null)
   const exportMsgTimeoutRef = useRef(null)
+  const [copyPlanMsg, setCopyPlanMsg] = useState(null)
+  const copyPlanTimeoutRef = useRef(null)
 
   useEffect(() => {
     void savePlan(activePlan, planData)
@@ -258,7 +260,10 @@ export default function ScheduleBuilder({ courses = [] }) {
   }, [programs, reqProgram])
 
   useEffect(() => {
-    return () => { if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current) }
+    return () => {
+      if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current)
+      if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -438,6 +443,28 @@ export default function ScheduleBuilder({ courses = [] }) {
     exportMsgTimeoutRef.current = setTimeout(() => setExportMsg(null), 3000)
   }
 
+  const handleCopyPlan = () => {
+    if (!normalizedPlanCourses.length) return
+    const totalCr = normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)
+    const lines = [
+      `${activePlan} — ${totalCr} credits`,
+      '',
+      ...normalizedPlanCourses.map((c) => {
+        const instructor = c.instructors?.length ? ` — ${c.instructors[0]}` : ''
+        return `• ${c.courseCode}: ${c.title} (${c.credits || 4} cr)${instructor}`
+      }),
+    ]
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
+      setCopyPlanMsg('Copied!')
+      copyPlanTimeoutRef.current = setTimeout(() => setCopyPlanMsg(null), 2500)
+    }).catch(() => {
+      if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
+      setCopyPlanMsg('Failed')
+      copyPlanTimeoutRef.current = setTimeout(() => setCopyPlanMsg(null), 2500)
+    })
+  }
+
   const handleSearchKeyDown = (event) => {
     if (event.key !== 'Enter') return
     const firstUnadded = searchResults.find((r) => !addedCourseCodes.has(r.courseCode))
@@ -513,6 +540,21 @@ export default function ScheduleBuilder({ courses = [] }) {
                 )
               })}
             </div>
+            {normalizedPlanCourses.length > 0 && (
+              <button
+                type="button"
+                onClick={handleCopyPlan}
+                title="Copy plan as text for sharing with advisors"
+                className="rounded-full border px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
+                style={{
+                  background: copyPlanMsg === 'Copied!' ? 'rgba(100,180,100,0.12)' : 'var(--panel-soft)',
+                  borderColor: copyPlanMsg === 'Copied!' ? 'var(--success)' : 'var(--line-strong)',
+                  color: copyPlanMsg === 'Copied!' ? 'var(--success)' : 'var(--text-soft)',
+                }}
+              >
+                {copyPlanMsg === 'Copied!' ? '✓ Copied' : copyPlanMsg || '📋 Copy Plan'}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleExport}
