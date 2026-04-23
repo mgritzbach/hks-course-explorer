@@ -1042,6 +1042,14 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                           </button>
                         )
                       })()}
+                      <button
+                        onClick={() => navigate(`/compare?ids=${encodeURIComponent(selected.course_code_base || selected.course_code)}`)}
+                        className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-medium transition-colors hover:text-label"
+                        style={{ borderColor: 'var(--line)', color: 'var(--text-muted)', background: 'var(--panel-subtle)' }}
+                        title="Open in Compare tab to stack against other courses"
+                      >
+                        ⇄ Compare
+                      </button>
                     </div>
 
                     {selected.description && (
