@@ -300,7 +300,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
                 type="button"
                 onClick={copyShareLink}
                 className="rounded-full border px-3 py-1 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
-                style={{ background: copyMsg ? 'var(--success-soft, rgba(80,200,120,0.1))' : 'var(--panel-soft)', borderColor: copyMsg ? 'var(--success)' : 'var(--line-strong)', color: copyMsg ? 'var(--success)' : 'var(--text-soft)' }}
+                style={{ background: copyMsg ? 'var(--success-soft)' : 'var(--panel-soft)', borderColor: copyMsg ? 'var(--success)' : 'var(--line-strong)', color: copyMsg ? 'var(--success)' : 'var(--text-soft)' }}
               >
                 {copyMsg ? `✓ ${copyMsg}` : '🔗 Share'}
               </button>

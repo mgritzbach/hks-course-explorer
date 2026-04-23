@@ -28,6 +28,7 @@
   --blue:             #9dc2db;
   --blue-soft:        rgba(157, 194, 219, 0.14);
   --success:          #7bb08a;
+  --success-soft:     rgba(123, 176, 138, 0.14);
   --warning:          #d99b4e;
   --danger:           #d87070;
   --nav-shell:        rgba(16, 12, 13, 0.82);
@@ -65,6 +66,7 @@ html[data-theme='light'] {
   --blue:             #3d6e8a;
   --blue-soft:        rgba(61, 110, 138, 0.1);
   --success:          #3e7d55;
+  --success-soft:     rgba(62, 125, 85, 0.12);
   --warning:          #9c5e12;
   --danger:           #a84040;
   --nav-shell:        rgba(255, 251, 247, 0.94);

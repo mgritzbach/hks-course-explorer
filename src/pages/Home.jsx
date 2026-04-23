@@ -139,8 +139,8 @@ const PRESETS = [
   {
     key: 'light_workload',
     label: 'Light Workload',
-    apply: (filters) => filters,
-    isActive: () => false,
+    apply: (filters) => ({ ...filters, evalOnly: true }),
+    isActive: (filters) => filters.evalOnly,
     sortKey: 'workload_asc',
   },
   {
