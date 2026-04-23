@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import ChatBot from './components/ChatBot.jsx'
 import LandingSplash from './components/LandingSplash.jsx'
-import { supabase } from './lib/supabase.js'
 import Compare from './pages/Compare.jsx'
 import Courses from './pages/Courses.jsx'
 import Faculty from './pages/Faculty.jsx'
@@ -12,84 +11,6 @@ import Resources from './pages/Resources.jsx'
 import { HKS_RESOURCES } from './resourceLinks.js'
 import { useFavorites } from './useFavorites.js'
 import { useNotes } from './useNotes.js'
-
-// Static metric definitions — never change
-const METRICS = [
-  { key: 'Instructor_Rating',    label: 'Instructor Rating',    higher_is_better: true },
-  { key: 'Course_Rating',        label: 'Course Rating',        higher_is_better: true },
-  { key: 'Workload',             label: 'Workload',             higher_is_better: false },
-  { key: 'Assignments',          label: 'Assignment Value',     higher_is_better: true },
-  { key: 'Availability',         label: 'Availability',         higher_is_better: true },
-  { key: 'Discussions',          label: 'Class Discussions',    higher_is_better: true },
-  { key: 'Diverse Perspectives', label: 'Diverse Perspectives', higher_is_better: true },
-  { key: 'Feedback',             label: 'Feedback',             higher_is_better: true },
-  { key: 'Discussion Diversity', label: 'Discussion Diversity', higher_is_better: true },
-  { key: 'Rigor',                label: 'Rigor',                higher_is_better: true },
-  { key: 'Readings',             label: 'Readings',             higher_is_better: false },
-  { key: 'Insights',             label: 'Insights',             higher_is_better: true },
-  { key: 'Bid_Price',            label: 'Bid Price',            higher_is_better: false, bid_metric: true },
-  { key: 'Bid_N_Bids',          label: 'Number of Bids',       higher_is_better: false, bid_metric: true },
-]
-
-function median(values) {
-  if (!values.length) return null
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
-}
-
-async function fetchAllCourses() {
-  const PAGE = 1000
-  let all = [], from = 0, done = false
-  while (!done) {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*')
-      .range(from, from + PAGE - 1)
-    if (error) throw error
-    all = all.concat(data)
-    done = data.length < PAGE
-    from += PAGE
-  }
-  return all
-}
-
-function buildMeta(courses) {
-  // Derive concentrations + years from live data
-  const concentrations = [...new Set(courses.map(c => c.concentration).filter(Boolean))].sort()
-  const years = [...new Set(courses.map(c => c.year).filter(Boolean))].sort((a, b) => a - b)
-
-  // Compute instructor medians
-  const allRatings = courses
-    .filter(c => c.metrics_raw?.Instructor_Rating != null && !c.is_average)
-    .map(c => c.metrics_raw.Instructor_Rating)
-  const overall_median_instructor = median(allRatings)
-
-  const byYear = {}
-  courses.filter(c => c.year && c.metrics_raw?.Instructor_Rating != null && !c.is_average).forEach(c => {
-    if (!byYear[c.year]) byYear[c.year] = []
-    byYear[c.year].push(c.metrics_raw.Instructor_Rating)
-  })
-  const year_medians_instructor = Object.fromEntries(
-    Object.entries(byYear).map(([yr, vals]) => [yr, median(vals)])
-  )
-
-  // default_year = most recent year that has eval data
-  const evalYears = [...new Set(courses.filter(c => c.has_eval && !c.is_average && c.year).map(c => c.year))]
-  const default_year = evalYears.length ? Math.max(...evalYears) : 2025
-
-  return {
-    concentrations,
-    years,
-    terms: ['Fall', 'Spring', 'January'],
-    default_year,
-    default_terms: ['Fall', 'Spring'],
-    metrics: METRICS,
-    overall_median_instructor,
-    year_medians_instructor,
-    academic_areas: [],
-  }
-}
 
 function NavResourcesSection() {
   const [open, setOpen] = useState(false)
@@ -195,17 +116,13 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    fetchAllCourses()
-      .then((courses) => {
-        // Compute metrics_score client-side (not stored in Supabase)
-        courses.forEach(c => {
-          if (c.metrics_raw) {
-            c.metrics_score = Object.fromEntries(
-              Object.entries(c.metrics_raw).map(([k, v]) => [k, v != null ? Math.round(v / 5 * 100 * 10) / 10 : null])
-            )
-          }
-        })
-        setData({ courses, meta: buildMeta(courses) })
+    fetch('/courses.json', { cache: 'no-cache' })
+      .then((response) => {
+        if (!response.ok) throw new Error('Failed to load courses.json')
+        return response.json()
+      })
+      .then((payload) => {
+        setData(payload)
         setLoading(false)
       })
       .catch((err) => {
@@ -234,7 +151,7 @@ export default function App() {
       >
         <p className="text-lg font-semibold" style={{ color: 'var(--danger)' }}>Error: {error}</p>
         <p className="text-sm text-muted">
-          Could not connect to the database. Check your Supabase environment variables and network connection.
+          Run <code style={{ color: 'var(--accent-strong)' }}>python scripts/build_data.py</code> first to generate the data file.
         </p>
       </div>
     )
