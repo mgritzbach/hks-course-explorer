@@ -161,6 +161,12 @@ const PRESETS = [
     isActive: (filters) => filters.year === 2026,
     sortKey: 'bid_price_desc',
   },
+  {
+    key: 'core_only',
+    label: 'Core Courses',
+    apply: (filters) => ({ ...filters, coreFilter: 'core' }),
+    isActive: (filters) => filters.coreFilter === 'core',
+  },
 ]
 
 export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode, colorblindMode = false, setColorblindMode, notes, setNote }) {
