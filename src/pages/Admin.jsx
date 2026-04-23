@@ -6,11 +6,40 @@ const ADMIN_TOKEN_KEY = 'hks_admin_token'
 const DEV_PASSWORD = 'hks2026admin'
 
 const UPLOAD_CONFIG = [
-  { key: 'bidding', label: 'Bidding', table: 'bidding' },
-  { key: 'qguide', label: 'Q Guide', table: 'qguide' },
-  { key: 'requirements_tags', label: 'Requirements Tags', table: 'requirements_tags' },
-  { key: 'stem_designations', label: 'STEM Designations', table: 'stem_designations' },
+  {
+    key: 'bidding',
+    label: 'Bidding Data',
+    table: 'bidding',
+    expectedColumns: ['course_code', 'bid_clearing_price', 'bid_capacity', 'bid_n_bids', 'academic_year', 'term'],
+    hint: 'One row per course section with bidding data. Required: course_code, bid_clearing_price.',
+  },
+  {
+    key: 'qguide',
+    label: 'Q Guide Scores',
+    table: 'qguide',
+    expectedColumns: ['course_code', 'instructor_rating', 'course_rating', 'workload', 'year', 'term'],
+    hint: 'One row per course-year-term. Required: course_code, instructor_rating, course_rating.',
+  },
+  {
+    key: 'requirements_tags',
+    label: 'Requirements Tags',
+    table: 'requirements_tags',
+    expectedColumns: ['course_code_base', 'is_core', 'is_stem'],
+    hint: 'One row per course code base. Required: course_code_base.',
+  },
+  {
+    key: 'stem_designations',
+    label: 'STEM Designations',
+    table: 'stem_designations',
+    expectedColumns: ['course_code_base', 'is_stem', 'stem_group', 'stem_school'],
+    hint: 'One row per course. Required: course_code_base, is_stem.',
+  },
 ]
+
+function getMissingColumns(parsedHeaders, expectedColumns) {
+  const normalized = parsedHeaders.map((h) => String(h).trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'))
+  return expectedColumns.filter((col) => !normalized.some((h) => h === col || h.includes(col)))
+}
 
 function sanitizeRows(rows) {
   return rows.map((row) =>
@@ -57,6 +86,9 @@ function PreviewTable({ rows }) {
 
 function UploadSection({ config, state, onSelectFile, onUpload }) {
   const isReady = Boolean(state.file && state.rows.length > 0)
+  const missingColumns = isReady && config.expectedColumns
+    ? getMissingColumns(state.headers, config.expectedColumns)
+    : []
 
   return (
     <section className="rounded-[24px] p-5" style={{ background: 'var(--panel)', border: '1px solid var(--line)' }}>
@@ -69,8 +101,13 @@ function UploadSection({ config, state, onSelectFile, onUpload }) {
             {config.label}
           </h2>
           <p className="mt-2 text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
-            Parsed rows will preview here before insertion into the <span style={{ color: 'var(--text-soft)' }}>{config.table}</span> table.
+            {config.hint || `Rows will be inserted into the `}<span style={{ color: 'var(--text-soft)' }}>{config.table}</span>{config.hint ? '' : ' table.'}
           </p>
+          {config.expectedColumns && (
+            <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+              Expected columns: <span style={{ color: 'var(--text-soft)' }}>{config.expectedColumns.join(', ')}</span>
+            </p>
+          )}
         </div>
 
         <button
@@ -125,6 +162,11 @@ function UploadSection({ config, state, onSelectFile, onUpload }) {
         {state.error && <span style={{ color: 'var(--danger)' }}>{state.error}</span>}
         {state.message && !state.error && <span style={{ color: 'var(--success)' }}>{state.message}</span>}
       </div>
+      {missingColumns.length > 0 && (
+        <div className="mt-3 rounded-[16px] border px-4 py-3 text-xs" style={{ background: 'var(--panel-soft)', borderColor: 'var(--warning)', color: 'var(--warning)' }}>
+          ⚠ Missing expected columns: <strong>{missingColumns.join(', ')}</strong>. Upload may fail or produce incomplete data.
+        </div>
+      )}
 
       <div className="mt-4 rounded-[20px] p-4" style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}>
         <PreviewTable rows={state.rows} />

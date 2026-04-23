@@ -236,6 +236,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searchQ, setSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [apiMode, setApiMode] = useState('unknown') // 'live' | 'db' | 'unknown'
   const [expandedBlock, setExpandedBlock] = useState(null)
   const [reqProgram, setReqProgram] = useState(() => getPrograms()[0]?.id || '')
   const [gridMessages, setGridMessages] = useState({})
@@ -262,9 +263,18 @@ export default function ScheduleBuilder({ courses = [] }) {
         const remote = await searchHarvardCourses(query)
         if (cancelled) return
         const normalized = (Array.isArray(remote) ? remote : []).map((item, index) => normalizeCourse(item, index)).slice(0, 12)
-        setSearchResults(normalized.length ? normalized : fallbackSearch(query, courses).map((item, index) => normalizeCourse(item, index)))
+        if (normalized.length) {
+          setApiMode('live')
+          setSearchResults(normalized)
+        } else {
+          setApiMode('db')
+          setSearchResults(fallbackSearch(query, courses).map((item, index) => normalizeCourse(item, index)))
+        }
       } catch {
-        if (!cancelled) setSearchResults(fallbackSearch(query, courses).map((item, index) => normalizeCourse(item, index)))
+        if (!cancelled) {
+          setApiMode('db')
+          setSearchResults(fallbackSearch(query, courses).map((item, index) => normalizeCourse(item, index)))
+        }
       } finally {
         if (!cancelled) setSearching(false)
       }
@@ -461,11 +471,21 @@ export default function ScheduleBuilder({ courses = [] }) {
         <div className="flex min-h-0 flex-1">
           <aside className="flex h-full w-[280px] shrink-0 flex-col border-r" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
             <div className="border-b p-4" style={{ borderColor: 'var(--line)' }}>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Course Search</label>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Course Search</label>
+                {apiMode !== 'unknown' && (
+                  <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: apiMode === 'live' ? 'var(--success)' : 'var(--text-muted)' }}>
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: apiMode === 'live' ? 'var(--success)' : 'var(--text-muted)' }} />
+                    {apiMode === 'live' ? 'Live' : 'DB only'}
+                  </span>
+                )}
+              </div>
               <input value={searchQ} onChange={(event) => setSearchQ(event.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Search courses, instructors..." className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }} />
-              {searchResults.length > 0 && searchQ.trim() && (
+              {searchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result</p>
-              )}
+              ) : apiMode === 'db' && !searchQ.trim() ? (
+                <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>Q-guide data shown. Live section times need Harvard API key.</p>
+              ) : null}
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col p-4">
@@ -494,6 +514,11 @@ export default function ScheduleBuilder({ courses = [] }) {
                         <div className="mt-3 flex flex-wrap gap-2">
                           {course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
                           {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
+                          {course.sections.length > 0 ? (
+                            <Chip>{course.sections.length} section{course.sections.length > 1 ? 's' : ''}</Chip>
+                          ) : (
+                            <Chip tone="danger">No time data</Chip>
+                          )}
                         </div>
                       </div>
                     )
