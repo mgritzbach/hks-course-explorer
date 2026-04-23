@@ -492,7 +492,7 @@ export default function App() {
             <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center', fontSize: 14 }}>Loading…</div>}>
               <Routes>
                 <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} notes={notes} setNote={setNote} />} />
-                <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} simIndex={simIndex} notes={notes} setNote={setNote} />} />
+                <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} simIndex={simIndex} notes={notes} setNote={setNote} />} />
                 <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
                 <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
                 <Route path="/resources" element={<Resources />} />

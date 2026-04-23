@@ -79,6 +79,7 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
     if (concentration !== 'All' && course.concentration !== concentration) return false
     if (coreFilter === 'core' && !course.is_core) return false
     if (coreFilter === 'no-core' && course.is_core) return false
+    if (stemGroup === 'stem' && !course.is_stem) return false
     if (stemGroup === 'A' && course.stem_group !== 'A') return false
     if (stemGroup === 'B' && course.stem_group !== 'B') return false
 
