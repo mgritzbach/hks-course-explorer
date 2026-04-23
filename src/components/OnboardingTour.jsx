@@ -182,6 +182,9 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
 
       {/* Tooltip card */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tour-title"
         style={{
           position: 'fixed',
           left: tipLeft, top: tipTop,
@@ -220,7 +223,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
           </button>
         </div>
 
-        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 5 }}>
+        <p id="tour-title" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 5 }}>
           {step.title}
         </p>
         <p style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, marginBottom: 14 }}>
