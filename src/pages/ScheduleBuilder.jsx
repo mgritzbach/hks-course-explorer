@@ -457,15 +457,20 @@ export default function ScheduleBuilder({ courses = [] }) {
             </div>
           </div>
 
-          <div className="inline-flex rounded-full border p-1" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
-            {TERM_OPTIONS.map((option) => {
-              const active = option === term
-              return (
-                <button key={option} type="button" onClick={() => setTerm(option)} className="rounded-full px-4 py-2 text-sm font-semibold transition-colors" style={{ background: active ? 'var(--accent-soft)' : 'transparent', color: active ? 'var(--text)' : 'var(--text-muted)' }}>
-                  {option === 'FULL' ? 'Full Term' : option}
-                </button>
-              )
-            })}
+          <div className="flex items-center gap-3">
+            <div className="inline-flex rounded-full border p-1" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+              {TERM_OPTIONS.map((option) => {
+                const active = option === term
+                return (
+                  <button key={option} type="button" onClick={() => setTerm(option)} className="rounded-full px-4 py-2 text-sm font-semibold transition-colors" style={{ background: active ? 'var(--accent-soft)' : 'transparent', color: active ? 'var(--text)' : 'var(--text-muted)' }}>
+                    {option === 'FULL' ? 'Full Term' : option}
+                  </button>
+                )
+              })}
+            </div>
+            <button type="button" onClick={handleExport} className="rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--gold-soft)', borderColor: 'var(--gold)', color: 'var(--text)' }}>
+              {'\u{1F4C5}'} Export iCal
+            </button>
           </div>
         </div>
 
@@ -673,12 +678,6 @@ export default function ScheduleBuilder({ courses = [] }) {
                   </div>
                 ) : <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>No program definitions available.</p>}
               </div>
-            </div>
-
-            <div className="shrink-0 border-t p-4" style={{ borderColor: 'var(--line)' }}>
-              <button type="button" onClick={handleExport} className="w-full rounded-full border px-4 py-3 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--gold-soft)', borderColor: 'var(--gold)', color: 'var(--text)' }}>
-                {'\u{1F4C5} Export iCal (.ics)'}
-              </button>
             </div>
           </aside>
         </div>
