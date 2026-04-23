@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_PLAN, loadPlan, savePlan } from '../lib/scheduleStorage.js'
+import { DEFAULT_PLAN, PLANS, loadPlan, savePlan } from '../lib/scheduleStorage.js'
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
 
 const PROGRAM_STORAGE_KEY = 'hks_req_program'
@@ -40,9 +40,13 @@ function ProgressBar({ value, color, label }) {
   )
 }
 
-function getPlanCourses() {
-  const plan = loadPlan(DEFAULT_PLAN)
+function getPlanCourses(planName = DEFAULT_PLAN) {
+  const plan = loadPlan(planName)
   return Array.isArray(plan?.courses) ? plan.courses : []
+}
+
+function getCourseCode(c) {
+  return c?.course_code_base || c?.course_code || c?.courseCode || c?.code || null
 }
 
 export default function Requirements({ courses = [] }) {
@@ -54,25 +58,42 @@ export default function Requirements({ courses = [] }) {
     if (urlProgram && (validIds.size === 0 || validIds.has(urlProgram))) return urlProgram
     return window.localStorage.getItem(PROGRAM_STORAGE_KEY) || programs[0]?.id || ''
   })
-  const [scheduledCourses, setScheduledCourses] = useState(() => getPlanCourses())
+  // Which plan A/B/C/D to show requirements for
+  const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
+  const [scheduledCourses, setScheduledCourses] = useState(() => getPlanCourses(DEFAULT_PLAN))
   const [openSuggestions, setOpenSuggestions] = useState({})
   const [addedToPlan, setAddedToPlan] = useState(() => {
-    const codes = new Set(getPlanCourses().map((c) => c?.course_code_base || c?.course_code || c?.courseCode || c?.code).filter(Boolean))
+    const codes = new Set(getPlanCourses(DEFAULT_PLAN).map(getCourseCode).filter(Boolean))
     return codes
   })
   const [copyMsg, setCopyMsg] = useState(null)
   const copyTimeoutRef = useRef(null)
 
+  // Re-read plan when user switches plan tabs
+  useEffect(() => {
+    const freshCourses = getPlanCourses(activePlan)
+    setScheduledCourses(freshCourses)
+    setAddedToPlan(new Set(freshCourses.map(getCourseCode).filter(Boolean)))
+  }, [activePlan])
+
   const addCourseToPlan = (course) => {
-    const plan = loadPlan(DEFAULT_PLAN)
-    const courseCode = course?.course_code_base || course?.course_code || course?.courseCode || course?.code
+    const plan = loadPlan(activePlan)
+    const courseCode = getCourseCode(course)
     if (!courseCode) return
-    const already = plan.courses.some((c) => (c?.course_code_base || c?.course_code || c?.courseCode || c?.code) === courseCode)
+    const already = plan.courses.some((c) => getCourseCode(c) === courseCode)
     if (already) return
     const nextCourses = [...plan.courses, course]
-    savePlan(DEFAULT_PLAN, { ...plan, courses: nextCourses })
+    savePlan(activePlan, { ...plan, courses: nextCourses })
     setAddedToPlan((prev) => new Set([...prev, courseCode]))
     setScheduledCourses(nextCourses)
+  }
+
+  const removeFromPlan = (courseCode) => {
+    const plan = loadPlan(activePlan)
+    const nextCourses = plan.courses.filter((c) => getCourseCode(c) !== courseCode)
+    savePlan(activePlan, { ...plan, courses: nextCourses })
+    setScheduledCourses(nextCourses)
+    setAddedToPlan((prev) => { const s = new Set(prev); s.delete(courseCode); return s })
   }
 
   useEffect(() => {
@@ -104,10 +125,12 @@ export default function Requirements({ courses = [] }) {
     window.localStorage.setItem(PROGRAM_STORAGE_KEY, selectedProgram)
 
     const syncPlanCourses = () => {
-      setScheduledCourses(getPlanCourses())
+      const fresh = getPlanCourses(activePlan)
+      setScheduledCourses(fresh)
+      setAddedToPlan(new Set(fresh.map(getCourseCode).filter(Boolean)))
     }
     const handleStorage = (event) => {
-      if (event.key === `hks_plan_${DEFAULT_PLAN}`) {
+      if (event.key === `hks_plan_${activePlan}`) {
         syncPlanCourses()
       }
     }
@@ -120,7 +143,7 @@ export default function Requirements({ courses = [] }) {
       document.removeEventListener('visibilitychange', syncPlanCourses)
       window.removeEventListener('storage', handleStorage)
     }
-  }, [selectedProgram])
+  }, [selectedProgram, activePlan])
 
   const progress = useMemo(
     () => computeProgress(selectedProgram, scheduledCourses),
@@ -160,11 +183,31 @@ export default function Requirements({ courses = [] }) {
                 Requirements Tracker
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
-                Progress is calculated from courses saved in <span style={{ color: 'var(--text)' }}>{DEFAULT_PLAN}</span>.
-                {' '}Add courses in the{' '}
-                <a href="/schedule-builder" style={{ color: 'var(--accent)', fontWeight: 600 }}>Schedule Builder</a>
-                {' '}to track fulfillment live.
+                Progress is calculated from courses saved in your plan. Switch plans below or{' '}
+                <a href="/schedule-builder" style={{ color: 'var(--accent)', fontWeight: 600 }}>open the Schedule Builder</a>
+                {' '}to add courses.
               </p>
+              {/* Plan A/B/C/D selector */}
+              <div className="mt-4 flex gap-1">
+                {PLANS.map((plan) => {
+                  const active = plan === activePlan
+                  return (
+                    <button
+                      key={plan}
+                      type="button"
+                      onClick={() => setActivePlan(plan)}
+                      className="rounded-full border px-3 py-1 text-xs font-semibold transition-colors"
+                      style={{
+                        background: active ? 'var(--accent)' : 'transparent',
+                        borderColor: active ? 'var(--accent)' : 'var(--line-strong)',
+                        color: active ? 'var(--panel)' : 'var(--text-muted)',
+                      }}
+                    >
+                      {plan}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="w-full max-w-sm">
@@ -223,7 +266,7 @@ export default function Requirements({ courses = [] }) {
                 {scheduledCourses.length}
               </p>
               <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-                scheduled course{scheduledCourses.length === 1 ? '' : 's'} loaded from local storage
+                scheduled course{scheduledCourses.length === 1 ? '' : 's'} in {activePlan}
               </p>
               {scheduledCourses.length === 0 && (
                 <a
@@ -293,10 +336,19 @@ export default function Requirements({ courses = [] }) {
                     category.selectedCourses.map((course) => (
                       <span
                         key={`${category.id}-${course._index}`}
-                        className="rounded-full px-3 py-1 text-xs"
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
                         style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)', color: 'var(--text-soft)' }}
                       >
                         {course._courseCode}
+                        <button
+                          type="button"
+                          onClick={() => removeFromPlan(course._courseCode)}
+                          aria-label={`Remove ${course._courseCode} from ${activePlan}`}
+                          className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70"
+                          style={{ background: 'var(--line-strong)', color: 'var(--text-muted)', fontSize: 9, fontWeight: 700, lineHeight: 1, border: 'none', cursor: 'pointer', paddingBottom: 1 }}
+                        >
+                          ×
+                        </button>
                       </span>
                     ))
                   ) : (
