@@ -212,6 +212,7 @@ function Chip({ children, tone = 'default' }) {
     success: { background: 'var(--success)', borderColor: 'var(--success)', color: 'var(--panel)' },
     blue: { background: 'var(--blue)', borderColor: 'var(--blue)', color: 'var(--panel)' },
     danger: { background: 'var(--panel-soft)', borderColor: 'var(--danger)', color: 'var(--danger)' },
+    gold: { background: 'var(--gold-soft)', borderColor: 'var(--gold)', color: 'var(--gold)' },
   }
   return (
     <span className="inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]" style={styles[tone] || styles.default}>
@@ -550,6 +551,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                             <Chip>{course.sections.length} section{course.sections.length > 1 ? 's' : ''}</Chip>
                           ) : (
                             <Chip tone="danger">No time data</Chip>
+                          )}
+                          {course.enrichment?.last_bid_price != null && (
+                            <Chip tone="gold">{course.enrichment.last_bid_price} pts</Chip>
                           )}
                         </div>
                       </div>
