@@ -167,6 +167,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [loadCount, setLoadCount] = useState(0)
   const [error, setError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'dark'
     return window.localStorage.getItem('hks-theme') || 'dark'
@@ -207,6 +208,9 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    setLoading(true)
+    setError(null)
+    setLoadCount(0)
     fetchAllCourses((n) => setLoadCount(n))
       .then((courses) => {
         // Compute metrics_score client-side (not stored in Supabase)
@@ -224,7 +228,7 @@ export default function App() {
         setError(err.message)
         setLoading(false)
       })
-  }, [])
+  }, [retryKey])
 
   if (loading) {
     return (
@@ -246,13 +250,21 @@ export default function App() {
   if (error) {
     return (
       <div
-        className="flex h-screen flex-col items-center justify-center gap-3 px-8 text-center"
+        className="flex h-screen flex-col items-center justify-center gap-4 px-8 text-center"
         style={{ background: 'transparent' }}
       >
-        <p className="text-lg font-semibold" style={{ color: 'var(--danger)' }}>Error: {error}</p>
-        <p className="text-sm text-muted">
-          Could not connect to the database. Check your Supabase environment variables and network connection.
+        <p className="text-4xl" style={{ opacity: 0.3 }}>⚠</p>
+        <p className="text-lg font-semibold" style={{ color: 'var(--danger)' }}>Failed to load course data</p>
+        <p className="max-w-sm text-sm text-muted">
+          {error}. Check your network connection and try again.
         </p>
+        <button
+          onClick={() => setRetryKey((k) => k + 1)}
+          className="rounded-full px-5 py-2.5 text-sm font-semibold"
+          style={{ background: 'var(--accent-soft)', color: 'var(--text)', border: '1px solid var(--line)' }}
+        >
+          ↺ Retry
+        </button>
       </div>
     )
   }
