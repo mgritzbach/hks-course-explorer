@@ -114,7 +114,9 @@ function NavResourcesSection() {
           border: 'none',
           cursor: 'pointer',
         }}
-        className="transition-colors hover:bg-white/[0.03]"
+        className="transition-colors"
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--panel-subtle)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
       >
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)' }}>
           🔗 HKS Resources
@@ -137,7 +139,9 @@ function NavResourcesSection() {
                   rel="noopener noreferrer"
                   title={link.auth ? `Requires ${link.auth}` : link.desc}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px', borderRadius: 8, textDecoration: 'none', gap: 4 }}
-                  className="transition-colors hover:bg-white/5"
+                  className="transition-colors"
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--panel-subtle)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
                 >
                   <span style={{ fontSize: 11, color: 'var(--text-soft)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link.label}</span>
                   <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
@@ -299,7 +303,7 @@ export default function App() {
           backdropFilter: 'blur(18px)',
         }}
       >
-        <div className="mb-4 rounded-[22px] border px-4 pb-4 pt-5" style={{ borderColor: 'var(--line)', background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.16), rgba(255,255,255,0.02))' }}>
+        <div className="mb-4 rounded-[22px] border px-4 pb-4 pt-5" style={{ borderColor: 'var(--line)', background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.14), var(--panel-subtle))' }}>
           <p className="kicker">Harvard-inspired</p>
           <p className="serif-display mt-2 text-2xl font-semibold" style={{ color: 'var(--text)' }}>HKS</p>
           <p className="text-xs" style={{ color: 'var(--text-soft)' }}>Course Explorer</p>

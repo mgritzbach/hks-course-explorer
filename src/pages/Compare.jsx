@@ -112,7 +112,7 @@ function MetricBar({ value, best, higherBetter, metricMode = 'score' }) {
             style={{ width: `${value}%`, background: barColor, opacity: best ? 0.9 : 0.45 }}
           />
           {/* Average reference tick */}
-          <div style={{ position: 'absolute', top: -2, left: '50%', width: 1, height: 7, background: 'rgba(243,233,226,0.35)', transform: 'translateX(-50%)' }} title="50th pct = average" />
+          <div style={{ position: 'absolute', top: -2, left: '50%', width: 1, height: 7, background: 'var(--line-strong)', transform: 'translateX(-50%)' }} title="50th pct = average" />
         </div>
         <span
           className="w-12 shrink-0 text-right text-xs font-semibold"
