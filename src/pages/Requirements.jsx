@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_PLAN, loadPlan } from '../lib/scheduleStorage.js'
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
 
 const PROGRAM_STORAGE_KEY = 'hks_req_program'
+
+function getUrlProgram() {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get('p') || null
+}
 
 const COLOR_MAP = {
   blue: 'var(--blue)',
@@ -44,13 +49,41 @@ export default function Requirements({ courses = [] }) {
   const programs = useMemo(() => getPrograms(), [])
   const [selectedProgram, setSelectedProgram] = useState(() => {
     if (typeof window === 'undefined') return programs[0]?.id || ''
+    const urlProgram = getUrlProgram()
+    const validIds = new Set(Object.keys(programs).map ? programs.map((p) => p.id) : [])
+    if (urlProgram && (validIds.size === 0 || validIds.has(urlProgram))) return urlProgram
     return window.localStorage.getItem(PROGRAM_STORAGE_KEY) || programs[0]?.id || ''
   })
   const [scheduledCourses, setScheduledCourses] = useState(() => getPlanCourses())
   const [openSuggestions, setOpenSuggestions] = useState({})
+  const [copyMsg, setCopyMsg] = useState(null)
+  const copyTimeoutRef = useRef(null)
+
+  useEffect(() => {
+    return () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }
+  }, [])
+
+  const copyShareLink = () => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('p', selectedProgram)
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      setCopyMsg('Copied!')
+      copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2500)
+    }).catch(() => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      setCopyMsg('Copy failed')
+      copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2500)
+    })
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
+
+    // Keep URL param in sync so the page is bookmarkable/shareable
+    const url = new URL(window.location.href)
+    url.searchParams.set('p', selectedProgram)
+    window.history.replaceState(null, '', url.toString())
 
     window.localStorage.setItem(PROGRAM_STORAGE_KEY, selectedProgram)
 
@@ -122,14 +155,30 @@ export default function Requirements({ courses = [] }) {
               <label htmlFor="req-program-select" className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
                 Program
               </label>
-              <div className="select-wrap">
-                <select id="req-program-select" value={selectedProgram} onChange={(event) => setSelectedProgram(event.target.value)}>
-                  {programs.map((program) => (
-                    <option key={program.id} value={program.id}>
-                      {program.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex gap-2">
+                <div className="select-wrap flex-1">
+                  <select id="req-program-select" value={selectedProgram} onChange={(event) => setSelectedProgram(event.target.value)}>
+                    {programs.map((program) => (
+                      <option key={program.id} value={program.id}>
+                        {program.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyShareLink}
+                  title="Copy shareable link to this program view"
+                  className="shrink-0 rounded-[14px] border px-3 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
+                  style={{
+                    background: copyMsg === 'Copied!' ? 'rgba(123,176,138,0.15)' : 'var(--panel-strong)',
+                    borderColor: copyMsg === 'Copied!' ? 'var(--success)' : 'var(--line-strong)',
+                    color: copyMsg === 'Copied!' ? 'var(--success)' : 'var(--text-muted)',
+                    minWidth: 44,
+                  }}
+                >
+                  {copyMsg === 'Copied!' ? '✓' : copyMsg ? '!' : '🔗'}
+                </button>
               </div>
             </div>
           </div>
