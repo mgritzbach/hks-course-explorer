@@ -466,7 +466,7 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
 export default function Courses({ courses, meta, favs, metricMode = 'score', setMetricMode }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => searchParams.get('q') || '')
   const [selectedId, setSelectedId] = useState(searchParams.get('id') || null)
   const [activeTab, setActiveTab] = useState('details')
   const [descOpen, setDescOpen] = useState(false)
@@ -486,16 +486,41 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
     else setFilterOpen(false)
   }
 
-  const [filters, setFilters] = useState({
-    year: 'all',
-    terms: [...ALL_TERMS],
-    concentration: 'All',
-    academicArea: 'All',
-    coreFilter: 'all',
-    stemGroup: 'all',
-    minInstructorPct: 'any',
-    evalOnly: false,
+  const [filters, setFilters] = useState(() => {
+    const rawYear = searchParams.get('y')
+    return {
+      year: rawYear && rawYear !== 'all' ? parseInt(rawYear, 10) : 'all',
+      terms: [...ALL_TERMS],
+      concentration: searchParams.get('c') || 'All',
+      academicArea: 'All',
+      coreFilter: 'all',
+      stemGroup: 'all',
+      minInstructorPct: 'any',
+      evalOnly: false,
+    }
   })
+
+  // Keep key filter state in URL so filtered views are shareable
+  useEffect(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (filters.year !== 'all') next.set('y', String(filters.year))
+      else next.delete('y')
+      if (filters.concentration !== 'All') next.set('c', filters.concentration)
+      else next.delete('c')
+      return next
+    }, { replace: true })
+  }, [filters.year, filters.concentration]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync search query to URL (debounce-style: only write non-empty values)
+  useEffect(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (query) next.set('q', query)
+      else next.delete('q')
+      return next
+    }, { replace: true })
+  }, [query]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const id = searchParams.get('id')
