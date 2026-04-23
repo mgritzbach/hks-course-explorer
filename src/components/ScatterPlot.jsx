@@ -576,7 +576,7 @@ export default function ScatterPlot({
             x1: 50,
             y0: effectiveYDomain[0],
             y1: effectiveYDomain[1],
-            line: { color: 'rgba(243, 233, 226, 0.28)', dash: 'dot', width: 1 },
+            line: { color: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(243, 233, 226, 0.28)', dash: 'dot', width: 1 },
             layer: 'below',
           },
           {
@@ -587,7 +587,7 @@ export default function ScatterPlot({
             x1: effectiveXDomain[1],
             y0: 50,
             y1: 50,
-            line: { color: 'rgba(243, 233, 226, 0.28)', dash: 'dot', width: 1 },
+            line: { color: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(243, 233, 226, 0.28)', dash: 'dot', width: 1 },
             layer: 'below',
           },
         )
@@ -611,9 +611,9 @@ export default function ScatterPlot({
         tickfont: { color: 'var(--text-muted)', size: 11 },
         ticksuffix: xMode.useRaw ? '' : (metricMode === 'score' ? '%' : ' pct'),
         showline: true,
-        linecolor: 'rgba(243, 233, 226, 0.2)',
-        tickcolor: 'rgba(243, 233, 226, 0.2)',
-        gridcolor: 'rgba(243, 233, 226, 0.06)',
+        linecolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
+        tickcolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
+        gridcolor: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(243, 233, 226, 0.06)',
         zeroline: false,
         title: { text: xMeta.label, font: { color: 'var(--text-muted)', size: 12 } },
       },
@@ -625,9 +625,9 @@ export default function ScatterPlot({
         tickfont: { color: 'var(--text-muted)', size: 11 },
         ticksuffix: yMode.useRaw ? '' : (metricMode === 'score' ? '%' : ' pct'),
         showline: true,
-        linecolor: 'rgba(243, 233, 226, 0.2)',
-        tickcolor: 'rgba(243, 233, 226, 0.2)',
-        gridcolor: 'rgba(243, 233, 226, 0.06)',
+        linecolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
+        tickcolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
+        gridcolor: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(243, 233, 226, 0.06)',
         zeroline: false,
         title: { text: yMeta.label, font: { color: 'var(--text-muted)', size: 12 } },
       },
@@ -642,7 +642,7 @@ export default function ScatterPlot({
           x: 50, y: 1.0,
           text: 'avg',
           showarrow: false,
-          font: { size: 10, color: 'rgba(243,233,226,0.45)' },
+          font: { size: 10, color: isLight ? 'rgba(0,0,0,0.35)' : 'rgba(243,233,226,0.45)' },
           xanchor: 'center', yanchor: 'bottom',
         },
         {
@@ -650,12 +650,12 @@ export default function ScatterPlot({
           x: 0, y: 50,
           text: 'avg',
           showarrow: false,
-          font: { size: 10, color: 'rgba(243,233,226,0.45)' },
+          font: { size: 10, color: isLight ? 'rgba(0,0,0,0.35)' : 'rgba(243,233,226,0.45)' },
           xanchor: 'right', yanchor: 'middle',
         },
       ] : [],
     }
-  }, [effectiveXDomain, effectiveYDomain, greenX0, greenX1, greenY0, greenY1, isZoomed, metricMode, quadBadBorder, quadBadColor, quadGoodBorder, quadGoodColor, redX0, redX1, redY0, redY1, showQuadrants, xMeta.label, xMetric, xMode.useRaw, yMeta.label, yMetric, yMode.useRaw])
+  }, [effectiveXDomain, effectiveYDomain, greenX0, greenX1, greenY0, greenY1, isLight, isZoomed, metricMode, quadBadBorder, quadBadColor, quadGoodBorder, quadGoodColor, redX0, redX1, redY0, redY1, showQuadrants, xMeta.label, xMetric, xMode.useRaw, yMeta.label, yMetric, yMode.useRaw])
 
   const plotConfig = useMemo(() => ({
     responsive: true,
@@ -925,7 +925,7 @@ export default function ScatterPlot({
         </div>
       ))}
 
-      <div className="border-t px-4 py-3 text-xs" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.015)' }}>
+      <div className="border-t px-4 py-3 text-xs" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
         <p className="mb-2 font-medium text-label">How to read this</p>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {showQuadrants && (

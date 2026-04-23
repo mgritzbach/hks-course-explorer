@@ -51,7 +51,7 @@ function MetricBar({ label, value, higherBetter = true, neutral = false, metricM
       <div className="h-1 w-full rounded-full" style={{ background: 'var(--track-bg)', position: 'relative' }}>
         <div className="h-1 rounded-full" style={{ width: `${rounded}%`, background: color }} />
         {/* Average reference tick at 50% */}
-        <div style={{ position: 'absolute', top: -2, left: '50%', width: 1, height: 7, background: 'rgba(243,233,226,0.35)', transform: 'translateX(-50%)' }} title="50th pct = average" />
+        <div style={{ position: 'absolute', top: -2, left: '50%', width: 1, height: 7, background: 'var(--line-strong)', transform: 'translateX(-50%)' }} title="50th pct = average" />
       </div>
     </div>
   )
@@ -409,7 +409,7 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
             <div data-tour="faculty-quick-stats" className="surface-card rounded-[22px] p-4">
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Quick Stats</h4>
               {selectedData.avgMetrics?.Instructor_Rating != null && (
-                <div className="mb-3 rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.025)' }}>
+                <div className="mb-3 rounded-2xl p-3" style={{ background: 'var(--panel-subtle)' }}>
                   <p className="text-[10px] uppercase tracking-wider text-muted">Instructor Rating</p>
                   <p className="text-xl font-bold" style={{ color: 'var(--accent-strong)' }}>{fmtShort(selectedData.avgMetrics.Instructor_Rating, metricMode)}</p>
                   <p className="text-[10px] text-muted">{modeSubLabel(metricMode)}</p>
@@ -423,7 +423,7 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
                   )}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">{[{ key: 'Course_Rating', label: 'Course Rating', color: 'var(--success)' }, { key: 'Workload', label: 'Workload', color: 'var(--text-soft)' }, { key: 'Rigor', label: 'Rigor', color: 'var(--text-soft)' }, { key: 'Diverse Perspectives', label: 'Diverse Persp.', color: 'var(--text-soft)' }, { key: 'Feedback', label: 'Feedback', color: 'var(--text-soft)' }].map(({ key, label, color }) => selectedData.avgMetrics?.[key] != null && <div key={key} className="rounded-2xl p-2" style={{ background: 'rgba(255,255,255,0.025)' }}><p className="text-[10px] text-muted">{label}</p><p className="text-sm font-bold" style={{ color }}>{fmtShort(selectedData.avgMetrics[key], metricMode)}</p></div>)}</div>
+              <div className="grid grid-cols-2 gap-2">{[{ key: 'Course_Rating', label: 'Course Rating', color: 'var(--success)' }, { key: 'Workload', label: 'Workload', color: 'var(--text-soft)' }, { key: 'Rigor', label: 'Rigor', color: 'var(--text-soft)' }, { key: 'Diverse Perspectives', label: 'Diverse Persp.', color: 'var(--text-soft)' }, { key: 'Feedback', label: 'Feedback', color: 'var(--text-soft)' }].map(({ key, label, color }) => selectedData.avgMetrics?.[key] != null && <div key={key} className="rounded-2xl p-2" style={{ background: 'var(--panel-subtle)' }}><p className="text-[10px] text-muted">{label}</p><p className="text-sm font-bold" style={{ color }}>{fmtShort(selectedData.avgMetrics[key], metricMode)}</p></div>)}</div>
             </div>
           </div>
 
@@ -431,10 +431,10 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
             <div className="border-b px-4 py-3" style={{ borderColor: 'var(--line)' }}><h4 className="text-xs font-semibold uppercase tracking-wider text-muted">All Courses Taught ({profCourses.length})</h4></div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.08)' }}>{['Year', 'Term', 'Course', `Instructor (${modeUnit(metricMode)})`, `Course (${modeUnit(metricMode)})`, `Workload (${modeUnit(metricMode)})`, `Rigor (${modeUnit(metricMode)})`, 'Diverse Persp.', 'N'].map((h) => <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-medium text-muted">{h}</th>)}</tr></thead>
+                <thead><tr style={{ borderBottom: '1px solid var(--line-strong)' }}>{['Year', 'Term', 'Course', `Instructor (${modeUnit(metricMode)})`, `Course (${modeUnit(metricMode)})`, `Workload (${modeUnit(metricMode)})`, `Rigor (${modeUnit(metricMode)})`, 'Diverse Persp.', 'N'].map((h) => <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-medium text-muted">{h}</th>)}</tr></thead>
                 <tbody>{profCourses.map((course, i) => {
                   const src = metricMode === 'score' ? course.metrics_score : course.metrics_pct
-                  return <tr key={i} className="cursor-pointer transition-colors hover:bg-[rgba(255,255,255,0.02)]" style={{ borderBottom: '1px solid rgba(243, 233, 226, 0.05)' }} onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}><td className="px-3 py-2 text-label">{course.year}</td><td className="px-3 py-2 text-muted">{course.term}</td><td className="px-3 py-2"><span className="font-medium" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</span><span className="ml-2 text-label">{course.course_name}</span></td><td className="px-3 py-2 font-medium" style={{ color: 'var(--accent-strong)' }}>{fmtShort(src?.Instructor_Rating, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.Course_Rating, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.Workload, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.Rigor, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.['Diverse Perspectives'], metricMode)}</td><td className="px-3 py-2 text-muted">{course.n_respondents ?? '-'}</td></tr>
+                  return <tr key={i} className="cursor-pointer transition-colors" style={{ borderBottom: '1px solid var(--line)', cursor: 'pointer' }} onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--panel-subtle)' }} onMouseLeave={(e) => { e.currentTarget.style.background = '' }} onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}><td className="px-3 py-2 text-label">{course.year}</td><td className="px-3 py-2 text-muted">{course.term}</td><td className="px-3 py-2"><span className="font-medium" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</span><span className="ml-2 text-label">{course.course_name}</span></td><td className="px-3 py-2 font-medium" style={{ color: 'var(--accent-strong)' }}>{fmtShort(src?.Instructor_Rating, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.Course_Rating, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.Workload, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.Rigor, metricMode)}</td><td className="px-3 py-2 text-label">{fmtShort(src?.['Diverse Perspectives'], metricMode)}</td><td className="px-3 py-2 text-muted">{course.n_respondents ?? '-'}</td></tr>
                 })}</tbody>
               </table>
               {meta.overall_median_instructor != null && (

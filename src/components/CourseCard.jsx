@@ -27,7 +27,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
   const biddingOnly = !course.has_eval && course.has_bidding
   const noEval = !course.has_eval && !course.has_bidding
 
-  const borderAccent = biddingOnly ? 'var(--gold)' : noEval ? 'rgba(243, 233, 226, 0.2)' : 'var(--accent)'
+  const borderAccent = biddingOnly ? 'var(--gold)' : noEval ? 'var(--line-strong)' : 'var(--accent)'
   const descriptionExcerpt = course.description
     ? (course.description.length > 180 ? `${course.description.slice(0, 180)}...` : course.description)
     : null
@@ -39,7 +39,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
         borderLeft: `3px solid ${borderAccent}`,
         paddingLeft: 16,
         paddingRight: 16,
-        background: 'linear-gradient(180deg, rgba(255,255,255,0.028), rgba(255,255,255,0.016))',
+        background: 'var(--panel)',
       }}
     >
       <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

@@ -439,20 +439,20 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-3 border-t px-5 py-4 md:px-7" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.015)' }}>
-            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.025)' }}>
+          <div className="flex flex-wrap gap-3 border-t px-5 py-4 md:px-7" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
               <span style={{ color: 'var(--text-muted)' }}>View</span>
               <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>{avgMode ? 'All-years weighted averages' : bidYear ? 'Active bidding season' : 'Filtered current courses'}</p>
             </div>
-            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.025)' }}>
+            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Matching now</span>
               <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>{filtered.length} course{filtered.length !== 1 ? 's' : ''}</p>
             </div>
-            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.025)' }}>
+            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Built for</span>
               <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>Harvard Kennedy School students</p>
             </div>
-            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.025)' }}>
+            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Last updated</span>
               <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>Spring 2025</p>
             </div>
