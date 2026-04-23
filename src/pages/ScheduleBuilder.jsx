@@ -8,9 +8,15 @@ import { useFavorites } from '../useFavorites'
 const GRID_START = 480
 const GRID_END = 1080
 const ROW_HEIGHT = 36
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-const DAY_INDEX = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 }
+const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+const WEEKEND_LABELS = ['Sat', 'Sun']
+const DAY_INDEX = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 }
 const TERM_OPTIONS = ['Q1', 'Q2', 'FULL']
+const SEMESTER_OPTIONS = [
+  { value: 'Spring', label: 'Spring' },
+  { value: 'Fall',   label: 'Fall'   },
+  { value: 'January', label: 'J-term' },
+]
 
 function fallbackSearch(q, allCourses) {
   const query = String(q || '').trim().toLowerCase()
@@ -51,6 +57,8 @@ function normalizeDayToken(token) {
     W: 'WED', WED: 'WED', WEDNESDAY: 'WED',
     R: 'THU', TH: 'THU', THU: 'THU', THUR: 'THU', THURS: 'THU', THURSDAY: 'THU',
     F: 'FRI', FRI: 'FRI', FRIDAY: 'FRI',
+    S: 'SAT', SA: 'SAT', SAT: 'SAT', SATURDAY: 'SAT',
+    SU: 'SUN', SUN: 'SUN', SUNDAY: 'SUN',
   }
   return map[value] || null
 }
@@ -239,6 +247,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
   const [planData, setPlanData] = useState(() => loadPlan(DEFAULT_PLAN))
   const [term, setTerm] = useState('FULL')
+  const [semester, setSemester] = useState('Spring')
+  const [showWeekends, setShowWeekends] = useState(false)
   const [searchQ, setSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -277,7 +287,9 @@ export default function ScheduleBuilder({ courses = [] }) {
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
-        const remote = await searchHarvardCourses(query)
+        const semesterKey = semester === 'January' ? 'January' : semester
+        const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
+        const remote = await searchHarvardCourses(query, { term: `${termYear}${semesterKey}`, school: 'HKS' })
         if (cancelled) return
         const normalized = (Array.isArray(remote) ? remote : []).map((item, index) => normalizeCourse(item, index)).slice(0, 12)
         if (normalized.length) {
@@ -300,7 +312,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [courses, searchQ])
+  }, [courses, searchQ, semester])
 
   const normalizedPlanCourses = useMemo(() => (Array.isArray(planData?.courses) ? planData.courses : []).map((course, index) => normalizeCourse(course, index)), [planData])
   const gridCourses = useMemo(() => normalizedPlanCourses.filter((course) => course.isOnGrid), [normalizedPlanCourses])
@@ -315,6 +327,9 @@ export default function ScheduleBuilder({ courses = [] }) {
   }, [conflicts])
   const progress = useMemo(() => (reqProgram ? computeProgress(reqProgram, normalizedPlanCourses) : null), [normalizedPlanCourses, reqProgram])
   const addedCourseCodes = useMemo(() => new Set(normalizedPlanCourses.map((course) => course.courseCode)), [normalizedPlanCourses])
+  const visibleDayLabels = showWeekends ? [...WEEKDAY_LABELS, ...WEEKEND_LABELS] : WEEKDAY_LABELS
+  const numDays = visibleDayLabels.length
+  const gridCols = `52px repeat(${numDays}, minmax(0, 1fr))`
 
   // Starred courses from the Home shortlist that aren't already in this plan
   const shortlistedSuggestions = useMemo(() => {
@@ -539,6 +554,19 @@ export default function ScheduleBuilder({ courses = [] }) {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Semester selector */}
+            <div className="inline-flex rounded-full border p-1" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+              {SEMESTER_OPTIONS.map((opt) => {
+                const active = opt.value === semester
+                return (
+                  <button key={opt.value} type="button" onClick={() => setSemester(opt.value)}
+                    className="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+                    style={{ background: active ? 'var(--accent)' : 'transparent', color: active ? '#fff8f5' : 'var(--text-muted)' }}>
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
             <div className="inline-flex rounded-full border p-1" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
               {TERM_OPTIONS.map((option) => {
                 const active = option === term
@@ -549,6 +577,19 @@ export default function ScheduleBuilder({ courses = [] }) {
                 )
               })}
             </div>
+            <button
+              type="button"
+              onClick={() => setShowWeekends((v) => !v)}
+              title="Show Saturday and Sunday columns"
+              className="rounded-full border px-3 py-2 text-sm font-semibold transition-colors"
+              style={{
+                background: showWeekends ? 'var(--panel-subtle)' : 'transparent',
+                borderColor: showWeekends ? 'var(--line-strong)' : 'var(--line)',
+                color: showWeekends ? 'var(--text)' : 'var(--text-muted)',
+              }}
+            >
+              {showWeekends ? 'Hide Weekends' : '+ Weekends'}
+            </button>
             {normalizedPlanCourses.length > 0 && (
               <button
                 type="button"
@@ -682,18 +723,18 @@ export default function ScheduleBuilder({ courses = [] }) {
                 </div>
               )}
               <div className="min-w-[720px] rounded-[28px] border" style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}>
-                <div className="grid min-w-[720px] border-b" style={{ borderColor: 'var(--line)', gridTemplateColumns: '52px repeat(5, minmax(0, 1fr))' }}>
+                <div className="grid min-w-[720px] border-b" style={{ borderColor: 'var(--line)', gridTemplateColumns: gridCols }}>
                   <div className="border-r px-2 py-4 text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ borderColor: 'var(--line)', color: 'var(--text-muted)' }}>Time</div>
-                  {DAY_LABELS.map((day) => (
+                  {visibleDayLabels.map((day) => (
                     <div key={day} className="border-r px-3 py-4 text-center text-sm font-semibold last:border-r-0" style={{ borderColor: 'var(--line)', color: 'var(--text)' }}>{day}</div>
                   ))}
                 </div>
 
                 <div className="relative min-w-[720px]" style={{ height: `${((GRID_END - GRID_START) / 30) * ROW_HEIGHT}px` }}>
                   {timeLabels.map((slot, index) => (
-                    <div key={slot.minute} className="absolute inset-x-0 grid" style={{ top: `${index * ROW_HEIGHT}px`, height: `${ROW_HEIGHT}px`, gridTemplateColumns: '52px repeat(5, minmax(0, 1fr))' }}>
+                    <div key={slot.minute} className="absolute inset-x-0 grid" style={{ top: `${index * ROW_HEIGHT}px`, height: `${ROW_HEIGHT}px`, gridTemplateColumns: gridCols }}>
                       <div className="border-r px-2 py-2 text-[11px]" style={{ borderColor: 'var(--line)', color: 'var(--text-muted)' }}>{slot.label}</div>
-                      {DAY_LABELS.map((day) => (
+                      {visibleDayLabels.map((day) => (
                         <div key={`${slot.minute}-${day}`} className="border-r border-t last:border-r-0" style={{ borderColor: 'var(--line)', background: index % 2 === 0 ? 'var(--panel)' : 'var(--panel-soft)' }} />
                       ))}
                     </div>
@@ -704,7 +745,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                     const section = getActiveSection(course)
                     const dayIndex = DAY_INDEX[day]
                     return (
-                      <div key={key} className="absolute z-10 rounded-2xl border p-2" style={{ top: `${top + 2}px`, left: `calc(52px + ${dayIndex} * (100% - 52px) / 5 + 2px)`, width: 'calc((100% - 52px) / 5 - 4px)', height: `${Math.max(height - 4, 28)}px`, background: conflict ? 'var(--panel-soft)' : 'var(--accent-soft)', borderColor: conflict ? 'var(--danger)' : 'var(--accent)', color: 'var(--text)' }}>
+                      <div key={key} className="absolute z-10 rounded-2xl border p-2" style={{ top: `${top + 2}px`, left: `calc(52px + ${dayIndex} * (100% - 52px) / ${numDays} + 2px)`, width: `calc((100% - 52px) / ${numDays} - 4px)`, height: `${Math.max(height - 4, 28)}px`, background: conflict ? 'var(--panel-soft)' : 'var(--accent-soft)', borderColor: conflict ? 'var(--danger)' : 'var(--accent)', color: 'var(--text)' }}>
                         <button type="button" onClick={() => setExpandedBlock((current) => (current === course.courseCode ? null : course.courseCode))} className="block h-full w-full text-left">
                           <p className="truncate pr-6 text-xs font-semibold">{course.courseCode}</p>
                           <p className="mt-1 text-[11px] leading-4" style={{ color: 'var(--text-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{course.title}</p>
