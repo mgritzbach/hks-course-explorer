@@ -418,6 +418,15 @@ export default function App() {
                 <Route path="/schedule-builder" element={<ScheduleBuilder courses={data?.courses || []} meta={data?.meta} />} />
                 <Route path="/requirements"     element={<Requirements courses={data?.courses || []} />} />
                 <Route path="/admin"            element={<Admin />} />
+                {/* 404 fallback */}
+                <Route path="*" element={
+                  <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
+                    <p className="text-6xl font-bold" style={{ color: 'var(--accent)', opacity: 0.25 }}>404</p>
+                    <h1 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>Page not found</h1>
+                    <p className="max-w-xs text-sm" style={{ color: 'var(--text-muted)' }}>That URL doesn't match any page in the Course Explorer.</p>
+                    <a href="/" className="rounded-full px-5 py-2.5 text-sm font-semibold" style={{ background: 'var(--accent-soft)', color: 'var(--text)', border: '1px solid var(--line)' }}>← Back to Home</a>
+                  </div>
+                } />
               </Routes>
             </Suspense>
           </ErrorBoundary>

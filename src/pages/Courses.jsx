@@ -701,7 +701,12 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
 
         {!selected && (
           <div>
-            <p className="mb-4 text-xs text-muted">Search or filter above to find a course, then tap into the full detail view.</p>
+            <p className="mb-4 text-xs text-muted">
+              {filteredOptions.length === allOptions.length
+                ? `${allOptions.length.toLocaleString()} unique courses`
+                : `${filteredOptions.length.toLocaleString()} of ${allOptions.length.toLocaleString()} courses match`
+              }{' · '}Search or filter above to open the full detail view.
+            </p>
             {topByBidding.length > 0 && (
               <div data-tour="top-bidding" className="surface-card rounded-[22px] p-4">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Most Competitive Courses</p>
