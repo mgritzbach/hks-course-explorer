@@ -12,16 +12,22 @@ const COLOR_MAP = {
   gold: 'var(--gold)',
 }
 
-function ProgressBar({ value, color }) {
+function ProgressBar({ value, color, label }) {
+  const pct = Math.max(0, Math.min(100, value))
   return (
     <div
+      role="progressbar"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={label || `Progress: ${pct}%`}
       className="h-3 overflow-hidden rounded-full"
       style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}
     >
       <div
         className="h-full rounded-full transition-all"
         style={{
-          width: `${Math.max(0, Math.min(100, value))}%`,
+          width: `${pct}%`,
           background: color,
         }}
       />
@@ -110,11 +116,11 @@ export default function Requirements({ courses = [] }) {
             </div>
 
             <div className="w-full max-w-sm">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
+              <label htmlFor="req-program-select" className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
                 Program
               </label>
               <div className="select-wrap">
-                <select value={selectedProgram} onChange={(event) => setSelectedProgram(event.target.value)}>
+                <select id="req-program-select" value={selectedProgram} onChange={(event) => setSelectedProgram(event.target.value)}>
                   {programs.map((program) => (
                     <option key={program.id} value={program.id}>
                       {program.label}
@@ -135,7 +141,7 @@ export default function Requirements({ courses = [] }) {
                   {progress.overallAppliedCredits} / {progress.totalRequiredCredits} credits
                 </span>
               </div>
-              <ProgressBar value={progress.overallPercent} color="var(--gold)" />
+              <ProgressBar value={progress.overallPercent} color="var(--gold)" label={`Overall: ${progress.overallAppliedCredits} of ${progress.totalRequiredCredits} credits`} />
             </div>
 
             <div
@@ -200,7 +206,7 @@ export default function Requirements({ courses = [] }) {
                 )}
 
                 <div className="mt-4">
-                  <ProgressBar value={category.percent} color={accentColor} />
+                  <ProgressBar value={category.percent} color={accentColor} label={`${category.label}: ${category.appliedCredits} of ${category.requiredCredits} credits`} />
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -224,6 +230,8 @@ export default function Requirements({ courses = [] }) {
                 <div className="mt-5 flex flex-wrap items-center gap-3">
                   <button
                     type="button"
+                    aria-expanded={showSuggestions}
+                    aria-controls={`suggestions-${category.id}`}
                     onClick={() => {
                       setOpenSuggestions((current) => ({
                         ...current,
@@ -248,7 +256,7 @@ export default function Requirements({ courses = [] }) {
                 </div>
 
                 {showSuggestions && (
-                  <div className="mt-4 rounded-[20px] p-4" style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}>
+                  <div id={`suggestions-${category.id}`} className="mt-4 rounded-[20px] p-4" style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}>
                     <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
                       Suggested matches
                     </p>

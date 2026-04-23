@@ -220,10 +220,11 @@ function Chip({ children, tone = 'default' }) {
   )
 }
 
-function ProgressBar({ value, tone = 'var(--accent)' }) {
+function ProgressBar({ value, tone = 'var(--accent)', label }) {
+  const pct = Math.max(0, Math.min(100, value || 0))
   return (
-    <div className="h-2 overflow-hidden rounded-full" style={{ background: 'var(--panel-soft)', border: '1px solid var(--line)' }}>
-      <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(0, Math.min(100, value || 0))}%`, background: tone }} />
+    <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={label || `${pct}%`} className="h-2 overflow-hidden rounded-full" style={{ background: 'var(--panel-soft)', border: '1px solid var(--line)' }}>
+      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: tone }} />
     </div>
   )
 }
@@ -480,7 +481,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                   </span>
                 )}
               </div>
-              <input value={searchQ} onChange={(event) => setSearchQ(event.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Search courses, instructors..." className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }} />
+              <input id="course-search" aria-label="Search courses and instructors" value={searchQ} onChange={(event) => setSearchQ(event.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Search courses, instructors..." className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }} />
               {searchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result</p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
@@ -659,7 +660,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                           <span style={{ color: 'var(--text-soft)' }}>{category.label}</span>
                           <span style={{ color: 'var(--text)' }}>{category.appliedCredits}/{category.requiredCredits} cr</span>
                         </div>
-                        <ProgressBar value={category.percent} tone={category.isComplete ? 'var(--success)' : 'var(--accent)'} />
+                        <ProgressBar value={category.percent} tone={category.isComplete ? 'var(--success)' : 'var(--accent)'} label={`${category.label}: ${category.appliedCredits}/${category.requiredCredits} credits`} />
                       </div>
                     ))}
                     <div className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
@@ -667,7 +668,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                         <span style={{ color: 'var(--text-soft)' }}>Total credits</span>
                         <span style={{ color: 'var(--text)' }}>{progress.overallAppliedCredits}/{progress.totalRequiredCredits} cr</span>
                       </div>
-                      <ProgressBar value={progress.overallPercent} tone="var(--gold)" />
+                      <ProgressBar value={progress.overallPercent} tone="var(--gold)" label={`Total: ${progress.overallAppliedCredits}/${progress.totalRequiredCredits} credits`} />
                     </div>
                   </div>
                 ) : <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>No program definitions available.</p>}
