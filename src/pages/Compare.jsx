@@ -305,6 +305,14 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
                 {copyMsg ? `✓ ${copyMsg}` : '🔗 Share'}
               </button>
             )}
+            <button
+              type="button"
+              onClick={handleReplayTour}
+              className="rounded-full border px-3 py-1 text-xs transition-colors hover:text-label"
+              style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-muted)' }}
+            >
+              ↺ Replay tour
+            </button>
           </div>
           {setMetricMode && (
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -653,16 +661,8 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
         </div>
       )}
 
-      <div className="app-footer mt-8 flex flex-wrap items-center justify-between gap-3">
+      <div className="app-footer mt-8">
         <span>HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> MPA&apos;26 · Data from HKS QReports · {new Date().getFullYear()}</span>
-        <button
-          type="button"
-          onClick={handleReplayTour}
-          style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 12 }}
-          className="transition-colors hover:text-label"
-        >
-          ↺ Replay tour
-        </button>
       </div>
     </div>
   )

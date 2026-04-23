@@ -195,7 +195,10 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
     return () => document.removeEventListener('keydown', handler)
   }, [])
 
-  const allProfessors = useMemo(() => {
+  // Stage 1: build registry from raw course data — independent of metricMode.
+  // Stores weighted sums for BOTH score and percentile so toggling metricMode
+  // doesn't need to rebuild from scratch (O(n) over 5k+ courses).
+  const professorRegistry = useMemo(() => {
     const registry = new Map()
     for (const course of courses) {
       if (!course.professor || course.is_average) continue
@@ -209,8 +212,9 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
           evalCourses: 0,
           totalRespondents: 0,
           concentrationSet: new Set(),
-          sumMetrics: {},
-          cntMetrics: {},
+          // Store sums for both modes so we only build once
+          sumScore: {},  cntScore: {},
+          sumPct: {},    cntPct: {},
           sumRawInstructor: 0,
           cntRawInstructor: 0,
         })
@@ -221,12 +225,17 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
       if (course.has_eval && !course.is_average) {
         entry.evalCourses += 1
         entry.totalRespondents += course.n_respondents || 0
+        const weight = course.n_respondents || 1
         for (const metric of meta.metrics) {
-          const value = metricMode === 'score' ? course.metrics_score?.[metric.key] : course.metrics_pct?.[metric.key]
-          if (value != null) {
-            const weight = course.n_respondents || 1
-            entry.sumMetrics[metric.key] = (entry.sumMetrics[metric.key] || 0) + value * weight
-            entry.cntMetrics[metric.key] = (entry.cntMetrics[metric.key] || 0) + weight
+          const scoreVal = course.metrics_score?.[metric.key]
+          const pctVal = course.metrics_pct?.[metric.key]
+          if (scoreVal != null) {
+            entry.sumScore[metric.key] = (entry.sumScore[metric.key] || 0) + scoreVal * weight
+            entry.cntScore[metric.key] = (entry.cntScore[metric.key] || 0) + weight
+          }
+          if (pctVal != null) {
+            entry.sumPct[metric.key] = (entry.sumPct[metric.key] || 0) + pctVal * weight
+            entry.cntPct[metric.key] = (entry.cntPct[metric.key] || 0) + weight
           }
         }
         if (course.metrics_raw?.Instructor_Rating != null) {
@@ -238,11 +247,27 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
     return [...registry.values()].filter((prof) => prof.evalCourses > 0).map((prof) => ({
       ...prof,
       concentrations: [...prof.concentrationSet].sort(),
-      avgMetrics: Object.fromEntries(meta.metrics.map((metric) => [metric.key, prof.cntMetrics[metric.key] ? Math.round((prof.sumMetrics[metric.key] / prof.cntMetrics[metric.key]) * 10) / 10 : null])),
       avgRawInstructor: prof.cntRawInstructor > 0 ? Math.round(prof.sumRawInstructor / prof.cntRawInstructor * 100) / 100 : null,
-      lastTaughtYear: Math.max(...[...prof.courses].map(c => c.year || 0).filter(y => y > 0), 0) || null,
+      lastTaughtYear: Math.max(...prof.courses.map((c) => c.year || 0).filter((y) => y > 0), 0) || null,
     }))
-  }, [courses, meta.metrics, metricMode])
+  }, [courses, meta.metrics])
+
+  // Stage 2: apply metricMode to compute avgMetrics — cheap, avoids full registry rebuild.
+  const allProfessors = useMemo(() => {
+    return professorRegistry.map((prof) => {
+      const sumMap = metricMode === 'score' ? prof.sumScore : prof.sumPct
+      const cntMap = metricMode === 'score' ? prof.cntScore : prof.cntPct
+      return {
+        ...prof,
+        avgMetrics: Object.fromEntries(
+          meta.metrics.map((metric) => [
+            metric.key,
+            cntMap[metric.key] ? Math.round((sumMap[metric.key] / cntMap[metric.key]) * 10) / 10 : null,
+          ])
+        ),
+      }
+    })
+  }, [professorRegistry, meta.metrics, metricMode])
 
   const displayedProfs = useMemo(() => {
     const minRatingValue = minRating !== 'any' ? parseFloat(minRating) : null
