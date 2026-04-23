@@ -11,7 +11,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.104.0",
     "plotly.js-dist-min": "^2.29.0",
     "posthog-js": "^1.365.1",
     "react": "^18.2.0",
