@@ -593,11 +593,12 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
 
   const filteredOptions = useMemo(() => {
     const minPct = deferredFilters.minInstructorPct !== 'any' ? parseFloat(deferredFilters.minInstructorPct) : null
+    // Pre-build O(n) Set so the year-filter check is O(1) instead of O(n) per option
+    const yearTermKeys = deferredFilters.year !== 'all'
+      ? new Set(courses.filter((row) => row.year === deferredFilters.year && deferredFilters.terms.includes(row.term)).map((row) => row.course_code_base))
+      : null
     let list = allOptions.filter((course) => {
-      if (deferredFilters.year !== 'all') {
-        const hasYear = courses.some((row) => row.course_code_base === course.course_code_base && row.year === deferredFilters.year && deferredFilters.terms.includes(row.term))
-        if (!hasYear) return false
-      }
+      if (yearTermKeys !== null && !yearTermKeys.has(course.course_code_base)) return false
       if (deferredFilters.concentration !== 'All' && getConcentration(course.course_code) !== deferredFilters.concentration) return false
       if (deferredFilters.academicArea !== 'All' && course.academic_area !== deferredFilters.academicArea) return false
       if (deferredFilters.coreFilter === 'core' && !course.is_core) return false

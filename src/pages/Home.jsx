@@ -170,7 +170,7 @@ const PRESETS = [
   },
 ]
 
-export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode, colorblindMode = false, setColorblindMode, notes, setNote }) {
+export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode, colorblindMode = false, setColorblindMode, notes, setNote, isLight = false }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const mainRef = useRef(null)
   const visualizationRef = useRef(null)
@@ -517,7 +517,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             onYChange={setYMetric}
             metricMode={metricMode}
             colorblindMode={colorblindMode}
-            isLight={document.documentElement.getAttribute('data-theme') === 'light'}
+            isLight={isLight}
           />
           </div>
         )}

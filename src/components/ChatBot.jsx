@@ -69,7 +69,7 @@ function condenseCourses(courses, query, shortlistedCodes = []) {
 // Routes where the ChatBot FAB would collide with UI elements
 const HIDDEN_ROUTES = ['/schedule-builder', '/admin']
 
-export default function ChatBot({ courses, favs }) {
+export default function ChatBot({ courses, favs, isLight = false }) {
   const location = useLocation()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([])
@@ -186,8 +186,6 @@ export default function ChatBot({ courses, favs }) {
 
   // Don't render on routes where the FAB collides with tool UI (guard is here, after all hooks)
   if (isHidden) return null
-
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light'
 
   return (
     <>

@@ -372,7 +372,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen md:h-screen" style={{ background: 'transparent' }}>
       <LandingSplash />
-      {data && <ChatBot courses={data.courses} favs={favs} />}
+      {data && <ChatBot courses={data.courses} favs={favs} isLight={theme === 'light'} />}
       {/* Desktop sidebar nav */}
       <nav
         className="hidden shrink-0 flex-col px-3 py-4 md:flex"
@@ -496,7 +496,7 @@ export default function App() {
           <ErrorBoundary>
             <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center', fontSize: 14 }}>Loading…</div>}>
               <Routes>
-                <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} notes={notes} setNote={setNote} />} />
+                <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} notes={notes} setNote={setNote} isLight={theme === 'light'} />} />
                 <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} simIndex={simIndex} notes={notes} setNote={setNote} />} />
                 <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
                 <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
