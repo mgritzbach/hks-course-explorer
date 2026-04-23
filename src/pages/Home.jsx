@@ -192,12 +192,12 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const [filters, setFilters] = useState({
     searchText: '',
     concentration: initConc,
-    coreFilter: 'all',
+    coreFilter: searchParams.get('core') || 'all',
     terms: initTerms,
-    stemGroup: 'all',
+    stemGroup: searchParams.get('stem') || 'all',
     year: initYear,
-    minInstructorPct: 'any',
-    evalOnly: false,
+    minInstructorPct: searchParams.get('min_pct') || 'any',
+    evalOnly: searchParams.get('eval') === '1',
   })
   const [xMetric, setXMetric] = useState(searchParams.get('x') || DEFAULT_X)
   const [yMetric, setYMetric] = useState(searchParams.get('y') || DEFAULT_Y)
@@ -231,11 +231,15 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     if (filters.year !== meta.default_year) params.year = filters.year
     if (filters.terms.length !== ALL_TERMS.length) params.terms = filters.terms.join(',')
     if (filters.concentration !== 'All') params.conc = filters.concentration
+    if (filters.coreFilter !== 'all') params.core = filters.coreFilter
+    if (filters.stemGroup !== 'all') params.stem = filters.stemGroup
+    if (filters.minInstructorPct !== 'any') params.min_pct = filters.minInstructorPct
+    if (filters.evalOnly) params.eval = '1'
     if (sortBy !== 'bid_price_desc') params.sort = sortBy
     if (xMetric !== DEFAULT_X) params.x = xMetric
     if (yMetric !== DEFAULT_Y) params.y = yMetric
     setSearchParams(params, { replace: true })
-  }, [filters.year, filters.terms, filters.concentration, sortBy, xMetric, yMetric, meta.default_year, setSearchParams])
+  }, [filters.year, filters.terms, filters.concentration, filters.coreFilter, filters.stemGroup, filters.minInstructorPct, filters.evalOnly, sortBy, xMetric, yMetric, meta.default_year, setSearchParams])
 
   // Debounce text search — only triggers a re-filter after user pauses typing (150ms)
   const debouncedSearch = useDebounce(filters.searchText, 150)
