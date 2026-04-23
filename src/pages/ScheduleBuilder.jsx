@@ -319,11 +319,16 @@ export default function ScheduleBuilder({ courses = [] }) {
   // Starred courses from the Home shortlist that aren't already in this plan
   const shortlistedSuggestions = useMemo(() => {
     if (!favorites?.size || !courses.length) return []
-    return courses
-      .filter((c) => !c.is_average && favorites.has(c.course_code_base || c.course_code) && !addedCourseCodes.has(c.course_code_base || c.course_code))
-      .sort((a, b) => (b.year || 0) - (a.year || 0))
-      .slice(0, 6)
-      .map((c, i) => ({
+    // Deduplicate by course_code_base — take the most recent year per code
+    const seenCodes = new Set()
+    const deduped = []
+    const sorted = [...courses].filter((c) => !c.is_average && favorites.has(c.course_code_base || c.course_code) && !addedCourseCodes.has(c.course_code_base || c.course_code)).sort((a, b) => (b.year || 0) - (a.year || 0))
+    for (const c of sorted) {
+      const code = c.course_code_base || c.course_code
+      if (!seenCodes.has(code)) { seenCodes.add(code); deduped.push(c) }
+      if (deduped.length >= 6) break
+    }
+    return deduped.map((c) => ({
         courseCode: c.course_code_base || c.course_code,
         title: c.course_name,
         instructors: [c.professor_display || c.professor].filter(Boolean),
@@ -337,7 +342,8 @@ export default function ScheduleBuilder({ courses = [] }) {
           last_bid_price: c.last_bid_price,
         },
         _fromDB: true,
-      }))
+      })
+    )
   }, [favorites, courses, addedCourseCodes])
 
   const switchPlan = (planName) => {
