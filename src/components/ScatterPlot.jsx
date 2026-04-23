@@ -240,44 +240,6 @@ function CustomTooltip({ active, payload }) {
   )
 }
 
-function CustomDot({ cx, cy, payload, onClick }) {
-  if (cx == null || cy == null) return null
-  const light = document.documentElement.getAttribute('data-theme') === 'light'
-  const dotStroke = light ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.22)'
-
-  const color = payload._color || 'var(--blue)'
-  const opacity = payload._opacity ?? 1
-  const size = payload._isBidOnly ? 7 : 6
-
-  if (payload._isBidOnly) {
-    const delta = size
-    return (
-      <polygon
-        points={`${cx},${cy - delta} ${cx + delta},${cy} ${cx},${cy + delta} ${cx - delta},${cy}`}
-        fill={color}
-        fillOpacity={opacity}
-        stroke={dotStroke}
-        strokeWidth={0.5}
-        style={{ cursor: 'pointer' }}
-        onClick={() => onClick && onClick(payload)}
-      />
-    )
-  }
-
-  return (
-    <circle
-      cx={cx}
-      cy={cy}
-      r={size}
-      fill={color}
-      fillOpacity={opacity}
-      stroke={dotStroke}
-      strokeWidth={0.5}
-      style={{ cursor: payload._noHover ? 'default' : 'pointer', pointerEvents: payload._noHover ? 'none' : 'auto' }}
-      onClick={payload._noHover ? undefined : () => onClick && onClick(payload)}
-    />
-  )
-}
 
 export default function ScatterPlot({
   allCourses,
@@ -354,6 +316,8 @@ export default function ScatterPlot({
         const rawY = getValue(course, yMode, yMetric)
         const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', 1.1)
         const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', 1.1)
+        const code = course.course_code_base || course.course_code
+        const starred = favorites?.has(code) ?? false
         return {
           ...course,
           _xVal: Math.max(xMode.domain[0], Math.min(xMode.domain[1], rawX + jx)),
@@ -368,9 +332,10 @@ export default function ScatterPlot({
           _yLabel: yMeta.label,
           _color: course.ever_bidding ? '#d78aa7' : '#a51c30',
           _opacity: 1,
+          _starred: starred,
         }
       })
-  ), [matchedCoursesDeduped, xMeta, xMetric, xMode, yMeta, yMetric, yMode])
+  ), [matchedCoursesDeduped, xMeta, xMetric, xMode, yMeta, yMetric, yMode, favorites])
 
   const bidOnlyData = useMemo(() => (
     (biddingOnlyCourses || [])
@@ -493,6 +458,7 @@ export default function ScatterPlot({
     }
 
     if (matchedData.length) {
+      const hasStarred = matchedData.some((datum) => datum._starred)
       traces.push({
         type: 'scattergl',
         mode: 'markers',
@@ -502,9 +468,14 @@ export default function ScatterPlot({
         hoverinfo: 'none',
         showlegend: false,
         marker: {
-          size: 11,
-          color: matchedData.map((datum) => datum._color),
-          line: { color: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.16)', width: 0.8 },
+          size: hasStarred ? matchedData.map((datum) => datum._starred ? 14 : 10) : 11,
+          color: matchedData.map((datum) => datum._starred ? '#d4a86a' : datum._color),
+          line: {
+            color: hasStarred
+              ? matchedData.map((datum) => datum._starred ? '#b8873a' : (isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.16)'))
+              : (isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.16)'),
+            width: hasStarred ? matchedData.map((datum) => datum._starred ? 2 : 0.8) : 0.8,
+          },
         },
       })
     }
@@ -967,6 +938,9 @@ export default function ScatterPlot({
             </>
           )}
           <p className="text-muted"><span className="font-medium" style={{ color: '#d78aa7' }}>Rose</span> = ever went to bidding</p>
+          {matchedData.some((d) => d._starred) && (
+            <p className="text-muted"><span className="font-medium" style={{ color: 'var(--gold)' }}>★ Gold outline</span> = in your shortlist</p>
+          )}
           {bidOnlyData.length > 0 && (
             <p className="text-muted">
               <span className="font-medium" style={{ color: 'var(--gold)' }}>Amber diamond</span> = bidding now, no eval yet, evenly spread by competitiveness rank
