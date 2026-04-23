@@ -635,7 +635,19 @@ export default function ScheduleBuilder({ courses = [] }) {
           <aside className="flex h-full w-[280px] shrink-0 flex-col border-l" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
             <div className="flex min-h-0 flex-1 flex-col p-4">
               <div className="shrink-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Shortlist</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Shortlist</p>
+                  {normalizedPlanCourses.length >= 2 && (
+                    <a
+                      href={`/compare?ids=${normalizedPlanCourses.slice(0, 5).map((c) => encodeURIComponent(c.courseCode)).join(',')}`}
+                      className="text-xs font-semibold transition-transform hover:-translate-y-[1px]"
+                      style={{ color: 'var(--accent)' }}
+                      title="Open top 5 shortlisted courses in Compare"
+                    >
+                      ⇄ Compare
+                    </a>
+                  )}
+                </div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <p className="text-sm" style={{ color: 'var(--text-soft)' }}>{normalizedPlanCourses.length} course{normalizedPlanCourses.length === 1 ? '' : 's'}</p>
                   {normalizedPlanCourses.length > 0 && (
