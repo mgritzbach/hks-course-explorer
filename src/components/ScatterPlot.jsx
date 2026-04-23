@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Plot from 'react-plotly.js'
+import { useFavorites } from '../useFavorites'
 
 const MIN_ZOOM_SPAN_RATIO = 0.015
 
@@ -292,6 +293,7 @@ export default function ScatterPlot({
   isLight = false,
 }) {
   const navigate = useNavigate()
+  const { favorites, toggleFav } = useFavorites()
   const [pinnedDatum, setPinnedDatum] = useState(null)
   const [hoverState, setHoverState] = useState(null)
   const chartWrapperRef = useRef(null)
@@ -822,9 +824,12 @@ export default function ScatterPlot({
                 </span>
               )}
             </p>
-            <p className="mb-2 text-muted">
+            <p className="mb-0.5 text-muted">
               {hoverState.datum.is_average ? `avg ${hoverState.datum.year_range}` : `${hoverState.datum.term} ${hoverState.datum.year}`}
             </p>
+            {hoverState.datum.concentration && (
+              <p className="mb-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>{hoverState.datum.concentration}</p>
+            )}
 
             <div className="space-y-0.5">
               {hoverState.datum._xVal != null && !hoverState.datum._isBidOnly && (
@@ -883,15 +888,32 @@ export default function ScatterPlot({
             <div className="min-w-0">
               <p className="text-sm font-bold" style={{ color: pinnedDatum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>{pinnedDatum.course_code}</p>
               <p className="text-sm text-label">{pinnedDatum.course_name}</p>
-              <p className="mt-1 text-xs text-muted">{pinnedDatum.professor_display || pinnedDatum.professor}</p>
+              <p className="mt-0.5 text-xs text-muted">{pinnedDatum.professor_display || pinnedDatum.professor}</p>
+              {pinnedDatum.concentration && <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{pinnedDatum.concentration}</p>}
             </div>
-            <button
-              onClick={() => setPinnedDatum(null)}
-              className="rounded-full border px-3 py-1 text-[11px] text-muted hover:text-label"
-              style={{ borderColor: 'var(--line)' }}
-            >
-              Close
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {(() => {
+                const code = pinnedDatum.course_code_base || pinnedDatum.course_code
+                const starred = favorites?.has(code)
+                return (
+                  <button
+                    onClick={() => toggleFav(code)}
+                    title={starred ? 'Remove from shortlist' : 'Add to shortlist'}
+                    className="rounded-full border px-2.5 py-1 text-sm transition-colors"
+                    style={{ borderColor: starred ? 'var(--gold)' : 'var(--line)', color: starred ? 'var(--gold)' : 'var(--text-muted)' }}
+                  >
+                    {starred ? '★' : '☆'}
+                  </button>
+                )
+              })()}
+              <button
+                onClick={() => setPinnedDatum(null)}
+                className="rounded-full border px-3 py-1 text-[11px] text-muted hover:text-label"
+                style={{ borderColor: 'var(--line)' }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1 text-xs text-muted">
@@ -902,9 +924,16 @@ export default function ScatterPlot({
             {pinnedDatum.last_bid_price != null && <p>Last clearing price: <span className="text-label">{pinnedDatum.last_bid_price} pts</span></p>}
           </div>
 
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap gap-2">
             <button onClick={() => navigate(`/courses?id=${encodeURIComponent(pinnedDatum.id)}`)} className="btn-details">
-              Go to Course Details
+              Course Details
+            </button>
+            <button
+              onClick={() => navigate(`/compare?ids=${encodeURIComponent(pinnedDatum.course_code_base || pinnedDatum.course_code)}`)}
+              className="rounded-full border px-4 py-2 text-sm font-medium transition-colors hover:text-label"
+              style={{ borderColor: 'var(--line)', color: 'var(--text-muted)', background: 'var(--panel-soft)' }}
+            >
+              ⇄ Compare
             </button>
           </div>
         </div>

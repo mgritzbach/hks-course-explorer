@@ -34,7 +34,9 @@ export default function Resources() {
                     borderTop: i > 0 ? '1px solid var(--line)' : 'none',
                     gap: 12,
                   }}
-                  className="transition-colors hover:bg-white/[0.03]"
+                  className="transition-colors"
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--panel-subtle)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
                 >
                   <div style={{ minWidth: 0 }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>{link.label}</p>

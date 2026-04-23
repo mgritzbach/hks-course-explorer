@@ -137,7 +137,7 @@ function FacultySidebar({
               key={prof.professor}
               onClick={() => { handleSelectProf(prof); if (mobile && onClose) onClose() }}
               className="w-full border-b px-4 py-4 text-left transition-colors"
-              style={{ background: selected ? 'rgba(165, 28, 48, 0.12)' : undefined, borderColor: 'rgba(243, 233, 226, 0.06)', borderLeft: selected ? '3px solid var(--accent)' : '3px solid transparent' }}
+              style={{ background: selected ? 'var(--panel-subtle)' : undefined, borderColor: 'var(--line)', borderLeft: selected ? '3px solid var(--accent)' : '3px solid transparent' }}
             >
               <p className="text-xs font-medium leading-tight text-label">{prof.professor_display}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -373,7 +373,7 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
                         key={prof.professor}
                         onClick={() => handleSelectProf(prof)}
                         className="rounded-full border px-3 py-1.5 text-xs text-label transition-colors hover:text-label"
-                        style={{ borderColor: 'var(--line)', background: 'rgba(255,255,255,0.03)' }}
+                        style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
                       >
                         {prof.professor_display}
                         <span className="ml-1.5 font-medium" style={{ color: 'var(--success)' }}>{fmtShort(prof.avgMetrics.Instructor_Rating, metricMode)}</span>
