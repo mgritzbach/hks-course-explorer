@@ -2,7 +2,7 @@ import posthog from 'posthog-js'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 
-const WELCOME = "Hi! I'm your HKS course advisor. Tell me what you're looking for — topic, workload, instructor, bidding pressure — and I'll find the best matches from the 2025 catalog."
+const WELCOME = "Hi! I'm your HKS course advisor. Tell me what you're looking for — topic, workload, instructor, bidding pressure — and I'll find the best matches from the course catalog."
 
 function dedupeCourseSummaries(items, limit = 30) {
   const seen = new Set()
@@ -226,7 +226,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
             <span style={{ fontSize: 16, color: 'var(--accent)' }}>✦</span>
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Course Advisor</p>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>AI · HKS 2025 data · free</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>AI · HKS course data · free</p>
             </div>
             <button
               onClick={() => setOpen(false)}

@@ -161,7 +161,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
           </p>
         )}
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
-          Data: HKS evals through 2025 · Bidding 2024–25
+          Data: HKS evals through {meta.default_year} · Bidding {meta.default_year - 1}–{String(meta.default_year).slice(-2)}
         </div>
       </div>
 
