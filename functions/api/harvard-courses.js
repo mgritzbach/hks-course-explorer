@@ -26,31 +26,35 @@ function normalise(raw) {
     : []
 
   return {
-    results: items.map(c => ({
-      harvardId: String(c.id ?? c.classNumber ?? c.courseId ?? ''),
-      subject: c.subject ?? c.subjectCode ?? '',
-      catalog: c.catalogNumber ?? c.courseNumber ?? '',
-      courseCode: c.subject
-        ? `${c.subject}-${c.catalogNumber ?? c.courseNumber ?? ''}`.replace(/\s+/g, '')
-        : '',
-      title: c.title ?? c.courseTitle ?? '',
-      term: c.termDescription ?? c.term ?? '',
-      credits: c.units ?? c.credits ?? null,
-      instructors: (c.instructors ?? c.staff ?? []).map(i =>
-        i.displayName ?? i.name ?? `${i.firstName ?? ''} ${i.lastName ?? ''}`.trim()
-      ).filter(Boolean),
-      description: c.description ?? c.courseDescription ?? '',
-      sections: (c.sections ?? c.classes ?? c.meetings ?? []).map(s => ({
-        sectionId: String(s.sectionId ?? s.classNumber ?? s.id ?? ''),
-        type: s.type ?? s.component ?? 'LEC',
-        meetings: (s.meetings ?? s.schedule ?? []).map(m => ({
-          day: normDay(m.day ?? m.meetingDay ?? ''),
-          start: m.startTime ?? m.meetingStartTime ?? '',
-          end: m.endTime ?? m.meetingEndTime ?? '',
-          location: m.location ?? m.room ?? '',
-        })).filter(m => m.day && m.start),
-      })),
-    })),
+    results: items.map(c => {
+      // Parse meeting times — new format has meetings as object/array on top-level course
+      const meetings = parseMeetings(c.meetings ?? c.sections ?? c.classes)
+      const courseNum = String(c.courseNumber ?? c.catalog ?? '').trim()
+      const subject   = String(c.catalogSubject ?? c.subject ?? courseNum.split(' ')[0] ?? '').trim()
+      const catalog   = String(c.classCatalogNumber ?? c.catalogNumber ?? courseNum.split(' ')[1] ?? '').trim()
+      const code = subject && catalog ? `${subject}-${catalog}` : courseNum.replace(/\s+/g, '-')
+      return {
+        harvardId:   String(c.courseID ?? c.id ?? c.classNumber ?? ''),
+        courseCode:  code,
+        title:       String(c.courseTitle ?? c.title ?? ''),
+        term:        String(c.termDescription ?? c.term ?? ''),
+        credits:     c.classMinUnits ?? c.units ?? null,
+        instructors: (c.publishedInstructors ?? c.instructors ?? []).map(i =>
+          String(i.instructorName ?? i.displayName ?? i.name ?? `${i.firstName ?? ''} ${i.lastName ?? ''}`.trim())
+        ).filter(Boolean),
+        description: String(c.courseDescription ?? c.description ?? ''),
+        location:    meetings[0]?.location ?? '',
+        sections: meetings.length ? [{
+          sectionId: 'main',
+          type: 'LEC',
+          meetings,
+          meeting_days: meetings.map(m => m.day).join('/'),
+          time_start:   meetings[0]?.start ?? '',
+          time_end:     meetings[0]?.end ?? '',
+          location:     meetings[0]?.location ?? '',
+        }] : [],
+      }
+    }),
     total: raw?.total ?? raw?.count ?? items.length,
   }
 }
@@ -61,14 +65,50 @@ const DAY_MAP = {
   W: 'WED', WED: 'WED', WEDNESDAY: 'WED',
   R: 'THU', TH: 'THU', THU: 'THU', THURSDAY: 'THU',
   F: 'FRI', FRI: 'FRI', FRIDAY: 'FRI',
+  S: 'SAT', SA: 'SAT', SAT: 'SAT', SATURDAY: 'SAT',
+  SU: 'SUN', SUN: 'SUN', SUNDAY: 'SUN',
 }
-function normDay(d) { return DAY_MAP[String(d).toUpperCase().trim()] ?? d }
+function normDay(d) { return DAY_MAP[String(d).toUpperCase().trim()] ?? String(d).toUpperCase().trim() }
+
+/** Parse the Harvard API meetings field (string | object | array) into [{day,start,end,location}] */
+function parseMeetings(raw) {
+  if (!raw || raw === 'TBA') return []
+  const items = Array.isArray(raw) ? raw : [raw]
+  const result = []
+  for (const m of items) {
+    if (typeof m !== 'object') continue
+    const days = Array.isArray(m.daysOfWeek) ? m.daysOfWeek : []
+    const start = normTime(m.startTime ?? m.start ?? '')
+    const end   = normTime(m.endTime ?? m.end ?? '')
+    const loc   = (m.location ?? '').trim()
+    for (const day of days) {
+      const d = normDay(day)
+      if (d && start) result.push({ day: d, start, end, location: loc })
+    }
+    // Also handle old flat format: { day, startTime, endTime }
+    if (!days.length && (m.day || m.meetingDay)) {
+      const d = normDay(m.day ?? m.meetingDay ?? '')
+      const s = normTime(m.startTime ?? m.start ?? '')
+      if (d && s) result.push({ day: d, start: s, end: normTime(m.endTime ?? m.end ?? ''), location: (m.location ?? '').trim() })
+    }
+  }
+  return result
+}
+
+function normTime(t) {
+  if (!t) return ''
+  const s = String(t).trim().toLowerCase()
+  const m = s.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/)
+  if (!m) return s
+  let h = parseInt(m[1]), mn = parseInt(m[2])
+  if (m[3] === 'am' && h === 12) h = 0
+  if (m[3] === 'pm' && h !== 12) h += 12
+  return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`
+}
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url)
   const q = url.searchParams.get('q')?.trim() ?? ''
-  const term = url.searchParams.get('term') ?? ''
-  const school = url.searchParams.get('school') ?? DEFAULT_SCHOOL
   const limit = Math.min(Number(url.searchParams.get('limit') ?? 25), MAX_LIMIT)
 
   if (!q || q.length < 2) {
@@ -83,11 +123,10 @@ export async function onRequestGet({ request, env }) {
     return jsonResp({ results: [], total: 0, _note: 'API key not configured' }, 200, request)
   }
 
-  // Build upstream URL
+  // Build upstream URL — use catalogSchool=HKS (not school=)
   const upstream = new URL(UPSTREAM_BASE)
-  upstream.searchParams.set('q', q)
-  if (term) upstream.searchParams.set('term', term)
-  upstream.searchParams.set('school', school)
+  if (q) upstream.searchParams.set('q', q)
+  upstream.searchParams.set('catalogSchool', 'HKS')
   upstream.searchParams.set('limit', String(limit))
 
   // Try edge cache first

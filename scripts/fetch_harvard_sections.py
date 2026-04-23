@@ -1,7 +1,7 @@
 """
 fetch_harvard_sections.py
 ─────────────────────────
-Fetches course section + meeting-time data from the Harvard ATS Course v2 API
+Fetches HKS course section + meeting-time data from the Harvard ATS Course v2 API
 and upserts it into the Supabase `course_sections` table.
 
 Usage:
@@ -12,16 +12,14 @@ Required env vars:
     SUPABASE_URL      — e.g. https://cbtroatixvydpwoviezf.supabase.co
     SUPABASE_KEY      — service-role key (full write access)
 
-Optional env vars:
-    TERMS             — comma-separated list, default: "2026Spring,2025Fall,2025January"
-    SCHOOL            — default: HKS
-    PAGE_SIZE         — default: 50 (max allowed by Harvard API)
+Key discovery: use catalogSchool=HKS (not school=HKS).
+The API returns up to 50 courses per request; offset is ignored so we
+fetch once per subject to maximise coverage.
 """
 
 import os
 import sys
 import time
-import json
 import requests
 from datetime import datetime, timezone
 
@@ -29,160 +27,157 @@ from datetime import datetime, timezone
 HARVARD_API_KEY = os.environ["HARVARD_API_KEY"]
 SUPABASE_URL    = os.environ["SUPABASE_URL"]
 SUPABASE_KEY    = os.environ["SUPABASE_KEY"]
-SCHOOL          = os.environ.get("SCHOOL", "HKS")
-PAGE_SIZE       = int(os.environ.get("PAGE_SIZE", "50"))
-TERMS           = os.environ.get("TERMS", "2026Spring,2025Fall,2025January").split(",")
 
-UPSTREAM = "https://go.apis.huit.harvard.edu/ats/course/v2/search"
+UPSTREAM        = "https://go.apis.huit.harvard.edu/ats/course/v2/search"
 SUPABASE_UPSERT = f"{SUPABASE_URL}/rest/v1/course_sections"
 
-DAY_MAP = {
-    "M": "MON", "MON": "MON", "MONDAY": "MON",
-    "T": "TUE", "TU": "TUE", "TUE": "TUE", "TUES": "TUE", "TUESDAY": "TUE",
-    "W": "WED", "WED": "WED", "WEDNESDAY": "WED",
-    "R": "THU", "TH": "THU", "THU": "THU", "THUR": "THU", "THURS": "THU", "THURSDAY": "THU",
-    "F": "FRI", "FRI": "FRI", "FRIDAY": "FRI",
-    "S": "SAT", "SA": "SAT", "SAT": "SAT", "SATURDAY": "SAT",
-    "SU": "SUN", "SUN": "SUN", "SUNDAY": "SUN",
+# HKS subject codes — fetch each separately to maximise coverage
+HKS_SUBJECTS = [
+    "API", "DPI", "IGA", "MPA", "HLS", "SUP", "BGP", "DEV",
+    "PAL", "SCI", "STK", "HKS",
+]
+
+DAY_ABBREV = {
+    "monday": "MON", "tuesday": "TUE", "wednesday": "WED",
+    "thursday": "THU", "friday": "FRI", "saturday": "SAT", "sunday": "SUN",
+    "mon": "MON", "tue": "TUE", "wed": "WED", "thu": "THU",
+    "fri": "FRI", "sat": "SAT", "sun": "SUN",
 }
 
-def norm_day(d):
-    return DAY_MAP.get(str(d).strip().upper(), str(d).strip().upper())
+def parse_meetings(raw_meetings):
+    """
+    Parse the Harvard API meetings field into our normalised format.
+    raw_meetings is either:
+      - a string "TBA" / ""
+      - a dict  { daysOfWeek: [...], startTime, endTime, location, startDate, endDate }
+      - a list  [ { ...same... } ]
+    Returns list of { day, start, end, location } or [].
+    """
+    if not raw_meetings or raw_meetings == "TBA":
+        return []
+
+    items = raw_meetings if isinstance(raw_meetings, list) else [raw_meetings]
+    result = []
+    for m in items:
+        if not isinstance(m, dict):
+            continue
+        days     = m.get("daysOfWeek") or []
+        start    = norm_time(m.get("startTime") or "")
+        end      = norm_time(m.get("endTime") or "")
+        location = (m.get("location") or "").strip()
+        for day_raw in days:
+            day = DAY_ABBREV.get(str(day_raw).lower())
+            if day and start:
+                result.append({"day": day, "start": start, "end": end, "location": location})
+    return result
 
 def norm_time(t):
-    """Normalise time strings to HH:MM format."""
+    """Convert '10:30am' / '2:00pm' to 'HH:MM'."""
     if not t:
         return None
-    t = str(t).strip()
-    # Handle "HH:MM:SS" or "HH:MM"
-    parts = t.split(":")
+    t = str(t).strip().lower()
+    import re
+    m = re.match(r'^(\d{1,2}):(\d{2})\s*(am|pm)?$', t)
+    if not m:
+        return t
+    h, mn, ampm = int(m.group(1)), int(m.group(2)), m.group(3)
+    if ampm == 'am' and h == 12: h = 0
+    if ampm == 'pm' and h != 12: h += 12
+    return f"{h:02d}:{mn:02d}"
+
+def build_code_base(course_number):
+    """'API 101' → 'API-101', 'DPI 100A' → 'DPI-100A'"""
+    if not course_number:
+        return ""
+    parts = str(course_number).strip().split()
     if len(parts) >= 2:
-        return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
-    return t
+        return f"{parts[0]}-{parts[1]}".upper()
+    return parts[0].upper()
 
-def parse_sections(raw_course):
-    """Extract normalised section rows from a raw Harvard API course object."""
-    sections = (
-        raw_course.get("sections")
-        or raw_course.get("classes")
-        or raw_course.get("meetings")
-        or []
-    )
-    rows = []
-    for sec in sections:
-        sec_type = sec.get("type") or sec.get("component") or "LEC"
-        sec_id   = str(sec.get("sectionId") or sec.get("classNumber") or sec.get("id") or "")
-        raw_meetings = (
-            sec.get("meetings")
-            or sec.get("schedule")
-            or []
-        )
-        meetings = []
-        for m in raw_meetings:
-            day   = norm_day(m.get("day") or m.get("meetingDay") or "")
-            start = norm_time(m.get("startTime") or m.get("meetingStartTime"))
-            end   = norm_time(m.get("endTime") or m.get("meetingEndTime"))
-            loc   = (m.get("location") or m.get("room") or "").strip()
-            if day and start:
-                meetings.append({"day": day, "start": start, "end": end, "location": loc})
-        rows.append({
-            "section_id":   sec_id,
-            "section_type": sec_type.upper(),
-            "meetings":     meetings,
-        })
-    # If no sections, create a single placeholder so we still record the course
-    if not rows:
-        rows.append({"section_id": "", "section_type": "LEC", "meetings": []})
-    return rows
-
-def build_code_base(subject, catalog):
-    """Build course_code_base like 'API-101'."""
-    subject  = str(subject or "").strip()
-    catalog  = str(catalog or "").strip()
-    if subject and catalog:
-        return f"{subject}-{catalog}".replace(" ", "")
-    return (subject or catalog or "").replace(" ", "")
-
-def fetch_term(term):
-    """Fetch all courses for a given term from the Harvard API (paginated)."""
+def fetch_subject(subject):
+    """Fetch all courses for a given HKS subject."""
     headers = {
-        "x-api-key": HARVARD_API_KEY,
-        "Accept": "application/json",
+        "x-api-key":  HARVARD_API_KEY,
+        "Accept":     "application/json",
         "User-Agent": "HKS-Course-Explorer/2.0",
     }
-    offset = 0
-    all_courses = []
-    print(f"  Fetching term={term} …", end="", flush=True)
-    while True:
-        params = {
-            "school": SCHOOL,
-            "term":   term,
-            "limit":  PAGE_SIZE,
-            "offset": offset,
-        }
+    params = {
+        "catalogSchool": "HKS",
+        "subject":       subject,
+        "limit":         50,
+    }
+    try:
         resp = requests.get(UPSTREAM, headers=headers, params=params, timeout=30)
         if resp.status_code == 404:
-            print(f" no courses (404)")
             return []
         resp.raise_for_status()
         data = resp.json()
-        items = (
-            data.get("results")
-            or data.get("courses")
-            or (data if isinstance(data, list) else [])
-        )
-        if not items:
-            break
-        all_courses.extend(items)
-        print(f" {len(all_courses)}", end="", flush=True)
-        if len(items) < PAGE_SIZE:
-            break
-        offset += PAGE_SIZE
-        time.sleep(0.25)  # be polite to the API
-    print(f" → {len(all_courses)} total")
-    return all_courses
+        items = data.get("results") or data.get("courses") or (data if isinstance(data, list) else [])
+        return items
+    except Exception as e:
+        print(f"    Warning: {e}")
+        return []
 
-def courses_to_rows(raw_courses, term):
+def courses_to_rows(raw_courses):
     """Convert raw Harvard API courses to course_sections rows."""
     rows = []
     fetched_at = datetime.now(timezone.utc).isoformat()
+    seen_ids = set()
+
     for c in raw_courses:
-        subject  = c.get("subject") or c.get("subjectCode") or ""
-        catalog  = c.get("catalogNumber") or c.get("courseNumber") or ""
-        code_base = build_code_base(subject, catalog)
+        course_number = str(c.get("courseNumber") or "").strip()
+        code_base = build_code_base(course_number)
         if not code_base:
             continue
-        code     = f"{subject}-{catalog}".replace(" ", "") if subject and catalog else code_base
-        title    = c.get("title") or c.get("courseTitle") or ""
-        credits  = c.get("units") or c.get("credits")
-        harvard_id = str(c.get("id") or c.get("classNumber") or c.get("courseId") or "")
+
+        # Derive term label from termDescription e.g. "2025 Fall" -> "2025Fall"
+        term_desc = str(c.get("termDescription") or "")
+        term = term_desc.replace(" ", "") if term_desc else str(c.get("term") or "")
+
+        title       = str(c.get("courseTitle") or "").strip()
+        harvard_id  = str(c.get("courseID") or c.get("classNumber") or "")
+        credits_min = c.get("classMinUnits")
+        credits_max = c.get("classMaxUnits")
+        credits     = credits_min or credits_max
+
         instructors = [
-            i.get("displayName") or i.get("name") or f"{i.get('firstName','')} {i.get('lastName','')}".strip()
-            for i in (c.get("instructors") or c.get("staff") or [])
-            if (i.get("displayName") or i.get("name") or i.get("firstName") or i.get("lastName"))
+            str(i.get("instructorName") or "").strip()
+            for i in (c.get("publishedInstructors") or [])
+            if i.get("instructorName")
         ]
-        for sec in parse_sections(c):
-            row_id = f"{code_base}__{term}__{sec['section_type']}"
-            if sec["section_id"]:
-                row_id += f"__{sec['section_id']}"
-            rows.append({
-                "id":               row_id,
-                "course_code_base": code_base,
-                "course_code":      code,
-                "term":             term,
-                "harvard_id":       harvard_id,
-                "section_type":     sec["section_type"],
-                "title":            title,
-                "credits":          float(credits) if credits is not None else None,
-                "instructors":      instructors,
-                "meetings":         sec["meetings"],
-                "is_active":        True,
-                "raw":              c,
-                "fetched_at":       fetched_at,
-            })
+
+        meetings = parse_meetings(c.get("meetings"))
+
+        row_id = f"{code_base}__{term}"
+        if row_id in seen_ids:
+            # de-duplicate — merge meetings
+            for row in rows:
+                if row["id"] == row_id:
+                    existing = {(m["day"], m["start"]) for m in row["meetings"]}
+                    for m in meetings:
+                        if (m["day"], m["start"]) not in existing:
+                            row["meetings"].append(m)
+            continue
+        seen_ids.add(row_id)
+
+        rows.append({
+            "id":               row_id,
+            "course_code_base": code_base,
+            "course_code":      course_number.replace(" ", "-"),
+            "term":             term,
+            "harvard_id":       harvard_id,
+            "section_type":     "LEC",
+            "title":            title,
+            "credits":          float(credits) if credits else None,
+            "instructors":      instructors,
+            "meetings":         meetings,
+            "is_active":        True,
+            "raw":              c,
+            "fetched_at":       fetched_at,
+        })
     return rows
 
-def upsert_rows(rows, batch_size=200):
+def upsert_rows(rows, batch_size=100):
     """Upsert rows to Supabase course_sections in batches."""
     headers = {
         "apikey":        SUPABASE_KEY,
@@ -195,34 +190,44 @@ def upsert_rows(rows, batch_size=200):
         batch = rows[i:i + batch_size]
         resp = requests.post(SUPABASE_UPSERT, headers=headers, json=batch, timeout=30)
         if not resp.ok:
-            print(f"  ⚠ Upsert error {resp.status_code}: {resp.text[:200]}")
+            print(f"  Warning: Upsert {resp.status_code}: {resp.text[:300]}")
         else:
             total += len(batch)
         time.sleep(0.05)
     return total
 
 def main():
-    print(f"Harvard Sections Fetch — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"School: {SCHOOL}  Terms: {', '.join(TERMS)}")
+    print(f"Harvard Sections Fetch -- {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"Fetching HKS courses by subject: {', '.join(HKS_SUBJECTS)}")
     print()
 
-    grand_total = 0
-    for term in TERMS:
-        term = term.strip()
-        if not term:
-            continue
-        print(f"─── {term} ───")
-        raw = fetch_term(term)
-        if not raw:
-            print(f"  Skipped (no data)\n")
-            continue
-        rows = courses_to_rows(raw, term)
-        print(f"  Parsed → {len(rows)} section rows")
-        upserted = upsert_rows(rows)
-        print(f"  Upserted {upserted} rows to Supabase\n")
-        grand_total += upserted
+    all_rows = []
+    seen_codes = set()
 
-    print(f"✓ Done — {grand_total} total rows upserted")
+    for subject in HKS_SUBJECTS:
+        print(f"  Subject {subject} ...", end="", flush=True)
+        raw = fetch_subject(subject)
+        print(f" {len(raw)} courses", end="")
+        rows = courses_to_rows(raw)
+        # de-dup across subjects
+        new_rows = [r for r in rows if r["id"] not in seen_codes]
+        seen_codes.update(r["id"] for r in new_rows)
+        all_rows.extend(new_rows)
+        has_times = sum(1 for r in new_rows if r["meetings"])
+        print(f" -> {len(new_rows)} unique rows, {has_times} with meeting times")
+        time.sleep(0.3)
+
+    print(f"\nTotal: {len(all_rows)} rows")
+    with_times = sum(1 for r in all_rows if r["meetings"])
+    print(f"  With meeting times: {with_times}")
+    print(f"  TBA / no times:    {len(all_rows) - with_times}")
+
+    if all_rows:
+        print(f"\nUpserting to Supabase ...")
+        upserted = upsert_rows(all_rows)
+        print(f"Done -- {upserted} rows upserted to course_sections")
+    else:
+        print("Nothing to upsert.")
 
 if __name__ == "__main__":
     main()

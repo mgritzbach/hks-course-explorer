@@ -250,6 +250,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
   const [planData, setPlanData] = useState(() => loadPlan(DEFAULT_PLAN))
   const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
+  const [sectionTimesMap, setSectionTimesMap] = useState(new Map()) // courseCodeBase → meetings[]
   const [term, setTerm] = useState('FULL')
   const [semester, setSemester] = useState('Spring')
   const [showWeekends, setShowWeekends] = useState(false)
@@ -286,6 +287,29 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
     }
   }, [])
+
+  // Fetch meeting times from Supabase course_sections
+  useEffect(() => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey) return
+    // Map semester label to term string stored in course_sections
+    const termStr = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
+    fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStr}&select=course_code_base,meetings,title,instructors&limit=500`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+    })
+      .then((r) => r.ok ? r.json() : [])
+      .then((rows) => {
+        const map = new Map()
+        ;(Array.isArray(rows) ? rows : []).forEach((row) => {
+          if (row.course_code_base && Array.isArray(row.meetings) && row.meetings.length) {
+            map.set(row.course_code_base, row.meetings)
+          }
+        })
+        setSectionTimesMap(map)
+      })
+      .catch(() => {})
+  }, [semester])
 
   useEffect(() => {
     const query = searchQ.trim()
@@ -346,7 +370,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   }, [courses])
 
   const normalizedPlanCourses = useMemo(() => (Array.isArray(planData?.courses) ? planData.courses : []).map((course, index) => normalizeCourse(course, index)), [planData])
-  const gridCourses = useMemo(() => normalizedPlanCourses.filter((course) => course.isOnGrid), [normalizedPlanCourses])
+  const gridCourses = useMemo(() => planCoursesEnriched.filter((course) => course.isOnGrid), [planCoursesEnriched])
   const conflicts = useMemo(() => findConflicts(gridCourses), [gridCourses])
   const conflictSet = useMemo(() => {
     const next = new Set()
@@ -360,6 +384,22 @@ export default function ScheduleBuilder({ courses = [] }) {
   const progress = useMemo(() => (reqProgram ? computeProgress(reqProgram, normalizedPlanCourses, normalizedCompletedCourses) : null), [normalizedPlanCourses, normalizedCompletedCourses, reqProgram])
   const addedCourseCodes = useMemo(() => new Set(normalizedPlanCourses.map((course) => course.courseCode)), [normalizedPlanCourses])
   const completedCourseCodes = useMemo(() => new Set(normalizedCompletedCourses.map((c) => c.courseCode)), [normalizedCompletedCourses])
+
+  // Enrich plan courses with Supabase meeting times where missing
+  const planCoursesEnriched = useMemo(() => normalizedPlanCourses.map((course) => {
+    if (courseHasSchedule(course)) return course // already has times
+    const meetings = sectionTimesMap.get(course.courseCode) || sectionTimesMap.get(course.courseCode.split('-').slice(0, 2).join('-'))
+    if (!meetings?.length) return course
+    const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
+    return {
+      ...course,
+      meeting_days: allDays,
+      time_start: meetings[0].start,
+      time_end: meetings[0].end,
+      location: meetings[0].location || course.location,
+      _hasLiveTimes: true,
+    }
+  }), [normalizedPlanCourses, sectionTimesMap])
   const visibleDayLabels = showWeekends ? [...WEEKDAY_LABELS, ...WEEKEND_LABELS] : WEEKDAY_LABELS
   const numDays = visibleDayLabels.length
   const gridCols = `52px repeat(${numDays}, minmax(0, 1fr))`
@@ -548,7 +588,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     return labels
   }, [])
 
-  const blocks = useMemo(() => normalizedPlanCourses.filter((course) => course.isOnGrid && courseHasSchedule(course)).flatMap((course) => {
+  const blocks = useMemo(() => planCoursesEnriched.filter((course) => course.isOnGrid && courseHasSchedule(course)).flatMap((course) => {
     const start = clampMinutes(minutesFromValue(course.time_start))
     const end = clampMinutes(minutesFromValue(course.time_end))
     if (start == null || end == null || end <= start) return []
@@ -843,9 +883,13 @@ export default function ScheduleBuilder({ courses = [] }) {
                         <button type="button" onClick={() => toggleGrid(course.courseCode)} className="absolute right-2 top-2 text-xs font-semibold" style={{ color: conflict ? 'var(--danger)' : 'var(--text-soft)' }} aria-label={`Remove ${course.courseCode} from grid`}>×</button>
                         {active && (
                           <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-[20px] border p-4" style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)' }}>
-                            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{course.title}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{course.title}</p>
+                              {course._hasLiveTimes && <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>Live</span>}
+                            </div>
                             <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{(section?.instructors?.length ? section.instructors : course.instructors).join(', ') || 'Instructor TBA'}</p>
-                            <p className="mt-2 text-xs" style={{ color: 'var(--text-soft)' }}>{formatClockLabel(course.time_start)} - {formatClockLabel(course.time_end)} {course.meeting_days || ''}</p>
+                            <p className="mt-2 text-xs" style={{ color: 'var(--text-soft)' }}>{formatClockLabel(course.time_start)} – {formatClockLabel(course.time_end)} · {course.meeting_days || ''}</p>
+                            {course.location && <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>📍 {course.location}</p>}
                             <p className="mt-2 text-xs" style={{ color: 'var(--text-soft)' }}>Instructor rating: <span style={{ color: 'var(--text)' }}>{course.enrichment?.metrics_pct?.Instructor_Rating != null ? `${Math.round(course.enrichment.metrics_pct.Instructor_Rating)}th pct` : 'N/A'}</span></p>
                           </div>
                         )}
@@ -892,7 +936,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                   ) : (
                     <EmptyScheduleState />
                   )
-                ) : normalizedPlanCourses.map((course) => {
+                ) : planCoursesEnriched.map((course) => {
                   const onGrid = course.isOnGrid
                   const inConflict = conflictSet.has(course.courseCode)
                   return (
@@ -911,6 +955,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                         {course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
                         {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
                         {!course.enrichment?.is_core && !course.enrichment?.is_stem && <Chip>Elective</Chip>}
+                        {course._hasLiveTimes && <Chip tone="success">🕐 Live times</Chip>}
                         {(course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
                           <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
                         )}
