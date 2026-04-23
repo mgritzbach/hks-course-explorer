@@ -3,6 +3,7 @@ import { findConflicts } from '../lib/conflictDetector'
 import { loadPlan, savePlan, PLANS, DEFAULT_PLAN } from '../lib/scheduleStorage'
 import { computeProgress, getPrograms } from '../lib/requirementsEngine'
 import { searchHarvardCourses } from '../lib/harvardApi'
+import { useFavorites } from '../useFavorites'
 
 const GRID_START = 480
 const GRID_END = 1080
@@ -234,6 +235,7 @@ function ProgressBar({ value, tone = 'var(--accent)', label }) {
 
 export default function ScheduleBuilder({ courses = [] }) {
   const programs = useMemo(() => getPrograms(), [])
+  const { favorites } = useFavorites()
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
   const [planData, setPlanData] = useState(() => loadPlan(DEFAULT_PLAN))
   const [term, setTerm] = useState('FULL')
@@ -308,6 +310,30 @@ export default function ScheduleBuilder({ courses = [] }) {
   }, [conflicts])
   const progress = useMemo(() => (reqProgram ? computeProgress(reqProgram, normalizedPlanCourses) : null), [normalizedPlanCourses, reqProgram])
   const addedCourseCodes = useMemo(() => new Set(normalizedPlanCourses.map((course) => course.courseCode)), [normalizedPlanCourses])
+
+  // Starred courses from the Home shortlist that aren't already in this plan
+  const shortlistedSuggestions = useMemo(() => {
+    if (!favorites?.size || !courses.length) return []
+    return courses
+      .filter((c) => !c.is_average && favorites.has(c.course_code_base || c.course_code) && !addedCourseCodes.has(c.course_code_base || c.course_code))
+      .sort((a, b) => (b.year || 0) - (a.year || 0))
+      .slice(0, 6)
+      .map((c, i) => ({
+        courseCode: c.course_code_base || c.course_code,
+        title: c.course_name,
+        instructors: [c.professor_display || c.professor].filter(Boolean),
+        credits: 4,
+        sections: [],
+        enrichment: {
+          is_core: c.is_core,
+          is_stem: c.is_stem,
+          metrics_pct: c.metrics_pct,
+          bid_clearing_price: c.bid_clearing_price,
+          last_bid_price: c.last_bid_price,
+        },
+        _fromDB: true,
+      }))
+  }, [favorites, courses, addedCourseCodes])
 
   const switchPlan = (planName) => {
     setActivePlan(planName)
@@ -525,7 +551,24 @@ export default function ScheduleBuilder({ courses = [] }) {
 
             <div className="flex min-h-0 flex-1 flex-col p-4">
               {!searchQ.trim() ? (
-                <div className="flex h-full items-center justify-center rounded-[24px] border p-6 text-center" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-muted)' }}>Type to search HKS courses</div>
+                shortlistedSuggestions.length > 0 ? (
+                  <div>
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>★ From your shortlist</p>
+                    <div className="space-y-2">
+                      {shortlistedSuggestions.map((course) => (
+                        <div key={course.courseCode} className="flex items-center justify-between gap-2 rounded-2xl border px-3 py-2" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold" style={{ color: 'var(--text)' }}>{course.courseCode}</p>
+                            <p className="truncate text-[11px]" style={{ color: 'var(--text-muted)' }}>{course.instructors[0] || 'TBA'}</p>
+                          </div>
+                          <button type="button" onClick={() => addToShortlist(course)} className="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--accent-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>Add</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-[24px] border p-6 text-center" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-muted)' }}>Type to search HKS courses</div>
+                )
               ) : searching ? (
                 <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Searching...</div>
               ) : searchResults.length === 0 ? (
