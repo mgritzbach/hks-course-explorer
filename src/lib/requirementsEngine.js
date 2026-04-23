@@ -9,7 +9,8 @@ function normalizeCode(value) {
 
 function normalizeCourse(course, index) {
   const credits = Number(course?.credits ?? course?.credits_min ?? course?.credits_max ?? 4) || 4
-  const courseCode = course?.course_code || course?.course_code_base || course?.code || course?.id || `course-${index}`
+  // Support both snake_case (Supabase rows) and camelCase (ScheduleBuilder plan objects)
+  const courseCode = course?.course_code || course?.course_code_base || course?.courseCode || course?.code || course?.id || `course-${index}`
 
   return {
     ...course,
@@ -157,7 +158,7 @@ export function findCompletingCourses(programId, scheduledCourses = [], allCours
   const progress = computeProgress(programId, scheduledCourses)
   if (!progress) return []
 
-  const scheduledCodes = new Set(scheduledCourses.map((course) => normalizeCode(course?.course_code || course?.course_code_base || course?.code)))
+  const scheduledCodes = new Set(scheduledCourses.map((course) => normalizeCode(course?.course_code || course?.course_code_base || course?.courseCode || course?.code)))
   const candidateCategories = categoryId
     ? progress.categories.filter((category) => category.id === categoryId)
     : progress.categories.filter((category) => !category.isComplete)
