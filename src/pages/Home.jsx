@@ -209,6 +209,14 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortlistOnly, setShowShortlistOnly] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
+  const [pageLimit, setPageLimit] = useState(50)
+
+  // Auto-clear shortlist filter if all favorites are removed while it's active
+  useEffect(() => {
+    if (showShortlistOnly && (!favs || favs.count === 0)) {
+      setShowShortlistOnly(false)
+    }
+  }, [favs?.count, showShortlistOnly])
 
   const handleReplayTour = () => {
     localStorage.removeItem('hks-tour-home')
@@ -399,6 +407,9 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     ? `Search complete. Scroll down to view ${filtered.length} result${filtered.length !== 1 ? 's' : ''}.`
     : null
 
+  // Reset page limit whenever filters or sort changes so the list starts fresh
+  useEffect(() => { setPageLimit(50) }, [deferredFilters, sortBy, showShortlistOnly])
+
   const handlePreset = (preset) => {
     if (preset.sortKey) setSortBy(preset.sortKey)
     if (preset.apply) setFilters((current) => preset.apply(current))
@@ -586,21 +597,34 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
               <p className="text-xs text-muted">Try adjusting the year, terms, concentration, or removing some filters.</p>
             </div>
           ) : (
-            visibleCourses.map((course) => (
-              <CourseCard
-                key={course.id}
-                course={course}
-                favs={favs}
-                metricMode={metricMode}
-                notes={notes}
-                setNote={setNote}
-                yearMedianInstructor={
-                  course.is_average
-                    ? meta.overall_median_instructor ?? null
-                    : meta.year_medians_instructor?.[String(course.year)] ?? null
-                }
-              />
-            ))
+            <>
+              {visibleCourses.slice(0, pageLimit).map((course) => (
+                <CourseCard
+                  key={course.id}
+                  course={course}
+                  favs={favs}
+                  metricMode={metricMode}
+                  notes={notes}
+                  setNote={setNote}
+                  yearMedianInstructor={
+                    course.is_average
+                      ? meta.overall_median_instructor ?? null
+                      : meta.year_medians_instructor?.[String(course.year)] ?? null
+                  }
+                />
+              ))}
+              {visibleCourses.length > pageLimit && (
+                <div className="py-6 text-center">
+                  <button
+                    onClick={() => setPageLimit((prev) => prev + 50)}
+                    className="rounded-full border px-6 py-3 text-sm font-semibold transition-all hover:opacity-80"
+                    style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', color: 'var(--text)' }}
+                  >
+                    Show more ({visibleCourses.length - pageLimit} remaining)
+                  </button>
+                </div>
+              )}
+            </>
           )}
           </div>
         </div>
