@@ -1,0 +1,416 @@
+{
+  "_meta": {
+    "source": "HKS HUB + AY2025-26 MPA Distribution Requirements (Kessely Hong)",
+    "scraped": "2026-04-23",
+    "notes": "Course codes verified against Supabase courses table where possible"
+  },
+
+  "MPA_2YR": {
+    "label": "MPA — 2-Year",
+    "shortLabel": "MPA",
+    "totalCreditsRequired": 64,
+    "maxCrossReg": 16,
+    "gpaRequired": "B or better",
+    "categories": [
+      {
+        "id": "dist_econquant",
+        "label": "Economics & Quantitative Analysis",
+        "sublabel": "Distribution Requirement",
+        "requiredCredits": 4,
+        "note": "At least 1 course (4 cr) or two 2-credit modules, grade B- or better. Cannot double-count with PAC.",
+        "displayOrder": 1,
+        "color": "blue",
+        "courseCodes": [
+          "API-165","API-205","API-222","API-302","API-318",
+          "BGP-610","DEV-130","DEV-215","DEV-309","DEV-356",
+          "SUP-125","DPI-851M","DPI-691M","API-135","API-303",
+          "DEV-209","DPI-610","SUP-680","API-148","SUP-462","DPI-852M"
+        ]
+      },
+      {
+        "id": "dist_mld",
+        "label": "Management, Leadership & Decision Sciences",
+        "sublabel": "Distribution Requirement",
+        "requiredCredits": 4,
+        "note": "At least 1 course (4 cr) or two 2-credit modules, grade B- or better.",
+        "displayOrder": 2,
+        "color": "purple",
+        "courseCodes": [
+          "MLD-101","MLD-103M","MLD-201","MLD-201A","MLD-201B","MLD-201C",
+          "MLD-215","MLD-215B","MLD-234M","MLD-257M","MLD-308",
+          "MLD-375","MLD-377","MLD-411M","MLD-412M","MLD-427B",
+          "MLD-502","MLD-605","MLD-617M","MLD-620M","MLD-634M",
+          "MLD-802M","MLD-820M","MLD-831","MLD-836M"
+        ]
+      },
+      {
+        "id": "dist_ethics",
+        "label": "Public Ethics & Political Institutions",
+        "sublabel": "Distribution Requirement",
+        "requiredCredits": 4,
+        "note": "At least 1 course (4 cr) or two 2-credit modules, grade B- or better.",
+        "displayOrder": 3,
+        "color": "green",
+        "courseCodes": [
+          "DPI-115","DPI-120","DPI-122","DPI-127","DPI-202","DPI-207",
+          "DPI-208","DPI-210","DPI-247","DPI-307","DPI-348","DPI-376",
+          "DPI-398","DPI-410","DPI-415","DPI-418","DPI-422M","DPI-442M",
+          "DPI-450","DPI-453","DPI-505","DPI-515","DPI-527M","DPI-535",
+          "DPI-543","DPI-555","DPI-600","DPI-608","DPI-660","DPI-662M",
+          "DPI-703","IGA-103","IGA-105","IGA-108","IGA-125","IGA-211",
+          "IGA-229","IGA-260","IGA-298","IGA-315","IGA-632","IGA-655"
+        ]
+      },
+      {
+        "id": "pac",
+        "label": "Policy Area of Concentration (PAC)",
+        "sublabel": "Choose one area: BGP / DPI / IGA / DEV / SUP",
+        "requiredCredits": 8,
+        "note": "8 credits in ONE policy area. API and MLD prefixes do NOT count. Cannot overlap with distribution credits.",
+        "displayOrder": 4,
+        "color": "crimson",
+        "matchPattern": "^(BGP|DPI|IGA|DEV|SUP)-",
+        "courseCodes": []
+      },
+      {
+        "id": "electives",
+        "label": "Electives",
+        "sublabel": "Remaining credits to reach 64 total",
+        "requiredCredits": 44,
+        "note": "Any approved HKS or cross-registered courses (max 16 cr cross-reg).",
+        "displayOrder": 5,
+        "color": "gold",
+        "matchPattern": ".*",
+        "courseCodes": []
+      }
+    ]
+  },
+
+  "MPP_Y1": {
+    "label": "MPP — Year 1",
+    "shortLabel": "MPP Y1",
+    "totalCreditsRequired": 32,
+    "maxCrossReg": 0,
+    "gpaRequired": "B or better; B- in core courses",
+    "categories": [
+      {
+        "id": "core_econ",
+        "label": "Core Economics",
+        "sublabel": "Required Core",
+        "requiredCredits": 4,
+        "note": "API-101 (sections A/B/Z) or exemption exam. Grade B- or better required.",
+        "displayOrder": 1,
+        "color": "blue",
+        "courseCodes": ["API-101","API-101A","API-101B","API-101Z","API-111"]
+      },
+      {
+        "id": "core_econ2",
+        "label": "Core Applied Economics",
+        "sublabel": "Required Core",
+        "requiredCredits": 4,
+        "note": "API-102. Taken in Spring Y1.",
+        "displayOrder": 2,
+        "color": "blue",
+        "courseCodes": ["API-102"]
+      },
+      {
+        "id": "core_quant",
+        "label": "Core Quantitative Methods I",
+        "sublabel": "Required Core",
+        "requiredCredits": 4,
+        "note": "API-201 or exemption. Grade B- or better required.",
+        "displayOrder": 3,
+        "color": "purple",
+        "courseCodes": ["API-201","API-209"]
+      },
+      {
+        "id": "core_quant2",
+        "label": "Core Quantitative Methods II",
+        "sublabel": "Required Core",
+        "requiredCredits": 2,
+        "note": "API-202M or API-203M (modules). Spring Y1.",
+        "displayOrder": 4,
+        "color": "purple",
+        "courseCodes": ["API-202M","API-203M","API-202","API-203"]
+      },
+      {
+        "id": "core_mld",
+        "label": "Core Management & Leadership",
+        "sublabel": "Required Core",
+        "requiredCredits": 4,
+        "note": "MLD-201 (sections A/B/C).",
+        "displayOrder": 5,
+        "color": "green",
+        "courseCodes": ["MLD-201","MLD-201A","MLD-201B","MLD-201C"]
+      },
+      {
+        "id": "core_dpi",
+        "label": "Core Politics & Policy",
+        "sublabel": "Required Core",
+        "requiredCredits": 4,
+        "note": "DPI-200 (Spring Y1) + DPI-386M.",
+        "displayOrder": 6,
+        "color": "crimson",
+        "courseCodes": ["DPI-200","DPI-386M","DPI-201"]
+      },
+      {
+        "id": "dist_econquant",
+        "label": "Distribution: Economics & Quant",
+        "sublabel": "Distribution Requirement",
+        "requiredCredits": 4,
+        "note": "Core courses may satisfy this if on approved list.",
+        "displayOrder": 7,
+        "color": "blue",
+        "courseCodes": [
+          "API-165","API-205","API-222","API-302","API-318",
+          "BGP-610","DEV-130","DEV-215","DEV-309","DEV-356",
+          "SUP-125","API-135","API-303","DEV-209","DPI-610","SUP-680","API-148","SUP-462"
+        ]
+      },
+      {
+        "id": "dist_mld",
+        "label": "Distribution: MLD",
+        "sublabel": "Distribution Requirement",
+        "requiredCredits": 4,
+        "note": "MLD-201 typically satisfies this.",
+        "displayOrder": 8,
+        "color": "purple",
+        "courseCodes": [
+          "MLD-201","MLD-201A","MLD-201B","MLD-201C","MLD-215","MLD-215B",
+          "MLD-375","MLD-377","MLD-427B","MLD-502","MLD-605","MLD-831"
+        ]
+      },
+      {
+        "id": "dist_ethics",
+        "label": "Distribution: Ethics & Institutions",
+        "sublabel": "Distribution Requirement",
+        "requiredCredits": 4,
+        "note": "DPI-200 may satisfy this.",
+        "displayOrder": 9,
+        "color": "green",
+        "courseCodes": [
+          "DPI-115","DPI-120","DPI-122","DPI-127","DPI-202","DPI-207",
+          "DPI-208","DPI-247","DPI-307","DPI-376","DPI-398","DPI-410",
+          "DPI-415","DPI-418","DPI-450","DPI-453","DPI-505","DPI-515",
+          "DPI-535","DPI-543","DPI-600","DPI-703","IGA-103","IGA-105",
+          "IGA-108","IGA-125","IGA-211","IGA-229","IGA-260"
+        ]
+      },
+      {
+        "id": "electives",
+        "label": "Electives",
+        "sublabel": "Remaining credits",
+        "requiredCredits": 2,
+        "note": "Free electives to reach 32 credits.",
+        "displayOrder": 10,
+        "color": "gold",
+        "matchPattern": ".*",
+        "courseCodes": []
+      }
+    ]
+  },
+
+  "MPP_Y2": {
+    "label": "MPP — Year 2",
+    "shortLabel": "MPP Y2",
+    "totalCreditsRequired": 40,
+    "maxCrossReg": 0,
+    "gpaRequired": "B or better; B- in PAC courses",
+    "categories": [
+      {
+        "id": "pac",
+        "label": "Policy Area of Concentration (PAC)",
+        "sublabel": "Choose one: BGP / DPI / IGA / DEV / SUP",
+        "requiredCredits": 8,
+        "note": "8 credits in one policy area. Grade B- or better required.",
+        "displayOrder": 1,
+        "color": "crimson",
+        "matchPattern": "^(BGP|DPI|IGA|DEV|SUP)-",
+        "courseCodes": []
+      },
+      {
+        "id": "pae",
+        "label": "Policy Analysis Exercise (PAE)",
+        "sublabel": "Required Thesis",
+        "requiredCredits": 8,
+        "note": "PAE seminar + independent PAE project. Must pass.",
+        "displayOrder": 2,
+        "color": "gold",
+        "courseCodes": ["DPI-300Y","IGA-300Y","SUP-300Y","DEV-300Y","BGP-300Y","API-300Y","MLD-300Y"]
+      },
+      {
+        "id": "electives",
+        "label": "Electives",
+        "sublabel": "Remaining credits to reach 40 (72 total with Y1)",
+        "requiredCredits": 24,
+        "note": "Any approved HKS or cross-registered courses.",
+        "displayOrder": 3,
+        "color": "purple",
+        "matchPattern": ".*",
+        "courseCodes": []
+      }
+    ]
+  },
+
+  "MPA_ID": {
+    "label": "MPA in International Development",
+    "shortLabel": "MPA-ID",
+    "totalCreditsRequired": 64,
+    "maxCrossReg": 0,
+    "gpaRequired": "B or better",
+    "categories": [
+      {
+        "id": "core_micro",
+        "label": "Advanced Microeconomics I & II",
+        "sublabel": "Required Core — Year 1",
+        "requiredCredits": 8,
+        "note": "Both semesters required (Supply/Demand + Game Theory).",
+        "displayOrder": 1,
+        "color": "blue",
+        "courseCodes": ["MPAID-101","MPAID-101A","MPAID-101B","API-211","API-212"]
+      },
+      {
+        "id": "core_macro",
+        "label": "Advanced Macroeconomics I & II",
+        "sublabel": "Required Core — Year 1",
+        "requiredCredits": 8,
+        "note": "Open Economy Macro, both semesters.",
+        "displayOrder": 2,
+        "color": "blue",
+        "courseCodes": ["MPAID-221","MPAID-221A","MPAID-221B","API-221","API-222"]
+      },
+      {
+        "id": "core_quant",
+        "label": "Advanced Quantitative Methods I & II",
+        "sublabel": "Required Core — Year 1",
+        "requiredCredits": 8,
+        "note": "Description/Prediction (Fall) + Causal Inference (Spring).",
+        "displayOrder": 3,
+        "color": "purple",
+        "courseCodes": ["MPAID-211","MPAID-211A","MPAID-211B","API-209","API-210"]
+      },
+      {
+        "id": "core_dev",
+        "label": "Economic Development: Theory & Applications",
+        "sublabel": "Required Core — Year 1",
+        "requiredCredits": 8,
+        "note": "Theory/Evidence (Fall) + Analytic Frameworks (Spring).",
+        "displayOrder": 4,
+        "color": "green",
+        "courseCodes": ["DEV-101","DEV-101A","DEV-101B","DEV-200","DEV-201"]
+      },
+      {
+        "id": "core_cases",
+        "label": "Applications in International Development",
+        "sublabel": "Required Core — Year 1 Fall",
+        "requiredCredits": 4,
+        "note": "Cases-based practicum, Year 1.",
+        "displayOrder": 5,
+        "color": "green",
+        "courseCodes": ["DEV-105","MPA/ID-105","MPAID-105"]
+      },
+      {
+        "id": "sypa",
+        "label": "Second Year Policy Analysis (SYPA)",
+        "sublabel": "Required Thesis — Year 2",
+        "requiredCredits": 8,
+        "note": "DEV-250Y seminar. Max 40 pages. Individual or pairs.",
+        "displayOrder": 6,
+        "color": "crimson",
+        "courseCodes": ["DEV-250Y","DEV-250"]
+      },
+      {
+        "id": "electives",
+        "label": "Electives",
+        "sublabel": "Remaining credits",
+        "requiredCredits": 28,
+        "note": "Advanced seminars, cross-registration at MIT/Harvard.",
+        "displayOrder": 7,
+        "color": "gold",
+        "matchPattern": ".*",
+        "courseCodes": []
+      }
+    ]
+  },
+
+  "MC_MPA": {
+    "label": "Mid-Career MPA",
+    "shortLabel": "MC-MPA",
+    "totalCreditsRequired": 32,
+    "maxCrossReg": 8,
+    "gpaRequired": "B or better",
+    "categories": [
+      {
+        "id": "dist_econquant",
+        "label": "Economics & Quantitative Analysis",
+        "sublabel": "Distribution Requirement",
+        "requiredCredits": 4,
+        "note": "Same approved list as MPA. Grade B- or better. Modules count as 2 cr each (need two).",
+        "displayOrder": 1,
+        "color": "blue",
+        "courseCodes": [
+          "API-165","API-205","API-222","API-302","API-318",
+          "BGP-610","DEV-130","DEV-215","DEV-309","DEV-356",
+          "SUP-125","DPI-851M","DPI-691M","API-135","API-303",
+          "DEV-209","DPI-610","SUP-680","API-148","SUP-462","DPI-852M"
+        ]
+      },
+      {
+        "id": "dist_mld",
+        "label": "Management, Leadership & Decision Sciences",
+        "sublabel": "Distribution Requirement",
+        "requiredCredits": 4,
+        "note": "Same approved MLD list as MPA.",
+        "displayOrder": 2,
+        "color": "purple",
+        "courseCodes": [
+          "MLD-101","MLD-103M","MLD-201","MLD-201A","MLD-201B","MLD-201C",
+          "MLD-215","MLD-215B","MLD-234M","MLD-257M","MLD-308",
+          "MLD-375","MLD-377","MLD-411M","MLD-412M","MLD-427B",
+          "MLD-502","MLD-605","MLD-617M","MLD-620M","MLD-634M",
+          "MLD-802M","MLD-820M","MLD-831","MLD-836M"
+        ]
+      },
+      {
+        "id": "dist_ethics",
+        "label": "Public Ethics & Political Institutions",
+        "sublabel": "Distribution Requirement",
+        "requiredCredits": 4,
+        "note": "Same approved Ethics list as MPA.",
+        "displayOrder": 3,
+        "color": "green",
+        "courseCodes": [
+          "DPI-115","DPI-120","DPI-122","DPI-127","DPI-202","DPI-207",
+          "DPI-208","DPI-247","DPI-307","DPI-376","DPI-398","DPI-410",
+          "DPI-415","DPI-418","DPI-422M","DPI-442M","DPI-450","DPI-453",
+          "DPI-505","DPI-515","DPI-527M","DPI-535","DPI-543","DPI-555",
+          "DPI-600","DPI-608","DPI-660","DPI-662M","DPI-703",
+          "IGA-103","IGA-105","IGA-108","IGA-125","IGA-211",
+          "IGA-229","IGA-260","IGA-298","IGA-315","IGA-632","IGA-655"
+        ]
+      },
+      {
+        "id": "hks_courses",
+        "label": "HKS Courses (min 24 cr from HKS)",
+        "sublabel": "Residency Requirement",
+        "requiredCredits": 24,
+        "note": "At least 24 of 32 credits must be HKS courses (not cross-reg).",
+        "displayOrder": 4,
+        "color": "crimson",
+        "matchPattern": "^(API|MLD|DPI|IGA|BGP|DEV|SUP|HKS)-",
+        "courseCodes": []
+      },
+      {
+        "id": "electives",
+        "label": "Electives",
+        "sublabel": "Remaining credits to reach 32 total",
+        "requiredCredits": 20,
+        "note": "PLC credential can satisfy distribution requirements for PLC Pathway students.",
+        "displayOrder": 5,
+        "color": "gold",
+        "matchPattern": ".*",
+        "courseCodes": []
+      }
+    ]
+  }
+}
