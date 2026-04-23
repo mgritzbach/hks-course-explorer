@@ -673,7 +673,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                       <span
                         key={i}
                         className="rounded-full px-3 py-1 text-xs font-semibold"
-                        style={{ background: 'rgba(220,60,60,0.12)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+                        style={{ background: 'var(--danger-soft)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
                       >
                         {left.courseCode} ↔ {right.courseCode}
                       </span>
