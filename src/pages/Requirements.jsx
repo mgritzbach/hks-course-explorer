@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_PLAN, loadPlan } from '../lib/scheduleStorage.js'
+import { DEFAULT_PLAN, loadPlan, savePlan } from '../lib/scheduleStorage.js'
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
 
 const PROGRAM_STORAGE_KEY = 'hks_req_program'
@@ -56,8 +56,24 @@ export default function Requirements({ courses = [] }) {
   })
   const [scheduledCourses, setScheduledCourses] = useState(() => getPlanCourses())
   const [openSuggestions, setOpenSuggestions] = useState({})
+  const [addedToPlan, setAddedToPlan] = useState(() => {
+    const codes = new Set(getPlanCourses().map((c) => c?.course_code_base || c?.course_code || c?.courseCode || c?.code).filter(Boolean))
+    return codes
+  })
   const [copyMsg, setCopyMsg] = useState(null)
   const copyTimeoutRef = useRef(null)
+
+  const addCourseToPlan = (course) => {
+    const plan = loadPlan(DEFAULT_PLAN)
+    const courseCode = course?.course_code_base || course?.course_code || course?.courseCode || course?.code
+    if (!courseCode) return
+    const already = plan.courses.some((c) => (c?.course_code_base || c?.course_code || c?.courseCode || c?.code) === courseCode)
+    if (already) return
+    const nextCourses = [...plan.courses, course]
+    savePlan(DEFAULT_PLAN, { ...plan, courses: nextCourses })
+    setAddedToPlan((prev) => new Set([...prev, courseCode]))
+    setScheduledCourses(nextCourses)
+  }
 
   useEffect(() => {
     return () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }
@@ -325,23 +341,40 @@ export default function Requirements({ courses = [] }) {
                     </p>
                     <div className="mt-3 space-y-3">
                       {suggestions.length > 0 ? (
-                        suggestions.map(({ course }, index) => (
-                          <div key={`${category.id}-suggestion-${index}`} className="rounded-[16px] p-3" style={{ background: 'var(--panel)', border: '1px solid var(--line)' }}>
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                                  {course.course_code || course.course_code_base || course.code}
-                                </p>
-                                <p className="mt-1 text-sm" style={{ color: 'var(--text-soft)' }}>
-                                  {course.course_name || course.title || 'Untitled course'}
-                                </p>
+                        suggestions.map(({ course }, index) => {
+                          const courseCode = course?.course_code_base || course?.course_code || course?.code
+                          const isAdded = addedToPlan.has(courseCode)
+                          return (
+                            <div key={`${category.id}-suggestion-${index}`} className="rounded-[16px] p-3" style={{ background: 'var(--panel)', border: '1px solid var(--line)' }}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                                    {courseCode}
+                                  </p>
+                                  <p className="mt-1 text-sm" style={{ color: 'var(--text-soft)' }}>
+                                    {course.course_name || course.title || 'Untitled course'}
+                                  </p>
+                                  <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                                    {course.term} {course.year}{course.professor_display ? ` · ${course.professor_display}` : ''}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isAdded}
+                                  onClick={() => addCourseToPlan(course)}
+                                  className="shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
+                                  style={{
+                                    background: isAdded ? 'rgba(123,176,138,0.15)' : 'var(--accent-soft)',
+                                    borderColor: isAdded ? 'var(--success)' : 'var(--line-strong)',
+                                    color: isAdded ? 'var(--success)' : 'var(--text)',
+                                  }}
+                                >
+                                  {isAdded ? 'Added ✓' : '+ Plan A'}
+                                </button>
                               </div>
-                              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                {course.term} {course.year}
-                              </span>
                             </div>
-                          </div>
-                        ))
+                          )
+                        })
                       ) : (
                         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                           No additional matching courses found in the current catalog data.
