@@ -1,9 +1,12 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import CourseCard from '../components/CourseCard.jsx'
 import OnboardingTour from '../components/OnboardingTour.jsx'
-import ScatterPlot from '../components/ScatterPlot.jsx'
 import Sidebar from '../components/Sidebar.jsx'
+
+// Lazy-load ScatterPlot so the 4.8 MB Plotly bundle is only fetched
+// when the user opens the "Course Comparisons" tab — not on initial load.
+const ScatterPlot = lazy(() => import('../components/ScatterPlot.jsx'))
 
 const HOME_TOUR_STEPS = [
   {
@@ -504,6 +507,11 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
         </div>
 
         {activeTab === 'comparisons' && (
+          <Suspense fallback={
+            <div style={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              Loading chart…
+            </div>
+          }>
           <div data-tour="scatter-plot" style={{ position: 'relative' }}>
           {isStale && <div style={{ position: 'absolute', top: 8, right: 52, zIndex: 10, fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>updating…</div>}
           <ScatterPlot
@@ -520,6 +528,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             isLight={isLight}
           />
           </div>
+          </Suspense>
         )}
 
         <div className="mt-6">

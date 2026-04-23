@@ -62,7 +62,7 @@ function PreviewTable({ rows }) {
         <thead>
           <tr style={{ borderBottom: '1px solid var(--line)' }}>
             {headers.map((header) => (
-              <th key={header} className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>
+              <th key={header} scope="col" className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>
                 {header}
               </th>
             ))}
@@ -181,11 +181,11 @@ function UploadHistoryTable({ rows }) {
       <table className="w-full text-left text-sm">
         <thead>
           <tr style={{ borderBottom: '1px solid var(--line)' }}>
-            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Type</th>
-            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Filename</th>
-            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Rows</th>
-            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Status</th>
-            <th className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Uploaded</th>
+            <th scope="col" className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Type</th>
+            <th scope="col" className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Filename</th>
+            <th scope="col" className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Rows</th>
+            <th scope="col" className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Status</th>
+            <th scope="col" className="px-3 py-2 font-semibold" style={{ color: 'var(--text-soft)' }}>Uploaded</th>
           </tr>
         </thead>
         <tbody>
