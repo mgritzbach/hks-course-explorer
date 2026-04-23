@@ -406,6 +406,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
                         key={course.id}
                         onClick={() => addCourse(course.id)}
                         disabled={alreadyAdded || selected.length >= MAX_COURSES}
+                        title={course.course_name}
                         className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all"
                         style={alreadyAdded
                           ? { background: 'var(--accent-soft)', border: '1px solid rgba(165,28,48,0.3)', color: 'var(--accent-strong)', opacity: 0.6 }
