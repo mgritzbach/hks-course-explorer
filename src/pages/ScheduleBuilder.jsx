@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { findConflicts } from '../lib/conflictDetector'
 import { loadPlan, savePlan, PLANS, DEFAULT_PLAN } from '../lib/scheduleStorage'
 import { computeProgress, getPrograms } from '../lib/requirementsEngine'
@@ -241,6 +241,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [expandedBlock, setExpandedBlock] = useState(null)
   const [reqProgram, setReqProgram] = useState(() => getPrograms()[0]?.id || '')
   const [gridMessages, setGridMessages] = useState({})
+  const [exportMsg, setExportMsg] = useState(null)
+  const exportMsgTimeoutRef = useRef(null)
 
   useEffect(() => {
     void savePlan(activePlan, planData)
@@ -249,6 +251,10 @@ export default function ScheduleBuilder({ courses = [] }) {
   useEffect(() => {
     if (!reqProgram && programs[0]?.id) setReqProgram(programs[0].id)
   }, [programs, reqProgram])
+
+  useEffect(() => {
+    return () => { if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current) }
+  }, [])
 
   useEffect(() => {
     const query = searchQ.trim()
@@ -384,6 +390,13 @@ export default function ScheduleBuilder({ courses = [] }) {
     })
   }
   const handleExport = () => {
+    const exportable = normalizedPlanCourses.filter((c) => c.isOnGrid && courseHasSchedule(c))
+    if (exportable.length === 0) {
+      if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current)
+      setExportMsg({ text: 'Place courses on the grid with time data to export', error: true })
+      exportMsgTimeoutRef.current = setTimeout(() => setExportMsg(null), 3500)
+      return
+    }
     const blob = buildIcs(normalizedPlanCourses, term)
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
@@ -391,6 +404,9 @@ export default function ScheduleBuilder({ courses = [] }) {
     anchor.download = `${activePlan.toLowerCase().replace(/\s+/g, '-')}-${term.toLowerCase()}.ics`
     anchor.click()
     URL.revokeObjectURL(url)
+    if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current)
+    setExportMsg({ text: `Downloaded ${exportable.length} event${exportable.length === 1 ? '' : 's'}`, error: false })
+    exportMsgTimeoutRef.current = setTimeout(() => setExportMsg(null), 3000)
   }
 
   const handleSearchKeyDown = (event) => {
@@ -468,9 +484,16 @@ export default function ScheduleBuilder({ courses = [] }) {
                 )
               })}
             </div>
-            <button type="button" onClick={handleExport} className="rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--gold-soft)', borderColor: 'var(--gold)', color: 'var(--text)' }}>
-              {'\u{1F4C5}'} Export iCal
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button type="button" onClick={handleExport} className="rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--gold-soft)', borderColor: 'var(--gold)', color: 'var(--text)' }}>
+                {'\u{1F4C5}'} Export iCal
+              </button>
+              {exportMsg && (
+                <p className="text-[11px] font-semibold" style={{ color: exportMsg.error ? 'var(--warning)' : 'var(--success)' }}>
+                  {exportMsg.text}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
