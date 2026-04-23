@@ -11,6 +11,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="HKS Courses" />
+    <!-- Prevent flash of wrong theme: apply saved theme before first paint -->
+    <script>(function(){try{var t=localStorage.getItem('hks-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}})()</script>
   </head>
   <body>
     <div id="root"></div>
