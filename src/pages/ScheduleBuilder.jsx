@@ -563,9 +563,22 @@ export default function ScheduleBuilder({ courses = [] }) {
           <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto" style={{ background: 'var(--panel-strong)' }}>
             <div className="min-w-[720px] p-6">
               {conflicts.length > 0 && (
-                <div className="mb-4 flex items-center gap-3 rounded-[20px] border px-4 py-3 text-sm font-semibold" style={{ background: 'var(--panel-soft)', borderColor: 'var(--danger)', color: 'var(--danger)' }}>
-                  <span>⚠</span>
-                  <span>{conflicts.length} time conflict{conflicts.length > 1 ? 's' : ''} detected — overlapping courses are highlighted in red</span>
+                <div className="mb-4 rounded-[20px] border px-4 py-3 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--danger)', color: 'var(--danger)' }}>
+                  <div className="flex items-center gap-3 font-semibold">
+                    <span>⚠</span>
+                    <span>{conflicts.length} time conflict{conflicts.length > 1 ? 's' : ''} detected — overlapping courses are highlighted in red</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 pl-7">
+                    {conflicts.map(([left, right], i) => (
+                      <span
+                        key={i}
+                        className="rounded-full px-3 py-1 text-xs font-semibold"
+                        style={{ background: 'rgba(220,60,60,0.12)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+                      >
+                        {left.courseCode} ↔ {right.courseCode}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
               <div className="min-w-[720px] rounded-[28px] border" style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}>
