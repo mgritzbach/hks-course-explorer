@@ -705,6 +705,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                         <button type="button" onClick={() => setExpandedBlock((current) => (current === course.courseCode ? null : course.courseCode))} className="block h-full w-full text-left">
                           <p className="truncate pr-6 text-xs font-semibold">{course.courseCode}</p>
                           <p className="mt-1 text-[11px] leading-4" style={{ color: 'var(--text-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{course.title}</p>
+                          {height > 72 && course.instructors?.length > 0 && (
+                            <p className="mt-1 truncate text-[10px]" style={{ color: 'var(--text-muted)' }}>{course.instructors[0]}</p>
+                          )}
                         </button>
                         <button type="button" onClick={() => toggleGrid(course.courseCode)} className="absolute right-2 top-2 text-xs font-semibold" style={{ color: conflict ? 'var(--danger)' : 'var(--text-soft)' }} aria-label={`Remove ${course.courseCode} from grid`}>×</button>
                         {active && (
