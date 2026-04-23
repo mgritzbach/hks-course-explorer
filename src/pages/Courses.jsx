@@ -92,6 +92,13 @@ function MetricRow({ label, value, higherBetter = true, neutral = false, metricM
   )
 }
 
+function ratingColor(val) {
+  if (val == null) return 'var(--text-muted)'
+  if (val >= 75) return 'var(--success)'
+  if (val >= 50) return 'var(--gold)'
+  return 'var(--danger)'
+}
+
 function HistoryTable({ history, metricMode = 'score' }) {
   if (!history.length) {
     return (
@@ -117,12 +124,13 @@ function HistoryTable({ history, metricMode = 'score' }) {
         <tbody>
           {history.map((row) => {
             const src = metricMode === 'score' ? row.metrics_score : row.metrics_pct
+            const instrVal = src?.Instructor_Rating
             return (
               <tr key={`${row.year}-${row.term}-${row.professor}`} style={{ borderBottom: '1px solid var(--line)' }}>
                 <td className="py-2 pr-4 text-label">{row.year}</td>
                 <td className="py-2 pr-4 text-muted">{row.term}</td>
                 <td className="py-2 pr-4 text-label">{row.professor_display || row.professor}</td>
-                <td className="py-2 pr-4 font-medium" style={{ color: 'var(--accent-strong)' }}>{fmtShort(src?.Instructor_Rating, metricMode)}</td>
+                <td className="py-2 pr-4 font-medium" style={{ color: ratingColor(instrVal) }}>{fmtShort(instrVal, metricMode)}</td>
                 <td className="py-2 pr-4 text-label">{fmtShort(src?.Course_Rating, metricMode)}</td>
                 <td className="py-2 pr-4 text-label">{fmtShort(src?.Workload, metricMode)}</td>
                 <td className="py-2 pr-4 text-label">{fmtShort(src?.Rigor, metricMode)}</td>
@@ -824,8 +832,8 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                       {selected.academic_area && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>{selected.academic_area}</span>}
                       {selected.is_stem && <span className="rounded-full px-3 py-1 text-[10px] font-bold" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>STEM</span>}
                       {selected.is_core && <span className="rounded-full px-3 py-1 text-[10px] font-bold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>Core</span>}
-                      {selected.cross_registration === true && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'rgba(123, 176, 138, 0.14)', color: 'var(--success)' }}>Cross-reg OK</span>}
-                      {selected.cross_registration === false && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'rgba(216, 112, 112, 0.12)', color: 'var(--danger)' }}>No cross-reg</span>}
+                      {selected.cross_registration === true && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>Cross-reg OK</span>}
+                      {selected.cross_registration === false && <span className="rounded-full px-3 py-1 text-[10px] font-medium" style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}>No cross-reg</span>}
                     </div>
 
                     <div className="mb-4 flex flex-wrap items-center gap-2">

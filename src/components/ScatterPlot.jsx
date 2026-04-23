@@ -921,7 +921,7 @@ export default function ScatterPlot({
           className="flex items-center gap-2 border-t px-4 py-2 text-xs"
           style={{
             borderColor: 'var(--line)',
-            background: warning.type === 'error' ? 'rgba(216, 112, 112, 0.12)' : 'rgba(217, 155, 78, 0.12)',
+            background: warning.type === 'error' ? 'var(--danger-soft)' : 'var(--warning-soft)',
             color: warning.type === 'error' ? 'var(--danger)' : 'var(--warning)',
           }}
         >

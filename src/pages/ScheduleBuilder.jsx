@@ -570,7 +570,7 @@ export default function ScheduleBuilder({ courses = [] }) {
               title={exportMsg?.text}
               className="rounded-full border px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
               style={{
-                background: exportMsg?.error ? 'rgba(220,90,40,0.12)' : exportMsg ? 'rgba(100,180,100,0.12)' : 'var(--gold-soft)',
+                background: exportMsg?.error ? 'var(--warning-soft)' : exportMsg ? 'var(--success-soft)' : 'var(--gold-soft)',
                 borderColor: exportMsg?.error ? 'var(--warning)' : exportMsg ? 'var(--success)' : 'var(--gold)',
                 color: exportMsg?.error ? 'var(--warning)' : exportMsg ? 'var(--success)' : 'var(--text)',
               }}

@@ -30,7 +30,9 @@
   --success:          #7bb08a;
   --success-soft:     rgba(123, 176, 138, 0.14);
   --warning:          #d99b4e;
+  --warning-soft:     rgba(217, 155, 78, 0.13);
   --danger:           #d87070;
+  --danger-soft:      rgba(216, 112, 112, 0.12);
   --nav-shell:        rgba(16, 12, 13, 0.82);
   --nav-shell-strong: rgba(34, 27, 28, 0.96);
   --overlay:          rgba(7, 5, 6, 0.74);
@@ -68,7 +70,9 @@ html[data-theme='light'] {
   --success:          #3e7d55;
   --success-soft:     rgba(62, 125, 85, 0.12);
   --warning:          #9c5e12;
+  --warning-soft:     rgba(156, 94, 18, 0.1);
   --danger:           #a84040;
+  --danger-soft:      rgba(168, 64, 64, 0.1);
   --nav-shell:        rgba(255, 251, 247, 0.94);
   --nav-shell-strong: rgba(255, 253, 250, 0.99);
   --overlay:          rgba(43, 28, 33, 0.18);
