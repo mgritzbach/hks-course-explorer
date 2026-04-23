@@ -38,8 +38,7 @@ function coursesafe(value) {
 
 function rankCourse(course) {
   if (course.is_average) return 3
-  if (course.year === 2025) return 2
-  return 1
+  return course.year || 0
 }
 
 function condenseCourses(courses, query, shortlistedCodes = []) {
@@ -47,8 +46,11 @@ function condenseCourses(courses, query, shortlistedCodes = []) {
   const keywords = query.toLowerCase().split(/\W+/).filter((w) => w.length > 2)
   const shortlistedSet = new Set(shortlistedCodes)
 
+  // Use the most recent year with eval data for keyword matching
+  const recentYear = Math.max(...courses.filter((c) => !c.is_average && c.has_eval && c.year).map((c) => c.year), 0)
+
   const keywordMatches = courses
-    .filter((c) => !c.is_average && c.year === 2025)
+    .filter((c) => !c.is_average && c.year === recentYear)
     .map((c) => {
       const haystack = [c.course_name, c.course_code, c.professor_display, c.concentration].join(' ').toLowerCase()
       const score = keywords.reduce((s, kw) => s + (haystack.includes(kw) ? 1 : 0), 0)
