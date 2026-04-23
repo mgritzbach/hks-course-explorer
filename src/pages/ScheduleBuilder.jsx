@@ -166,6 +166,18 @@ function courseHasSchedule(course) {
   return extractDays(course?.meeting_days).length > 0 && minutesFromValue(course?.time_start) != null && minutesFromValue(course?.time_end) != null
 }
 
+function EmptyScheduleState() {
+  return (
+    <div className="rounded-[24px] border p-5 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+      <p className="text-base font-semibold" style={{ color: 'var(--text)' }}>Your shortlist is empty</p>
+      <p className="mt-2 leading-6" style={{ color: 'var(--text-muted)' }}>
+        Start from the search panel on the left and add a course to begin building your schedule.
+      </p>
+      <p className="mt-3 text-lg" style={{ color: 'var(--accent)' }}>← Search lives here</p>
+    </div>
+  )
+}
+
 function buildIcs(courses) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//HKS Course Explorer//Schedule Builder//EN']
@@ -194,11 +206,7 @@ function Chip({ children, tone = 'default' }) {
     default: { background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-soft)' },
     success: { background: 'var(--success)', borderColor: 'var(--success)', color: 'var(--panel)' },
     blue: { background: 'var(--blue)', borderColor: 'var(--blue)', color: 'var(--panel)' },
-    danger: {
-      background: 'color-mix(in srgb, var(--danger) 14%, transparent)',
-      borderColor: 'var(--danger)',
-      color: 'var(--danger)',
-    },
+    danger: { background: 'var(--panel-soft)', borderColor: 'var(--danger)', color: 'var(--danger)' },
   }
   return (
     <span className="inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]" style={styles[tone] || styles.default}>
@@ -225,6 +233,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searching, setSearching] = useState(false)
   const [expandedBlock, setExpandedBlock] = useState(null)
   const [reqProgram, setReqProgram] = useState(() => getPrograms()[0]?.id || '')
+  const [gridMessages, setGridMessages] = useState({})
 
   useEffect(() => {
     void savePlan(activePlan, planData)
@@ -287,6 +296,12 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (currentCourses.some((item) => normalizeCourse(item).courseCode === normalized.courseCode)) return current
       return { ...current, name: activePlan, courses: [...currentCourses, { ...normalized, isOnGrid: false }] }
     })
+    setGridMessages((current) => {
+      if (!current[normalized.courseCode]) return current
+      const next = { ...current }
+      delete next[normalized.courseCode]
+      return next
+    })
   }
   const removeCourse = (courseCode) => {
     setPlanData((current) => ({
@@ -295,6 +310,12 @@ export default function ScheduleBuilder({ courses = [] }) {
       courses: (Array.isArray(current?.courses) ? current.courses : []).filter((course) => normalizeCourse(course).courseCode !== courseCode),
     }))
     setExpandedBlock((current) => (current === courseCode ? null : current))
+    setGridMessages((current) => {
+      if (!current[courseCode]) return current
+      const next = { ...current }
+      delete next[courseCode]
+      return next
+    })
   }
   const toggleGrid = (courseCode) => {
     setPlanData((current) => ({
@@ -303,6 +324,19 @@ export default function ScheduleBuilder({ courses = [] }) {
       courses: (Array.isArray(current?.courses) ? current.courses : []).map((course) => {
         const normalized = normalizeCourse(course)
         if (normalized.courseCode !== courseCode) return course
+        if (!normalized.isOnGrid && !courseHasSchedule(normalized)) {
+          setGridMessages((messages) => ({
+            ...messages,
+            [courseCode]: 'No schedule data — this course has no time slot in our database',
+          }))
+          return course
+        }
+        setGridMessages((messages) => {
+          if (!messages[courseCode]) return messages
+          const next = { ...messages }
+          delete next[courseCode]
+          return next
+        })
         return { ...normalized, isOnGrid: !normalized.isOnGrid }
       }),
     }))
@@ -326,6 +360,12 @@ export default function ScheduleBuilder({ courses = [] }) {
         }
       }),
     }))
+    setGridMessages((current) => {
+      if (!current[courseCode]) return current
+      const next = { ...current }
+      delete next[courseCode]
+      return next
+    })
   }
   const handleExport = () => {
     const blob = buildIcs(normalizedPlanCourses)
@@ -414,7 +454,7 @@ export default function ScheduleBuilder({ courses = [] }) {
               <input value={searchQ} onChange={(event) => setSearchQ(event.target.value)} placeholder="Search courses, instructors..." className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }} />
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="flex min-h-0 flex-1 flex-col p-4">
               {!searchQ.trim() ? (
                 <div className="flex h-full items-center justify-center rounded-[24px] border p-6 text-center" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-muted)' }}>Type to search HKS courses</div>
               ) : searching ? (
@@ -433,7 +473,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                             <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: 'var(--text-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                           </div>
                           <button type="button" disabled={added} onClick={() => addToShortlist(course)} className="shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'var(--success)' : 'var(--accent-soft)', borderColor: added ? 'var(--success)' : 'var(--line-strong)', color: added ? 'var(--panel)' : 'var(--text)' }}>
-                            {added ? 'Added' : 'Add'}
+                            {added ? 'Added ✓' : 'Add'}
                           </button>
                         </div>
                         <p className="mt-2 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{course.instructors.length ? course.instructors.join(', ') : 'Instructor TBA'}</p>
@@ -449,17 +489,17 @@ export default function ScheduleBuilder({ courses = [] }) {
             </div>
           </aside>
 
-          <main className="min-w-0 flex-1 overflow-auto" style={{ background: 'var(--panel-strong)' }}>
+          <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto" style={{ background: 'var(--panel-strong)' }}>
             <div className="min-w-[720px] p-6">
-              <div className="rounded-[28px] border" style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}>
-                <div className="grid border-b" style={{ borderColor: 'var(--line)', gridTemplateColumns: '52px repeat(5, minmax(0, 1fr))' }}>
+              <div className="min-w-[720px] rounded-[28px] border" style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}>
+                <div className="grid min-w-[720px] border-b" style={{ borderColor: 'var(--line)', gridTemplateColumns: '52px repeat(5, minmax(0, 1fr))' }}>
                   <div className="border-r px-2 py-4 text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ borderColor: 'var(--line)', color: 'var(--text-muted)' }}>Time</div>
                   {DAY_LABELS.map((day) => (
                     <div key={day} className="border-r px-3 py-4 text-center text-sm font-semibold last:border-r-0" style={{ borderColor: 'var(--line)', color: 'var(--text)' }}>{day}</div>
                   ))}
                 </div>
 
-                <div className="relative" style={{ height: `${((GRID_END - GRID_START) / 30) * ROW_HEIGHT}px` }}>
+                <div className="relative min-w-[720px]" style={{ height: `${((GRID_END - GRID_START) / 30) * ROW_HEIGHT}px` }}>
                   {timeLabels.map((slot, index) => (
                     <div key={slot.minute} className="absolute inset-x-0 grid" style={{ top: `${index * ROW_HEIGHT}px`, height: `${ROW_HEIGHT}px`, gridTemplateColumns: '52px repeat(5, minmax(0, 1fr))' }}>
                       <div className="border-r px-2 py-2 text-[11px]" style={{ borderColor: 'var(--line)', color: 'var(--text-muted)' }}>{slot.label}</div>
@@ -474,7 +514,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                     const section = getActiveSection(course)
                     const dayIndex = DAY_INDEX[day]
                     return (
-                      <div key={key} className="absolute z-10 rounded-2xl border p-2" style={{ top: `${top + 2}px`, left: `calc(52px + ${dayIndex} * (100% - 52px) / 5 + 2px)`, width: 'calc((100% - 52px) / 5 - 4px)', height: `${Math.max(height - 4, 28)}px`, background: conflict ? 'color-mix(in srgb, var(--danger) 13%, transparent)' : 'var(--accent-soft)', borderColor: conflict ? 'var(--danger)' : 'var(--accent)', color: 'var(--text)' }}>
+                      <div key={key} className="absolute z-10 rounded-2xl border p-2" style={{ top: `${top + 2}px`, left: `calc(52px + ${dayIndex} * (100% - 52px) / 5 + 2px)`, width: 'calc((100% - 52px) / 5 - 4px)', height: `${Math.max(height - 4, 28)}px`, background: conflict ? 'var(--panel-soft)' : 'var(--accent-soft)', borderColor: conflict ? 'var(--danger)' : 'var(--accent)', color: 'var(--text)' }}>
                         <button type="button" onClick={() => setExpandedBlock((current) => (current === course.courseCode ? null : course.courseCode))} className="block h-full w-full text-left">
                           <p className="truncate pr-6 text-xs font-semibold">{course.courseCode}</p>
                           <p className="mt-1 text-[11px] leading-4" style={{ color: 'var(--text-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{course.title}</p>
@@ -497,15 +537,21 @@ export default function ScheduleBuilder({ courses = [] }) {
           </main>
 
           <aside className="flex h-full w-[280px] shrink-0 flex-col border-l" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <div>
+            <div className="flex min-h-0 flex-1 flex-col p-4">
+              <div className="shrink-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Shortlist</p>
                 <p className="mt-1 text-sm" style={{ color: 'var(--text-soft)' }}>{normalizedPlanCourses.length} course{normalizedPlanCourses.length === 1 ? '' : 's'}</p>
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
                 {normalizedPlanCourses.length === 0 ? (
-                  <div className="rounded-[24px] border p-5 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-muted)' }}>Add courses from search to start a plan.</div>
+                  searchQ.trim() ? (
+                    <div className="rounded-[24px] border p-5 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-muted)' }}>
+                      Add courses from search to start a plan.
+                    </div>
+                  ) : (
+                    <EmptyScheduleState />
+                  )
                 ) : normalizedPlanCourses.map((course) => {
                   const onGrid = course.isOnGrid
                   const inConflict = conflictSet.has(course.courseCode)
@@ -534,15 +580,16 @@ export default function ScheduleBuilder({ courses = [] }) {
                       <button type="button" onClick={() => toggleGrid(course.courseCode)} className="mt-3 w-full rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: onGrid ? 'var(--gold-soft)' : 'var(--accent-soft)', borderColor: onGrid ? 'var(--gold)' : 'var(--line-strong)', color: 'var(--text)' }}>
                         {onGrid ? 'Remove from grid' : 'Place on grid'}
                       </button>
+                      {gridMessages[course.courseCode] && <p className="mt-3 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{gridMessages[course.courseCode]}</p>}
                       {inConflict && <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--danger)' }}>Conflict detected</p>}
                     </div>
                   )
                 })}
               </div>
 
-              <div className="my-5 border-t" style={{ borderColor: 'var(--line)' }} />
+              <div className="my-5 shrink-0 border-t" style={{ borderColor: 'var(--line)' }} />
 
-              <div>
+              <div className="shrink-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Requirements</p>
                 <div className="mt-3">
                   <select value={reqProgram} onChange={(event) => setReqProgram(event.target.value)} className="w-full rounded-2xl border px-3 py-2 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>
@@ -572,9 +619,9 @@ export default function ScheduleBuilder({ courses = [] }) {
               </div>
             </div>
 
-            <div className="border-t p-4" style={{ borderColor: 'var(--line)' }}>
+            <div className="shrink-0 border-t p-4" style={{ borderColor: 'var(--line)' }}>
               <button type="button" onClick={handleExport} className="w-full rounded-full border px-4 py-3 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--gold-soft)', borderColor: 'var(--gold)', color: 'var(--text)' }}>
-                Export iCal
+                {'\u{1F4C5} Export iCal (.ics)'}
               </button>
             </div>
           </aside>
