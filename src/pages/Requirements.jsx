@@ -187,7 +187,7 @@ export default function Requirements({ courses = [] }) {
                   title="Copy shareable link to this program view"
                   className="shrink-0 rounded-[14px] border px-3 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
                   style={{
-                    background: copyMsg === 'Copied!' ? 'rgba(123,176,138,0.15)' : 'var(--panel-strong)',
+                    background: copyMsg === 'Copied!' ? 'var(--success-soft)' : 'var(--panel-strong)',
                     borderColor: copyMsg === 'Copied!' ? 'var(--success)' : 'var(--line-strong)',
                     color: copyMsg === 'Copied!' ? 'var(--success)' : 'var(--text-muted)',
                     minWidth: 44,
@@ -250,9 +250,9 @@ export default function Requirements({ courses = [] }) {
                 className="rounded-[24px] p-5"
                 style={{
                   background: category.isComplete
-                    ? 'linear-gradient(160deg, rgba(123,176,138,0.07), var(--panel))'
+                    ? 'linear-gradient(160deg, var(--success-soft), var(--panel))'
                     : 'var(--panel)',
-                  border: `1px solid ${category.isComplete ? 'rgba(123,176,138,0.3)' : 'var(--line)'}`,
+                  border: `1px solid ${category.isComplete ? 'var(--success)' : 'var(--line)'}`,
                 }}
               >
                 <div className="flex items-start justify-between gap-4">
@@ -267,7 +267,7 @@ export default function Requirements({ courses = [] }) {
                   <div
                     className="rounded-full px-3 py-1 text-xs font-semibold"
                     style={{
-                      background: category.isComplete ? 'rgba(123,176,138,0.18)' : 'var(--accent-soft)',
+                      background: category.isComplete ? 'var(--success-soft)' : 'var(--accent-soft)',
                       color: category.isComplete ? 'var(--success)' : 'var(--text)',
                     }}
                   >
@@ -364,7 +364,7 @@ export default function Requirements({ courses = [] }) {
                                   onClick={() => addCourseToPlan(course)}
                                   className="shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                   style={{
-                                    background: isAdded ? 'rgba(123,176,138,0.15)' : 'var(--accent-soft)',
+                                    background: isAdded ? 'var(--success-soft)' : 'var(--accent-soft)',
                                     borderColor: isAdded ? 'var(--success)' : 'var(--line-strong)',
                                     color: isAdded ? 'var(--success)' : 'var(--text)',
                                   }}

@@ -425,7 +425,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
                         title={course.course_name}
                         className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all"
                         style={alreadyAdded
-                          ? { background: 'var(--accent-soft)', border: '1px solid rgba(165,28,48,0.3)', color: 'var(--accent-strong)', opacity: 0.6 }
+                          ? { background: 'var(--accent-soft)', border: '1px solid var(--accent)', color: 'var(--accent-strong)', opacity: 0.6 }
                           : { background: 'var(--panel-subtle)', border: '1px solid var(--line)', color: 'var(--text-muted)', cursor: 'pointer' }}
                       >
                         {alreadyAdded ? '✓ ' : '+ '}{course.course_code}
@@ -462,7 +462,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
                             onClick={() => toggleAttr(attr.key)}
                             className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all"
                             style={on
-                              ? { background: 'var(--accent-soft)', border: '1px solid rgba(165,28,48,0.3)', color: 'var(--accent-strong)' }
+                              ? { background: 'var(--accent-soft)', border: '1px solid var(--accent)', color: 'var(--accent-strong)' }
                               : { background: 'var(--panel-subtle)', border: '1px solid var(--line)', color: 'var(--text-muted)' }}
                           >
                             {attr.label}
@@ -633,7 +633,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
                                 className="border-r px-3 py-3 last:border-r-0"
                                 style={{
                                   borderColor: 'var(--line)',
-                                  background: isBest ? (attr.higherBetter ? 'rgba(123,176,138,0.12)' : 'rgba(165,28,48,0.10)') : 'transparent',
+                                  background: isBest ? (attr.higherBetter ? 'var(--success-soft)' : 'var(--accent-soft)') : 'transparent',
                                 }}
                               >
                                 {attr.type === 'pct' ? (
