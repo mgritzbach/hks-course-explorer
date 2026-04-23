@@ -11,3 +11,5 @@ dist/
 # Scratch data files
 data/*.bak*
 scripts/supabase_rows.json
+data/duplicate_analysis.py
+data/duplicate_report.txt
