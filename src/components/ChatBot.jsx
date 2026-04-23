@@ -207,6 +207,9 @@ export default function ChatBot({ courses, favs, isLight = false }) {
       {/* Panel */}
       {open && (
         <div
+          role="dialog"
+          aria-label="Course Advisor"
+          aria-modal="false"
           className="chat-panel"
           style={{
             background: 'var(--panel-strong)',
@@ -241,7 +244,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
           </div>
 
           {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div aria-live="polite" aria-atomic="false" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {messages.map((msg, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div
