@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 const STORAGE_KEY = 'hks-splash-shown'
@@ -7,14 +7,16 @@ export default function LandingSplash({ onStart, onSkip }) {
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
   const isLight = document.documentElement.getAttribute('data-theme') === 'light'
+  const dismissTimerRef = useRef(null)
 
   useEffect(() => {
     if (!localStorage.getItem(STORAGE_KEY)) setVisible(true)
+    return () => { if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current) }
   }, [])
 
   const dismiss = (cb) => {
     setFading(true)
-    setTimeout(() => {
+    dismissTimerRef.current = setTimeout(() => {
       localStorage.setItem(STORAGE_KEY, '1')
       setVisible(false)
       cb?.()
@@ -25,6 +27,9 @@ export default function LandingSplash({ onStart, onSkip }) {
 
   return createPortal(
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="splash-heading"
       style={{
         position: 'fixed', inset: 0, zIndex: 9100,
         backdropFilter: 'blur(28px)',
@@ -64,6 +69,7 @@ export default function LandingSplash({ onStart, onSkip }) {
         </div>
 
         <h1
+          id="splash-heading"
           className="serif-display text-3xl font-semibold"
           style={{ color: 'var(--text)', marginBottom: 10 }}
         >

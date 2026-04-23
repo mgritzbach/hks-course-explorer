@@ -199,6 +199,14 @@ html[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
   background: rgba(95, 58, 63, 0.28);
 }
 
+/* ─── Keyboard focus ring ────────────────────────────────────────────────────── */
+/* Only shown for keyboard navigation (not mouse clicks). */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 /* ─── Form elements ──────────────────────────────────────────────────────────── */
 
 select,

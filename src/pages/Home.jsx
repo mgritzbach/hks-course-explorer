@@ -221,8 +221,6 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     else setSidebarOpen(false)
   }
 
-  const [activeTab, setActiveTab] = useState('comparisons')
-
   const scrollToVisualization = () => {
     if (!mainRef.current || !visualizationRef.current) return
 
@@ -506,8 +504,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           <h2 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>Course Comparisons</h2>
         </div>
 
-        {activeTab === 'comparisons' && (
-          <Suspense fallback={
+        <Suspense fallback={
             <div style={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
               Loading chart…
             </div>
@@ -528,8 +525,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             isLight={isLight}
           />
           </div>
-          </Suspense>
-        )}
+        </Suspense>
 
         <div className="mt-6">
           <div data-tour="preset-pills" className="preset-pills mb-3">
