@@ -279,19 +279,21 @@
       <ul style="margin:6px 0 0 1.2em; padding:0;">
         <li><strong>Hover</strong> over a dot to see course name, instructor, concentration, and key metrics.</li>
         <li><strong>Click</strong> a dot to pin a detail panel below the plot — from there you can ⭐ star the course, ⇄ jump to Compare, or go to full Course Details.</li>
-        <li><strong>Scroll/pinch</strong> to zoom in; double-click to reset view.</li>
-        <li><strong>Change axes</strong> using the X/Y dropdowns to plot any two metrics against each other.</li>
+        <li><strong>Gold outlined dots</strong> — courses in your shortlist appear with a gold ring and larger dot, so you can spot them instantly even when browsing all courses.</li>
+        <li><strong>Scroll/pinch</strong> to zoom in; use + / − buttons or drag to pan; double-click to reset.</li>
+        <li><strong>Change axes</strong> using the X/Y dropdowns to plot any two metrics against each other (workload vs. rigor, instructor vs. course rating, bid price vs. any metric, etc.).</li>
       </ul>
     </div>
 
     <h3>Preset Pills</h3>
     <p>Quick-filter buttons above the scatter plot let you surface specific course categories:</p>
     <ul>
-      <li><strong>Top-Rated</strong> — Courses in the top quartile on both axes</li>
-      <li><strong>STEM A / STEM B</strong> — Courses eligible for STEM designation</li>
-      <li><strong>Core</strong> — Required core curriculum courses</li>
-      <li><strong>Cross-Reg OK</strong> — Open to cross-registration</li>
-      <li><strong>Low Bidding</strong> — Historically accessible without committing many points</li>
+      <li><strong>Top Rated</strong> — Courses with Instructor Rating ≥ 75th percentile</li>
+      <li><strong>Light Workload</strong> — Sorts by lightest workload first (Workload percentile ascending)</li>
+      <li><strong>STEM A / STEM B</strong> — Courses eligible for STEM designation (A = quantitative/technical, B = data/policy)</li>
+      <li><strong>Core Courses</strong> — Required HKS core curriculum courses</li>
+      <li><strong>Bidding 2026</strong> — Switches to the active 2026 bidding season view, sorted by competitiveness</li>
+      <li><strong>★ Shortlist</strong> — Shows only your personally starred courses (count shown in the pill)</li>
     </ul>
 
     <h3>Left Sidebar Filters</h3>
@@ -375,8 +377,18 @@
     </ul>
     <p>Scroll right on mobile to see all columns.</p>
 
-    <h3>Shortlist Button</h3>
-    <p>The "Add to Shortlist" button (star icon) saves the course to your shortlist, stored in your browser. Shortlisted courses appear in the Compare tab for side-by-side analysis.</p>
+    <h3>Shortlist &amp; Personal Notes</h3>
+    <p>The <strong>"Add to Shortlist"</strong> button saves the course to your browser-stored shortlist. Shortlisted courses:</p>
+    <ul>
+      <li>Appear with a ★ badge in the Course Cards list</li>
+      <li>Appear as gold outlined dots in the scatter plot</li>
+      <li>Can be compared side-by-side in the Compare tab</li>
+      <li>Are included in the <strong>Export CSV</strong> download from the nav panel</li>
+    </ul>
+    <p>The <strong>My Notes</strong> field (below the action buttons) lets you write personal notes about any course. Notes save automatically to your browser and appear as a "Note" column when you export your shortlist to CSV.</p>
+
+    <h3>Similar Courses</h3>
+    <p>At the bottom of the Details tab, a <strong>Similar Courses</strong> section shows up to 6 courses that are semantically similar based on a PCA analysis of course descriptions and subject matter. Click any row to jump directly to that course's detail view.</p>
   </section>
 
   <!-- 4. Faculty -->
@@ -526,12 +538,16 @@
       <li><strong>Shortlist share</strong> — The "Share Shortlist" button copies a link that pre-loads your starred courses for anyone who opens it</li>
     </ul>
 
-    <h3>Shortlist Persistence</h3>
+    <h3>Shortlist Persistence &amp; Export</h3>
     <p>Your shortlist (starred courses) is stored in browser localStorage. It persists across sessions on the same device. Clearing your browser data will reset it.</p>
+    <p>Click <strong>"⬇ Export CSV"</strong> in the top navigation to download your entire shortlist as a spreadsheet. The export includes: course code, title, instructor, year, term, concentration, STEM/Core flags, key metric percentiles, last bid price, and any personal notes you've written.</p>
+
+    <h3>AI Course Advisor</h3>
+    <p>A chat interface (💬 button in the bottom-right corner) lets you ask questions about courses in natural language. It uses the 2025 dataset and free AI models — treat it as a starting point, not a definitive source. Good uses: "Which core courses are lightest workload?", "Who teaches climate policy?", "What's the difference between IGA-101 and IGA-215?"</p>
 
     <div class="callout callout-tip">
       <strong>Best practice for bidding season</strong>
-      Build your shortlist of 5–8 target courses in the Compare tab. Check their bidding history to estimate required point commitments. Then rank them by priority and allocate points accordingly, keeping some in reserve for Round 2.
+      Build your shortlist of 5–8 target courses in the Compare tab. Check their bidding history to estimate required point commitments. Then rank them by priority and allocate points accordingly, keeping some in reserve for Round 2. Export your shortlist as a CSV to share with study groups or your academic advisor.
     </div>
   </section>
 
