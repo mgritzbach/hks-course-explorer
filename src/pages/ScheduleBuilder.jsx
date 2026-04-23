@@ -36,6 +36,7 @@ function fallbackSearch(q, allCourses) {
         is_core: c.is_core,
         metrics_pct: c.metrics_pct,
         bid_clearing_price: c.bid_clearing_price,
+        last_bid_price: c.last_bid_price,
       },
       _fromDB: true,
     }))
@@ -154,6 +155,7 @@ function normalizeCourse(raw, index = 0) {
       is_stem: Boolean(raw?.enrichment?.is_stem ?? raw?.is_stem),
       metrics_pct: raw?.enrichment?.metrics_pct ?? raw?.metrics_pct ?? null,
       bid_clearing_price: raw?.enrichment?.bid_clearing_price ?? raw?.bid_clearing_price ?? null,
+      last_bid_price: raw?.enrichment?.last_bid_price ?? raw?.last_bid_price ?? null,
     },
   }
 }
@@ -552,8 +554,8 @@ export default function ScheduleBuilder({ courses = [] }) {
                           ) : (
                             <Chip tone="danger">No time data</Chip>
                           )}
-                          {course.enrichment?.last_bid_price != null && (
-                            <Chip tone="gold">{course.enrichment.last_bid_price} pts</Chip>
+                          {(course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
+                            <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
                           )}
                         </div>
                       </div>
@@ -672,6 +674,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                         {course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
                         {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
                         {!course.enrichment?.is_core && !course.enrichment?.is_stem && <Chip>Elective</Chip>}
+                        {(course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
+                          <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
+                        )}
                       </div>
                       {course.sections.length > 0 && (
                         <div className="mt-3">
