@@ -1,8 +1,9 @@
-import { useEffect, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useEffect, useDeferredValue, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import { formatMetric, fmtShort, modeUnit } from '../utils/formatMetric.js'
+import { DEFAULT_PLAN, loadPlan, savePlan } from '../lib/scheduleStorage.js'
 
 const COURSES_TOUR_STEPS = [
   {
@@ -473,6 +474,18 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
   const [filterOpen, setFilterOpen] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
   const [showRaw, setShowRaw] = useState(false)
+  const [planCodes, setPlanCodes] = useState(() => {
+    const plan = loadPlan(DEFAULT_PLAN)
+    return new Set((plan.courses || []).map((c) => c?.course_code_base || c?.course_code || c?.courseCode).filter(Boolean))
+  })
+
+  const addToPlan = useCallback((course) => {
+    const code = course?.course_code_base || course?.course_code
+    if (!code || planCodes.has(code)) return
+    const plan = loadPlan(DEFAULT_PLAN)
+    savePlan(DEFAULT_PLAN, { ...plan, courses: [...(plan.courses || []), course] })
+    setPlanCodes((prev) => new Set([...prev, code]))
+  }, [planCodes])
 
   const handleReplayTour = () => {
     localStorage.removeItem('hks-tour-courses')
@@ -984,6 +997,24 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                             }}
                           >
                             {starred ? 'Shortlisted' : 'Add to Shortlist'}
+                          </button>
+                        )
+                      })()}
+                      {(() => {
+                        const inPlan = planCodes.has(selected.course_code_base || selected.course_code)
+                        return (
+                          <button
+                            onClick={() => addToPlan(selected)}
+                            disabled={inPlan}
+                            className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-default"
+                            style={{
+                              borderColor: inPlan ? 'rgba(123,176,138,0.4)' : 'var(--line)',
+                              color: inPlan ? 'var(--success)' : 'var(--text-muted)',
+                              background: inPlan ? 'rgba(123,176,138,0.10)' : 'var(--panel-subtle)',
+                            }}
+                            title={inPlan ? 'Already in Plan A — open Schedule Builder to manage' : 'Add to Plan A in Schedule Builder'}
+                          >
+                            {inPlan ? '✓ In Plan A' : '+ Plan A'}
                           </button>
                         )
                       })()}
