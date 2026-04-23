@@ -209,13 +209,13 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
                 <button
                   key={term}
                   onClick={() => toggleTerm(term)}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all touch-manipulation min-h-[36px]"
+                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all touch-manipulation min-h-[44px]"
                   style={active
                     ? { background: 'var(--accent)', color: '#fff8f5', border: '1px solid transparent' }
                     : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
                 >
                   {TERM_LABELS[term]}
-                  {active && <span style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
+                  {active && <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
                 </button>
               )
             })}

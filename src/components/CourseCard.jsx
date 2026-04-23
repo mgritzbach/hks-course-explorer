@@ -196,6 +196,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
         <button
           onClick={() => navigate(`/compare?ids=${encodeURIComponent(course.course_code_base || course.course_code)}`)}
           title="Open in Compare"
+          aria-label="Open in Compare"
           className="rounded-full border px-3 py-2 text-xs font-medium transition-colors hover:text-label"
           style={{ borderColor: 'var(--line)', color: 'var(--text-muted)', background: 'transparent' }}
         >
@@ -205,6 +206,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
           <button
             onClick={() => favs.toggle(course.course_code_base)}
             title={starred ? 'Remove from shortlist' : 'Add to shortlist'}
+            aria-label={starred ? 'Remove from shortlist' : 'Add to shortlist'}
             className="rounded-full px-3 py-2 text-sm transition-colors"
             style={{
               color: starred ? 'var(--gold)' : 'var(--text-muted)',

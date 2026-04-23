@@ -61,8 +61,8 @@ const COURSE_DETAIL_TOUR_STEPS = [
   },
 ]
 
-const LABEL_COLOR = { Outstanding: 'var(--success)', Excellent: '#86efac', Good: 'var(--gold)', Average: 'var(--warning)', Poor: 'var(--danger)' }
-const WORKLOAD_COLOR = { 'Very Light': 'var(--blue)', Light: '#7fb1d1', Moderate: 'var(--gold)', Heavy: 'var(--warning)', 'Very Heavy': '#c95d4f' }
+const LABEL_COLOR = { Outstanding: 'var(--success)', Excellent: 'var(--success)', Good: 'var(--gold)', Average: 'var(--warning)', Poor: 'var(--danger)' }
+const WORKLOAD_COLOR = { 'Very Light': 'var(--blue)', Light: 'var(--blue)', Moderate: 'var(--gold)', Heavy: 'var(--warning)', 'Very Heavy': 'var(--danger)' }
 const TERM_LABELS = { Fall: 'Fall', Spring: 'Spring', January: 'Jan' }
 const ALL_TERMS = ['Fall', 'Spring', 'January']
 
@@ -239,13 +239,13 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
                 <button
                   key={term}
                   onClick={() => toggleTerm(term)}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors touch-manipulation min-h-[36px]"
+                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors touch-manipulation min-h-[44px]"
                   style={active
                     ? { background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.95), rgba(132, 18, 36, 0.95))', color: '#fff' }
                     : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
                 >
                   {TERM_LABELS[term]}
-                  {active && <span style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
+                  {active && <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
                 </button>
               )
             })}
@@ -386,6 +386,7 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
     )
   }
 
+  const tickColor = document.documentElement.getAttribute('data-theme') === 'light' ? 'rgba(0,0,0,0.45)' : 'rgba(243,233,226,0.5)'
   const termOrder = { Spring: 0, January: 1, Fall: 2 }
   const chartData = [...biddingHistory]
     .filter((row) => row.bid_clearing_price != null)
@@ -420,8 +421,8 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={trendData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-              <XAxis dataKey="label" tick={{ fill: '#655458', fontSize: 10 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fill: '#655458', fontSize: 10 }} tickLine={false} axisLine={false} domain={['auto', 'auto']} tickFormatter={(value) => `${value}`} width={36} />
+              <XAxis dataKey="label" tick={{ fill: tickColor, fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: tickColor, fontSize: 10 }} tickLine={false} axisLine={false} domain={['auto', 'auto']} tickFormatter={(value) => `${value}`} width={36} />
               <RechartsTooltip content={<BiddingTooltip />} cursor={{ stroke: 'var(--accent-strong)', strokeWidth: 1, strokeDasharray: '3 3' }} />
               <Line type="monotone" dataKey="price" stroke="var(--accent-strong)" strokeWidth={2} dot={{ r: 4, fill: 'var(--accent-strong)', strokeWidth: 0 }} activeDot={{ r: 6 }} />
             </LineChart>

@@ -715,7 +715,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{course.title}</p>
                             <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{(section?.instructors?.length ? section.instructors : course.instructors).join(', ') || 'Instructor TBA'}</p>
                             <p className="mt-2 text-xs" style={{ color: 'var(--text-soft)' }}>{formatClockLabel(course.time_start)} - {formatClockLabel(course.time_end)} {course.meeting_days || ''}</p>
-                            <p className="mt-2 text-xs" style={{ color: 'var(--text-soft)' }}>Metrics Q-score: <span style={{ color: 'var(--text)' }}>{course.enrichment?.metrics_pct ?? 'N/A'}</span></p>
+                            <p className="mt-2 text-xs" style={{ color: 'var(--text-soft)' }}>Instructor rating: <span style={{ color: 'var(--text)' }}>{course.enrichment?.metrics_pct?.Instructor_Rating != null ? `${Math.round(course.enrichment.metrics_pct.Instructor_Rating)}th pct` : 'N/A'}</span></p>
                           </div>
                         )}
                       </div>

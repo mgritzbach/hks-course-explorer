@@ -899,6 +899,7 @@ export default function ScatterPlot({
                   <button
                     onClick={() => toggleFav(code)}
                     title={starred ? 'Remove from shortlist' : 'Add to shortlist'}
+                    aria-label={starred ? 'Remove from shortlist' : 'Add to shortlist'}
                     className="rounded-full border px-2.5 py-1 text-sm transition-colors"
                     style={{ borderColor: starred ? 'var(--gold)' : 'var(--line)', color: starred ? 'var(--gold)' : 'var(--text-muted)' }}
                   >
@@ -908,6 +909,8 @@ export default function ScatterPlot({
               })()}
               <button
                 onClick={() => setPinnedDatum(null)}
+                aria-label="Close course panel"
+                title="Close"
                 className="rounded-full border px-3 py-1 text-[11px] text-muted hover:text-label"
                 style={{ borderColor: 'var(--line)' }}
               >

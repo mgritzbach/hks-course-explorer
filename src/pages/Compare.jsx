@@ -139,6 +139,8 @@ function CourseChip({ course, onRemove }) {
       <span className="max-w-[120px] truncate text-muted">{course.course_name}</span>
       <button
         onClick={() => onRemove(course.id)}
+        aria-label={`Remove ${course.course_code} from comparison`}
+        title={`Remove ${course.course_code}`}
         className="ml-1 rounded-full px-1 text-muted transition-colors hover:text-label"
         style={{ fontSize: 14, lineHeight: 1 }}
       >
@@ -529,6 +531,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
                     </button>
                     <button
                       onClick={() => removeCourse(course.id)}
+                      aria-label={`Remove ${course.course_code} from comparison`}
                       className="mt-2 text-[10px] text-muted transition-colors hover:text-label"
                     >
                       Remove ×
