@@ -109,7 +109,10 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
           )}
         </div>
 
-        <label className="filter-label mb-1.5 block">Keywords</label>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="filter-label">Keywords</label>
+          <span className="hidden rounded border px-1.5 py-0.5 text-[10px] font-mono text-muted md:inline" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>/</span>
+        </div>
         <div className="search-input-wrap">
           <input
             ref={searchRef}
