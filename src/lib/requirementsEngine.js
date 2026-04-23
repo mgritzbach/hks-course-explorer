@@ -97,11 +97,13 @@ export function getPrograms() {
     }))
 }
 
-export function computeProgress(programId, scheduledCourses = []) {
+export function computeProgress(programId, scheduledCourses = [], completedCourses = []) {
   const program = programRequirements[programId]
   if (!program) return null
 
-  const normalizedCourses = scheduledCourses.map(normalizeCourse)
+  const normalizedScheduled = scheduledCourses.map(normalizeCourse)
+  const normalizedCompleted = completedCourses.map((c, i) => ({ ...normalizeCourse({ ...c, _isCompleted: true }, 100000 + i), _isCompleted: true }))
+  const normalizedCourses = [...normalizedScheduled, ...normalizedCompleted]
   const categories = [...(program.categories || [])].sort((left, right) => (left.displayOrder || 0) - (right.displayOrder || 0))
   const usedIndices = new Set()
 

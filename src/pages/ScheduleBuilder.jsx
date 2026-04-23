@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { findConflicts } from '../lib/conflictDetector'
-import { loadPlan, savePlan, PLANS, DEFAULT_PLAN } from '../lib/scheduleStorage'
+import { loadPlan, savePlan, PLANS, DEFAULT_PLAN, loadCompleted, saveCompleted } from '../lib/scheduleStorage'
 import { computeProgress, getPrograms } from '../lib/requirementsEngine'
 import { searchHarvardCourses } from '../lib/harvardApi'
 import { useFavorites } from '../useFavorites'
@@ -249,6 +249,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const { favorites } = useFavorites()
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
   const [planData, setPlanData] = useState(() => loadPlan(DEFAULT_PLAN))
+  const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
   const [term, setTerm] = useState('FULL')
   const [semester, setSemester] = useState('Spring')
   const [showWeekends, setShowWeekends] = useState(false)
@@ -270,6 +271,10 @@ export default function ScheduleBuilder({ courses = [] }) {
   useEffect(() => {
     void savePlan(activePlan, planData)
   }, [activePlan, planData])
+
+  useEffect(() => {
+    saveCompleted(completedCourses)
+  }, [completedCourses])
 
   useEffect(() => {
     if (!reqProgram && programs[0]?.id) setReqProgram(programs[0].id)
@@ -351,8 +356,10 @@ export default function ScheduleBuilder({ courses = [] }) {
     })
     return next
   }, [conflicts])
-  const progress = useMemo(() => (reqProgram ? computeProgress(reqProgram, normalizedPlanCourses) : null), [normalizedPlanCourses, reqProgram])
+  const normalizedCompletedCourses = useMemo(() => completedCourses.map((c, i) => normalizeCourse({ ...c, _isCompleted: true }, i)), [completedCourses])
+  const progress = useMemo(() => (reqProgram ? computeProgress(reqProgram, normalizedPlanCourses, normalizedCompletedCourses) : null), [normalizedPlanCourses, normalizedCompletedCourses, reqProgram])
   const addedCourseCodes = useMemo(() => new Set(normalizedPlanCourses.map((course) => course.courseCode)), [normalizedPlanCourses])
+  const completedCourseCodes = useMemo(() => new Set(normalizedCompletedCourses.map((c) => c.courseCode)), [normalizedCompletedCourses])
   const visibleDayLabels = showWeekends ? [...WEEKDAY_LABELS, ...WEEKEND_LABELS] : WEEKDAY_LABELS
   const numDays = visibleDayLabels.length
   const gridCols = `52px repeat(${numDays}, minmax(0, 1fr))`
@@ -419,6 +426,16 @@ export default function ScheduleBuilder({ courses = [] }) {
       delete next[courseCode]
       return next
     })
+  }
+  const addToCompleted = (course) => {
+    const normalized = normalizeCourse(course)
+    setCompletedCourses((prev) => {
+      if (prev.some((c) => normalizeCourse(c).courseCode === normalized.courseCode)) return prev
+      return [...prev, { ...normalized, _isCompleted: true }]
+    })
+  }
+  const removeFromCompleted = (courseCode) => {
+    setCompletedCourses((prev) => prev.filter((c) => normalizeCourse(c).courseCode !== courseCode))
   }
   const toggleGrid = (courseCode) => {
     setPlanData((current) => ({
@@ -733,6 +750,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <div className="space-y-3">
                   {searchResults.slice(0, 12).map((course, index) => {
                     const added = addedCourseCodes.has(course.courseCode)
+                    const done = completedCourseCodes.has(course.courseCode)
                     return (
                       <div key={`${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
                         <div className="flex items-start justify-between gap-3">
@@ -740,9 +758,14 @@ export default function ScheduleBuilder({ courses = [] }) {
                             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{course.courseCode}</p>
                             <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: 'var(--text-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                           </div>
-                          <button type="button" disabled={added} onClick={() => addToShortlist(course)} className="shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'var(--success)' : 'var(--accent-soft)', borderColor: added ? 'var(--success)' : 'var(--line-strong)', color: added ? 'var(--panel)' : 'var(--text)' }}>
-                            {added ? 'Added ✓' : 'Add'}
-                          </button>
+                          <div className="flex shrink-0 flex-col gap-1.5">
+                            <button type="button" disabled={added || done} onClick={() => addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'var(--success)' : 'var(--accent-soft)', borderColor: added ? 'var(--success)' : 'var(--line-strong)', color: added ? 'var(--panel)' : 'var(--text)' }}>
+                              {added ? 'Added ✓' : 'Add'}
+                            </button>
+                            <button type="button" disabled={done} onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                              {done ? '✓ Done' : '+ Done'}
+                            </button>
+                          </div>
                         </div>
                         <p className="mt-2 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{course.instructors.length ? course.instructors.join(', ') : 'Instructor TBA'}</p>
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -912,6 +935,31 @@ export default function ScheduleBuilder({ courses = [] }) {
 
               <div className="my-5 shrink-0 border-t" style={{ borderColor: 'var(--line)' }} />
 
+              {/* Completed courses section */}
+              <div className="shrink-0">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Completed</p>
+                  <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{completedCourses.length} course{completedCourses.length !== 1 ? 's' : ''}</span>
+                </div>
+                {completedCourses.length === 0 ? (
+                  <p className="text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>Mark past courses as Done in search to count them toward requirements.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {normalizedCompletedCourses.map((c) => (
+                      <div key={c.courseCode} className="flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', opacity: 0.8 }}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[11px]" style={{ color: 'var(--success)' }}>✓</span>
+                          <span className="truncate text-[11px] font-semibold" style={{ color: 'var(--text-soft)' }}>{c.courseCode}</span>
+                        </div>
+                        <button type="button" onClick={() => removeFromCompleted(c.courseCode)} aria-label={`Un-complete ${c.courseCode}`} className="shrink-0 text-[11px] font-bold transition-opacity hover:opacity-70" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="my-5 shrink-0 border-t" style={{ borderColor: 'var(--line)' }} />
+
               <div className="shrink-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Requirements</p>
                 <div className="mt-3">
@@ -934,17 +982,18 @@ export default function ScheduleBuilder({ courses = [] }) {
                         {category.selectedCourses?.length > 0 && (
                           <div className="mt-1.5 space-y-1">
                             {category.selectedCourses.map((sc) => (
-                              <div key={sc._courseCode} className="flex items-center justify-between gap-1.5 rounded-xl px-2 py-1" style={{ background: 'var(--panel-soft)' }}>
-                                <span className="truncate text-[11px] font-semibold" style={{ color: 'var(--text-soft)' }}>{sc._courseCode}</span>
+                              <div key={sc._courseCode} className="flex items-center justify-between gap-1.5 rounded-xl px-2 py-1" style={{ background: 'var(--panel-soft)', opacity: sc._isCompleted ? 0.7 : 1 }}>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {sc._isCompleted && <span className="shrink-0 text-[10px]" style={{ color: 'var(--success)' }}>✓</span>}
+                                  <span className="truncate text-[11px] font-semibold" style={{ color: sc._isCompleted ? 'var(--text-muted)' : 'var(--text-soft)' }}>{sc._courseCode}</span>
+                                </div>
                                 <div className="flex shrink-0 items-center gap-1.5">
                                   <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{sc._credits}cr</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeCourse(sc._courseCode)}
-                                    aria-label={`Remove ${sc._courseCode}`}
-                                    className="flex h-4 w-4 items-center justify-center rounded-full text-[11px] font-bold transition-colors hover:opacity-70"
-                                    style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}
-                                  >×</button>
+                                  {sc._isCompleted ? (
+                                    <button type="button" onClick={() => removeFromCompleted(sc._courseCode)} aria-label={`Un-complete ${sc._courseCode}`} className="flex h-4 w-4 items-center justify-center text-[11px] font-bold transition-opacity hover:opacity-70" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+                                  ) : (
+                                    <button type="button" onClick={() => removeCourse(sc._courseCode)} aria-label={`Remove ${sc._courseCode}`} className="flex h-4 w-4 items-center justify-center text-[11px] font-bold transition-opacity hover:opacity-70" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+                                  )}
                                 </div>
                               </div>
                             ))}

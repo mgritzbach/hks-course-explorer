@@ -3,6 +3,20 @@ import { supabase } from './supabase.js'
 
 export const PLANS = ['Plan A', 'Plan B', 'Plan C', 'Plan D']
 export const DEFAULT_PLAN = 'Plan A'
+const COMPLETED_KEY = 'hks_completed_courses'
+
+export function loadCompleted() {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(COMPLETED_KEY)
+    return Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+export function saveCompleted(courses) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(COMPLETED_KEY, JSON.stringify(Array.isArray(courses) ? courses : []))
+}
 
 function storageKey(planName) {
   return `hks_plan_${planName}`
