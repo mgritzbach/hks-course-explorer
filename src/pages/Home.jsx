@@ -257,6 +257,17 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const bidYear = filters.year === 2026
   const activeFilterCount = countFilterBadges(filters)
 
+  // Derive "last updated" label dynamically from the data
+  const lastUpdatedLabel = useMemo(() => {
+    const evalYears = courses.filter((c) => c.has_eval && !c.is_average && c.year && c.term)
+    if (!evalYears.length) return 'Spring 2025'
+    const maxYear = Math.max(...evalYears.map((c) => c.year))
+    const termsInMaxYear = [...new Set(evalYears.filter((c) => c.year === maxYear).map((c) => c.term))]
+    const termOrder = { Spring: 2, Fall: 1, January: 0 }
+    const latestTerm = termsInMaxYear.sort((a, b) => (termOrder[b] ?? -1) - (termOrder[a] ?? -1))[0]
+    return latestTerm ? `${latestTerm} ${maxYear}` : `${maxYear}`
+  }, [courses])
+
   useEffect(() => {
     document.title = pageTitle(filters)
   }, [filters])
@@ -454,7 +465,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
             </div>
             <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Last updated</span>
-              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>Spring 2025</p>
+              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>{lastUpdatedLabel}</p>
             </div>
           </div>
         </section>

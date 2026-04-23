@@ -488,10 +488,11 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
     setPlanCodes((prev) => new Set([...prev, code]))
   }, [planCodes])
 
-  // "/" shortcut focuses the search input (skip if already in an input/textarea)
+  // "/" shortcut focuses the search input; Escape closes mobile filter drawer
   const searchInputRef = useRef(null)
   useEffect(() => {
     const handler = (event) => {
+      if (event.key === 'Escape') { setFilterOpen(false); return }
       if (event.key !== '/') return
       const tag = document.activeElement?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
