@@ -1,5 +1,6 @@
 import posthog from 'posthog-js'
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 
 const WELCOME = "Hi! I'm your HKS course advisor. Tell me what you're looking for — topic, workload, instructor, bidding pressure — and I'll find the best matches from the 2025 catalog."
 
@@ -65,13 +66,20 @@ function condenseCourses(courses, query, shortlistedCodes = []) {
   return dedupeCourseSummaries([...shortlistedCourses, ...keywordMatches], 30)
 }
 
+// Routes where the ChatBot FAB would collide with UI elements
+const HIDDEN_ROUTES = ['/schedule-builder', '/admin']
+
 export default function ChatBot({ courses, favs }) {
+  const location = useLocation()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+
+  // Don't render on routes where the FAB collides with tool UI
+  if (HIDDEN_ROUTES.some((route) => location.pathname.startsWith(route))) return null
 
   useEffect(() => {
     if (open && messages.length === 0) {
