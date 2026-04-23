@@ -4,3 +4,10 @@ dist/
 *.local
 .env
 .env.*
+
+# Claude worktrees / internal
+.claude/
+
+# Scratch data files
+data/*.bak*
+scripts/supabase_rows.json
