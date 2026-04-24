@@ -189,6 +189,12 @@ function courseHasSchedule(course) {
   return extractDays(course?.meeting_days).length > 0 && minutesFromValue(course?.time_start) != null && minutesFromValue(course?.time_end) != null
 }
 
+const HKS_PREFIXES = new Set(['API', 'BGP', 'DEV', 'DPI', 'IGA', 'MLD', 'SUP', 'MPAID', 'HKS'])
+function isHksCourse(courseCode) {
+  const prefix = String(courseCode || '').split('-')[0].toUpperCase()
+  return HKS_PREFIXES.has(prefix)
+}
+
 function EmptyScheduleState() {
   return (
     <div className="rounded-[24px] border p-5 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
@@ -805,26 +811,32 @@ export default function ScheduleBuilder({ courses = [] }) {
                   {searchResults.slice(0, 12).map((course, index) => {
                     const added = addedCourseCodes.has(course.courseCode)
                     const done = completedCourseCodes.has(course.courseCode)
+                    const hks = isHksCourse(course.courseCode)
                     return (
-                      <div key={`${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+                      <div key={`${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{course.courseCode}</p>
-                            <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: 'var(--text-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
+                              {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
+                            </div>
+                            <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                           </div>
                           <div className="flex shrink-0 flex-col gap-1.5">
                             <button type="button" disabled={added || done} onClick={() => addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'var(--success)' : 'var(--accent-soft)', borderColor: added ? 'var(--success)' : 'var(--line-strong)', color: added ? 'var(--panel)' : 'var(--text)' }}>
                               {added ? 'Added ✓' : 'Add'}
                             </button>
-                            <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
-                              {done ? '✓ Done' : '+ Done'}
-                            </button>
+                            {hks && (
+                              <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                                {done ? '✓ Done' : '+ Done'}
+                              </button>
+                            )}
                           </div>
                         </div>
                         <p className="mt-2 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{course.instructors.length ? course.instructors.join(', ') : 'Instructor TBA'}</p>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
-                          {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
+                          {hks && course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
+                          {hks && course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
                           {course.sections.length > 0 ? (
                             <Chip>{course.sections.length} section{course.sections.length > 1 ? 's' : ''}</Chip>
                           ) : sectionTimesMap.has(course.courseCode) ? (
@@ -838,7 +850,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                           ) : (
                             <Chip tone="danger">No time data</Chip>
                           )}
-                          {(course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
+                          {hks && (course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
                             <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
                           )}
                         </div>
