@@ -419,11 +419,22 @@ export default function ScheduleBuilder({ courses = [] }) {
       _hasLiveTimes: true,
     }
   }), [normalizedPlanCourses, sectionTimesMap])
-  const planAvgRating = useMemo(() => {
-    const ratedCourses = planCoursesEnriched.filter((course) => course.enrichment?.metrics_pct?.overall != null)
-    if (!ratedCourses.length) return null
-    const average = ratedCourses.reduce((sum, course) => sum + Number(course.enrichment.metrics_pct.overall || 0), 0) / ratedCourses.length
-    return average.toFixed(1)
+  // Compute per-category averages across all plan courses that have ratings
+  const planRatings = useMemo(() => {
+    const METRICS = [
+      { key: 'Instructor_Rating', label: 'Instructor' },
+      { key: 'Course_Rating',     label: 'Course' },
+      { key: 'Workload',          label: 'Workload' },
+      { key: 'Rigor',             label: 'Rigor' },
+    ]
+    const result = []
+    for (const { key, label } of METRICS) {
+      const rated = planCoursesEnriched.filter((c) => c.enrichment?.metrics_pct?.[key] != null)
+      if (!rated.length) continue
+      const avg = rated.reduce((sum, c) => sum + Number(c.enrichment.metrics_pct[key]), 0) / rated.length
+      result.push({ label, value: avg.toFixed(0), n: rated.length })
+    }
+    return result
   }, [planCoursesEnriched])
   const gridCourses = useMemo(() => planCoursesEnriched.filter((course) => course.isOnGrid), [planCoursesEnriched])
   const conflicts = useMemo(() => findConflicts(gridCourses), [gridCourses])
@@ -1047,10 +1058,15 @@ export default function ScheduleBuilder({ courses = [] }) {
                       {normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)} cr
                     </p>
                   )}
-                  {planAvgRating != null && (
-                    <p className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>
-                      ★ {planAvgRating} avg
-                    </p>
+                  {planRatings.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                      {planRatings.map(({ label, value }) => (
+                        <div key={label} className="flex items-baseline gap-1">
+                          <span className="text-[10px] uppercase tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>{label}</span>
+                          <span className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>{value}%ile</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
