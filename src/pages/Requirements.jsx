@@ -182,7 +182,7 @@ export default function Requirements({ courses = [] }) {
         >
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="kicker">Hidden Feature</p>
+              <p className="kicker">Degree Planning</p>
               <h1 className="serif-display mt-2 text-4xl font-semibold" style={{ color: 'var(--text)' }}>
                 Requirements Tracker
               </h1>

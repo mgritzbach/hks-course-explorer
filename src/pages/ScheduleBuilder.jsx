@@ -675,7 +675,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         <div className="flex items-center justify-between gap-6 border-b px-6 py-4" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
           <div className="flex items-end gap-4">
             <div>
-              <p className="kicker">Hidden Feature</p>
+              <p className="kicker">Advanced Planning</p>
               <h1 className="serif-display mt-2 text-3xl font-semibold" style={{ color: 'var(--text)' }}>Schedule Builder</h1>
             </div>
             <div className="flex gap-2">

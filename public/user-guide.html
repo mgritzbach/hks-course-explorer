@@ -208,11 +208,14 @@
   <div class="toc">
     <h2>Contents</h2>
     <ol>
-      <li><a href="#overview">Overview</a></li>
+      <li><a href="#overview">Overview &amp; Navigation</a></li>
       <li><a href="#home">Home — Scatter Plot &amp; Course Cards</a></li>
       <li><a href="#courses">Course Explorer — Detail View</a></li>
       <li><a href="#faculty">Faculty Explorer</a></li>
       <li><a href="#compare">Compare Tab</a></li>
+      <li><a href="#schedule">Schedule Builder</a></li>
+      <li><a href="#requirements">Requirements Tracker</a></li>
+      <li><a href="#hub">HUB Style — Institutional View</a></li>
       <li><a href="#bidding">Understanding Bidding Data</a></li>
       <li><a href="#metrics">Evaluation Metrics Explained</a></li>
       <li><a href="#tips">Tips &amp; Settings</a></li>
@@ -237,20 +240,26 @@
     </div>
 
     <h3>Navigation</h3>
-    <p>The app has four sections accessible from the left sidebar (desktop) or bottom navigation bar (mobile):</p>
+    <p>All six main sections are accessible from the navigation bar:</p>
     <ul>
       <li><strong>Home</strong> — Scatter plot overview of the full course catalog</li>
       <li><strong>Courses</strong> — Deep-dive into individual course detail, performance, and bidding</li>
       <li><strong>Faculty</strong> — Instructor profiles with aggregated ratings and teaching history</li>
       <li><strong>Compare</strong> — Side-by-side comparison of up to 5 courses across all metrics</li>
+      <li><a href="/schedule-builder"><strong>Schedule Builder</strong></a> — Build a visual semester timetable, detect conflicts, export to iCal, and track plan credits</li>
+      <li><a href="/requirements"><strong>Requirements</strong></a> — Track degree requirements for all 5 HKS programs in real time against your plan</li>
     </ul>
 
-    <h3>Hidden Tools (Power User)</h3>
-    <p>Three additional tools are accessible via direct URL and not shown in the main navigation:</p>
+    <div class="callout callout-info">
+      <strong>Desktop vs. Mobile</strong>
+      Schedule Builder and Requirements are desktop-only tools — the timetable grid and multi-column card layouts require a large screen. On mobile, they redirect you to visit on a larger screen.
+    </div>
+
+    <h3>Navigation Modes</h3>
+    <p>The app supports two navigation layouts:</p>
     <ul>
-      <li><a href="/schedule-builder"><strong>/schedule-builder</strong></a> — Build a semester schedule with a visual timetable grid. Drag courses from your shortlist, detect time conflicts, and export to iCal.</li>
-      <li><a href="/requirements"><strong>/requirements</strong></a> — Track degree requirements across all 5 HKS programs (MPP, MPA, MC/MPA, MPA-ID, MPA-MC). Compares your scheduled courses against program milestones.</li>
-      <li><a href="/admin"><strong>/admin</strong></a> — Password-protected admin interface for updating course data.</li>
+      <li><strong>Classic</strong> (default) — Left sidebar with branding, nav links, and HKS Resources. Toggle dark/light mode from the sidebar.</li>
+      <li><strong>HUB Style</strong> — Full-width horizontal top navigation bar in Harvard institutional style. Click "🏛 HUB Style" at the bottom of the classic sidebar to switch. Click "← Classic View" in the top bar to return. See <a href="#hub">Section 8</a> for details.</li>
     </ul>
   </section>
 
@@ -450,9 +459,128 @@
     </div>
   </section>
 
-  <!-- 6. Bidding -->
+  <!-- 6. Schedule Builder -->
+  <section id="schedule">
+    <h2>6. Schedule Builder</h2>
+    <p class="section-intro">The Schedule Builder lets you assemble a semester timetable visually, detect conflicts, track total credits, and export a calendar file. It works in parallel with the Requirements Tracker — courses added here automatically feed your degree progress.</p>
+
+    <div class="callout callout-info">
+      <strong>Desktop only</strong>
+      The Schedule Builder requires a large screen for the timetable grid. On mobile you will see a redirect notice.
+    </div>
+
+    <h3>Search &amp; Add Courses</h3>
+    <p>Use the left panel to search for courses:</p>
+    <ul>
+      <li>Type any course name, code, or instructor in the search box</li>
+      <li>Filter by <strong>Concentration</strong>, <strong>STEM</strong>, <strong>Core only</strong>, <strong>Semester</strong>, and <strong>Source</strong> (HKS / Non-HKS / All)</li>
+      <li>Click <strong>Add</strong> to add a course to the current plan's shortlist</li>
+      <li>Your starred courses from Home appear automatically in the <em>From Your Shortlist</em> section for quick access</li>
+    </ul>
+
+    <h3>Four Parallel Plans</h3>
+    <p>Plans A, B, C and D let you model entirely different semester scenarios simultaneously — for example, Plan A = Spring heavy, Plan B = Fall heavy. Switch plans at any time from the top bar without losing any plan's data. Each plan stores its own course list, grid placement, and completed courses independently.</p>
+
+    <h3>Visual Timetable Grid</h3>
+    <p>Once a course is in the shortlist, click the grid icon (or "Done" button) on the course card to place it on the timetable. Meeting times come from two sources:</p>
+    <ul>
+      <li><strong>Supabase database</strong> — Pre-loaded times from the HKS course schedule for current-semester HKS courses</li>
+      <li><strong>Harvard Course API</strong> — Live data for courses found in the API</li>
+    </ul>
+    <p>If a course has no time data yet, you'll see a "No schedule data" message. You can still keep it in your shortlist.</p>
+
+    <h4>Conflict Detection</h4>
+    <p>Overlapping courses are highlighted in red on the grid. A <strong>Conflicts</strong> section appears in the right panel listing all conflicting pairs.</p>
+
+    <h4>Semester &amp; Term Filters</h4>
+    <p>Use the semester quick-chips (Spring / Fall / J-term) to filter the course search and section times database to the relevant semester. The Q1 / Q2 / Full Term buttons affect the iCal export start dates only.</p>
+
+    <h3>Plan Shortlist (Right Panel)</h3>
+    <p>The right panel shows all courses in the current plan with:</p>
+    <ul>
+      <li>Total credit count</li>
+      <li>Avg percentile ratings across Instructor, Course, Workload, and Rigor</li>
+      <li>Individual credit counts and grid status per course</li>
+      <li>The Requirements Tracker below the shortlist (see Section 7)</li>
+    </ul>
+
+    <h3>Completed Courses</h3>
+    <p>Enter past course codes in the <strong>Completed</strong> box (right panel) to mark them as already done. Completed courses count toward your Requirements progress automatically. Type a code and press Enter or click Add.</p>
+
+    <h3>Export to iCal</h3>
+    <p>Click <strong>Export iCal</strong> to download a <code>.ics</code> calendar file for all courses currently on the grid with schedule data. Import it into Google Calendar, Apple Calendar, or Outlook. The file repeats weekly for 14 weeks (Full Term) or 7 weeks (Q1/Q2).</p>
+
+    <h3>Copy Plan as Text</h3>
+    <p>Click <strong>📋 Copy Plan</strong> to copy a formatted text summary of your plan to the clipboard — useful for sharing with advisors, study groups, or pasting into a note.</p>
+  </section>
+
+  <!-- 7. Requirements Tracker -->
+  <section id="requirements">
+    <h2>7. Requirements Tracker</h2>
+    <p class="section-intro">The Requirements Tracker calculates your degree progress in real time based on courses saved in your Schedule Builder plan. It supports all five HKS programs.</p>
+
+    <h3>Supported Programs</h3>
+    <table>
+      <tr><th>Program</th><th>Total Credits</th></tr>
+      <tr><td>MPA — 2-Year</td><td>64 credits</td></tr>
+      <tr><td>MPA-ID (International Development)</td><td>64 credits</td></tr>
+      <tr><td>MC/MPA (Mid-Career)</td><td>48 credits</td></tr>
+      <tr><td>MPP (Public Policy)</td><td>48 credits</td></tr>
+      <tr><td>MC/MPP (Mid-Career Public Policy)</td><td>48 credits</td></tr>
+    </table>
+
+    <h3>How Progress is Calculated</h3>
+    <p>The tracker reads courses from the Schedule Builder plan you select (A, B, C, or D) and matches each course to the requirements it satisfies — using concentration prefix, STEM designation, and Core flag. The same course can satisfy <em>multiple</em> requirements (e.g., a STEM course also counts for its distribution requirement).</p>
+
+    <h3>Requirement Categories</h3>
+    <p>Each program has these categories (with program-specific variations):</p>
+    <ul>
+      <li><strong>Distribution Requirements</strong> (Economics &amp; QA, Management, Ethics &amp; Political Institutions) — at least 4 credits each, no double-counting with PAC</li>
+      <li><strong>Policy Area of Concentration (PAC)</strong> — 8 credits in one policy area (BGP, DPI, IGA, DEV, or SUP prefix)</li>
+      <li><strong>STEM Designation</strong> — 16 STEM-designated credits for the 24-month OPT extension. STEM courses are <em>non-exclusive</em>: they count toward STEM and another category simultaneously</li>
+      <li><strong>Electives</strong> — Remaining credits to reach the program total</li>
+    </ul>
+
+    <div class="callout callout-tip">
+      <strong>STEM OPT Tip</strong>
+      If you need the 24-month STEM OPT extension, you need 16 credits of STEM-designated courses. These are identified with STEM-A or STEM-B tags in the course catalog. Use the STEM filter in the Course Explorer to find them. They are non-exclusive — they count toward STEM <em>and</em> your other requirements simultaneously.
+    </div>
+
+    <h3>Finding Completing Courses</h3>
+    <p>Each requirement card shows a <strong>"Find completing courses"</strong> button that opens the Course Explorer filtered to courses that can satisfy that category. The <strong>"Open in Schedule Builder →"</strong> button jumps directly to the Schedule Builder with the relevant search pre-loaded.</p>
+
+    <h3>Plan Sync</h3>
+    <p>The Requirements Tracker and Schedule Builder share the same four plans (A, B, C, D). Changes you make in the Schedule Builder immediately reflect in the Requirements Tracker when you switch to that tab. The URL includes the plan parameter (<code>?p=MPA_2YR&plan=A</code>) so you can bookmark any state.</p>
+  </section>
+
+  <!-- 8. Hub Mode -->
+  <section id="hub">
+    <h2>8. HUB Style — Institutional View</h2>
+    <p class="section-intro">HUB Style switches the app's navigation and visual design to match the Harvard institutional aesthetic — a full-width horizontal top navigation bar in Harvard Crimson, white panels, sharp corners, and Georgia serif headings.</p>
+
+    <h3>How to Switch</h3>
+    <ul>
+      <li><strong>Activate:</strong> Click <strong>🏛 HUB Style</strong> at the bottom of the left sidebar (Classic mode)</li>
+      <li><strong>Deactivate:</strong> Click <strong>← Classic View</strong> in the top-right of the Hub navigation bar</li>
+      <li>Your preference is saved to your browser and persists across sessions and page navigations</li>
+    </ul>
+
+    <h3>What Changes in HUB Style</h3>
+    <ul>
+      <li><strong>Navigation</strong> — The left sidebar is replaced by a full-width top bar with the HKS shield logo, all six page links, and action buttons on the right</li>
+      <li><strong>Colors</strong> — Harvard Crimson (#C41230) replaces the custom accent color; backgrounds shift to clean white and light gray</li>
+      <li><strong>Typography</strong> — Arial body font; Georgia for headings — matching Harvard's institutional style guide</li>
+      <li><strong>Corners</strong> — All rounded elements become sharp-cornered (2–4px radius) consistent with Harvard web properties</li>
+      <li><strong>Content</strong> — Page content is unchanged; all filters, data, and interactions work identically</li>
+    </ul>
+
+    <h3>When to Use HUB Style</h3>
+    <p>HUB Style is designed for presentations, shared screens, and situations where the tool's Harvard affiliation should be visually evident. The Classic dark/light design is optimized for extended personal use during bidding season research.</p>
+  </section>
+
+  <!-- 9. Bidding -->
   <section id="bidding">
-    <h2>6. Understanding Bidding Data</h2>
+    <h2>9. Understanding Bidding Data</h2>
     <p class="section-intro">HKS uses a bid-point auction system for course selection. Understanding the data helps you allocate your points strategically.</p>
 
     <h3>Key Terms</h3>
@@ -484,7 +612,7 @@
 
   <!-- 7. Metrics -->
   <section id="metrics">
-    <h2>7. Evaluation Metrics Explained</h2>
+    <h2>10. Evaluation Metrics Explained</h2>
     <p class="section-intro">All metrics come from HKS end-of-term student evaluations (QReports). Each is rated on a 1–5 scale by enrolled students and then converted to a percentile rank vs. all courses in the dataset.</p>
 
     <table>
@@ -511,16 +639,15 @@
 
   <!-- 8. Tips -->
   <section id="tips">
-    <h2>8. Tips &amp; Settings</h2>
+    <h2>11. Tips &amp; Settings</h2>
 
-    <h3>Guided Tour</h3>
-    <p>An interactive spotlight tour runs automatically on your first visit to each section. If you want to replay it:</p>
-    <ol>
-      <li>Open the left sidebar filter panel on any page</li>
-      <li>Scroll to the bottom</li>
-      <li>Click <strong>"↺ Replay intro &amp; tour"</strong></li>
-    </ol>
-    <p>This clears all tour and splash state and reloads the page from the beginning.</p>
+    <h3>Guided Tours</h3>
+    <p>An interactive spotlight tour auto-starts on your first visit to each section (Home, Courses, Faculty, Compare, Schedule Builder, Requirements). Each tour highlights key UI elements with a spotlight effect and explains how to use them.</p>
+    <p>To replay any tour:</p>
+    <ul>
+      <li>Click the <strong>❓ Tour</strong> button in the top navigation bar (Hub mode) or at the bottom of the sidebar (Classic mode)</li>
+      <li>Or click <strong>"↺ Replay tour"</strong> in the left sidebar filter panel on any page</li>
+    </ul>
 
     <h3>Colorblind Mode</h3>
     <p>Available in the sidebar filter panel under <strong>Accessibility</strong>. Replaces the default red/green color scheme with orange/blue for all scatter plot quadrant shading.</p>

@@ -173,6 +173,64 @@ html[data-theme='hub'] .serif-display {
   font-weight: 700;
 }
 
+/* Hub: kicker text → crimson accent instead of gold */
+html[data-theme='hub'] .kicker {
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+
+/* Hub: page headings — sharper, no gradient glow */
+html[data-theme='hub'] h1,
+html[data-theme='hub'] h2,
+html[data-theme='hub'] h3 {
+  letter-spacing: -0.02em;
+}
+
+/* Hub: remove soft gradient backgrounds from panels */
+html[data-theme='hub'] [style*="linear-gradient"] {
+  /* Can't suppress all inline gradients — handled per component */
+}
+
+/* Hub: action button system */
+.hub-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--panel-soft);
+  color: var(--text-soft);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+  line-height: 1;
+}
+.hub-action-btn:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.hub-action-primary {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+.hub-action-primary:hover {
+  opacity: 0.88;
+}
+.hub-action-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--line-strong);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
 /* Hub: top nav link hover */
 html[data-theme='hub'] .hub-nav-link {
   color: var(--text-soft);

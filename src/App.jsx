@@ -511,11 +511,17 @@ export default function App() {
           }}
         >
           {/* Logo */}
-          <div className="flex shrink-0 items-center gap-3 border-r px-5" style={{ height: '100%', borderColor: 'var(--line)' }}>
-            <div>
-              <p className="serif-display text-xl font-bold" style={{ color: 'var(--accent)', letterSpacing: '-0.02em' }}>HKS</p>
-              <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: -2 }}>Course Explorer</p>
-            </div>
+          <div className="flex shrink-0 items-center gap-0 border-r" style={{ height: '100%', borderColor: 'var(--line)', minWidth: 180 }}>
+            <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px', height: '100%', textDecoration: 'none' }}>
+              {/* Shield icon */}
+              <div style={{ width: 32, height: 32, background: 'var(--accent)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ color: '#fff', fontSize: 14, fontWeight: 800, fontFamily: 'Georgia, serif', letterSpacing: '-0.02em' }}>H</span>
+              </div>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 700, fontFamily: 'Georgia, serif', color: 'var(--accent)', letterSpacing: '-0.01em', lineHeight: 1.1 }}>HKS</p>
+                <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-muted)', lineHeight: 1 }}>Course Explorer</p>
+              </div>
+            </a>
           </div>
 
           {/* Nav links — horizontal, hub style */}
@@ -536,13 +542,13 @@ export default function App() {
           </nav>
 
           {/* Actions — right side */}
-          <div className="ml-auto flex items-center gap-2 px-4">
+          <div className="ml-auto flex items-center gap-1.5 px-4">
             {favs.count > 0 && (
               <>
                 <button
                   type="button"
                   onClick={handleShareShortlist}
-                  className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+                  className="hub-action-btn"
                   style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--accent)' }}
                 >
                   {shareCopied ? '✓ Copied!' : `🔗 Share (${favs.count})`}
@@ -550,19 +556,19 @@ export default function App() {
                 <button
                   type="button"
                   onClick={handleExportShortlist}
-                  className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-                  style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text-soft)' }}
+                  className="hub-action-btn"
                 >
                   ⬇ CSV
                 </button>
+                <div className="hub-action-divider" />
               </>
             )}
             <a
               href="/user-guide.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-              style={{ background: 'transparent', borderColor: 'var(--line)', color: 'var(--text-muted)', textDecoration: 'none' }}
+              className="hub-action-btn"
+              style={{ textDecoration: 'none' }}
             >
               ⓘ Guide
             </a>
@@ -574,19 +580,18 @@ export default function App() {
                 data-tally-overlay="1"
                 data-tally-emoji-text="🐛"
                 data-tally-emoji-animation="wave"
-                className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-                style={{ background: 'transparent', borderColor: 'var(--line)', color: 'var(--text-muted)' }}
+                className="hub-action-btn"
               >
-                🐛 Feedback
+                Feedback
               </button>
             )}
+            <div className="hub-action-divider" />
             <button
               type="button"
               onClick={toggleHubTheme}
-              className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-              style={{ background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' }}
+              className="hub-action-btn hub-action-primary"
             >
-              ← Classic
+              ← Classic View
             </button>
           </div>
         </header>
