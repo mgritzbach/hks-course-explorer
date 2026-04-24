@@ -811,7 +811,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                             <button type="button" disabled={added || done} onClick={() => addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'var(--success)' : 'var(--accent-soft)', borderColor: added ? 'var(--success)' : 'var(--line-strong)', color: added ? 'var(--panel)' : 'var(--text)' }}>
                               {added ? 'Added ✓' : 'Add'}
                             </button>
-                            <button type="button" disabled={done} onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                            <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
                               {done ? '✓ Done' : '+ Done'}
                             </button>
                           </div>
@@ -822,6 +822,14 @@ export default function ScheduleBuilder({ courses = [] }) {
                           {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
                           {course.sections.length > 0 ? (
                             <Chip>{course.sections.length} section{course.sections.length > 1 ? 's' : ''}</Chip>
+                          ) : sectionTimesMap.has(course.courseCode) ? (
+                            (() => {
+                              const DAY_ABBR = { MON: 'M', TUE: 'Tu', WED: 'W', THU: 'Th', FRI: 'F', SAT: 'Sa', SUN: 'Su' }
+                              const mtgs = sectionTimesMap.get(course.courseCode)
+                              const days = [...new Set(mtgs.map((m) => DAY_ABBR[m.day] || m.day))].join('/')
+                              const start = mtgs[0]?.start || ''
+                              return <Chip tone="success">{days}{start ? ` ${start}` : ''}</Chip>
+                            })()
                           ) : (
                             <Chip tone="danger">No time data</Chip>
                           )}
