@@ -487,16 +487,20 @@ export default function ScheduleBuilder({ courses = [] }) {
     setCompletedCourses((prev) => prev.filter((c) => normalizeCourse(c).courseCode !== courseCode))
   }
   const toggleGrid = (courseCode) => {
+    // Use the enriched version (has Supabase times merged in) for both the
+    // schedule check and writing times back into planData so they persist.
+    const enrichedCourse = planCoursesEnriched.find((c) => c.courseCode === courseCode)
     setPlanData((current) => ({
       ...current,
       name: activePlan,
       courses: (Array.isArray(current?.courses) ? current.courses : []).map((course) => {
         const normalized = normalizeCourse(course)
         if (normalized.courseCode !== courseCode) return course
-        if (!normalized.isOnGrid && !courseHasSchedule(normalized)) {
+        const courseWithTimes = enrichedCourse || normalized
+        if (!courseWithTimes.isOnGrid && !courseHasSchedule(courseWithTimes)) {
           setGridMessages((messages) => ({
             ...messages,
-            [courseCode]: 'No schedule data — this course has no time slot in our database',
+            [courseCode]: 'No schedule data — this course has no time slot in our database yet',
           }))
           return course
         }
@@ -506,7 +510,8 @@ export default function ScheduleBuilder({ courses = [] }) {
           delete next[courseCode]
           return next
         })
-        return { ...normalized, isOnGrid: !normalized.isOnGrid }
+        // Write enriched times into planData so they survive re-renders
+        return { ...courseWithTimes, isOnGrid: !courseWithTimes.isOnGrid }
       }),
     }))
   }
