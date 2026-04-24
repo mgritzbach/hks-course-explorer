@@ -10,6 +10,16 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE_CSV = ROOT / "data" / "canonical_courses_enriched.csv"
 OUTPUT_JSON = ROOT / "public" / "courses.json"
 
+# Core course codes — backfill is_core=True for any year where the CSV column
+# is missing (data source didn't tag 2024+ rows).
+CORE_COURSE_CODES = {
+    "API-101", "API-102", "API-201", "API-202", "API-202-M",
+    "API-501", "API-502",
+    "DPI-200", "DPI-201", "DPI-202", "DPI-202-M",
+    "DPI-385-M", "DPI-386-M",
+    "MLD-220-M", "MLD-221", "MLD-222-M",
+}
+
 # Maps old course_code_base values to their current canonical equivalent.
 # Rows with an old code get historical_code=<old> and canonical_code_base=<new>.
 HISTORICAL_CODE_MAP = {
@@ -433,7 +443,7 @@ def build_course(row, latest_bid_lookup):
         "description": clean_text(row.get("description")),
         "course_url": clean_text(row.get("course_url")),
         "is_stem": parse_bool(row.get("is_stem")),
-        "is_core": parse_bool(row.get("core")),
+        "is_core": parse_bool(row.get("core")) or (HISTORICAL_CODE_MAP.get(course_code_base, course_code_base) in CORE_COURSE_CODES),
         "is_average": parse_bool(row.get("is_average")),
         "year_range": nullable_text(row.get("year_range")),
         "n_terms": parse_int(row.get("n_terms")),

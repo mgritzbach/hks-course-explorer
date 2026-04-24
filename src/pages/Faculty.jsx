@@ -77,7 +77,7 @@ function FacultySidebar({
   const filters = activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })
 
   return (
-    <aside className="flex h-full flex-col overflow-hidden shrink-0" style={{ width: mobile ? '100%' : 292, background: 'linear-gradient(180deg, var(--panel-strong), var(--panel-soft))', borderRight: '1px solid var(--line)' }}>
+    <aside data-tour="faculty-list" className="flex h-full flex-col overflow-hidden shrink-0" style={{ width: mobile ? '100%' : 292, background: 'linear-gradient(180deg, var(--panel-strong), var(--panel-soft))', borderRight: '1px solid var(--line)' }}>
       <div className="shrink-0 border-b px-4 pb-3 pt-4" style={{ borderColor: 'var(--line)' }}>
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -182,6 +182,7 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
   const [taughtSinceYear, setTaughtSinceYear] = useState('any')
   const [sortBy, setSortBy] = useState('name_asc')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const drawerTouchStartRef = useRef(null)
 
   useEffect(() => { const professor = searchParams.get('prof'); if (professor) setSelectedProf(professor) }, [searchParams])
   useEffect(() => { document.title = 'HKS Faculty Explorer' }, [])
@@ -319,12 +320,40 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
     else setSidebarOpen(false)
   }
 
+  const handleDrawerTouchStart = (event) => {
+    const touch = event.touches[0]
+    if (!touch) return
+    drawerTouchStartRef.current = { x: touch.clientX, y: touch.clientY }
+  }
+
+  const handleDrawerTouchEnd = (event) => {
+    const start = drawerTouchStartRef.current
+    const touch = event.changedTouches[0]
+    drawerTouchStartRef.current = null
+    if (!start || !touch) return
+
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+
+    if (deltaX < -60 || deltaY > 80) {
+      setSidebarOpen(false)
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       <OnboardingTour steps={FACULTY_TOUR_STEPS} storageKey="hks-tour-faculty" autoStart={replayTour} onDone={() => { setReplayTour(false); setSidebarOpen(false) }} onStepChange={handleTourStepChange} />
       {selectedData && <OnboardingTour steps={FACULTY_DETAIL_TOUR_STEPS} storageKey="hks-tour-faculty-detail" />}
-      {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close faculty list" />}
-      <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>
+      <div
+        className={`mobile-drawer-backdrop md:hidden ${sidebarOpen ? 'open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden={!sidebarOpen}
+      />
+      <div
+        className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}
+        onTouchStart={handleDrawerTouchStart}
+        onTouchEnd={handleDrawerTouchEnd}
+      >
         <FacultySidebar
           meta={meta}
           displayedProfs={displayedProfs}
@@ -378,41 +407,19 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
         />
       </div>
 
-      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-8 md:py-6">
+      <main data-tour="faculty-detail" className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-8 md:py-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div><p className="kicker mb-2">Teaching lens</p><h2 className="serif-display text-3xl font-semibold md:text-[2.4rem]" style={{ color: 'var(--text)' }}>Faculty Explorer</h2><p className="mt-2 text-xs text-muted md:text-sm">Browse teaching history and weighted rating averages for HKS instructors.</p></div>
           <button onClick={() => setSidebarOpen(true)} className="rounded-full border px-3 py-2 text-xs font-medium text-label md:hidden" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', minHeight: 44 }}>Browse Faculty{activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })})` : ''}</button>
         </div>
 
         {!selectedData && (
-          <div className="flex flex-1 flex-col items-center justify-center text-center" style={{ paddingBottom: 80 }}>
-            <p className="mb-1 text-2xl" style={{ lineHeight: 1 }}>&#x1F393;</p>
-            <p className="mb-1 mt-3 font-medium text-label">Select an instructor</p>
-            <p className="mb-6 text-xs text-muted">
-              {allProfessors.length} instructors with eval data - use the sidebar to search or filter
+          <div className="flex flex-1 flex-col items-center justify-center px-6 text-center" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-3xl" aria-hidden="true">👤</p>
+            <h3 className="mt-4 text-lg font-semibold" style={{ color: 'var(--text)' }}>Select an instructor</h3>
+            <p className="mt-2 max-w-md text-sm">
+              Choose any instructor from the list to see teaching history evaluation trends and course-level ratings.
             </p>
-            {allProfessors.length > 0 && (
-              <div className="max-w-md">
-                <p className="mb-2 text-[10px] uppercase tracking-wider text-muted">Top rated instructors</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {[...allProfessors]
-                    .filter((prof) => prof.avgMetrics?.Instructor_Rating != null)
-                    .sort((a, b) => (b.avgMetrics.Instructor_Rating - a.avgMetrics.Instructor_Rating) || b.evalCourses - a.evalCourses)
-                    .slice(0, 8)
-                    .map((prof) => (
-                      <button
-                        key={prof.professor}
-                        onClick={() => handleSelectProf(prof)}
-                        className="rounded-full border px-3 py-1.5 text-xs text-label transition-colors hover:text-label"
-                        style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
-                      >
-                        {prof.professor_display}
-                        <span className="ml-1.5 font-medium" style={{ color: 'var(--success)' }}>{fmtShort(prof.avgMetrics.Instructor_Rating, metricMode)}</span>
-                      </button>
-                    ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -478,7 +485,7 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
             </div>
           </div>
 
-          <div className="app-footer mt-8">HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}</div>
+          <div className="app-footer mt-8">HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach<span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span></a> VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}</div>
         </>}
       </main>
     </div>

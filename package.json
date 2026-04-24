@@ -11,6 +11,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
     "@supabase/supabase-js": "^2.104.0",
     "ics": "^3.11.0",
     "plotly.js-dist-min": "^2.29.0",
@@ -22,6 +25,7 @@
     "react-plotly.js": "^2.6.0",
     "react-router-dom": "^6.22.0",
     "recharts": "^3.8.1",
+    "sharp": "^0.34.5",
     "uuid": "^14.0.0",
     "xlsx": "^0.18.5"
   },

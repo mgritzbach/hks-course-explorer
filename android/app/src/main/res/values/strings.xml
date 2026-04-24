@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">HKS Course Explorer</string>
+    <string name="title_activity_main">HKS Course Explorer</string>
+    <string name="package_name">edu.harvard.hks.courseexplorer</string>
+    <string name="custom_url_scheme">edu.harvard.hks.courseexplorer</string>
+</resources>

@@ -20,8 +20,8 @@ const SEMESTER_OPTIONS = [
 
 function fallbackSearch(q, allCourses, filters = {}) {
   const query = String(q || '').trim().toLowerCase()
-  const { concentration, stem, coreOnly, semester, searchSource } = filters
-  const hasFilters = (concentration && concentration !== 'All') || (stem && stem !== 'all') || coreOnly || (semester && semester !== 'All') || (searchSource && searchSource !== 'All')
+  const { concentration, stem, coreOnly, semester, searchSource, minRating, allYears } = filters
+  const hasFilters = (concentration && concentration !== 'All') || (stem && stem !== 'all') || coreOnly || (semester && semester !== 'All') || (searchSource && searchSource !== 'All') || minRating
   if (!query && !hasFilters) return []
   // Map semester → (year, term) used in the courses table
   const semesterTermMap = {
@@ -29,9 +29,9 @@ function fallbackSearch(q, allCourses, filters = {}) {
     Fall:    { year: 2025, term: 'Fall' },
     January: { year: 2025, term: 'January' },
   }
-  const termFilter = semesterTermMap[semester] || null
+  const termFilter = (allYears || !semester || semester === 'All') ? null : (semesterTermMap[semester] || null)
   return (Array.isArray(allCourses) ? allCourses : [])
-    .filter((c) => !c?.is_average && Number(c?.year || 0) >= 2024)
+    .filter((c) => !c?.is_average)
     .filter((c) => {
       const hks = isHksCourse(c?.course_code_base || c?.course_code)
       if (query && !([c?.course_code, c?.course_name, c?.professor, c?.professor_display].filter(Boolean).join(' ').toLowerCase().includes(query))) return false
@@ -41,12 +41,11 @@ function fallbackSearch(q, allCourses, filters = {}) {
       if (coreOnly && !c?.is_core) return false
       if (searchSource === 'HKS' && !hks) return false
       if (searchSource === 'Non-HKS' && hks) return false
-      // Filter by semester/term if a matching entry exists in the catalog
       if (termFilter && (Number(c?.year) !== termFilter.year || c?.term !== termFilter.term)) return false
+      if (minRating && (c?.metrics_pct?.Instructor_Rating == null || Number(c.metrics_pct.Instructor_Rating) < Number(minRating))) return false
       return true
     })
     .sort((a, b) => Number(b?.year || 0) - Number(a?.year || 0))
-    .slice(0, 12)
     .map((c) => ({
       courseCode: c.course_code_base || c.course_code,
       title: c.course_name,
@@ -198,6 +197,11 @@ function isHksCourse(courseCode) {
   return HKS_PREFIXES.has(prefix)
 }
 
+const HIST_RATING_KEYS = ['Instructor_Rating', 'Course_Rating', 'Workload', 'Rigor']
+function hasMeaningfulRatings(pct) {
+  return Boolean(pct && typeof pct === 'object' && HIST_RATING_KEYS.some((k) => pct[k] != null && Number(pct[k]) > 0))
+}
+
 function EmptyScheduleState() {
   return (
     <div className="rounded-[24px] border p-5 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
@@ -278,6 +282,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searchStem, setSearchStem] = useState('all')
   const [searchCoreOnly, setSearchCoreOnly] = useState(false)
   const [searchSource, setSearchSource] = useState('HKS')
+  const [searchMinRating, setSearchMinRating] = useState('')
+  const [completedSearchQ, setCompletedSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [apiMode, setApiMode] = useState('unknown') // 'live' | 'db' | 'unknown'
@@ -288,6 +294,11 @@ export default function ScheduleBuilder({ courses = [] }) {
   const exportMsgTimeoutRef = useRef(null)
   const [copyPlanMsg, setCopyPlanMsg] = useState(null)
   const copyPlanTimeoutRef = useRef(null)
+  const [collapsedSections, setCollapsedSections] = useState({ shortlist: false, completed: true, requirements: false })
+  const toggleSection = (key) => setCollapsedSections((s) => ({ ...s, [key]: !s[key] }))
+  const importInputRef = useRef(null)
+  const [saveLoadMsg, setSaveLoadMsg] = useState(null)
+  const saveLoadTimeoutRef = useRef(null)
   useEffect(() => {
     void savePlan(activePlan, planData)
   }, [activePlan, planData])
@@ -332,8 +343,8 @@ export default function ScheduleBuilder({ courses = [] }) {
 
   useEffect(() => {
     const query = searchQ.trim()
-    const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly, semester, searchSource }
-    const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly || searchSource !== 'All'
+    const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly, semester, searchSource, minRating: searchMinRating }
+    const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly || searchSource !== 'All' || searchMinRating
     if (!query && !hasFilters) {
       setSearching(false)
       setSearchResults([])
@@ -353,7 +364,6 @@ export default function ScheduleBuilder({ courses = [] }) {
           if (searchStem === 'stem') normalized = normalized.filter((c) => c.enrichment?.is_stem)
           if (searchStem === 'nonstem') normalized = normalized.filter((c) => !c.enrichment?.is_stem)
           if (searchCoreOnly) normalized = normalized.filter((c) => c.enrichment?.is_core)
-          normalized = normalized.slice(0, 12)
           if (normalized.length) {
             setApiMode('live')
             setSearchResults(normalized)
@@ -380,7 +390,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester])
+  }, [courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -388,23 +398,67 @@ export default function ScheduleBuilder({ courses = [] }) {
     return ['All', ...[...seen].sort()]
   }, [courses])
 
+  // Search results for the "Completed" section — searches all years for any HKS course
+  const completedSearchResults = useMemo(() => {
+    const q = completedSearchQ.trim().toLowerCase()
+    if (!q) return []
+    return (Array.isArray(courses) ? courses : [])
+      .filter((c) => !c?.is_average && isHksCourse(c?.course_code_base || c?.course_code))
+      .filter((c) => [c?.course_code, c?.course_name, c?.professor, c?.professor_display].filter(Boolean).join(' ').toLowerCase().includes(q))
+      .sort((a, b) => Number(b?.year || 0) - Number(a?.year || 0))
+      // Deduplicate by course_code_base — keep most recent
+      .reduce((acc, c) => {
+        const key = c.course_code_base || c.course_code
+        if (!acc.seen.has(key)) { acc.seen.add(key); acc.list.push(c) }
+        return acc
+      }, { seen: new Set(), list: [] }).list
+      .slice(0, 20)
+  }, [completedSearchQ, courses])
+
+  // Historical ratings map: course_code_base → metrics_pct from best available row
+  // Prefer is_average rows (multi-year aggregate), fall back to most recent year with actual rating values
+  const histRatingsMap = useMemo(() => {
+    const map = new Map()
+    ;(Array.isArray(courses) ? courses : []).forEach((c) => {
+      const key = c.course_code_base || c.course_code
+      if (!key || !hasMeaningfulRatings(c.metrics_pct)) return
+      const existing = map.get(key)
+      // Prefer is_average (aggregate) over single-year; among same type prefer newer
+      const isBetter = !existing
+        || (c.is_average && !existing._isAvg)
+        || (!c.is_average && !existing._isAvg && Number(c.year || 0) > Number(existing._year || 0))
+      if (isBetter) map.set(key, { metrics_pct: c.metrics_pct, _isAvg: !!c.is_average, _year: c.year })
+    })
+    return map
+  }, [courses])
+
   const normalizedPlanCourses = useMemo(() => (Array.isArray(planData?.courses) ? planData.courses : []).map((course, index) => normalizeCourse(course, index)), [planData])
-  // Enrich plan courses with Supabase meeting times where missing.
-  // Must be declared before gridCourses which depends on it.
+  // Enrich plan courses with Supabase meeting times + historical ratings where missing.
   const planCoursesEnriched = useMemo(() => normalizedPlanCourses.map((course) => {
-    if (courseHasSchedule(course)) return course // already has times
-    const meetings = sectionTimesMap.get(course.courseCode) || sectionTimesMap.get(course.courseCode.split('-').slice(0, 2).join('-'))
-    if (!meetings?.length) return course
+    let enriched = course
+    // 1. Inject historical ratings if current enrichment has no meaningful ratings
+    if (!hasMeaningfulRatings(enriched.enrichment?.metrics_pct)) {
+      // Try exact code, then strip section suffix (e.g. IGA-412-M → IGA-412)
+      const baseCode = enriched.courseCode.split('-').slice(0, 2).join('-')
+      const hist = histRatingsMap.get(enriched.courseCode) || histRatingsMap.get(baseCode)
+      if (hist) {
+        enriched = { ...enriched, enrichment: { ...(enriched.enrichment || {}), metrics_pct: hist.metrics_pct, _ratingFromHistory: true } }
+      }
+    }
+    // 2. Inject live section times if schedule not yet present
+    if (courseHasSchedule(enriched)) return enriched
+    const meetings = sectionTimesMap.get(enriched.courseCode) || sectionTimesMap.get(enriched.courseCode.split('-').slice(0, 2).join('-'))
+    if (!meetings?.length) return enriched
     const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
     return {
-      ...course,
+      ...enriched,
       meeting_days: allDays,
       time_start: meetings[0].start,
       time_end: meetings[0].end,
-      location: meetings[0].location || course.location,
+      location: meetings[0].location || enriched.location,
       _hasLiveTimes: true,
     }
-  }), [normalizedPlanCourses, sectionTimesMap])
+  }), [normalizedPlanCourses, sectionTimesMap, histRatingsMap])
   // Compute per-category averages across all plan courses that have ratings
   const planRatings = useMemo(() => {
     const METRICS = [
@@ -626,6 +680,64 @@ export default function ScheduleBuilder({ courses = [] }) {
     })
   }
 
+  const handleSavePlan = () => {
+    try {
+      // Snapshot all 4 plans + completed list
+      const snapshot = {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        activePlan,
+        plans: Object.fromEntries(PLANS.map((name) => [name, loadPlan(name)])),
+        completedCourses,
+      }
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `hks-plan-${activePlan.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      if (saveLoadTimeoutRef.current) clearTimeout(saveLoadTimeoutRef.current)
+      setSaveLoadMsg('Saved!')
+      saveLoadTimeoutRef.current = setTimeout(() => setSaveLoadMsg(null), 2500)
+    } catch {
+      setSaveLoadMsg('Error saving')
+      saveLoadTimeoutRef.current = setTimeout(() => setSaveLoadMsg(null), 2500)
+    }
+  }
+
+  const handleLoadPlan = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    // Reset input so same file can be re-selected
+    event.target.value = ''
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const snapshot = JSON.parse(e.target.result)
+        if (!snapshot?.plans || snapshot.version !== 1) throw new Error('Invalid file')
+        // Restore all plans
+        PLANS.forEach((name) => { if (snapshot.plans[name]) savePlan(name, snapshot.plans[name]) })
+        // Restore completed courses
+        if (Array.isArray(snapshot.completedCourses)) {
+          setCompletedCourses(snapshot.completedCourses)
+        }
+        // Switch to the active plan from the snapshot
+        const planToLoad = PLANS.includes(snapshot.activePlan) ? snapshot.activePlan : PLANS[0]
+        setActivePlan(planToLoad)
+        setPlanData(loadPlan(planToLoad))
+        if (saveLoadTimeoutRef.current) clearTimeout(saveLoadTimeoutRef.current)
+        setSaveLoadMsg('Loaded!')
+        saveLoadTimeoutRef.current = setTimeout(() => setSaveLoadMsg(null), 2500)
+      } catch {
+        if (saveLoadTimeoutRef.current) clearTimeout(saveLoadTimeoutRef.current)
+        setSaveLoadMsg('Invalid file')
+        saveLoadTimeoutRef.current = setTimeout(() => setSaveLoadMsg(null), 2500)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const handleSearchKeyDown = (event) => {
     if (event.key !== 'Enter') return
     const firstUnadded = searchResults.find((r) => !addedCourseCodes.has(r.courseCode))
@@ -661,12 +773,38 @@ export default function ScheduleBuilder({ courses = [] }) {
 
   return (
     <div className="h-full overflow-hidden">
-      <div className="flex h-full items-center justify-center px-6 text-center md:hidden">
-        <div className="max-w-sm">
-          <h1 className="serif-display text-3xl font-semibold" style={{ color: 'var(--text)' }}>Schedule Builder</h1>
-          <p className="mt-4 text-sm leading-6" style={{ color: 'var(--text-muted)' }}>Open on desktop for Schedule Builder</p>
-          <a href="/requirements" className="mt-5 inline-flex rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>
-            Go to Requirements
+      {/* ── Mobile gate — Schedule Builder needs a wide screen ── */}
+      <div className="flex h-full flex-col items-center justify-center gap-6 overflow-y-auto px-6 py-12 text-center md:hidden">
+        <div
+          className="w-full max-w-sm rounded-[28px] border p-8"
+          style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}
+        >
+          <div style={{ fontSize: 48, lineHeight: 1 }}>🗓</div>
+          <h1 className="serif-display mt-4 text-2xl font-semibold" style={{ color: 'var(--text)' }}>Schedule Builder</h1>
+          <p className="mt-3 text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
+            The timetable grid needs a wider screen. Open this page on a laptop or tablet in landscape mode.
+          </p>
+          <div className="mt-2 rounded-2xl border px-4 py-3 text-left text-xs" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+            <p className="font-semibold" style={{ color: 'var(--text-soft)' }}>💡 Tip</p>
+            <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
+              Star courses on the Courses tab and they'll appear in the Schedule Builder when you switch to desktop.
+            </p>
+          </div>
+        </div>
+        <div className="flex w-full max-w-sm flex-col gap-3">
+          <a
+            href="/courses"
+            className="flex items-center justify-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
+            style={{ background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' }}
+          >
+            📖 Browse Courses
+          </a>
+          <a
+            href="/requirements"
+            className="flex items-center justify-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
+            style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+          >
+            ✅ Requirements Tracker
           </a>
         </div>
       </div>
@@ -678,7 +816,7 @@ export default function ScheduleBuilder({ courses = [] }) {
               <p className="kicker">Advanced Planning</p>
               <h1 className="serif-display mt-2 text-3xl font-semibold" style={{ color: 'var(--text)' }}>Schedule Builder</h1>
             </div>
-            <div className="flex gap-2">
+            <div data-tour="plan-tabs" className="flex gap-2">
               {PLANS.map((planName) => {
                 const active = planName === activePlan
                 return (
@@ -727,6 +865,37 @@ export default function ScheduleBuilder({ courses = [] }) {
             >
               {showWeekends ? 'Hide Weekends' : '+ Weekends'}
             </button>
+            {/* Hidden file input for JSON import */}
+            <input ref={importInputRef} type="file" accept=".json,application/json" onChange={handleLoadPlan} className="hidden" aria-label="Load plan from JSON" />
+
+            {/* Save / Load JSON */}
+            <button
+              type="button"
+              onClick={handleSavePlan}
+              title="Save all plans + completed courses to a JSON file"
+              className="rounded-full border px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
+              style={{
+                background: saveLoadMsg === 'Saved!' ? 'var(--success-soft)' : 'var(--panel-soft)',
+                borderColor: saveLoadMsg === 'Saved!' ? 'var(--success)' : 'var(--line-strong)',
+                color: saveLoadMsg === 'Saved!' ? 'var(--success)' : 'var(--text-soft)',
+              }}
+            >
+              {saveLoadMsg === 'Saved!' ? '✓ Saved' : '💾 Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => importInputRef.current?.click()}
+              title="Load a previously saved plan JSON file"
+              className="rounded-full border px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
+              style={{
+                background: saveLoadMsg === 'Loaded!' ? 'var(--success-soft)' : saveLoadMsg && saveLoadMsg !== 'Saved!' ? 'var(--warning-soft)' : 'var(--panel-soft)',
+                borderColor: saveLoadMsg === 'Loaded!' ? 'var(--success)' : saveLoadMsg && saveLoadMsg !== 'Saved!' ? 'var(--warning)' : 'var(--line-strong)',
+                color: saveLoadMsg === 'Loaded!' ? 'var(--success)' : saveLoadMsg && saveLoadMsg !== 'Saved!' ? 'var(--warning)' : 'var(--text-soft)',
+              }}
+            >
+              {saveLoadMsg === 'Loaded!' ? '✓ Loaded' : saveLoadMsg && saveLoadMsg !== 'Saved!' ? `⚠ ${saveLoadMsg}` : '📂 Load'}
+            </button>
+
             {normalizedPlanCourses.length > 0 && (
               <button
                 type="button"
@@ -759,7 +928,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         </div>
 
         <div className="flex min-h-0 flex-1">
-          <aside className="flex h-full w-[280px] shrink-0 flex-col border-r" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
+          <aside data-tour="schedule-search" className="flex h-full w-[280px] shrink-0 flex-col border-r" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
             <div className="border-b p-4" style={{ borderColor: 'var(--line)' }}>
               <div className="mb-2 flex items-center justify-between gap-2">
                 <label className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Course Search</label>
@@ -848,6 +1017,22 @@ export default function ScheduleBuilder({ courses = [] }) {
                     )
                   })}
                 </div>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={searchMinRating}
+                    onChange={(e) => setSearchMinRating(e.target.value)}
+                    className="flex-1 rounded-xl border px-2 py-1.5 text-xs"
+                    style={{ background: 'var(--panel-soft)', borderColor: searchMinRating ? 'var(--accent)' : 'var(--line-strong)', color: 'var(--text)' }}
+                    aria-label="Minimum instructor rating percentile"
+                  >
+                    <option value="">Any rating</option>
+                    <option value="50">≥ 50th %ile</option>
+                    <option value="65">≥ 65th %ile</option>
+                    <option value="75">≥ 75th %ile</option>
+                    <option value="85">≥ 85th %ile</option>
+                    <option value="90">≥ 90th %ile</option>
+                  </select>
+                </div>
               </div>
               {searchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result</p>
@@ -856,33 +1041,13 @@ export default function ScheduleBuilder({ courses = [] }) {
               ) : null}
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col p-4">
-              {!searchQ.trim() ? (
-                shortlistedSuggestions.length > 0 ? (
-                  <div>
-                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>★ From your shortlist</p>
-                    <div className="space-y-2">
-                      {shortlistedSuggestions.map((course) => (
-                        <div key={course.courseCode} className="flex items-center justify-between gap-2 rounded-2xl border px-3 py-2" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold" style={{ color: 'var(--text)' }}>{course.courseCode}</p>
-                            <p className="truncate text-[11px]" style={{ color: 'var(--text-muted)' }}>{course.instructors[0] || 'TBA'}</p>
-                          </div>
-                          <button type="button" onClick={() => addToShortlist(course)} className="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--accent-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>Add</button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center rounded-[24px] border p-6 text-center" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-muted)' }}>Type to search HKS courses</div>
-                )
-              ) : searching ? (
-                <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Searching...</div>
-              ) : searchResults.length === 0 ? (
-                <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No matching courses found.</div>
-              ) : (
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+              {searching ? (
+                <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Searching…</div>
+              ) : searchResults.length > 0 ? (
                 <div className="space-y-3">
-                  {searchResults.slice(0, 12).map((course, index) => {
+                  <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>{searchResults.length} course{searchResults.length !== 1 ? 's' : ''} found</p>
+                  {searchResults.map((course, index) => {
                     const added = addedCourseCodes.has(course.courseCode)
                     const done = completedCourseCodes.has(course.courseCode)
                     const hks = isHksCourse(course.courseCode)
@@ -932,11 +1097,43 @@ export default function ScheduleBuilder({ courses = [] }) {
                     )
                   })}
                 </div>
+              ) : (
+                /* No results — show shortlist if available, otherwise a browse prompt */
+                shortlistedSuggestions.length > 0 && !searchQ.trim() ? (
+                  <div>
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>★ From your shortlist</p>
+                    <div className="space-y-2">
+                      {shortlistedSuggestions.map((course) => (
+                        <div key={course.courseCode} className="flex items-center justify-between gap-2 rounded-2xl border px-3 py-2" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold" style={{ color: 'var(--text)' }}>{course.courseCode}</p>
+                            <p className="truncate text-[11px]" style={{ color: 'var(--text-muted)' }}>{course.instructors[0] || 'TBA'}</p>
+                          </div>
+                          <button type="button" onClick={() => addToShortlist(course)} className="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--accent-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>Add</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : searchQ.trim() ? (
+                  <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No matching courses found.</div>
+                ) : (
+                  <div className="flex flex-col items-center gap-3 py-10 text-center">
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Use the filters above to browse, or type to search.</p>
+                    <button
+                      type="button"
+                      onClick={() => setSearchSource('HKS')}
+                      className="rounded-full border px-4 py-2 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
+                      style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--text)' }}
+                    >
+                      Browse all {semester} HKS courses
+                    </button>
+                  </div>
+                )
               )}
             </div>
           </aside>
 
-          <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto" style={{ background: 'var(--panel-strong)' }}>
+          <main data-tour="schedule-grid" className="min-w-0 flex-1 overflow-x-auto overflow-y-auto" style={{ background: 'var(--panel-strong)' }}>
             <div className="min-w-[720px] p-6">
               {conflicts.length > 0 && (
                 <div className="mb-4 rounded-[20px] border px-4 py-3 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--danger)', color: 'var(--danger)' }}>
@@ -1009,132 +1206,139 @@ export default function ScheduleBuilder({ courses = [] }) {
             </div>
           </main>
 
-          <aside className="flex h-full w-[280px] shrink-0 flex-col border-l" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
-            <div className="flex min-h-0 flex-1 flex-col p-4">
-              <div className="shrink-0">
+          <aside data-tour="plan-shortlist" className="flex h-full w-[280px] shrink-0 flex-col border-l" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
+            <div className="flex-1 overflow-y-auto">
+
+              {/* ── SECTION 1: SHORTLIST ── */}
+              <div className="p-4">
+                {/* Header row */}
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Shortlist</p>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => toggleSection('shortlist')} className="flex h-4 w-4 items-center justify-center text-[10px] transition-transform" style={{ color: 'var(--text-muted)', transform: collapsedSections.shortlist ? 'rotate(-90deg)' : 'rotate(0deg)' }} aria-label="Toggle shortlist">▾</button>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Shortlist</p>
+                    <span className="text-sm" style={{ color: 'var(--text-soft)' }}>{normalizedPlanCourses.length}</span>
+                    {normalizedPlanCourses.length > 0 && (
+                      <span className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>{normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)} cr</span>
+                    )}
+                  </div>
                   {normalizedPlanCourses.length >= 2 && (
-                    <a
-                      href={`/compare?ids=${normalizedPlanCourses.slice(0, 5).map((c) => encodeURIComponent(c.courseCode)).join(',')}`}
-                      className="text-xs font-semibold transition-transform hover:-translate-y-[1px]"
-                      style={{ color: 'var(--accent)' }}
-                      title="Open top 5 shortlisted courses in Compare"
-                    >
-                      ⇄ Compare
-                    </a>
+                    <a href={`/compare?ids=${normalizedPlanCourses.slice(0, 5).map((c) => encodeURIComponent(c.courseCode)).join(',')}`} className="text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ color: 'var(--accent)' }} title="Compare top 5">⇄ Compare</a>
                   )}
                 </div>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <p className="text-sm" style={{ color: 'var(--text-soft)' }}>{normalizedPlanCourses.length} course{normalizedPlanCourses.length === 1 ? '' : 's'}</p>
-                  {normalizedPlanCourses.length > 0 && (
-                    <p className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>
-                      {normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)} cr
-                    </p>
-                  )}
-                  {planRatings.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                      {planRatings.map(({ label, value }) => (
-                        <div key={label} className="flex items-baseline gap-1">
+
+                {/* Plan avg ratings — always visible, shows n of m courses rated per metric */}
+                <div className="mt-2 rounded-xl border px-3 py-2" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>Plan avg ratings</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {[
+                      { key: 'Instructor_Rating', label: 'Instr.' },
+                      { key: 'Course_Rating',     label: 'Course' },
+                      { key: 'Workload',          label: 'Work.' },
+                      { key: 'Rigor',             label: 'Rigor' },
+                    ].map(({ key, label }) => {
+                      const LABEL_MAP = { Instructor_Rating: 'Instructor', Course_Rating: 'Course', Workload: 'Workload', Rigor: 'Rigor' }
+                      const entry = planRatings.find((r) => r.label === LABEL_MAP[key])
+                      return (
+                        <div key={key} className="flex items-baseline gap-1">
                           <span className="text-[10px] uppercase tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>{label}</span>
-                          <span className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>{value}%ile</span>
+                          <span className="text-xs font-semibold" style={{ color: entry ? 'var(--gold)' : 'var(--text-muted)' }}>
+                            {entry ? `${entry.value}%` : '—'}
+                          </span>
+                          {entry && (
+                            <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{entry.n}/{normalizedPlanCourses.length}</span>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
-                {normalizedPlanCourses.length === 0 ? (
-                  searchQ.trim() ? (
-                    <div className="rounded-[24px] border p-5 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-muted)' }}>
-                      Add courses from search to start a plan.
-                    </div>
-                  ) : (
-                    <EmptyScheduleState />
-                  )
-                ) : planCoursesEnriched.map((course) => {
-                  const onGrid = course.isOnGrid
-                  const inConflict = conflictSet.has(course.courseCode)
-                  return (
-                    <div key={course.courseCode} className="rounded-[24px] border p-4" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold" style={{ color: 'var(--text)' }}>{course.courseCode}</p>
-                            <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>{course.credits || 4} cr</span>
+                {/* Collapsible course list */}
+                {!collapsedSections.shortlist && (
+                  <div className="mt-4 space-y-3">
+                    {normalizedPlanCourses.length === 0 ? (
+                      <EmptyScheduleState />
+                    ) : planCoursesEnriched.map((course) => {
+                      const onGrid = course.isOnGrid
+                      const inConflict = conflictSet.has(course.courseCode)
+                      const hasRatings = hasMeaningfulRatings(course.enrichment?.metrics_pct)
+                      const isHistorical = course.enrichment?._ratingFromHistory
+                      return (
+                        <div key={course.courseCode} className="rounded-[24px] border p-4" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="truncate text-sm font-semibold" style={{ color: 'var(--text)' }}>{course.courseCode}</p>
+                                {!hasRatings ? (
+                                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>no evals</span>
+                                ) : isHistorical ? (
+                                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>hist. data</span>
+                                ) : null}
+                                <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>{course.credits || 4} cr</span>
+                              </div>
+                              <p className="mt-1 truncate text-sm" style={{ color: 'var(--text-soft)' }}>{course.title}</p>
+                              {hasRatings && (
+                                <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                  Instr. <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{Math.round(course.enrichment.metrics_pct.Instructor_Rating)}%</span>
+                                  {course.enrichment.metrics_pct.Course_Rating != null && (
+                                    <> · Course <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{Math.round(course.enrichment.metrics_pct.Course_Rating)}%</span></>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                            <button type="button" onClick={() => removeCourse(course.courseCode)} className="shrink-0 text-sm font-semibold" style={{ color: 'var(--danger)' }} aria-label={`Remove ${course.courseCode}`}>×</button>
                           </div>
-                          <p className="mt-1 truncate text-sm" style={{ color: 'var(--text-soft)' }}>{course.title}</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
+                            {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
+                            {!course.enrichment?.is_core && !course.enrichment?.is_stem && <Chip>Elective</Chip>}
+                            {course._hasLiveTimes && <Chip tone="success">🕐 Live times</Chip>}
+                            {(course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
+                              <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
+                            )}
+                          </div>
+                          {course.sections.length > 0 && (
+                            <div className="mt-3">
+                              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>Section</label>
+                              <select value={course.selectedSectionId} onChange={(event) => changeSection(course.courseCode, event.target.value)} className="w-full rounded-2xl border px-3 py-2 text-sm" style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>
+                                {course.sections.map((section) => <option key={section.id} value={section.id}>{section.code}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          <button type="button" onClick={() => toggleGrid(course.courseCode)} className="mt-3 w-full rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: onGrid ? 'var(--gold-soft)' : 'var(--accent-soft)', borderColor: onGrid ? 'var(--gold)' : 'var(--line-strong)', color: 'var(--text)' }}>
+                            {onGrid ? 'Remove from grid' : 'Place on grid'}
+                          </button>
+                          {gridMessages[course.courseCode] && <p className="mt-3 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{gridMessages[course.courseCode]}</p>}
+                          {inConflict && <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--danger)' }}>Conflict detected</p>}
                         </div>
-                        <button type="button" onClick={() => removeCourse(course.courseCode)} className="text-sm font-semibold" style={{ color: 'var(--danger)' }} aria-label={`Remove ${course.courseCode}`}>×</button>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
-                        {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
-                        {!course.enrichment?.is_core && !course.enrichment?.is_stem && <Chip>Elective</Chip>}
-                        {course._hasLiveTimes && <Chip tone="success">🕐 Live times</Chip>}
-                        {(course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
-                          <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
-                        )}
-                      </div>
-                      {course.sections.length > 0 && (
-                        <div className="mt-3">
-                          <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>Section</label>
-                          <select value={course.selectedSectionId} onChange={(event) => changeSection(course.courseCode, event.target.value)} className="w-full rounded-2xl border px-3 py-2 text-sm" style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>
-                            {course.sections.map((section) => <option key={section.id} value={section.id}>{section.code}</option>)}
-                          </select>
-                        </div>
-                      )}
-                      <button type="button" onClick={() => toggleGrid(course.courseCode)} className="mt-3 w-full rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: onGrid ? 'var(--gold-soft)' : 'var(--accent-soft)', borderColor: onGrid ? 'var(--gold)' : 'var(--line-strong)', color: 'var(--text)' }}>
-                        {onGrid ? 'Remove from grid' : 'Place on grid'}
-                      </button>
-                      {gridMessages[course.courseCode] && <p className="mt-3 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{gridMessages[course.courseCode]}</p>}
-                      {inConflict && <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--danger)' }}>Conflict detected</p>}
-                    </div>
-                  )
-                })}
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
-              <div className="my-5 shrink-0 border-t" style={{ borderColor: 'var(--line)' }} />
+              <div className="border-t" style={{ borderColor: 'var(--line)' }} />
 
-              {/* Completed courses section */}
-              <div className="shrink-0">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Completed</p>
-                  <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{completedCourses.length} course{completedCourses.length !== 1 ? 's' : ''}</span>
+              {/* ── SECTION 2: COMPLETED ── */}
+              <div className="p-4">
+                {/* Header */}
+                <div className="mb-3 rounded-xl border px-3 py-2.5" style={{ background: 'color-mix(in srgb, var(--success) 8%, var(--panel-soft))', borderColor: 'color-mix(in srgb, var(--success) 30%, var(--line))' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => toggleSection('completed')} className="flex h-4 w-4 items-center justify-center text-[10px] transition-transform" style={{ color: 'var(--success)', transform: collapsedSections.completed ? 'rotate(-90deg)' : 'rotate(0deg)' }} aria-label="Toggle completed">▾</button>
+                      <span style={{ fontSize: 15 }}>🎓</span>
+                      <p className="text-xs font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--success)' }}>Already Taken</p>
+                    </div>
+                    <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' }}>{completedCourses.length} course{completedCourses.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-4" style={{ color: 'var(--text-muted)' }}>Log courses you've completed — they count toward your requirements tracker below.</p>
                 </div>
-                <div className="mb-2 flex gap-2">
-                  <input
-                    type="text"
-                    value={completedInput}
-                    onChange={(event) => setCompletedInput(event.target.value.toUpperCase())}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter') return
-                      event.preventDefault()
-                      handleQuickAddCompleted()
-                    }}
-                    placeholder="Add course code"
-                    className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-xs outline-none transition-colors"
-                    style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
-                    aria-label="Quick add completed course code"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleQuickAddCompleted}
-                    disabled={!completedInput.trim()}
-                    className="shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default disabled:opacity-50"
-                    style={{ background: 'var(--accent-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
-                  >
-                    Add
-                  </button>
-                </div>
-                {completedCourses.length === 0 ? (
-                  <p className="text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>Mark past courses as Done in search to count them toward requirements.</p>
-                ) : (
-                  <div className="space-y-1.5">
+
+                {/* Taken courses list — always visible for easy review/delete */}
+                {completedCourses.length > 0 && (
+                  <div className="mb-3 space-y-1.5">
                     {normalizedCompletedCourses.map((c) => (
-                      <div key={c.courseCode} className="flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', opacity: 0.8 }}>
+                      <div key={c.courseCode} className="flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5" style={{ background: 'color-mix(in srgb, var(--success) 6%, var(--panel-soft))', borderColor: 'color-mix(in srgb, var(--success) 25%, var(--line))' }}>
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="text-[11px]" style={{ color: 'var(--success)' }}>✓</span>
                           <span className="truncate text-[11px] font-semibold" style={{ color: 'var(--text-soft)' }}>{c.courseCode}</span>
@@ -1144,68 +1348,136 @@ export default function ScheduleBuilder({ courses = [] }) {
                     ))}
                   </div>
                 )}
-              </div>
 
-              <div className="my-5 shrink-0 border-t" style={{ borderColor: 'var(--line)' }} />
-
-              <div className="shrink-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Requirements</p>
-                <div className="mt-3">
-                  <select value={reqProgram} onChange={(event) => setReqProgram(event.target.value)} className="w-full rounded-2xl border px-3 py-2 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>
-                    {programs.map((program) => <option key={program.id} value={program.id}>{program.label}</option>)}
-                  </select>
-                </div>
-                {progress ? (
-                  <div className="mt-4 space-y-4">
-                    {progress.categories.map((category) => (
-                      <div key={category.id}>
-                        <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-                          <span style={{ color: category.isComplete ? 'var(--success)' : 'var(--text-soft)' }}>
-                            {category.isComplete ? '✓ ' : ''}{category.label}
-                            {category.chosenArea ? ` (${category.chosenArea})` : ''}
-                          </span>
-                          <span style={{ color: 'var(--text)' }}>{category.appliedCredits}/{category.requiredCredits} cr</span>
+                {/* Search + add — behind collapse toggle */}
+                {!collapsedSections.completed && (
+                  <>
+                    <div className="relative mb-2">
+                      <input
+                        type="text"
+                        value={completedSearchQ}
+                        onChange={(e) => setCompletedSearchQ(e.target.value)}
+                        placeholder="🔍  Search courses you've taken…"
+                        className="w-full rounded-xl border px-3 py-2.5 text-xs outline-none transition-colors"
+                        style={{ background: 'var(--panel-soft)', borderColor: completedSearchQ ? 'var(--success)' : 'var(--line-strong)', color: 'var(--text)' }}
+                        aria-label="Search courses already taken"
+                      />
+                      {completedSearchResults.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-xl border shadow-lg" style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)' }}>
+                          {completedSearchResults.map((c) => {
+                            const code = c.course_code_base || c.course_code
+                            const alreadyDone = completedCourseCodes.has(code)
+                            return (
+                              <button
+                                key={code}
+                                type="button"
+                                onClick={() => {
+                                  if (!alreadyDone) addToCompleted({ courseCode: code, title: c.course_name, instructors: [c.professor_display || c.professor].filter(Boolean), credits: 4, sections: [], enrichment: {} })
+                                  setCompletedSearchQ('')
+                                }}
+                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--panel-soft)]"
+                              >
+                                <div className="min-w-0 flex-1 overflow-hidden">
+                                  <span className="font-semibold" style={{ color: 'var(--text)' }}>{code}</span>
+                                  <span className="ml-2" style={{ color: 'var(--text-muted)' }}>{c.course_name}</span>
+                                </div>
+                                {alreadyDone ? (
+                                  <span className="shrink-0 text-xs font-semibold" style={{ color: 'var(--success)' }}>✓ Added</span>
+                                ) : (
+                                  <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)' }}>✓ Mark done</span>
+                                )}
+                              </button>
+                            )
+                          })}
                         </div>
-                        <ProgressBar value={category.percent} tone={category.isComplete ? 'var(--success)' : 'var(--accent)'} label={`${category.label}: ${category.appliedCredits}/${category.requiredCredits} credits`} />
-                        {category.selectedCourses?.length > 0 && (
-                          <div className="mt-1.5 space-y-1">
-                            {category.selectedCourses.map((sc) => (
-                              <div key={sc._courseCode} className="flex items-center justify-between gap-1.5 rounded-xl px-2 py-1" style={{ background: 'var(--panel-soft)', opacity: sc._isCompleted ? 0.7 : 1 }}>
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  {sc._isCompleted && <span className="shrink-0 text-[10px]" style={{ color: 'var(--success)' }}>✓</span>}
-                                  <span className="truncate text-[11px] font-semibold" style={{ color: sc._isCompleted ? 'var(--text-muted)' : 'var(--text-soft)' }}>{sc._courseCode}</span>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-1.5">
-                                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{sc._credits}cr</span>
-                                  {sc._isCompleted ? (
-                                    <button type="button" onClick={() => removeFromCompleted(sc._courseCode)} aria-label={`Un-complete ${sc._courseCode}`} className="flex h-4 w-4 items-center justify-center text-[11px] font-bold transition-opacity hover:opacity-70" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
-                                  ) : (
-                                    <button type="button" onClick={() => removeCourse(sc._courseCode)} aria-label={`Remove ${sc._courseCode}`} className="flex h-4 w-4 items-center justify-center text-[11px] font-bold transition-opacity hover:opacity-70" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    <div className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
-                      <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-                        <span style={{ color: 'var(--text-soft)' }}>Total credits</span>
-                        <span style={{ color: 'var(--text)' }}>{progress.overallAppliedCredits}/{progress.totalRequiredCredits} cr</span>
-                      </div>
-                      <ProgressBar value={progress.overallPercent} tone="var(--gold)" label={`Total: ${progress.overallAppliedCredits}/${progress.totalRequiredCredits} credits`} />
+                      )}
                     </div>
-                    <a
-                      href={`/requirements?p=${reqProgram}`}
-                      className="mt-1 block text-center text-xs font-semibold transition-transform hover:-translate-y-[1px]"
-                      style={{ color: 'var(--accent)' }}
-                    >
-                      Full tracker →
-                    </a>
-                  </div>
-                ) : <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>No program definitions available.</p>}
+                    <details className="mb-2">
+                      <summary className="cursor-pointer select-none text-[11px]" style={{ color: 'var(--text-muted)' }}>Add by course code</summary>
+                      <div className="mt-1.5 flex gap-2">
+                        <input
+                          type="text"
+                          value={completedInput}
+                          onChange={(event) => setCompletedInput(event.target.value.toUpperCase())}
+                          onKeyDown={(event) => { if (event.key !== 'Enter') return; event.preventDefault(); handleQuickAddCompleted() }}
+                          placeholder="e.g. API-101"
+                          className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-xs outline-none transition-colors"
+                          style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+                          aria-label="Quick add completed course code"
+                        />
+                        <button type="button" onClick={handleQuickAddCompleted} disabled={!completedInput.trim()} className="shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default disabled:opacity-50" style={{ background: 'var(--accent-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>Add</button>
+                      </div>
+                    </details>
+                    {completedCourses.length === 0 && (
+                      <p className="text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>Search above to mark courses as completed.</p>
+                    )}
+                  </>
+                )}
               </div>
+
+              <div className="border-t" style={{ borderColor: 'var(--line)' }} />
+
+              {/* ── SECTION 3: REQUIREMENTS ── */}
+              <div data-tour="req-tracker" className="p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <button type="button" onClick={() => toggleSection('requirements')} className="flex h-4 w-4 items-center justify-center text-[10px] transition-transform" style={{ color: 'var(--text-muted)', transform: collapsedSections.requirements ? 'rotate(-90deg)' : 'rotate(0deg)' }} aria-label="Toggle requirements">▾</button>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Requirements</p>
+                </div>
+                {!collapsedSections.requirements && (
+                  <>
+                    <div className="mb-3">
+                      <select value={reqProgram} onChange={(event) => setReqProgram(event.target.value)} className="w-full rounded-2xl border px-3 py-2 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}>
+                        {programs.map((program) => <option key={program.id} value={program.id}>{program.label}</option>)}
+                      </select>
+                    </div>
+                    {progress ? (
+                      <div className="space-y-4">
+                        {progress.categories.map((category) => (
+                          <div key={category.id}>
+                            <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                              <span style={{ color: category.isComplete ? 'var(--success)' : 'var(--text-soft)' }}>
+                                {category.isComplete ? '✓ ' : ''}{category.label}
+                                {category.chosenArea ? ` (${category.chosenArea})` : ''}
+                              </span>
+                              <span style={{ color: 'var(--text)' }}>{category.appliedCredits}/{category.requiredCredits} cr</span>
+                            </div>
+                            <ProgressBar value={category.percent} tone={category.isComplete ? 'var(--success)' : 'var(--accent)'} label={`${category.label}: ${category.appliedCredits}/${category.requiredCredits} credits`} />
+                            {category.selectedCourses?.length > 0 && (
+                              <div className="mt-1.5 space-y-1">
+                                {category.selectedCourses.map((sc) => (
+                                  <div key={sc._courseCode} className="flex items-center justify-between gap-1.5 rounded-xl px-2 py-1" style={{ background: 'var(--panel-soft)', opacity: sc._isCompleted ? 0.7 : 1 }}>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      {sc._isCompleted && <span className="shrink-0 text-[10px]" style={{ color: 'var(--success)' }}>✓</span>}
+                                      <span className="truncate text-[11px] font-semibold" style={{ color: sc._isCompleted ? 'var(--text-muted)' : 'var(--text-soft)' }}>{sc._courseCode}</span>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-1.5">
+                                      <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{sc._credits}cr</span>
+                                      {sc._isCompleted ? (
+                                        <button type="button" onClick={() => removeFromCompleted(sc._courseCode)} aria-label={`Un-complete ${sc._courseCode}`} className="flex h-4 w-4 items-center justify-center text-[11px] font-bold transition-opacity hover:opacity-70" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+                                      ) : (
+                                        <button type="button" onClick={() => removeCourse(sc._courseCode)} aria-label={`Remove ${sc._courseCode}`} className="flex h-4 w-4 items-center justify-center text-[11px] font-bold transition-opacity hover:opacity-70" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <div className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
+                          <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                            <span style={{ color: 'var(--text-soft)' }}>Total credits</span>
+                            <span style={{ color: 'var(--text)' }}>{progress.overallAppliedCredits}/{progress.totalRequiredCredits} cr</span>
+                          </div>
+                          <ProgressBar value={progress.overallPercent} tone="var(--gold)" label={`Total: ${progress.overallAppliedCredits}/${progress.totalRequiredCredits} credits`} />
+                        </div>
+                        <a href={`/requirements?p=${reqProgram}`} className="mt-1 block text-center text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ color: 'var(--accent)' }}>Full tracker →</a>
+                      </div>
+                    ) : <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>No program definitions available.</p>}
+                  </>
+                )}
+              </div>
+
             </div>
           </aside>
         </div>

@@ -192,7 +192,7 @@ export default function Requirements({ courses = [] }) {
                 {' '}to add courses.
               </p>
               {/* Plan A/B/C/D selector */}
-              <div className="mt-4 flex gap-1">
+              <div data-tour="req-plans" className="mt-4 flex gap-1">
                 {PLANS.map((plan) => {
                   const active = plan === activePlan
                   return (
@@ -214,7 +214,7 @@ export default function Requirements({ courses = [] }) {
               </div>
             </div>
 
-            <div className="w-full max-w-sm">
+            <div data-tour="req-program" className="w-full max-w-sm">
               <label htmlFor="req-program-select" className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
                 Program
               </label>
@@ -290,7 +290,7 @@ export default function Requirements({ courses = [] }) {
           </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div data-tour="req-cards" className="grid gap-5 lg:grid-cols-2">
           {progress.categories.map((category) => {
             const accentColor = COLOR_MAP[category.color] || 'var(--accent)'
             const suggestions = suggestionMap[category.id] || []
@@ -299,6 +299,7 @@ export default function Requirements({ courses = [] }) {
             return (
               <section
                 key={category.id}
+                data-tour={category.id === 'stem' ? 'req-stem' : undefined}
                 className="rounded-[24px] p-5"
                 style={{
                   background: category.isComplete

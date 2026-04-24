@@ -362,7 +362,8 @@ html[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
 /* ─── Form elements ──────────────────────────────────────────────────────────── */
 
 select,
-input[type="text"] {
+input[type="text"],
+textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -385,7 +386,8 @@ select optgroup {
 }
 
 html[data-theme='light'] select,
-html[data-theme='light'] input[type="text"] {
+html[data-theme='light'] input[type="text"],
+html[data-theme='light'] textarea {
   background: rgba(255, 255, 255, 0.7);
   color-scheme: light;
 }
@@ -402,13 +404,15 @@ input[type="text"]::placeholder {
 }
 
 select:focus,
-input[type="text"]:focus {
+input[type="text"]:focus,
+textarea:focus {
   border-color: rgba(212, 168, 106, 0.5);
   box-shadow: 0 0 0 3px rgba(212, 168, 106, 0.1);
 }
 
 html[data-theme='light'] select:focus,
-html[data-theme='light'] input[type="text"]:focus {
+html[data-theme='light'] input[type="text"]:focus,
+html[data-theme='light'] textarea:focus {
   box-shadow: 0 0 0 3px rgba(154, 97, 24, 0.1);
 }
 
@@ -706,6 +710,18 @@ html[data-theme='light'] .preset-pill.active {
   animation: spin 0.7s linear infinite;
 }
 
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--panel-subtle) 25%, var(--panel-soft) 50%, var(--panel-subtle) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 8px;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
 .app-footer {
   border-top: 1px solid var(--line);
   padding: 14px 28px;
@@ -733,13 +749,19 @@ html[data-theme='light'] .app-footer {
 
 /* ─── Mobile drawer ──────────────────────────────────────────────────────────── */
 
-.mobile-drawer-overlay {
+.mobile-drawer-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 45;
-  background: var(--overlay);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  z-index: 49;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.mobile-drawer-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .mobile-drawer {
@@ -820,7 +842,134 @@ html[data-theme='light'] .app-footer {
   select,
   input[type="text"],
   input[type="email"],
-  input[type="number"] {
+  input[type="number"],
+  textarea {
     font-size: 16px !important;
   }
+}
+
+/* ─── Mobile: tap highlight & touch improvements ─────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Remove default tap highlight color on mobile (iOS blue flash) */
+  * {
+    -webkit-tap-highlight-color: rgba(165, 28, 48, 0.12);
+  }
+
+  /* Ensure all interactive elements have a decent minimum touch target */
+  button,
+  a,
+  [role="button"] {
+    min-height: 36px;
+  }
+
+  /* Preset pills: slightly bigger on mobile */
+  .preset-pill {
+    padding: 8px 16px;
+    font-size: 12px;
+    min-height: 42px;
+  }
+
+  /* Filter badge: easier to see on mobile */
+  .filter-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  /* Panel shell: less padding on mobile */
+  .panel-shell {
+    border-radius: 18px;
+  }
+
+  /* Card hover: disable transform on mobile (no hover, waste of paint) */
+  .card-hover:hover {
+    transform: none;
+  }
+}
+
+/* ─── Mobile: improved bottom nav clearance ──────────────────────────────────── */
+
+/* Pages should have extra bottom padding on mobile so content isn't behind nav */
+@media (max-width: 767px) {
+  .mobile-page-scroll {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+  }
+}
+
+/* ─── Smooth scroll on main containers ───────────────────────────────────────── */
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ─── Better focus rings for accessibility ───────────────────────────────────── */
+
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Mobile: course card adjustments ────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Sort bar: stack vertically and full-width selects on small screens */
+  .sort-bar {
+    border-radius: 18px;
+  }
+}
+
+/* ─── Theme toggle: better touch size on mobile ──────────────────────────────── */
+
+@media (max-width: 767px) {
+  .theme-toggle {
+    padding: 8px 14px;
+    min-height: 36px;
+  }
+}
+
+/* ─── Mobile: btn-details full-width feel ────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  /* On very small phones, make action buttons easier to tap */
+  .btn-details {
+    min-height: 44px;
+    padding: 10px 22px;
+  }
+}
+
+/* ─── Animated page transitions ──────────────────────────────────────────────── */
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: fadeSlideIn 0.2s var(--ease-out) both;
+}
+
+/* ─── Mobile: top-tabs-bar improvements ─────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .top-tabs-bar {
+    padding: 8px 8px 10px;
+    border-radius: 18px;
+    min-height: 52px;
+  }
+}
+
+/* ─── Hub theme mobile ───────────────────────────────────────────────────────── */
+
+html[data-theme='hub'] .mobile-bottom-nav-pill {
+  border-radius: 2px !important;
 }

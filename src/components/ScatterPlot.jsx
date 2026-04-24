@@ -4,8 +4,9 @@ import Plot from 'react-plotly.js'
 import { useFavorites } from '../useFavorites'
 
 const MIN_ZOOM_SPAN_RATIO = 0.015
+const SCATTER_JITTER = 0.015
 
-// Deterministic jitter: consistent per course, breaks up tied-value vertical stripes
+// Deterministic jitter keeps tied points from stacking directly on top of each other.
 function hashJitter(str, scale = 1) {
   let hash = 5381
   for (let i = 0; i < str.length; i++) {
@@ -13,6 +14,19 @@ function hashJitter(str, scale = 1) {
     hash = hash & hash
   }
   return ((hash % 1000) / 1000) * scale * 2 - scale
+}
+
+function buildHoverTemplate(isBidOnly = false) {
+  return isBidOnly
+    ? '<b>%{customdata.course_name}</b><br>%{customdata.course_code}<br>%{customdata.professor_display}<extra></extra>'
+    : '<b>%{customdata.course_name}</b><br>%{customdata.course_code}<br>%{customdata.professor_display}<extra></extra>'
+}
+
+function getAxisTitle(metric, metricMode) {
+  if (metric?.key === 'Workload') return 'Workload Intensity (score/100)'
+  if (metric?.key === 'Instructor_Rating') return 'Instructor Quality (score/100)'
+  const suffix = metricMode === 'score' ? 'score/100' : 'percentile'
+  return `${metric?.label || 'Metric'} (${suffix})`
 }
 
 function clampDomain(nextDomain, baseDomain) {
@@ -295,8 +309,8 @@ export default function ScatterPlot({
       .map((course) => {
         const rawX = getValue(course, xMode, xMetric)
         const rawY = getValue(course, yMode, yMetric)
-        const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', 1.1)
-        const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', 1.1)
+        const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', SCATTER_JITTER)
+        const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', SCATTER_JITTER)
         return {
           ...course,
           _xVal: Math.max(xMode.domain[0], Math.min(xMode.domain[1], rawX + jx)),
@@ -314,8 +328,8 @@ export default function ScatterPlot({
       .map((course) => {
         const rawX = getValue(course, xMode, xMetric)
         const rawY = getValue(course, yMode, yMetric)
-        const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', 1.1)
-        const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', 1.1)
+        const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', SCATTER_JITTER)
+        const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', SCATTER_JITTER)
         const code = course.course_code_base || course.course_code
         const starred = favorites?.has(code) ?? false
         return {
@@ -465,11 +479,12 @@ export default function ScatterPlot({
         x: matchedData.map((datum) => datum._xVal),
         y: matchedData.map((datum) => datum._yVal),
         customdata: matchedData,
-        hoverinfo: 'none',
+        hovertemplate: buildHoverTemplate(),
         showlegend: false,
         marker: {
           size: hasStarred ? matchedData.map((datum) => datum._starred ? 14 : 10) : 11,
           color: matchedData.map((datum) => datum._starred ? '#d4a86a' : datum._color),
+          opacity: 0.55,
           line: {
             color: hasStarred
               ? matchedData.map((datum) => datum._starred ? '#b8873a' : (isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.16)'))
@@ -487,12 +502,13 @@ export default function ScatterPlot({
         x: bidOnlyData.map((datum) => datum._xVal),
         y: bidOnlyData.map((datum) => datum._yVal),
         customdata: bidOnlyData,
-        hoverinfo: 'none',
+        hovertemplate: buildHoverTemplate(true),
         showlegend: false,
         marker: {
           size: 12,
           symbol: 'diamond',
           color: '#d4a86a',
+          opacity: 0.55,
           line: { color: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.22)', width: 0.8 },
         },
       })
@@ -588,7 +604,7 @@ export default function ScatterPlot({
         tickcolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
         gridcolor: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(243, 233, 226, 0.06)',
         zeroline: false,
-        title: { text: xMeta.label, font: { color: 'var(--text-muted)', size: 12 } },
+        title: { text: getAxisTitle(xMeta, metricMode), font: { color: 'var(--text-muted)', size: 12 } },
       },
       yaxis: {
         range: effectiveYDomain,
@@ -602,33 +618,53 @@ export default function ScatterPlot({
         tickcolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
         gridcolor: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(243, 233, 226, 0.06)',
         zeroline: false,
-        title: { text: yMeta.label, font: { color: 'var(--text-muted)', size: 12 } },
+        title: { text: getAxisTitle(yMeta, metricMode), font: { color: 'var(--text-muted)', size: 12 } },
       },
       hoverlabel: {
         bgcolor: 'var(--panel-strong)',
         bordercolor: 'var(--line-strong)',
         font: { color: 'var(--text)', size: 12 },
       },
-      annotations: showQuadrants && !isZoomed ? [
+      annotations: showQuadrants && !isZoomed && xMeta.key === 'Workload' && yMeta.key === 'Instructor_Rating' ? [
         {
-          xref: 'x', yref: 'paper',
-          x: 50, y: 1.0,
-          text: 'avg',
+          xref: 'paper',
+          yref: 'paper',
+          x: 0.08,
+          y: 0.92,
+          text: 'Easy A',
           showarrow: false,
-          font: { size: 10, color: isLight ? 'rgba(0,0,0,0.35)' : 'rgba(243,233,226,0.45)' },
-          xanchor: 'center', yanchor: 'bottom',
+          font: { size: 10, color: 'var(--text-muted)' },
         },
         {
-          xref: 'paper', yref: 'y',
-          x: 0, y: 50,
-          text: 'avg',
+          xref: 'paper',
+          yref: 'paper',
+          x: 0.92,
+          y: 0.92,
+          text: 'Worth It',
           showarrow: false,
-          font: { size: 10, color: isLight ? 'rgba(0,0,0,0.35)' : 'rgba(243,233,226,0.45)' },
-          xanchor: 'right', yanchor: 'middle',
+          font: { size: 10, color: 'var(--text-muted)' },
+        },
+        {
+          xref: 'paper',
+          yref: 'paper',
+          x: 0.08,
+          y: 0.08,
+          text: 'Skip',
+          showarrow: false,
+          font: { size: 10, color: 'var(--text-muted)' },
+        },
+        {
+          xref: 'paper',
+          yref: 'paper',
+          x: 0.92,
+          y: 0.08,
+          text: 'Brutal',
+          showarrow: false,
+          font: { size: 10, color: 'var(--text-muted)' },
         },
       ] : [],
     }
-  }, [effectiveXDomain, effectiveYDomain, greenX0, greenX1, greenY0, greenY1, isLight, isZoomed, metricMode, quadBadBorder, quadBadColor, quadGoodBorder, quadGoodColor, redX0, redX1, redY0, redY1, showQuadrants, xMeta.label, xMetric, xMode.useRaw, yMeta.label, yMetric, yMode.useRaw])
+  }, [effectiveXDomain, effectiveYDomain, greenX0, greenX1, greenY0, greenY1, isLight, isZoomed, metricMode, quadBadBorder, quadBadColor, quadGoodBorder, quadGoodColor, redX0, redX1, redY0, redY1, showQuadrants, xMeta, xMetric, xMode.useRaw, yMeta, yMetric, yMode.useRaw])
 
   const plotConfig = useMemo(() => ({
     responsive: true,

@@ -1,0 +1,22 @@
+{
+  "appId": "edu.harvard.hks.courseexplorer",
+  "appName": "HKS Course Explorer",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": null,
+      "keystorePassword": null,
+      "keystoreAlias": null,
+      "keystoreAliasPassword": null,
+      "signingType": "apksigner"
+    }
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  }
+}

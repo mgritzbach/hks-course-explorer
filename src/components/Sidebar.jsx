@@ -21,9 +21,13 @@ function countActiveFilters(filters) {
 }
 
 export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null, colorblindMode = false, setColorblindMode = null, onReplayTour = null, searchRef = null }) {
+  const containerRef = useRef(null)
   const [searchInput, setSearchInput] = useState(filters.searchText)
   const [tourPending, setTourPending] = useState(false)
   const debounceRef = useRef(null)
+  const openTimeoutRef = useRef(null)
+  const lastTriggerRef = useRef(null)
+  const lastOpenStateRef = useRef(false)
 
   const update = (patch) => setFilters((current) => ({ ...current, ...patch }))
 
@@ -34,6 +38,45 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
   useEffect(() => () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
   }, [])
+
+  useEffect(() => {
+    if (!mobile || !containerRef.current) return undefined
+
+    const drawer = containerRef.current.closest('.mobile-drawer')
+    if (!drawer) return undefined
+
+    const focusFirstElement = () => {
+      const focusable = containerRef.current?.querySelector(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+      focusable?.focus()
+    }
+
+    const syncDrawerFocus = () => {
+      const isOpen = drawer.classList.contains('open')
+
+      if (isOpen && !lastOpenStateRef.current) {
+        lastTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        if (openTimeoutRef.current) clearTimeout(openTimeoutRef.current)
+        openTimeoutRef.current = setTimeout(focusFirstElement, 50)
+      }
+
+      if (!isOpen && lastOpenStateRef.current && lastTriggerRef.current instanceof HTMLElement) {
+        lastTriggerRef.current.focus()
+      }
+
+      lastOpenStateRef.current = isOpen
+    }
+
+    syncDrawerFocus()
+    const observer = new MutationObserver(syncDrawerFocus)
+    observer.observe(drawer, { attributes: true, attributeFilter: ['class'] })
+
+    return () => {
+      observer.disconnect()
+      if (openTimeoutRef.current) clearTimeout(openTimeoutRef.current)
+    }
+  }, [mobile])
 
   const handleSearchChange = (value) => {
     setSearchInput(value)
@@ -83,6 +126,8 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
 
   return (
     <aside
+      ref={containerRef}
+      data-tour="search-sidebar"
       className="flex h-full flex-col overflow-y-auto shrink-0"
       style={{
         width: mobile ? '100%' : 248,
@@ -101,10 +146,11 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full px-3 py-1 text-[11px] text-muted transition-colors hover:text-label"
-              style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)' }}
+              className="rounded-full px-4 py-2 text-xs font-semibold transition-colors hover:text-label"
+              style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)', minHeight: 40 }}
+              aria-label="Close filter panel"
             >
-              Close
+              Done ✓
             </button>
           )}
         </div>
@@ -272,7 +318,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       {setMetricMode && (
         <div className="filter-section px-4 py-3">
           <label className="filter-label mb-2 block">Metric Display</label>
-          <div className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+          <div data-tour="metric-toggle" className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
             <button
               onClick={() => setMetricMode('score')}
               className="flex-1 rounded-full py-1.5 text-[11px] font-medium transition-colors"
@@ -357,6 +403,15 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
           style={{ color: 'var(--gold)' }}
         >
           Contact
+        </a>
+        <a
+          href="https://github.com/mgritzbach/hks-course-explorer/releases/download/v1.0-android/HKS-Course-Explorer-v1.0.apk"
+          className="mt-2 flex items-center gap-1.5 text-xs transition-colors hover:text-label"
+          style={{ color: 'var(--text-muted)' }}
+          title="Download Android APK (9.7 MB)"
+          aria-label="Download Android app"
+        >
+          <span aria-hidden="true">🤖</span> Android app ↓
         </a>
         {onReplayTour && (
           <button

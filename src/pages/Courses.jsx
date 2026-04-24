@@ -487,6 +487,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
   const [filterOpen, setFilterOpen] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
   const [showRaw, setShowRaw] = useState(false)
+  const drawerTouchStartRef = useRef(null)
   const [planCodes, setPlanCodes] = useState(() => {
     const plan = loadPlan(DEFAULT_PLAN)
     return new Set((plan.courses || []).map((c) => c?.course_code_base || c?.course_code || c?.courseCode).filter(Boolean))
@@ -674,12 +675,40 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
   const workloadPct = metricSrc?.Workload
   const selectedCountText = `${history.length} historical record${history.length !== 1 ? 's' : ''}`
 
+  const handleDrawerTouchStart = (event) => {
+    const touch = event.touches[0]
+    if (!touch) return
+    drawerTouchStartRef.current = { x: touch.clientX, y: touch.clientY }
+  }
+
+  const handleDrawerTouchEnd = (event) => {
+    const start = drawerTouchStartRef.current
+    const touch = event.changedTouches[0]
+    drawerTouchStartRef.current = null
+    if (!start || !touch) return
+
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+
+    if (deltaX < -60 || deltaY > 80) {
+      setFilterOpen(false)
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       <OnboardingTour steps={COURSES_TOUR_STEPS} storageKey="hks-tour-courses" autoStart={replayTour} onDone={() => { setReplayTour(false); setFilterOpen(false) }} onStepChange={handleTourStepChange} />
       {selected && <OnboardingTour steps={COURSE_DETAIL_TOUR_STEPS} storageKey="hks-tour-course-detail" />}
-      {filterOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setFilterOpen(false)} aria-label="Close filters" />}
-      <div className={`mobile-drawer md:hidden ${filterOpen ? 'open' : ''}`}>
+      <div
+        className={`mobile-drawer-backdrop md:hidden ${filterOpen ? 'open' : ''}`}
+        onClick={() => setFilterOpen(false)}
+        aria-hidden={!filterOpen}
+      />
+      <div
+        className={`mobile-drawer md:hidden ${filterOpen ? 'open' : ''}`}
+        onTouchStart={handleDrawerTouchStart}
+        onTouchEnd={handleDrawerTouchEnd}
+      >
         <FilterSidebar filters={filters} setFilters={setFilters} meta={meta} mobile onClose={() => setFilterOpen(false)} metricMode={metricMode} setMetricMode={setMetricMode} onReplayTour={handleReplayTour} />
       </div>
       <div className="hidden md:block">
@@ -692,8 +721,8 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
             <h2 className="serif-display text-3xl font-semibold md:text-[2.4rem]" style={{ color: 'var(--text)' }}>Course Explorer</h2>
             <p className="mt-2 text-xs text-muted md:text-sm">Search one course at a time, then browse detail, performance, and bidding history.</p>
           </div>
-          <button onClick={() => setFilterOpen(true)} className="rounded-full border px-3 py-2 text-xs font-medium text-label md:hidden" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
-            Filters{activeFilterCount(filters) > 0 ? ` (${activeFilterCount(filters)})` : ''}
+          <button onClick={() => setFilterOpen(true)} className="rounded-full border px-4 py-2.5 text-xs font-semibold text-label md:hidden" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', minHeight: 44 }}>
+            ⚙ Filters{activeFilterCount(filters) > 0 ? ` (${activeFilterCount(filters)})` : ''}
           </button>
         </div>
 
@@ -738,12 +767,16 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
 
         {!selected && (
           <div className="flex flex-col gap-4">
-            <p className="text-xs text-muted">
-              {filteredOptions.length === allOptions.length
-                ? `${allOptions.length.toLocaleString()} unique courses`
-                : `${filteredOptions.length.toLocaleString()} of ${allOptions.length.toLocaleString()} courses match`
-              }{' · '}Search or filter above to open the full detail view.
-            </p>
+            <div
+              className="surface-card flex flex-col items-center justify-center rounded-[22px] text-center"
+              style={{ padding: 48, color: 'var(--text-muted)' }}
+            >
+              <p className="text-3xl" aria-hidden="true">📘</p>
+              <h3 className="mt-4 text-lg font-semibold" style={{ color: 'var(--text)' }}>Select a course</h3>
+              <p className="mt-2 max-w-md text-sm">
+                Choose any course from the list to see full details ratings history and bidding data.
+              </p>
+            </div>
             {topByBidding.length > 0 && (
               <div data-tour="top-bidding" className="surface-card rounded-[22px] p-4">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Most Competitive Courses</p>
@@ -935,7 +968,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                     )}
 
                     {selected.last_bid_price != null && (
-                      <div data-tour="course-bid-summary" className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
+                      <div data-tour="bid-snapshot" className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
                         <p className="mb-3 text-[10px] uppercase tracking-wider text-muted">Last Bid ({selected.last_bid_acad} {selected.last_bid_term})</p>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted">Clearing Price</span>
@@ -1066,6 +1099,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                       {selected.course_url && (
                         <a href={selected.course_url} target="_blank" rel="noopener noreferrer" className="btn-details inline-block">
                           Course Website
+                          <span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span>
                         </a>
                       )}
                       {selected.instructor_profile_url && (
@@ -1077,6 +1111,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                           style={{ borderColor: 'var(--line)', color: 'var(--text-soft)', background: 'var(--panel-subtle)' }}
                         >
                           Faculty Profile
+                          <span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span>
                         </a>
                       )}
                       {favs && (() => {
@@ -1236,7 +1271,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
           </div>
         )}
 
-        <div className="app-footer mt-8">HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}</div>
+        <div className="app-footer mt-8">HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach<span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span></a> VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}</div>
       </main>
     </div>
   )

@@ -9,6 +9,21 @@ export default function Resources() {
         Curated links for course planning, registration, and programs.
       </p>
 
+      {/* Android APK download card */}
+      <a
+        href="https://github.com/mgritzbach/hks-course-explorer/releases/download/v1.0-android/HKS-Course-Explorer-v1.0.apk"
+        className="mb-6 flex items-center gap-4 rounded-2xl px-5 py-4 transition-opacity hover:opacity-90"
+        style={{ background: 'linear-gradient(135deg, var(--accent) 0%, #7a1020 100%)', textDecoration: 'none' }}
+        aria-label="Download Android APK"
+      >
+        <span style={{ fontSize: 36, lineHeight: 1 }}>🤖</span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-sm" style={{ color: '#fff' }}>Download for Android</p>
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>HKS-Course-Explorer-v1.0.apk · 9.7 MB</p>
+        </div>
+        <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 20 }}>↓</span>
+      </a>
+
       <div className="flex flex-col gap-6">
         {HKS_RESOURCES.map((section) => (
           <div key={section.group}>
