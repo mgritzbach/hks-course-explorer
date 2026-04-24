@@ -9,11 +9,13 @@ const Admin           = lazy(() => import('./pages/Admin.jsx'))
 import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import LandingSplash from './components/LandingSplash.jsx'
+import SkeletonCard from './components/SkeletonCard.jsx'
 import { supabase } from './lib/supabase.js'
 import Compare from './pages/Compare.jsx'
 import Courses from './pages/Courses.jsx'
 import Faculty from './pages/Faculty.jsx'
 import Home from './pages/Home.jsx'
+import NotFound from './pages/NotFound.jsx'
 import Resources from './pages/Resources.jsx'
 import { HKS_RESOURCES } from './resourceLinks.js'
 import { useFavorites } from './useFavorites.js'
@@ -170,7 +172,8 @@ export default function App() {
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'dark'
     const stored = window.localStorage.getItem('hks-theme')
-    return (stored === 'hub' ? 'dark' : stored) || 'dark'
+    if (stored) return stored === 'hub' ? 'dark' : stored
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
   const [hubTheme, setHubTheme] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -254,16 +257,47 @@ export default function App() {
 
   if (loading) {
     return (
-      <div
-        className="flex h-screen flex-col items-center justify-center gap-4"
-        style={{ background: 'transparent' }}
-      >
-        <div className="spinner" />
-        <div className="text-center">
-          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Loading HKS Course Explorer</p>
-          <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-            {loadCount > 0 ? `${loadCount.toLocaleString()} courses loaded…` : 'Connecting to database…'}
-          </p>
+      <div className="flex min-h-screen" style={{ background: 'transparent' }}>
+        <aside
+          className="hidden shrink-0 md:flex md:w-[178px] md:flex-col md:gap-4 md:px-3 md:py-4"
+          style={{ background: 'var(--nav-shell)', borderRight: '1px solid var(--line)' }}
+        >
+          <div className="rounded-[22px] border px-4 pb-4 pt-5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+            <div className="skeleton-shimmer mb-3 h-4" style={{ width: '60%' }} />
+            <div className="skeleton-shimmer mb-2 h-8" style={{ width: '45%' }} />
+            <div className="skeleton-shimmer h-3" style={{ width: '75%' }} />
+          </div>
+          {[0, 1, 2].map((index) => (
+            <div
+              key={index}
+              className="skeleton-shimmer hidden rounded-[18px] md:block"
+              style={{ height: 88 }}
+            />
+          ))}
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col px-4 py-6 md:px-6">
+          <div className="mb-5">
+            <div className="skeleton-shimmer mb-3 h-4" style={{ width: 140 }} />
+            <div className="skeleton-shimmer mb-3 h-10 max-w-[420px]" />
+            <div className="skeleton-shimmer h-4 max-w-[560px]" />
+          </div>
+
+          <div className="mb-4 flex items-center gap-3">
+            <div className="spinner" />
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Loading HKS Course Explorer</p>
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                {loadCount > 0 ? `${loadCount.toLocaleString()} courses loaded…` : 'Connecting to database…'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            {Array.from({ length: 5 }, (_, index) => (
+              <SkeletonCard key={index} />
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -292,14 +326,15 @@ export default function App() {
   }
 
   // All nav destinations — some filtered per context
+  // label = used on desktop sidebar; mobileLabel = short label for mobile bottom nav
   const allNavItems = [
-    { to: '/',                 label: 'Home',             end: true },
-    { to: '/courses',          label: 'Courses' },
-    { to: '/faculty',          label: 'Faculty' },
-    { to: '/compare',          label: 'Compare' },
-    { to: '/schedule-builder', label: 'Schedule Builder', desktopOnly: true },
-    { to: '/requirements',     label: 'Requirements',     desktopOnly: true },
-    { to: '/resources',        label: 'Resources',        mobileOnly: true },
+    { to: '/',                 label: 'Home',             mobileLabel: 'Home',      icon: '⌂',  end: true },
+    { to: '/courses',          label: 'Courses',          mobileLabel: 'Courses',   icon: '📖' },
+    { to: '/faculty',          label: 'Faculty',          mobileLabel: 'Faculty',   icon: '👤' },
+    { to: '/compare',          label: 'Compare',          mobileLabel: 'Compare',   icon: '⚖' },
+    { to: '/schedule-builder', label: 'Schedule Builder', mobileLabel: 'Schedule',  icon: '🗓',  desktopOnly: true },
+    { to: '/requirements',     label: 'Requirements',     mobileLabel: 'Req.',      icon: '✅',  desktopOnly: true },
+    { to: '/resources',        label: 'Resources',        mobileLabel: 'Resources', icon: '🔗',  mobileOnly: true },
   ]
 
   // Mobile bottom nav uses all non-desktopOnly items
@@ -388,14 +423,7 @@ export default function App() {
           <Route path="/schedule-builder" element={<ScheduleBuilder courses={data?.courses || []} meta={data?.meta} />} />
           <Route path="/requirements"     element={<Requirements courses={data?.courses || []} />} />
           <Route path="/admin"            element={<Admin />} />
-          <Route path="*" element={
-            <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
-              <p className="text-6xl font-bold" style={{ color: 'var(--accent)', opacity: 0.25 }}>404</p>
-              <h1 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>Page not found</h1>
-              <p className="max-w-xs text-sm" style={{ color: 'var(--text-muted)' }}>That URL doesn't match any page in the Course Explorer.</p>
-              <a href="/" className="rounded-full px-5 py-2.5 text-sm font-semibold" style={{ background: 'var(--accent-soft)', color: 'var(--text)', border: '1px solid var(--line)' }}>← Back to Home</a>
-            </div>
-          } />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
     </ErrorBoundary>
@@ -423,21 +451,24 @@ export default function App() {
           </button>
         </div>
       )}
-      <div className="mx-auto flex max-w-md gap-1 rounded-[24px] border p-2 shadow-[0_-12px_28px_rgba(0,0,0,0.28)]" style={{ borderColor: 'var(--line)', background: 'var(--nav-shell-strong)' }}>
+      <div className="mx-auto flex max-w-md gap-1 rounded-[24px] border p-1.5 shadow-[0_-12px_28px_rgba(0,0,0,0.28)]" style={{ borderColor: 'var(--line)', background: 'var(--nav-shell-strong)' }}>
         {mobileNavItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
+            aria-label={item.label}
             className={({ isActive }) =>
-              `flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl px-2 py-2 text-[10px] font-medium transition-colors ${isActive ? 'text-white' : 'text-label'}`
+              `flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[18px] px-1 py-2.5 transition-colors ${isActive ? 'text-white' : 'text-label'}`
             }
             style={({ isActive }) => ({
+              minHeight: 52,
               background: isActive ? 'linear-gradient(180deg, rgba(165, 28, 48, 0.28), rgba(165, 28, 48, 0.12))' : 'transparent',
               border: `1px solid ${isActive ? 'rgba(212, 168, 106, 0.18)' : 'transparent'}`,
             })}
           >
-            {item.label}
+            <span className="text-base leading-none" aria-hidden="true">{item.icon}</span>
+            <span className="text-[9px] font-semibold leading-tight tracking-[0.02em]">{item.mobileLabel || item.label}</span>
           </NavLink>
         ))}
       </div>
@@ -447,31 +478,40 @@ export default function App() {
   // ─── Shared mobile top header ──────────────────────────────────────────────
   const mobileTopHeader = (
     <header
-      className="sticky top-0 z-30 border-b px-4 py-3 md:hidden"
+      className="sticky top-0 z-30 border-b md:hidden"
       style={{
         background: 'var(--nav-shell)',
         borderColor: 'var(--line)',
         backdropFilter: 'blur(18px)',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)',
+        paddingBottom: 10,
+        paddingLeft: 16,
+        paddingRight: 16,
       }}
     >
-      <p className="kicker">Harvard-inspired</p>
-      <div className="mt-1 flex items-center justify-between gap-3">
-        <div>
-          <p className="serif-display text-xl font-semibold" style={{ color: 'var(--text)' }}>HKS</p>
-          <p className="text-sm" style={{ color: 'var(--text-soft)' }}>Course Explorer</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div style={{ width: 28, height: 28, background: 'var(--accent)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ color: '#fff', fontSize: 13, fontWeight: 800, fontFamily: 'Georgia, serif' }}>H</span>
+          </div>
+          <div>
+            <p className="text-sm font-bold leading-none" style={{ color: 'var(--text)', fontFamily: 'Georgia, serif' }}>HKS Course Explorer</p>
+            <p className="mt-0.5 text-[10px] leading-none" style={{ color: 'var(--text-muted)' }}>Independent student tool</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={toggleTheme} className="theme-toggle">
-            {theme === 'dark' ? 'Light' : 'Dark'}
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={toggleTheme} className="theme-toggle" style={{ padding: '5px 10px', fontSize: 10, minHeight: 32 }}>
+            {theme === 'dark' ? '☀ Light' : '● Dark'}
           </button>
           <a
             href="/user-guide.html"
             target="_blank"
             rel="noopener noreferrer"
             className="theme-toggle"
-            style={{ textDecoration: 'none' }}
+            aria-label="Open user guide"
+            style={{ textDecoration: 'none', padding: '5px 10px', fontSize: 10, minHeight: 32 }}
           >
-            ⓘ Guide
+            <span aria-hidden="true">ⓘ</span>
           </a>
           {TALLY_FORM_ID !== 'YOUR_FORM_ID' && (
             <button
@@ -482,8 +522,10 @@ export default function App() {
               data-tally-emoji-text="🐛"
               data-tally-emoji-animation="wave"
               className="theme-toggle"
+              aria-label="Open feedback form"
+              style={{ padding: '5px 10px', fontSize: 10, minHeight: 32 }}
             >
-              🐛
+              <span aria-hidden="true">🐛</span>
             </button>
           )}
         </div>
