@@ -21,6 +21,10 @@ export default class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback
+      }
+
       return (
         <div
           className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center"

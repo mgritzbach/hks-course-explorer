@@ -1,6 +1,7 @@
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import CourseCard from '../components/CourseCard.jsx'
+import ErrorBoundary from '../components/ErrorBoundary.jsx'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 
@@ -183,6 +184,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const mainRef = useRef(null)
   const visualizationRef = useRef(null)
   const sidebarSearchRef = useRef(null)
+  const drawerTouchStartRef = useRef(null)
 
   const initYear = (() => {
     const y = searchParams.get('year')
@@ -216,6 +218,9 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const [showShortlistOnly, setShowShortlistOnly] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
   const [pageLimit, setPageLimit] = useState(50)
+  const [compactView, setCompactView] = useState(() => localStorage.getItem('hks_card_view') === 'compact')
+  // Mobile: scatter plot is hidden by default to show course list immediately
+  const [showPlotMobile, setShowPlotMobile] = useState(false)
 
   // Auto-clear shortlist filter if all favorites are removed while it's active
   useEffect(() => {
@@ -240,6 +245,26 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
     const offsetTop = Math.max(0, visualizationRef.current.offsetTop - 12)
     mainRef.current.scrollTo({ top: offsetTop, behavior: 'smooth' })
+  }
+
+  const handleDrawerTouchStart = (event) => {
+    const touch = event.touches[0]
+    if (!touch) return
+    drawerTouchStartRef.current = { x: touch.clientX, y: touch.clientY }
+  }
+
+  const handleDrawerTouchEnd = (event) => {
+    const start = drawerTouchStartRef.current
+    const touch = event.changedTouches[0]
+    drawerTouchStartRef.current = null
+    if (!start || !touch) return
+
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+
+    if (deltaX < -60 || deltaY > 80) {
+      setSidebarOpen(false)
+    }
   }
 
   useEffect(() => {
@@ -443,12 +468,42 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     if (preset.apply) setFilters((current) => preset.apply(current))
   }
 
+  const toggleCompactView = () => {
+    setCompactView((current) => {
+      const next = !current
+      localStorage.setItem('hks_card_view', next ? 'compact' : 'full')
+      return next
+    })
+  }
+
+  const clearAllFilters = () => {
+    setFilters({
+      searchText: '',
+      concentration: 'All',
+      coreFilter: 'all',
+      terms: [...ALL_TERMS],
+      stemGroup: 'all',
+      year: meta.default_year,
+      minInstructorPct: 'any',
+      evalOnly: false,
+    })
+    setShowShortlistOnly(false)
+  }
+
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       <OnboardingTour steps={HOME_TOUR_STEPS} storageKey="hks-tour-home" autoStart={replayTour} onDone={() => { setReplayTour(false); setSidebarOpen(false) }} onStepChange={handleTourStepChange} />
-      {sidebarOpen && <button className="mobile-drawer-overlay md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close filters" />}
+      <div
+        className={`mobile-drawer-backdrop md:hidden ${sidebarOpen ? 'open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden={!sidebarOpen}
+      />
 
-      <div className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}>
+      <div
+        className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}
+        onTouchStart={handleDrawerTouchStart}
+        onTouchEnd={handleDrawerTouchEnd}
+      >
         <Sidebar
           filters={filters}
           setFilters={setFilters}
@@ -478,36 +533,41 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
                 {pageTitle(filters)}
               </h1>
               <p className="mt-3 max-w-3xl text-sm md:text-[15px]" style={{ color: 'var(--text-soft)' }}>
-                Cut through the HKS course selection chaos. Compare ratings, workload, and bidding history across every offering — so you can actually make an informed choice.
+                <span className="hidden sm:inline">Cut through the HKS course selection chaos. Compare ratings, workload, and bidding history across every offering — so you can actually make an informed choice.</span>
+                <span className="sm:hidden">Compare ratings, workload &amp; bidding across every HKS course.</span>
               </p>
             </div>
 
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden rounded-full border px-3 py-2 text-xs font-medium text-label shadow-sm"
+              className="md:hidden rounded-full border px-4 py-2.5 text-xs font-semibold text-label shadow-sm touch-manipulation"
               style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', minHeight: 44 }}
             >
-              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              ⚙ Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-3 border-t px-5 py-4 md:px-7" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
-            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+          <div className="grid grid-cols-2 gap-2 border-t px-5 py-4 md:flex md:flex-wrap md:gap-3 md:px-7" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+            <div className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
               <span style={{ color: 'var(--text-muted)' }}>View</span>
-              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>{avgMode ? 'All-years weighted averages' : bidYear ? 'Active bidding season' : 'Filtered current courses'}</p>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>{avgMode ? 'All-years avg' : bidYear ? 'Active bidding' : 'Current courses'}</p>
             </div>
-            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Matching now</span>
-              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>{filtered.length} course{filtered.length !== 1 ? 's' : ''}</p>
+            <div className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Matching</span>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>{filtered.length} course{filtered.length !== 1 ? 's' : ''}</p>
             </div>
-            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+            <div className="hidden rounded-2xl border px-4 py-3 text-sm md:block" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Built for</span>
               <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>Harvard Kennedy School students</p>
             </div>
-            <div className="rounded-2xl border px-4 py-3 text-xs md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Last updated</span>
-              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>{lastUpdatedLabel}</p>
+            <div className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Updated</span>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>{lastUpdatedLabel}</p>
+            </div>
+            <div className="rounded-2xl border px-3 py-2.5 text-xs md:hidden" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Built for</span>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>HKS students</p>
             </div>
           </div>
         </section>
@@ -539,33 +599,57 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           </div>
         )}
 
-        <div ref={visualizationRef} className="mb-4">
-          <p className="kicker mb-1">Visual explorer</p>
-          <h2 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>Course Comparisons</h2>
+        {/* ── Scatter plot header — desktop always shows, mobile has toggle ── */}
+        <div ref={visualizationRef} className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="kicker mb-1">Visual explorer</p>
+            <h2 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>Course Comparisons</h2>
+          </div>
+          {/* Mobile toggle for scatter plot */}
+          <button
+            type="button"
+            onClick={() => setShowPlotMobile((v) => !v)}
+            className="md:hidden rounded-full border px-3 py-2 text-xs font-semibold transition-all"
+            style={{ borderColor: 'var(--line)', background: showPlotMobile ? 'var(--accent-soft)' : 'var(--panel-subtle)', color: showPlotMobile ? 'var(--text)' : 'var(--text-muted)', minHeight: 36 }}
+            aria-expanded={showPlotMobile}
+          >
+            {showPlotMobile ? 'Hide chart ▲' : 'Show chart ▼'}
+          </button>
         </div>
 
-        <Suspense fallback={
-            <div style={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-              Loading chart…
+        {/* Scatter plot: always visible on desktop, toggle-controlled on mobile */}
+        <div className={showPlotMobile ? '' : 'hidden md:block'}>
+          <Suspense fallback={
+              <div style={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                Loading chart…
+              </div>
+            }>
+            <div data-tour="scatter-plot" style={{ position: 'relative' }}>
+              {isStale && <div style={{ position: 'absolute', top: 8, right: 52, zIndex: 10, fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>updating…</div>}
+              <ErrorBoundary
+                fallback={(
+                  <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>
+                    Chart unavailable - use the filters to browse courses below.
+                  </div>
+                )}
+              >
+                <ScatterPlot
+                  allCourses={yearEvalCourses}
+                  matchedCourses={filteredEval}
+                  biddingOnlyCourses={biddingOnlyCourses}
+                  xMetric={xMetric}
+                  yMetric={yMetric}
+                  metrics={meta.metrics}
+                  onXChange={setXMetric}
+                  onYChange={setYMetric}
+                  metricMode={metricMode}
+                  colorblindMode={colorblindMode}
+                  isLight={isLight}
+                />
+              </ErrorBoundary>
             </div>
-          }>
-          <div data-tour="scatter-plot" style={{ position: 'relative' }}>
-          {isStale && <div style={{ position: 'absolute', top: 8, right: 52, zIndex: 10, fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>updating…</div>}
-          <ScatterPlot
-            allCourses={yearEvalCourses}
-            matchedCourses={filteredEval}
-            biddingOnlyCourses={biddingOnlyCourses}
-            xMetric={xMetric}
-            yMetric={yMetric}
-            metrics={meta.metrics}
-            onXChange={setXMetric}
-            onYChange={setYMetric}
-            metricMode={metricMode}
-            colorblindMode={colorblindMode}
-            isLight={isLight}
-          />
-          </div>
-        </Suspense>
+          </Suspense>
+        </div>
 
         <div className="mt-6">
           <div data-tour="preset-pills" className="preset-pills mb-3">
@@ -594,12 +678,20 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           </div>
 
           <div className="sort-bar mb-3 flex flex-col gap-3 rounded-[22px] px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted" aria-live="polite" aria-atomic="true">
               <span className="font-medium text-label">{visibleCourses.length}</span> course{visibleCourses.length !== 1 ? 's' : ''}
               <span className="text-muted"> ({filteredEval.length} with evals)</span>
             </p>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleCompactView}
+                className="rounded-full border px-2.5 py-1 text-xs transition-colors hover:text-label"
+                style={{ borderColor: 'var(--line)', color: 'var(--text-muted)', background: 'var(--panel-subtle)' }}
+              >
+                {compactView ? 'Full' : 'Compact'}
+              </button>
               <span className="text-xs text-muted">Sort:</span>
               <div className="select-wrap w-full sm:w-[220px]">
                 <select
@@ -621,9 +713,16 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
           <div data-tour="course-list">
           {visibleCourses.length === 0 ? (
-            <div className="surface-card rounded-2xl py-12 text-center">
-              <p className="mb-1 font-medium text-label">No courses match the current filters</p>
-              <p className="text-xs text-muted">Try adjusting the year, terms, concentration, or removing some filters.</p>
+            <div className="surface-card rounded-2xl px-6 py-12 text-center">
+              <p className="mb-2 font-medium text-label">No courses match your filters</p>
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="rounded-full border px-5 py-2 text-sm font-semibold transition-colors hover:text-label"
+                style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
+              >
+                Clear all filters
+              </button>
             </div>
           ) : (
             <>
@@ -632,6 +731,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
                   key={course.id}
                   course={course}
                   favs={favs}
+                  compact={compactView}
                   metricMode={metricMode}
                   notes={notes}
                   setNote={setNote}

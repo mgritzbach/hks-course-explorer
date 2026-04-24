@@ -39,6 +39,8 @@ const METRICS = [
   { key: 'Bid_N_Bids',          label: 'Number of Bids',       higher_is_better: false, bid_metric: true },
 ]
 
+const STORAGE_VERSION = 'v2'
+
 function median(values) {
   if (!values.length) return null
   const sorted = [...values].sort((a, b) => a - b)
@@ -202,6 +204,18 @@ export default function App() {
     if (val) posthog.capture('colorblind_mode_enabled')
     setColorblindModeState(val)
   }
+
+  useEffect(() => {
+    const storedVersion = window.localStorage.getItem('hks_storage_version')
+    if (storedVersion === STORAGE_VERSION) return
+
+    window.localStorage.removeItem('hks_plan_A')
+    window.localStorage.removeItem('hks_plan_B')
+    window.localStorage.removeItem('hks_plan_C')
+    window.localStorage.removeItem('hks_plan_D')
+    window.localStorage.removeItem('hks_completed_courses')
+    window.localStorage.setItem('hks_storage_version', STORAGE_VERSION)
+  }, [])
 
   // Single source of truth for data-theme on <html>
   useEffect(() => {

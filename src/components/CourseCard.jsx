@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fmtShort } from '../utils/formatMetric.js'
 
@@ -15,8 +16,9 @@ function RatingBadge({ label, value, color, metricMode }) {
   )
 }
 
-export default function CourseCard({ course, favs, metricMode = 'score', yearMedianInstructor = null, notes, setNote }) {
+export default function CourseCard({ course, favs, compact = false, metricMode = 'score', yearMedianInstructor = null, notes, setNote }) {
   const navigate = useNavigate()
+  const [descExpanded, setDescExpanded] = useState(false)
   const starred = favs?.isFavorite(course.course_code_base)
   const note = notes?.[course.course_code_base] || ''
 
@@ -24,18 +26,20 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
   const instructorPct = metricSrc?.Instructor_Rating
   const workloadPct = metricSrc?.Workload
   const coursePct = metricSrc?.Course_Rating
+  const responseCount = course.is_average ? course.total_n_respondents : course.n_respondents
   const instrColor = instructorPct == null ? 'var(--text-muted)' : instructorPct >= 75 ? 'var(--success)' : instructorPct >= 50 ? 'var(--gold)' : 'var(--danger)'
   const biddingOnly = !course.has_eval && course.has_bidding
   const noEval = !course.has_eval && !course.has_bidding
 
   const borderAccent = biddingOnly ? 'var(--gold)' : noEval ? 'var(--line-strong)' : 'var(--accent)'
-  const descriptionExcerpt = course.description
-    ? (course.description.length > 180 ? `${course.description.slice(0, 180)}...` : course.description)
+  const hasLongDescription = Boolean(course.description && course.description.length > 180)
+  const descriptionText = course.description
+    ? (hasLongDescription && !descExpanded ? course.description.slice(0, 180) : course.description)
     : null
 
   return (
     <div
-      className="card-hover surface-card mb-3 py-5"
+      className={`card-hover surface-card ${compact ? 'mb-2 py-4' : 'mb-3 py-5'}`}
       style={{
         borderLeft: `3px solid ${borderAccent}`,
         paddingLeft: 16,
@@ -43,7 +47,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
         background: 'var(--panel)',
       }}
     >
-      <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className={`flex flex-col md:flex-row md:items-start md:justify-between ${compact ? 'mb-2 gap-2' : 'mb-3 gap-3'}`}>
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap gap-2">
             {course.is_stem && (
@@ -111,6 +115,16 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
               )}
               <RatingBadge label="Course" value={coursePct} color="var(--success)" metricMode={metricMode} />
               <RatingBadge label="Workload" value={workloadPct} color="var(--text-soft)" metricMode={metricMode} />
+              {responseCount != null && responseCount < 10 && (
+                <div
+                  className="mt-0.5 text-[10px] text-right"
+                  style={{ color: responseCount < 5 ? 'var(--danger)' : 'var(--gold)' }}
+                  title="Small sample - interpret ratings with caution"
+                >
+                  <span aria-hidden="true">⚠ </span>
+                  {responseCount < 5 ? `Only ${responseCount} responses` : `${responseCount} responses`}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -130,7 +144,7 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
         </p>
       )}
 
-      <p className="mb-3 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>
+      <p className={`${compact ? 'mb-2' : 'mb-3'} text-xs leading-5`} style={{ color: 'var(--text-muted)' }}>
         {course.is_average ? (
           <>
             <span className="mr-2 rounded-full px-2 py-1 text-[11px]" style={{ background: 'var(--panel-subtle)', color: 'var(--blue)' }}>
@@ -169,8 +183,34 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
         )}
       </p>
 
-      {descriptionExcerpt && (
-        <p className="mb-4 text-xs leading-relaxed" style={{ color: 'var(--text-soft)' }}>{descriptionExcerpt}</p>
+      {!compact && descriptionText && (
+        <p className="mb-4 text-xs leading-relaxed" style={{ color: 'var(--text-soft)' }}>
+          {descriptionText}
+          {hasLongDescription && !descExpanded && (
+            <>
+              ...{' '}
+              <button
+                type="button"
+                onClick={() => setDescExpanded(true)}
+                style={{ color: 'var(--accent)', cursor: 'pointer', fontSize: 'inherit', border: 'none', background: 'none', padding: 0 }}
+              >
+                read more
+              </button>
+            </>
+          )}
+          {hasLongDescription && descExpanded && (
+            <>
+              {' '}
+              <button
+                type="button"
+                onClick={() => setDescExpanded(false)}
+                style={{ color: 'var(--accent)', cursor: 'pointer', fontSize: 'inherit', border: 'none', background: 'none', padding: 0 }}
+              >
+                show less
+              </button>
+            </>
+          )}
+        </p>
       )}
 
       {noEval && !biddingOnly && (
@@ -179,48 +219,52 @@ export default function CourseCard({ course, favs, metricMode = 'score', yearMed
         </p>
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <button onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)} className="btn-details">
+      <div className="flex flex-wrap gap-2 sm:flex-row sm:items-center">
+        <button onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)} className="btn-details touch-manipulation" style={{ minHeight: 44 }}>
           View Full Details
         </button>
-        {course.course_url && (
+        {!compact && course.course_url && (
           <a
             href={course.course_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-full border px-4 py-2 text-center text-xs font-medium transition-opacity hover:opacity-80"
-            style={{ background: 'var(--panel-subtle)', borderColor: 'var(--line)', color: 'var(--text)' }}
+            className="inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-medium transition-opacity hover:opacity-80 touch-manipulation"
+            style={{ background: 'var(--panel-subtle)', borderColor: 'var(--line)', color: 'var(--text)', minHeight: 44 }}
           >
             Course Website
+            <span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span>
           </a>
         )}
-        <button
-          onClick={() => navigate(`/compare?ids=${encodeURIComponent(course.course_code_base || course.course_code)}`)}
-          title="Open in Compare"
-          aria-label="Open in Compare"
-          className="rounded-full border px-3 py-2 text-xs font-medium transition-colors hover:text-label"
-          style={{ borderColor: 'var(--line)', color: 'var(--text-muted)', background: 'transparent' }}
-        >
-          ⇄
-        </button>
+        {!compact && (
+          <button
+            onClick={() => navigate(`/compare?ids=${encodeURIComponent(course.course_code_base || course.course_code)}`)}
+            title="Open in Compare"
+            aria-label="Open in Compare"
+            className="inline-flex items-center justify-center rounded-full border px-3 py-2 text-xs font-medium transition-colors hover:text-label touch-manipulation"
+            style={{ borderColor: 'var(--line)', color: 'var(--text-muted)', background: 'transparent', minHeight: 44 }}
+          >
+            ⇄ Compare
+          </button>
+        )}
         {favs && (
           <button
             onClick={() => favs.toggle(course.course_code_base)}
             title={starred ? 'Remove from shortlist' : 'Add to shortlist'}
             aria-label={starred ? 'Remove from shortlist' : 'Add to shortlist'}
-            className="rounded-full px-3 py-2 text-sm transition-colors"
+            className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm transition-colors touch-manipulation"
             style={{
               color: starred ? 'var(--gold)' : 'var(--text-muted)',
               background: starred ? 'var(--gold-soft)' : 'transparent',
               border: `1px solid ${starred ? 'var(--gold-soft)' : 'transparent'}`,
+              minHeight: 44,
             }}
           >
-            {starred ? '★' : '☆'}
+            {starred ? '★ Shortlisted' : '☆ Shortlist'}
           </button>
         )}
       </div>
 
-      {starred && setNote && (
+      {!compact && starred && setNote && (
         <textarea
           value={note}
           onChange={(event) => setNote(course.course_code_base, event.target.value)}
