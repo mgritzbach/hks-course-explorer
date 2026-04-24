@@ -379,22 +379,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   }, [courses])
 
   const normalizedPlanCourses = useMemo(() => (Array.isArray(planData?.courses) ? planData.courses : []).map((course, index) => normalizeCourse(course, index)), [planData])
-  const gridCourses = useMemo(() => planCoursesEnriched.filter((course) => course.isOnGrid), [planCoursesEnriched])
-  const conflicts = useMemo(() => findConflicts(gridCourses), [gridCourses])
-  const conflictSet = useMemo(() => {
-    const next = new Set()
-    conflicts.forEach(([left, right]) => {
-      if (left?.courseCode) next.add(left.courseCode)
-      if (right?.courseCode) next.add(right.courseCode)
-    })
-    return next
-  }, [conflicts])
-  const normalizedCompletedCourses = useMemo(() => completedCourses.map((c, i) => normalizeCourse({ ...c, _isCompleted: true }, i)), [completedCourses])
-  const progress = useMemo(() => (reqProgram ? computeProgress(reqProgram, normalizedPlanCourses, normalizedCompletedCourses) : null), [normalizedPlanCourses, normalizedCompletedCourses, reqProgram])
-  const addedCourseCodes = useMemo(() => new Set(normalizedPlanCourses.map((course) => course.courseCode)), [normalizedPlanCourses])
-  const completedCourseCodes = useMemo(() => new Set(normalizedCompletedCourses.map((c) => c.courseCode)), [normalizedCompletedCourses])
-
-  // Enrich plan courses with Supabase meeting times where missing
+  // Enrich plan courses with Supabase meeting times where missing.
+  // Must be declared before gridCourses which depends on it.
   const planCoursesEnriched = useMemo(() => normalizedPlanCourses.map((course) => {
     if (courseHasSchedule(course)) return course // already has times
     const meetings = sectionTimesMap.get(course.courseCode) || sectionTimesMap.get(course.courseCode.split('-').slice(0, 2).join('-'))
@@ -409,6 +395,20 @@ export default function ScheduleBuilder({ courses = [] }) {
       _hasLiveTimes: true,
     }
   }), [normalizedPlanCourses, sectionTimesMap])
+  const gridCourses = useMemo(() => planCoursesEnriched.filter((course) => course.isOnGrid), [planCoursesEnriched])
+  const conflicts = useMemo(() => findConflicts(gridCourses), [gridCourses])
+  const conflictSet = useMemo(() => {
+    const next = new Set()
+    conflicts.forEach(([left, right]) => {
+      if (left?.courseCode) next.add(left.courseCode)
+      if (right?.courseCode) next.add(right.courseCode)
+    })
+    return next
+  }, [conflicts])
+  const normalizedCompletedCourses = useMemo(() => completedCourses.map((c, i) => normalizeCourse({ ...c, _isCompleted: true }, i)), [completedCourses])
+  const progress = useMemo(() => (reqProgram ? computeProgress(reqProgram, normalizedPlanCourses, normalizedCompletedCourses) : null), [normalizedPlanCourses, normalizedCompletedCourses, reqProgram])
+  const addedCourseCodes = useMemo(() => new Set(normalizedPlanCourses.map((course) => course.courseCode)), [normalizedPlanCourses])
+  const completedCourseCodes = useMemo(() => new Set(normalizedCompletedCourses.map((c) => c.courseCode)), [normalizedCompletedCourses])
   const visibleDayLabels = showWeekends ? [...WEEKDAY_LABELS, ...WEEKEND_LABELS] : WEEKDAY_LABELS
   const numDays = visibleDayLabels.length
   const gridCols = `52px repeat(${numDays}, minmax(0, 1fr))`
@@ -612,7 +612,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       top: timeToY(sh, sm),
       height: durationToH(sh, sm, eh, em),
     }))
-  }), [normalizedPlanCourses])
+  }), [planCoursesEnriched])
 
   return (
     <div className="h-full overflow-hidden">
