@@ -6,7 +6,7 @@ import { searchHarvardCourses } from '../lib/harvardApi'
 import { useFavorites } from '../useFavorites'
 
 const GRID_START = 480
-const GRID_END = 1080
+const GRID_END = 1170
 const ROW_HEIGHT = 36
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 const WEEKEND_LABELS = ['Sat', 'Sun']
@@ -20,8 +20,8 @@ const SEMESTER_OPTIONS = [
 
 function fallbackSearch(q, allCourses, filters = {}) {
   const query = String(q || '').trim().toLowerCase()
-  const { concentration, stem, coreOnly, semester } = filters
-  const hasFilters = (concentration && concentration !== 'All') || (stem && stem !== 'all') || coreOnly
+  const { concentration, stem, coreOnly, semester, searchSource } = filters
+  const hasFilters = (concentration && concentration !== 'All') || (stem && stem !== 'all') || coreOnly || (semester && semester !== 'All') || (searchSource && searchSource !== 'All')
   if (!query && !hasFilters) return []
   // Map semester → (year, term) used in the courses table
   const semesterTermMap = {
@@ -33,11 +33,14 @@ function fallbackSearch(q, allCourses, filters = {}) {
   return (Array.isArray(allCourses) ? allCourses : [])
     .filter((c) => !c?.is_average && Number(c?.year || 0) >= 2024)
     .filter((c) => {
+      const hks = isHksCourse(c?.course_code_base || c?.course_code)
       if (query && !([c?.course_code, c?.course_name, c?.professor, c?.professor_display].filter(Boolean).join(' ').toLowerCase().includes(query))) return false
       if (concentration && concentration !== 'All' && c?.concentration !== concentration) return false
       if (stem === 'stem' && !c?.is_stem) return false
       if (stem === 'nonstem' && c?.is_stem) return false
       if (coreOnly && !c?.is_core) return false
+      if (searchSource === 'HKS' && !hks) return false
+      if (searchSource === 'Non-HKS' && hks) return false
       // Filter by semester/term if a matching entry exists in the catalog
       if (termFilter && (Number(c?.year) !== termFilter.year || c?.term !== termFilter.term)) return false
       return true
@@ -265,6 +268,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
   const [planData, setPlanData] = useState(() => loadPlan(DEFAULT_PLAN))
   const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
+  const [completedInput, setCompletedInput] = useState('')
   const [sectionTimesMap, setSectionTimesMap] = useState(new Map()) // courseCodeBase → meetings[]
   const [term, setTerm] = useState('FULL')
   const [semester, setSemester] = useState('Spring')
@@ -273,6 +277,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searchConcentration, setSearchConcentration] = useState('All')
   const [searchStem, setSearchStem] = useState('all')
   const [searchCoreOnly, setSearchCoreOnly] = useState(false)
+  const [searchSource, setSearchSource] = useState('HKS')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [apiMode, setApiMode] = useState('unknown') // 'live' | 'db' | 'unknown'
@@ -283,6 +288,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const exportMsgTimeoutRef = useRef(null)
   const [copyPlanMsg, setCopyPlanMsg] = useState(null)
   const copyPlanTimeoutRef = useRef(null)
+  const [hubTheme, setHubTheme] = useState(() => window.localStorage.getItem('hks-theme') === 'hub')
 
   useEffect(() => {
     void savePlan(activePlan, planData)
@@ -295,6 +301,18 @@ export default function ScheduleBuilder({ courses = [] }) {
   useEffect(() => {
     if (!reqProgram && programs[0]?.id) setReqProgram(programs[0].id)
   }, [programs, reqProgram])
+
+  useEffect(() => {
+    if (hubTheme) {
+      document.documentElement.setAttribute('data-theme', 'hub')
+      window.localStorage.setItem('hks-theme', 'hub')
+      return
+    }
+    const savedTheme = window.localStorage.getItem('hks-theme')
+    const nextTheme = savedTheme === 'hub' ? 'light' : (savedTheme || 'dark')
+    document.documentElement.setAttribute('data-theme', nextTheme)
+    window.localStorage.setItem('hks-theme', nextTheme)
+  }, [hubTheme])
 
   useEffect(() => {
     return () => {
@@ -328,8 +346,8 @@ export default function ScheduleBuilder({ courses = [] }) {
 
   useEffect(() => {
     const query = searchQ.trim()
-    const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly, semester }
-    const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly
+    const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly, semester, searchSource }
+    const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly || searchSource !== 'All'
     if (!query && !hasFilters) {
       setSearching(false)
       setSearchResults([])
@@ -376,7 +394,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [courses, searchQ, searchConcentration, searchStem, searchCoreOnly, semester])
+  }, [courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -401,6 +419,12 @@ export default function ScheduleBuilder({ courses = [] }) {
       _hasLiveTimes: true,
     }
   }), [normalizedPlanCourses, sectionTimesMap])
+  const planAvgRating = useMemo(() => {
+    const ratedCourses = planCoursesEnriched.filter((course) => course.enrichment?.metrics_pct?.overall != null)
+    if (!ratedCourses.length) return null
+    const average = ratedCourses.reduce((sum, course) => sum + Number(course.enrichment.metrics_pct.overall || 0), 0) / ratedCourses.length
+    return average.toFixed(1)
+  }, [planCoursesEnriched])
   const gridCourses = useMemo(() => planCoursesEnriched.filter((course) => course.isOnGrid), [planCoursesEnriched])
   const conflicts = useMemo(() => findConflicts(gridCourses), [gridCourses])
   const conflictSet = useMemo(() => {
@@ -491,6 +515,19 @@ export default function ScheduleBuilder({ courses = [] }) {
   }
   const removeFromCompleted = (courseCode) => {
     setCompletedCourses((prev) => prev.filter((c) => normalizeCourse(c).courseCode !== courseCode))
+  }
+  const handleQuickAddCompleted = () => {
+    const courseCode = completedInput.trim().toUpperCase()
+    if (!courseCode) return
+    addToCompleted({
+      courseCode,
+      title: courseCode,
+      credits: 4,
+      sections: [],
+      instructors: [],
+      enrichment: {},
+    })
+    setCompletedInput('')
   }
   const toggleGrid = (courseCode) => {
     // Use the enriched version (has Supabase times merged in) for both the
@@ -710,6 +747,18 @@ export default function ScheduleBuilder({ courses = [] }) {
             )}
             <button
               type="button"
+              onClick={() => setHubTheme((current) => !current)}
+              className="rounded-full border px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
+              style={{
+                background: hubTheme ? 'var(--accent-soft)' : 'var(--panel-soft)',
+                borderColor: hubTheme ? 'var(--accent)' : 'var(--line-strong)',
+                color: 'var(--text)',
+              }}
+            >
+              {hubTheme ? '← Classic' : 'HUB Style'}
+            </button>
+            <button
+              type="button"
               onClick={handleExport}
               title={exportMsg?.text}
               className="rounded-full border px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
@@ -773,6 +822,46 @@ export default function ScheduleBuilder({ courses = [] }) {
                   >
                     Core
                   </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {SEMESTER_OPTIONS.map((opt) => {
+                    const active = semester === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setSemester(opt.value)}
+                        className="rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
+                        style={{
+                          background: active ? 'var(--accent-soft)' : 'var(--panel-soft)',
+                          borderColor: active ? 'var(--accent)' : 'var(--line-strong)',
+                          color: active ? 'var(--text)' : 'var(--text-muted)',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {['All', 'HKS', 'Non-HKS'].map((option) => {
+                    const active = searchSource === option
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setSearchSource(option)}
+                        className="rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
+                        style={{
+                          background: active ? 'var(--accent-soft)' : 'var(--panel-soft)',
+                          borderColor: active ? 'var(--accent)' : 'var(--line-strong)',
+                          color: active ? 'var(--text)' : 'var(--text-muted)',
+                        }}
+                      >
+                        {option}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
               {searchResults.length > 0 && searchQ.trim() ? (
@@ -958,6 +1047,11 @@ export default function ScheduleBuilder({ courses = [] }) {
                       {normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)} cr
                     </p>
                   )}
+                  {planAvgRating != null && (
+                    <p className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>
+                      ★ {planAvgRating} avg
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1019,6 +1113,31 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Completed</p>
                   <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{completedCourses.length} course{completedCourses.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="mb-2 flex gap-2">
+                  <input
+                    type="text"
+                    value={completedInput}
+                    onChange={(event) => setCompletedInput(event.target.value.toUpperCase())}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter') return
+                      event.preventDefault()
+                      handleQuickAddCompleted()
+                    }}
+                    placeholder="Add course code"
+                    className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-xs outline-none transition-colors"
+                    style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+                    aria-label="Quick add completed course code"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleQuickAddCompleted}
+                    disabled={!completedInput.trim()}
+                    className="shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default disabled:opacity-50"
+                    style={{ background: 'var(--accent-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+                  >
+                    Add
+                  </button>
                 </div>
                 {completedCourses.length === 0 ? (
                   <p className="text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>Mark past courses as Done in search to count them toward requirements.</p>

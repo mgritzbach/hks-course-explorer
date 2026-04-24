@@ -109,6 +109,70 @@ html[data-theme='light'] {
     linear-gradient(180deg, #f7f0e8 0%, #f2ebe2 50%, #ede4da 100%);
 }
 
+/* ─── HKS Hub theme ──────────────────────────────────────────────────────────── */
+html[data-theme='hub'] {
+  color-scheme: light;
+  background: #f1f1f1;
+  --bg:               #f1f1f1;
+  --track-bg:         rgba(0, 0, 0, 0.12);
+  --bg-elevated:      #ffffff;
+  --panel:            #ffffff;
+  --panel-strong:     #f8f8f8;
+  --panel-soft:       #efefef;
+  --panel-subtle:     rgba(196, 18, 48, 0.03);
+  --line:             #dddddd;
+  --line-strong:      #bbbbbb;
+  --text:             #1a1a1a;
+  --text-soft:        #3a3a3a;
+  --text-muted:       #777777;
+  --accent:           #C41230;
+  --accent-strong:    #a51c30;
+  --accent-soft:      rgba(196, 18, 48, 0.09);
+  --accent-glow:      rgba(196, 18, 48, 0.15);
+  --gold:             #8B6914;
+  --gold-soft:        rgba(139, 105, 20, 0.10);
+  --blue:             #1F5F8B;
+  --blue-soft:        rgba(31, 95, 139, 0.10);
+  --success:          #2E7D32;
+  --success-soft:     rgba(46, 125, 50, 0.10);
+  --warning:          #E65100;
+  --warning-soft:     rgba(230, 81, 0, 0.10);
+  --danger:           #C62828;
+  --danger-soft:      rgba(198, 40, 40, 0.10);
+  --nav-shell:        #ffffff;
+  --nav-shell-strong: #ffffff;
+  --overlay:          rgba(0, 0, 0, 0.40);
+  --shadow-xl:        0 4px 20px rgba(0, 0, 0, 0.12);
+  --shadow-lg:        0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-md:        0 1px 6px rgba(0, 0, 0, 0.06);
+  --radius-xl:        4px;
+  --radius-lg:        4px;
+  --radius-md:        4px;
+  --radius-sm:        2px;
+}
+
+html[data-theme='hub'] body {
+  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+  letter-spacing: 0;
+  background: #f1f1f1;
+}
+
+html[data-theme='hub'] body::before { display: none; }
+
+/* Hub: sharper corners everywhere */
+html[data-theme='hub'] .rounded-\[24px\],
+html[data-theme='hub'] .rounded-\[28px\],
+html[data-theme='hub'] .rounded-\[20px\],
+html[data-theme='hub'] .rounded-2xl { border-radius: 4px !important; }
+html[data-theme='hub'] .rounded-full { border-radius: 2px !important; }
+html[data-theme='hub'] .rounded-xl   { border-radius: 3px !important; }
+
+/* Hub: serif display uses Georgia */
+html[data-theme='hub'] .serif-display {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+}
+
 body {
   background: transparent;
   color: var(--text-soft);

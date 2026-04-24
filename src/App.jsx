@@ -305,7 +305,7 @@ export default function App() {
     }`
 
   const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
+    const next = theme === 'dark' ? 'light' : theme === 'light' ? 'dark' : 'dark'
     posthog.capture('theme_switched', { theme: next })
     setTheme(next)
   }
