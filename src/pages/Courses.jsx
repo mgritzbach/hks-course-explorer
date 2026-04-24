@@ -737,8 +737,8 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
         </div>
 
         {!selected && (
-          <div>
-            <p className="mb-4 text-xs text-muted">
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-muted">
               {filteredOptions.length === allOptions.length
                 ? `${allOptions.length.toLocaleString()} unique courses`
                 : `${filteredOptions.length.toLocaleString()} of ${allOptions.length.toLocaleString()} courses match`
@@ -763,6 +763,37 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
                         <p className="mt-1 text-xs text-muted">{course.professor_display}</p>
                       </div>
                       <span className="shrink-0 rounded-full px-2 py-1 text-xs font-bold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>{course.last_bid_price} pts</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* When filters are active, show the full matching list (not just top-5 bidding) */}
+            {activeFilterCount(filters) > 0 && filteredOptions.length > 0 && (
+              <div className="surface-card rounded-[22px] p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
+                  All {filteredOptions.length} Matching Course{filteredOptions.length !== 1 ? 's' : ''}
+                </p>
+                <div className="flex flex-col gap-2">
+                  {filteredOptions.map((course) => (
+                    <button
+                      key={course.id}
+                      onClick={() => { setSelectedId(course.id); setSearchParams({ id: course.id }) }}
+                      className="flex items-center justify-between gap-3 rounded-[18px] px-3 py-2.5 text-left transition-colors hover:bg-[rgba(165,28,48,0.05)]"
+                      style={{ background: 'var(--panel-subtle)' }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</span>
+                          <span className="truncate text-xs text-label">{course.course_name}</span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted">{course.professor_display}</p>
+                      </div>
+                      {course.last_bid_price != null && (
+                        <span className="shrink-0 rounded-full px-2 py-1 text-xs font-bold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
+                          {course.last_bid_price} pts
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
