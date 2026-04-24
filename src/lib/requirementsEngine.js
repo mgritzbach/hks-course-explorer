@@ -31,6 +31,14 @@ function courseMatchesCategory(course, category) {
     }
   }
 
+  // matchProperty: check a boolean field on the course object.
+  // Supports both top-level (is_stem) and enrichment-nested (enrichment.is_stem)
+  // so it works for both Supabase-direct rows and ScheduleBuilder-normalised plan courses.
+  if (category.matchProperty) {
+    const val = course[category.matchProperty] ?? course.enrichment?.[category.matchProperty]
+    if (val) return true
+  }
+
   if (category.matchPattern) {
     try {
       return new RegExp(category.matchPattern, 'i').test(course._courseCode)
@@ -108,7 +116,10 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
   const usedIndices = new Set()
 
   const computedCategories = categories.map((category) => {
-    const available = normalizedCourses.filter((course) => !usedIndices.has(course._index))
+    // nonExclusive categories (e.g. STEM) see all courses and don't consume usedIndices
+    const available = category.nonExclusive
+      ? normalizedCourses
+      : normalizedCourses.filter((course) => !usedIndices.has(course._index))
     let matchedCourses = []
     let chosenArea = null
 
@@ -123,7 +134,10 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
     }
 
     const { selected, appliedCredits } = takeCreditsUntilRequired(matchedCourses, category.requiredCredits || 0)
-    selected.forEach((course) => usedIndices.add(course._index))
+    // nonExclusive categories don't consume slots — those courses remain available for other categories
+    if (!category.nonExclusive) {
+      selected.forEach((course) => usedIndices.add(course._index))
+    }
 
     const creditsEarned = Math.min(appliedCredits, category.requiredCredits || appliedCredits)
     const requiredCredits = category.requiredCredits || 0

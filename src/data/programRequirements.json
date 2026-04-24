@@ -73,12 +73,24 @@
         "courseCodes": []
       },
       {
+        "id": "stem",
+        "label": "STEM Designation",
+        "sublabel": "OPT Eligible — STEM-A & STEM-B",
+        "requiredCredits": 16,
+        "nonExclusive": true,
+        "matchProperty": "is_stem",
+        "note": "16 STEM-designated credits required for 24-month STEM OPT extension. Up to 8 credits may simultaneously count toward another distribution requirement. STEM-A and STEM-B courses both qualify.",
+        "displayOrder": 5,
+        "color": "teal",
+        "courseCodes": []
+      },
+      {
         "id": "electives",
         "label": "Electives",
         "sublabel": "Remaining credits to reach 64 total",
         "requiredCredits": 44,
         "note": "Any approved HKS or cross-registered courses (max 16 cr cross-reg).",
-        "displayOrder": 5,
+        "displayOrder": 6,
         "color": "gold",
         "matchPattern": ".*",
         "courseCodes": []
@@ -320,12 +332,24 @@
         "courseCodes": ["DEV-250Y","DEV-250"]
       },
       {
+        "id": "stem",
+        "label": "STEM Designation",
+        "sublabel": "OPT Eligible — STEM-A & STEM-B",
+        "requiredCredits": 16,
+        "nonExclusive": true,
+        "matchProperty": "is_stem",
+        "note": "16 STEM-designated credits for 24-month STEM OPT extension. Up to 8 credits may overlap with other distribution requirements.",
+        "displayOrder": 7,
+        "color": "teal",
+        "courseCodes": []
+      },
+      {
         "id": "electives",
         "label": "Electives",
         "sublabel": "Remaining credits",
         "requiredCredits": 28,
         "note": "Advanced seminars, cross-registration at MIT/Harvard.",
-        "displayOrder": 7,
+        "displayOrder": 8,
         "color": "gold",
         "matchPattern": ".*",
         "courseCodes": []
@@ -401,12 +425,24 @@
         "courseCodes": []
       },
       {
+        "id": "stem",
+        "label": "STEM Designation",
+        "sublabel": "OPT Eligible — STEM-A & STEM-B",
+        "requiredCredits": 16,
+        "nonExclusive": true,
+        "matchProperty": "is_stem",
+        "note": "16 STEM-designated credits for 24-month STEM OPT extension. Up to 8 credits may overlap with other distribution requirements.",
+        "displayOrder": 5,
+        "color": "teal",
+        "courseCodes": []
+      },
+      {
         "id": "electives",
         "label": "Electives",
         "sublabel": "Remaining credits to reach 32 total",
         "requiredCredits": 20,
         "note": "PLC credential can satisfy distribution requirements for PLC Pathway students.",
-        "displayOrder": 5,
+        "displayOrder": 6,
         "color": "gold",
         "matchPattern": ".*",
         "courseCodes": []
