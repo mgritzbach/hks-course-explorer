@@ -288,8 +288,6 @@ export default function ScheduleBuilder({ courses = [] }) {
   const exportMsgTimeoutRef = useRef(null)
   const [copyPlanMsg, setCopyPlanMsg] = useState(null)
   const copyPlanTimeoutRef = useRef(null)
-  const [hubTheme, setHubTheme] = useState(() => window.localStorage.getItem('hks-theme') === 'hub')
-
   useEffect(() => {
     void savePlan(activePlan, planData)
   }, [activePlan, planData])
@@ -301,18 +299,6 @@ export default function ScheduleBuilder({ courses = [] }) {
   useEffect(() => {
     if (!reqProgram && programs[0]?.id) setReqProgram(programs[0].id)
   }, [programs, reqProgram])
-
-  useEffect(() => {
-    if (hubTheme) {
-      document.documentElement.setAttribute('data-theme', 'hub')
-      window.localStorage.setItem('hks-theme', 'hub')
-      return
-    }
-    const savedTheme = window.localStorage.getItem('hks-theme')
-    const nextTheme = savedTheme === 'hub' ? 'light' : (savedTheme || 'dark')
-    document.documentElement.setAttribute('data-theme', nextTheme)
-    window.localStorage.setItem('hks-theme', nextTheme)
-  }, [hubTheme])
 
   useEffect(() => {
     return () => {
@@ -756,18 +742,6 @@ export default function ScheduleBuilder({ courses = [] }) {
                 {copyPlanMsg === 'Copied!' ? '✓ Copied' : copyPlanMsg || '📋 Copy Plan'}
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setHubTheme((current) => !current)}
-              className="rounded-full border px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
-              style={{
-                background: hubTheme ? 'var(--accent-soft)' : 'var(--panel-soft)',
-                borderColor: hubTheme ? 'var(--accent)' : 'var(--line-strong)',
-                color: 'var(--text)',
-              }}
-            >
-              {hubTheme ? '← Classic' : 'HUB Style'}
-            </button>
             <button
               type="button"
               onClick={handleExport}

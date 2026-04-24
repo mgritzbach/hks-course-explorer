@@ -173,6 +173,32 @@ html[data-theme='hub'] .serif-display {
   font-weight: 700;
 }
 
+/* Hub: top nav link hover */
+html[data-theme='hub'] .hub-nav-link {
+  color: var(--text-soft);
+  border-bottom: 3px solid transparent;
+  border-top: 3px solid transparent;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+html[data-theme='hub'] .hub-nav-link:hover {
+  background: rgba(0,0,0,0.04);
+  color: var(--text);
+}
+html[data-theme='hub'] .hub-nav-link.hub-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
 body {
   background: transparent;
   color: var(--text-soft);

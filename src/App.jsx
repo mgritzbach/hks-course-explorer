@@ -1,6 +1,6 @@
 import posthog from 'posthog-js'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 
 // Hidden routes — not linked from nav, accessible by direct URL only
 const ScheduleBuilder = lazy(() => import('./pages/ScheduleBuilder.jsx'))
@@ -62,11 +62,9 @@ async function fetchAllCourses(onProgress) {
 }
 
 function buildMeta(courses) {
-  // Derive concentrations + years from live data
   const concentrations = [...new Set(courses.map(c => c.concentration).filter(Boolean))].sort()
   const years = [...new Set(courses.map(c => c.year).filter(Boolean))].sort((a, b) => a - b)
 
-  // Compute instructor medians
   const allRatings = courses
     .filter(c => c.metrics_raw?.Instructor_Rating != null && !c.is_average)
     .map(c => c.metrics_raw.Instructor_Rating)
@@ -81,7 +79,6 @@ function buildMeta(courses) {
     Object.entries(byYear).map(([yr, vals]) => [yr, median(vals)])
   )
 
-  // default_year = most recent year that has eval data
   const evalYears = [...new Set(courses.filter(c => c.has_eval && !c.is_average && c.year).map(c => c.year))]
   const default_year = evalYears.length ? Math.max(...evalYears) : 2025
 
@@ -161,7 +158,6 @@ function NavResourcesSection() {
   )
 }
 
-// Tally form ID — create a form at tally.so, then paste the ID from the share URL here
 const TALLY_FORM_ID = 'LZYAQv'
 
 export default function App() {
@@ -173,7 +169,12 @@ export default function App() {
   const [simIndex, setSimIndex] = useState(null)
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'dark'
-    return window.localStorage.getItem('hks-theme') || 'dark'
+    const stored = window.localStorage.getItem('hks-theme')
+    return (stored === 'hub' ? 'dark' : stored) || 'dark'
+  })
+  const [hubTheme, setHubTheme] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('hks-theme') === 'hub'
   })
   const [metricMode, setMetricModeState] = useState(() => {
     if (typeof window === 'undefined') return 'score'
@@ -199,10 +200,16 @@ export default function App() {
     setColorblindModeState(val)
   }
 
+  // Single source of truth for data-theme on <html>
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-    window.localStorage.setItem('hks-theme', theme)
-  }, [theme])
+    if (hubTheme) {
+      document.documentElement.setAttribute('data-theme', 'hub')
+      window.localStorage.setItem('hks-theme', 'hub')
+    } else {
+      document.documentElement.setAttribute('data-theme', theme)
+      window.localStorage.setItem('hks-theme', theme)
+    }
+  }, [hubTheme, theme])
 
   useEffect(() => {
     return () => {
@@ -210,7 +217,6 @@ export default function App() {
     }
   }, [])
 
-  // Fetch similarity index in the background — not blocking
   useEffect(() => {
     fetch('/sim_coords.json')
       .then((r) => r.json())
@@ -221,7 +227,7 @@ export default function App() {
         }
         setSimIndex(map)
       })
-      .catch(() => { /* sim coords are optional — fail silently */ })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -230,7 +236,6 @@ export default function App() {
     setLoadCount(0)
     fetchAllCourses((n) => setLoadCount(n))
       .then((courses) => {
-        // Compute metrics_score client-side (not stored in Supabase)
         courses.forEach(c => {
           if (c.metrics_raw) {
             c.metrics_score = Object.fromEntries(
@@ -286,33 +291,34 @@ export default function App() {
     )
   }
 
-  const navItems = [
-    { to: '/',           label: 'Home',      end: true },
-    { to: '/courses',    label: 'Courses' },
-    { to: '/faculty',    label: 'Faculty' },
-    { to: '/compare',    label: 'Compare' },
-    { to: '/resources',  label: 'Resources', mobileOnly: true },
+  // All nav destinations — some filtered per context
+  const allNavItems = [
+    { to: '/',                 label: 'Home',             end: true },
+    { to: '/courses',          label: 'Courses' },
+    { to: '/faculty',          label: 'Faculty' },
+    { to: '/compare',          label: 'Compare' },
+    { to: '/schedule-builder', label: 'Schedule Builder', desktopOnly: true },
+    { to: '/requirements',     label: 'Requirements',     desktopOnly: true },
+    { to: '/resources',        label: 'Resources',        mobileOnly: true },
   ]
 
-  const desktopNavItem = ({ isActive }) =>
-    `mx-2 rounded-2xl px-4 py-3 text-sm transition-colors ${
-      isActive ? 'text-white' : 'text-label hover:text-white'
-    }`
-
-  const mobileNavItem = ({ isActive }) =>
-    `flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl px-2 py-2 text-[10px] font-medium transition-colors ${
-      isActive ? 'text-white' : 'text-label'
-    }`
+  // Mobile bottom nav uses all non-desktopOnly items
+  const mobileNavItems = allNavItems.filter(item => !item.desktopOnly)
 
   const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : theme === 'light' ? 'dark' : 'dark'
+    const next = theme === 'dark' ? 'light' : 'dark'
     posthog.capture('theme_switched', { theme: next })
     setTheme(next)
+    if (hubTheme) setHubTheme(false) // switching dark/light exits hub mode
   }
+
+  const toggleHubTheme = () => {
+    posthog.capture('hub_theme_toggled', { hub: !hubTheme })
+    setHubTheme(v => !v)
+  }
+
   const handleShareShortlist = async () => {
     try {
-      // Always share the home page with the ?favs= param — never the current URL
-      // (so sharing from /compare or /faculty still produces a working shortlist link)
       const favsParam = [...(favs?.favorites || [])].join(',')
       const shareUrl = favsParam
         ? `${window.location.origin}/?favs=${encodeURIComponent(favsParam)}`
@@ -369,10 +375,243 @@ export default function App() {
     posthog.capture('shortlist_exported_csv', { course_count: deduped.length })
   }
 
+  // ─── Shared page routes ────────────────────────────────────────────────────
+  const pageRoutes = (
+    <ErrorBoundary>
+      <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center', fontSize: 14 }}>Loading…</div>}>
+        <Routes>
+          <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} notes={notes} setNote={setNote} isLight={theme === 'light'} />} />
+          <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} simIndex={simIndex} notes={notes} setNote={setNote} />} />
+          <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
+          <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
+          <Route path="/resources" element={<Resources />} />
+          <Route path="/schedule-builder" element={<ScheduleBuilder courses={data?.courses || []} meta={data?.meta} />} />
+          <Route path="/requirements"     element={<Requirements courses={data?.courses || []} />} />
+          <Route path="/admin"            element={<Admin />} />
+          <Route path="*" element={
+            <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
+              <p className="text-6xl font-bold" style={{ color: 'var(--accent)', opacity: 0.25 }}>404</p>
+              <h1 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>Page not found</h1>
+              <p className="max-w-xs text-sm" style={{ color: 'var(--text-muted)' }}>That URL doesn't match any page in the Course Explorer.</p>
+              <a href="/" className="rounded-full px-5 py-2.5 text-sm font-semibold" style={{ background: 'var(--accent-soft)', color: 'var(--text)', border: '1px solid var(--line)' }}>← Back to Home</a>
+            </div>
+          } />
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
+  )
+
+  // ─── Shared mobile bottom nav ──────────────────────────────────────────────
+  const mobileBottomNav = (
+    <nav
+      aria-label="Mobile navigation"
+      className="fixed inset-x-0 bottom-0 z-40 border-t px-3 pt-3 md:hidden"
+      style={{
+        background: 'var(--nav-shell)',
+        borderColor: 'var(--line)',
+        backdropFilter: 'blur(20px)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+      }}
+    >
+      {favs.count > 0 && (
+        <div className="mx-auto mb-2 flex max-w-md justify-center gap-2">
+          <button type="button" onClick={handleShareShortlist} className="theme-toggle" style={{ minHeight: 44 }}>
+            {shareCopied ? '✓ Copied!' : `🔗 Share (${favs.count})`}
+          </button>
+          <button type="button" onClick={handleExportShortlist} className="theme-toggle" style={{ minHeight: 44 }}>
+            ⬇ CSV
+          </button>
+        </div>
+      )}
+      <div className="mx-auto flex max-w-md gap-1 rounded-[24px] border p-2 shadow-[0_-12px_28px_rgba(0,0,0,0.28)]" style={{ borderColor: 'var(--line)', background: 'var(--nav-shell-strong)' }}>
+        {mobileNavItems.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) =>
+              `flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl px-2 py-2 text-[10px] font-medium transition-colors ${isActive ? 'text-white' : 'text-label'}`
+            }
+            style={({ isActive }) => ({
+              background: isActive ? 'linear-gradient(180deg, rgba(165, 28, 48, 0.28), rgba(165, 28, 48, 0.12))' : 'transparent',
+              border: `1px solid ${isActive ? 'rgba(212, 168, 106, 0.18)' : 'transparent'}`,
+            })}
+          >
+            {item.label}
+          </NavLink>
+        ))}
+      </div>
+    </nav>
+  )
+
+  // ─── Shared mobile top header ──────────────────────────────────────────────
+  const mobileTopHeader = (
+    <header
+      className="sticky top-0 z-30 border-b px-4 py-3 md:hidden"
+      style={{
+        background: 'var(--nav-shell)',
+        borderColor: 'var(--line)',
+        backdropFilter: 'blur(18px)',
+      }}
+    >
+      <p className="kicker">Harvard-inspired</p>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <div>
+          <p className="serif-display text-xl font-semibold" style={{ color: 'var(--text)' }}>HKS</p>
+          <p className="text-sm" style={{ color: 'var(--text-soft)' }}>Course Explorer</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={toggleTheme} className="theme-toggle">
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+          <a
+            href="/user-guide.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="theme-toggle"
+            style={{ textDecoration: 'none' }}
+          >
+            ⓘ Guide
+          </a>
+          {TALLY_FORM_ID !== 'YOUR_FORM_ID' && (
+            <button
+              type="button"
+              data-tally-open={TALLY_FORM_ID}
+              data-tally-width="400"
+              data-tally-overlay="1"
+              data-tally-emoji-text="🐛"
+              data-tally-emoji-animation="wave"
+              className="theme-toggle"
+            >
+              🐛
+            </button>
+          )}
+        </div>
+      </div>
+    </header>
+  )
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // HUB MODE — top navigation bar, no left sidebar
+  // ══════════════════════════════════════════════════════════════════════════
+  if (hubTheme) {
+    return (
+      <div className="flex h-screen flex-col" style={{ background: 'var(--bg)' }}>
+        <LandingSplash />
+        {data && <ChatBot courses={data.courses} favs={favs} isLight={true} />}
+
+        {/* Hub desktop top nav bar */}
+        <header
+          className="hidden md:flex shrink-0 items-center gap-0 border-b"
+          style={{
+            height: 60,
+            background: 'var(--nav-shell)',
+            borderColor: 'var(--line)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}
+        >
+          {/* Logo */}
+          <div className="flex shrink-0 items-center gap-3 border-r px-5" style={{ height: '100%', borderColor: 'var(--line)' }}>
+            <div>
+              <p className="serif-display text-xl font-bold" style={{ color: 'var(--accent)', letterSpacing: '-0.02em' }}>HKS</p>
+              <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: -2 }}>Course Explorer</p>
+            </div>
+          </div>
+
+          {/* Nav links — horizontal, hub style */}
+          <nav
+            aria-label="Main navigation"
+            className="flex h-full items-stretch"
+          >
+            {allNavItems.filter(item => !item.mobileOnly).map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => `hub-nav-link${isActive ? ' hub-active' : ''}`}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* Actions — right side */}
+          <div className="ml-auto flex items-center gap-2 px-4">
+            {favs.count > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleShareShortlist}
+                  className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+                  style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--accent)' }}
+                >
+                  {shareCopied ? '✓ Copied!' : `🔗 Share (${favs.count})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportShortlist}
+                  className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+                  style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text-soft)' }}
+                >
+                  ⬇ CSV
+                </button>
+              </>
+            )}
+            <a
+              href="/user-guide.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+              style={{ background: 'transparent', borderColor: 'var(--line)', color: 'var(--text-muted)', textDecoration: 'none' }}
+            >
+              ⓘ Guide
+            </a>
+            {TALLY_FORM_ID !== 'YOUR_FORM_ID' && (
+              <button
+                type="button"
+                data-tally-open={TALLY_FORM_ID}
+                data-tally-width="400"
+                data-tally-overlay="1"
+                data-tally-emoji-text="🐛"
+                data-tally-emoji-animation="wave"
+                className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+                style={{ background: 'transparent', borderColor: 'var(--line)', color: 'var(--text-muted)' }}
+              >
+                🐛 Feedback
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={toggleHubTheme}
+              className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+              style={{ background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' }}
+            >
+              ← Classic
+            </button>
+          </div>
+        </header>
+
+        {/* Mobile header (hub mode on mobile looks the same) */}
+        {mobileTopHeader}
+
+        {/* Page content — full width, no left bar */}
+        <main className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
+          {pageRoutes}
+        </main>
+
+        {mobileBottomNav}
+      </div>
+    )
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CLASSIC MODE — left sidebar navigation
+  // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className="flex min-h-screen md:h-screen" style={{ background: 'transparent' }}>
       <LandingSplash />
       {data && <ChatBot courses={data.courses} favs={favs} isLight={theme === 'light'} />}
+
       {/* Desktop sidebar nav */}
       <nav
         aria-label="Main navigation"
@@ -384,6 +623,7 @@ export default function App() {
           backdropFilter: 'blur(18px)',
         }}
       >
+        {/* Brand block */}
         <div className="mb-4 rounded-[22px] border px-4 pb-4 pt-5" style={{ borderColor: 'var(--line)', background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.14), var(--panel-subtle))' }}>
           <p className="kicker">Harvard-inspired</p>
           <p className="serif-display mt-2 text-2xl font-semibold" style={{ color: 'var(--text)' }}>HKS</p>
@@ -418,12 +658,15 @@ export default function App() {
           )}
         </div>
 
-        {navItems.filter((item) => !item.mobileOnly).map((item) => (
+        {/* Primary nav links */}
+        {allNavItems.filter((item) => !item.mobileOnly).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
-            className={desktopNavItem}
+            className={({ isActive }) =>
+              `mx-2 rounded-2xl px-4 py-3 text-sm transition-colors ${isActive ? 'text-white' : 'text-label hover:text-white'}`
+            }
             style={({ isActive }) => ({
               background: isActive ? 'linear-gradient(180deg, rgba(165, 28, 48, 0.22), rgba(165, 28, 48, 0.09))' : 'transparent',
               border: `1px solid ${isActive ? 'rgba(212, 168, 106, 0.26)' : 'transparent'}`,
@@ -433,131 +676,40 @@ export default function App() {
             {item.label}
           </NavLink>
         ))}
+
         <NavResourcesSection />
-        {favs.count > 0 && (
-          <div className="mt-auto flex flex-col gap-1 px-1 pb-1">
-            <button type="button" onClick={handleShareShortlist} className="theme-toggle" style={{ width: '100%' }}>
-              {shareCopied ? '✓ Copied!' : `🔗 Share Shortlist (${favs.count})`}
-            </button>
-            <button type="button" onClick={handleExportShortlist} className="theme-toggle" style={{ width: '100%' }}>
-              ⬇ Export CSV
-            </button>
-          </div>
-        )}
+
+        {/* Bottom section: shortlist actions + hub toggle */}
+        <div className="mt-auto flex flex-col gap-1 px-1 pb-1">
+          {favs.count > 0 && (
+            <>
+              <button type="button" onClick={handleShareShortlist} className="theme-toggle" style={{ width: '100%' }}>
+                {shareCopied ? '✓ Copied!' : `🔗 Share Shortlist (${favs.count})`}
+              </button>
+              <button type="button" onClick={handleExportShortlist} className="theme-toggle" style={{ width: '100%' }}>
+                ⬇ Export CSV
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={toggleHubTheme}
+            className="theme-toggle"
+            style={{ width: '100%', opacity: 0.7 }}
+          >
+            🏛 HUB Style
+          </button>
+        </div>
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Mobile top header */}
-        <header
-          className="sticky top-0 z-30 border-b px-4 py-3 md:hidden"
-          style={{
-            background: 'var(--nav-shell)',
-            borderColor: 'var(--line)',
-            backdropFilter: 'blur(18px)',
-          }}
-        >
-          <p className="kicker">Harvard-inspired</p>
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <div>
-              <p className="serif-display text-xl font-semibold" style={{ color: 'var(--text)' }}>HKS</p>
-              <p className="text-sm" style={{ color: 'var(--text-soft)' }}>Course Explorer</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleTheme} className="theme-toggle">
-                {theme === 'dark' ? 'Light' : 'Dark'}
-              </button>
-              <a
-                href="/user-guide.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="theme-toggle"
-                style={{ textDecoration: 'none' }}
-              >
-                ⓘ Guide
-              </a>
-              {TALLY_FORM_ID !== 'YOUR_FORM_ID' && (
-                <button
-                  type="button"
-                  data-tally-open={TALLY_FORM_ID}
-                  data-tally-width="400"
-                  data-tally-overlay="1"
-                  data-tally-emoji-text="🐛"
-                  data-tally-emoji-animation="wave"
-                  className="theme-toggle"
-                >
-                  🐛
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
+        {mobileTopHeader}
 
-        {/* Page content */}
         <main className="min-h-0 flex-1 overflow-hidden pb-24 md:pb-0">
-          <ErrorBoundary>
-            <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center', fontSize: 14 }}>Loading…</div>}>
-              <Routes>
-                <Route path="/"        element={<Home    courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} notes={notes} setNote={setNote} isLight={theme === 'light'} />} />
-                <Route path="/courses" element={<Courses courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} simIndex={simIndex} notes={notes} setNote={setNote} />} />
-                <Route path="/faculty" element={<Faculty courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
-                <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
-                <Route path="/resources" element={<Resources />} />
-                {/* Hidden routes — not linked from nav */}
-                <Route path="/schedule-builder" element={<ScheduleBuilder courses={data?.courses || []} meta={data?.meta} />} />
-                <Route path="/requirements"     element={<Requirements courses={data?.courses || []} />} />
-                <Route path="/admin"            element={<Admin />} />
-                {/* 404 fallback */}
-                <Route path="*" element={
-                  <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
-                    <p className="text-6xl font-bold" style={{ color: 'var(--accent)', opacity: 0.25 }}>404</p>
-                    <h1 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>Page not found</h1>
-                    <p className="max-w-xs text-sm" style={{ color: 'var(--text-muted)' }}>That URL doesn't match any page in the Course Explorer.</p>
-                    <a href="/" className="rounded-full px-5 py-2.5 text-sm font-semibold" style={{ background: 'var(--accent-soft)', color: 'var(--text)', border: '1px solid var(--line)' }}>← Back to Home</a>
-                  </div>
-                } />
-              </Routes>
-            </Suspense>
-          </ErrorBoundary>
+          {pageRoutes}
         </main>
 
-        {/* Mobile bottom nav */}
-        <nav
-          aria-label="Mobile navigation"
-          className="fixed inset-x-0 bottom-0 z-40 border-t px-3 pt-3 md:hidden"
-          style={{
-            background: 'var(--nav-shell)',
-            borderColor: 'var(--line)',
-            backdropFilter: 'blur(20px)',
-            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
-          }}
-        >
-          {favs.count > 0 && (
-            <div className="mx-auto mb-2 flex max-w-md justify-center gap-2">
-              <button type="button" onClick={handleShareShortlist} className="theme-toggle" style={{ minHeight: 44 }}>
-                {shareCopied ? '✓ Copied!' : `🔗 Share (${favs.count})`}
-              </button>
-              <button type="button" onClick={handleExportShortlist} className="theme-toggle" style={{ minHeight: 44 }}>
-                ⬇ CSV
-              </button>
-            </div>
-          )}
-          <div className="mx-auto flex max-w-md gap-1 rounded-[24px] border p-2 shadow-[0_-12px_28px_rgba(0,0,0,0.28)]" style={{ borderColor: 'var(--line)', background: 'var(--nav-shell-strong)' }}>
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={mobileNavItem}
-                style={({ isActive }) => ({
-                  background: isActive ? 'linear-gradient(180deg, rgba(165, 28, 48, 0.28), rgba(165, 28, 48, 0.12))' : 'transparent',
-                  border: `1px solid ${isActive ? 'rgba(212, 168, 106, 0.18)' : 'transparent'}`,
-                })}
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </div>
-        </nav>
+        {mobileBottomNav}
       </div>
     </div>
   )
