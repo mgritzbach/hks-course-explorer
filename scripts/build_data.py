@@ -120,6 +120,45 @@ def nullable_text(value):
     return text or None
 
 
+def parse_meeting_days(value):
+    if value is None:
+        return None
+    if isinstance(value, list):
+        days = [clean_text(item) for item in value if clean_text(item)]
+        return days or None
+    text = clean_text(value)
+    if not text:
+        return None
+    if text.startswith("[") and text.endswith("]"):
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                days = [clean_text(item) for item in parsed if clean_text(item)]
+                return days or None
+        except json.JSONDecodeError:
+            pass
+    days = [clean_text(part) for part in re.split(r"[|,;/]+", text) if clean_text(part)]
+    return days or None
+
+
+def load_existing_schedule_overrides():
+    if not OUTPUT_JSON.exists():
+        return {}
+    try:
+        payload = json.loads(OUTPUT_JSON.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    overrides = {}
+    for course in payload.get("courses", []):
+        overrides[course.get("id")] = {
+            "meeting_days": parse_meeting_days(course.get("meeting_days")),
+            "meeting_time": nullable_text(course.get("meeting_time")),
+            "meeting_time_end": nullable_text(course.get("meeting_time_end")),
+        }
+    return overrides
+
+
 def parse_year(value):
     number = parse_float(value)
     if number is None:
@@ -427,6 +466,9 @@ def build_course(row, latest_bid_lookup):
 
     latest_bid = latest_bid_lookup.get(course_code, {})
     has_bidding = parse_bool(row.get("has_bidding")) or metrics_raw["Bid_Price"] is not None or metrics_raw["Bid_N_Bids"] is not None
+    meeting_days = parse_meeting_days(row.get("meeting_days"))
+    meeting_time = nullable_text(row.get("meeting_time"))
+    meeting_time_end = nullable_text(row.get("meeting_time_end"))
 
     return {
         "id": f"{course_code}||{year if year is not None else ''}||{term}||{professor}",
@@ -469,6 +511,9 @@ def build_course(row, latest_bid_lookup):
         "stem_school": nullable_text(row.get("stem_school")),
         "faculty_title": nullable_text(row.get("faculty_title")),
         "faculty_category": nullable_text(row.get("faculty_category")),
+        "meeting_days": meeting_days,
+        "meeting_time": meeting_time,
+        "meeting_time_end": meeting_time_end,
     }
 
 
@@ -507,7 +552,18 @@ def main():
             "last_bid_n_bids": parse_int(latest.get("bid_n_bids")),
         }
 
+    schedule_overrides = load_existing_schedule_overrides()
     courses = [build_course(row, latest_bid_lookup) for row in rows]
+    for course in courses:
+        override = schedule_overrides.get(course["id"])
+        if not override:
+            continue
+        if not course.get("meeting_days") and override.get("meeting_days"):
+            course["meeting_days"] = override["meeting_days"]
+        if not course.get("meeting_time") and override.get("meeting_time"):
+            course["meeting_time"] = override["meeting_time"]
+        if not course.get("meeting_time_end") and override.get("meeting_time_end"):
+            course["meeting_time_end"] = override["meeting_time_end"]
 
     # Compute similarity map coordinates (3 variants)
     print("Computing similarity map coordinates (combined / ratings / text)...")
