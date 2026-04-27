@@ -2,6 +2,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fmtShort } from '../utils/formatMetric.js'
 
+function fmt12h(t) {
+  if (!t) return ''
+  const [h, m] = t.split(':').map(Number)
+  const suffix = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 || 12
+  return m === 0 ? h12 + suffix : h12 + ':' + String(m).padStart(2, '0') + suffix
+}
+
 function encodeProf(professor) {
   return encodeURIComponent(professor)
 }
@@ -36,6 +44,12 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
   const descriptionText = course.description
     ? (hasLongDescription && !descExpanded ? course.description.slice(0, 180) : course.description)
     : null
+  const hasSchedule = course.meeting_days?.length > 0 || course.meeting_time
+  const scheduleDays = course.meeting_days?.length ? course.meeting_days.join(' · ') : ''
+  const scheduleTime = course.meeting_time_end
+    ? `${fmt12h(course.meeting_time)}-${fmt12h(course.meeting_time_end)}`
+    : fmt12h(course.meeting_time)
+  const scheduleLabel = [scheduleDays, scheduleTime].filter(Boolean).join('  ')
 
   return (
     <div
@@ -142,6 +156,16 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
           </button>
           {course.faculty_category && <span className="ml-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>({course.faculty_category})</span>}
         </p>
+      )}
+
+      {hasSchedule && (
+        <div
+          className="mb-2 flex items-center gap-1.5"
+          style={{ fontSize: 11, color: 'var(--text-muted)' }}
+        >
+          <span aria-hidden="true">🕐</span>
+          <span>{scheduleLabel}</span>
+        </div>
       )}
 
       <p className={`${compact ? 'mb-2' : 'mb-3'} text-xs leading-5`} style={{ color: 'var(--text-muted)' }}>
