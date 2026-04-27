@@ -49,6 +49,12 @@ function median(values) {
 }
 
 async function fetchAllCourses(onProgress) {
+  /*
+   * Nullable schedule fields added 2026-04-26:
+   * - meeting_days: text[] of short day codes such as ['Mon', 'Wed']
+   * - meeting_time: start time in 24h HH:MM format
+   * - meeting_time_end: end time in 24h HH:MM format
+   */
   const PAGE = 1000
   let all = [], from = 0, done = false
   while (!done) {
