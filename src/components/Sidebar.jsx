@@ -357,6 +357,16 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
               )
             })}
           </div>
+          <label className="mt-3 flex cursor-pointer items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={filters.hideNoSchedule || false}
+              onChange={(e) => update({ hideNoSchedule: e.target.checked })}
+              className="h-3.5 w-3.5 cursor-pointer"
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            <span className="text-xs text-label">Hide courses without schedule info</span>
+          </label>
         </div>
       )}
 
