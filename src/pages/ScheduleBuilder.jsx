@@ -52,6 +52,9 @@ function fallbackSearch(q, allCourses, filters = {}) {
       instructors: [c.professor_display || c.professor].filter(Boolean),
       credits: 4,
       sections: [],
+      meeting_days: c.meeting_days || null,
+      meeting_time: c.meeting_time || null,
+      meeting_time_end: c.meeting_time_end || null,
       enrichment: {
         is_stem: c.is_stem,
         is_core: c.is_core,
@@ -283,6 +286,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searchCoreOnly, setSearchCoreOnly] = useState(false)
   const [searchSource, setSearchSource] = useState('HKS')
   const [searchMinRating, setSearchMinRating] = useState('')
+  const [searchDays, setSearchDays] = useState([])
   const [completedSearchQ, setCompletedSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -391,6 +395,20 @@ export default function ScheduleBuilder({ courses = [] }) {
       window.clearTimeout(timer)
     }
   }, [courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating])
+
+  // Apply day-of-week filter client-side on top of search results.
+  // Courses with no meeting_days data always pass through (don't penalise missing data).
+  const filteredSearchResults = useMemo(() => {
+    if (!searchDays.length) return searchResults
+    return searchResults.filter((course) => {
+      const days = course.meeting_days   // e.g. ["Mon","Wed"] from DB seed
+        || extractDays(course.time_start) // e.g. ["MON","WED"] from Harvard API
+      if (!days || !days.length) return true // no data → always show
+      // Normalise to uppercase for comparison
+      const upperDays = days.map((d) => String(d).toUpperCase().slice(0, 3))
+      return searchDays.some((sd) => upperDays.includes(sd))
+    })
+  }, [searchResults, searchDays])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -740,7 +758,7 @@ export default function ScheduleBuilder({ courses = [] }) {
 
   const handleSearchKeyDown = (event) => {
     if (event.key !== 'Enter') return
-    const firstUnadded = searchResults.find((r) => !addedCourseCodes.has(r.courseCode))
+    const firstUnadded = filteredSearchResults.find((r) => !addedCourseCodes.has(r.courseCode))
     if (firstUnadded) addToShortlist(firstUnadded)
   }
 
@@ -1033,8 +1051,43 @@ export default function ScheduleBuilder({ courses = [] }) {
                     <option value="90">≥ 90th %ile</option>
                   </select>
                 </div>
+                {/* Day-of-week filter — only courses meeting on selected days */}
+                <div className="flex flex-wrap gap-1.5">
+                  {['MON','TUE','WED','THU','FRI'].map((day) => {
+                    const active = searchDays.includes(day)
+                    const label = { MON:'Mon', TUE:'Tue', WED:'Wed', THU:'Thu', FRI:'Fri' }[day]
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setSearchDays((prev) =>
+                          prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+                        )}
+                        className="rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
+                        style={{
+                          background: active ? 'var(--accent-soft)' : 'var(--panel-soft)',
+                          borderColor: active ? 'var(--accent)' : 'var(--line-strong)',
+                          color: active ? 'var(--text)' : 'var(--text-muted)',
+                        }}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                  {searchDays.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchDays([])}
+                      className="rounded-xl border px-2 py-1.5 text-xs transition-colors"
+                      style={{ borderColor: 'var(--line-strong)', color: 'var(--text-muted)', background: 'var(--panel-soft)' }}
+                    >
+                      All days
+                    </button>
+                  )}
+                </div>
               </div>
-              {searchResults.length > 0 && searchQ.trim() ? (
+              {filteredSearchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result</p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>Q-guide data shown. Live section times need Harvard API key.</p>
@@ -1044,10 +1097,10 @@ export default function ScheduleBuilder({ courses = [] }) {
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
               {searching ? (
                 <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Searching…</div>
-              ) : searchResults.length > 0 ? (
+              ) : filteredSearchResults.length > 0 ? (
                 <div className="space-y-3">
-                  <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>{searchResults.length} course{searchResults.length !== 1 ? 's' : ''} found</p>
-                  {searchResults.map((course, index) => {
+                  <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>{filteredSearchResults.length} course{filteredSearchResults.length !== 1 ? 's' : ''} found{searchDays.length > 0 ? ` · ${searchDays.map(d => d[0]+d.slice(1).toLowerCase()).join('/')} only` : ''}</p>
+                  {filteredSearchResults.map((course, index) => {
                     const added = addedCourseCodes.has(course.courseCode)
                     const done = completedCourseCodes.has(course.courseCode)
                     const hks = isHksCourse(course.courseCode)
