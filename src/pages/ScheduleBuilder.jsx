@@ -333,6 +333,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [expandedBlock, setExpandedBlock] = useState(null)
   const [reqProgram, setReqProgram] = useState(() => getPrograms()[0]?.id || '')
   const [gridMessages, setGridMessages] = useState({})
+  const [manualTimeEdit, setManualTimeEdit] = useState({}) // courseCode → {days:[], start:'', end:''}
   const [exportMsg, setExportMsg] = useState(null)
   const exportMsgTimeoutRef = useRef(null)
   const [copyPlanMsg, setCopyPlanMsg] = useState(null)
@@ -837,6 +838,25 @@ export default function ScheduleBuilder({ courses = [] }) {
       })
     }
     setCompletedInput('')
+  }
+  const applyManualTime = (courseCode) => {
+    const edit = manualTimeEdit[courseCode]
+    if (!edit || !edit.days?.length || !edit.start || !edit.end) return
+    setPlanData((current) => ({
+      ...current,
+      courses: (Array.isArray(current?.courses) ? current.courses : []).map((course) => {
+        const normalized = normalizeCourse(course)
+        if (normalized.courseCode !== courseCode) return course
+        return {
+          ...normalized,
+          meeting_days: edit.days.join('/'),
+          time_start: edit.start,
+          time_end: edit.end,
+        }
+      }),
+    }))
+    setManualTimeEdit((prev) => { const next = { ...prev }; delete next[courseCode]; return next })
+    setGridMessages((msgs) => { const next = { ...msgs }; delete next[courseCode]; return next })
   }
   const toggleGrid = (courseCode) => {
     // Use the enriched version (has Supabase times merged in) for both the
@@ -1866,6 +1886,45 @@ export default function ScheduleBuilder({ courses = [] }) {
                             )
                           })()}
                           {gridMessages[course.courseCode] && <p className="mt-3 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{gridMessages[course.courseCode]}</p>}
+                          {/* Manual time entry for cross-reg / MIT courses with no schedule data */}
+                          {!onGrid && !courseHasSchedule(course) && !sectionTimesLoading && (
+                            <div className="mt-3 rounded-xl border px-3 py-2" style={{ background: 'var(--panel-subtle)', borderColor: 'var(--line)' }}>
+                              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>Set meeting time</p>
+                              <div className="mb-2 flex flex-wrap gap-1">
+                                {['MON','TUE','WED','THU','FRI'].map((day) => {
+                                  const edit = manualTimeEdit[course.courseCode] || { days: [], start: '', end: '' }
+                                  const active = edit.days.includes(day)
+                                  return (
+                                    <button key={day} type="button"
+                                      onClick={() => setManualTimeEdit((prev) => {
+                                        const e = prev[course.courseCode] || { days: [], start: '', end: '' }
+                                        const days = active ? e.days.filter((d) => d !== day) : [...e.days, day]
+                                        return { ...prev, [course.courseCode]: { ...e, days } }
+                                      })}
+                                      className="rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                                      style={{ background: active ? 'var(--accent-soft)' : 'transparent', borderColor: active ? 'var(--accent)' : 'var(--line)', color: active ? 'var(--accent-strong)' : 'var(--text-muted)' }}
+                                    >{day.slice(0,2)}</button>
+                                  )
+                                })}
+                              </div>
+                              <div className="flex gap-2">
+                                <input type="time" value={(manualTimeEdit[course.courseCode] || {}).start || ''} onChange={(e) => setManualTimeEdit((prev) => ({ ...prev, [course.courseCode]: { ...(prev[course.courseCode] || { days: [], start: '', end: '' }), start: e.target.value } }))} className="flex-1 min-w-0 rounded-lg border px-2 py-1 text-xs" style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)', color: 'var(--text)' }} aria-label="Start time" />
+                                <span className="self-center text-xs" style={{ color: 'var(--text-muted)' }}>–</span>
+                                <input type="time" value={(manualTimeEdit[course.courseCode] || {}).end || ''} onChange={(e) => setManualTimeEdit((prev) => ({ ...prev, [course.courseCode]: { ...(prev[course.courseCode] || { days: [], start: '', end: '' }), end: e.target.value } }))} className="flex-1 min-w-0 rounded-lg border px-2 py-1 text-xs" style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)', color: 'var(--text)' }} aria-label="End time" />
+                              </div>
+                              {(() => {
+                                const edit = manualTimeEdit[course.courseCode] || {}
+                                const ready = edit.days?.length > 0 && edit.start && edit.end
+                                return (
+                                  <button type="button" disabled={!ready} onClick={() => applyManualTime(course.courseCode)}
+                                    className="mt-2 w-full rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default disabled:opacity-40"
+                                    style={{ background: ready ? 'var(--accent-soft)' : 'transparent', borderColor: ready ? 'var(--line-strong)' : 'var(--line)', color: ready ? 'var(--text)' : 'var(--text-muted)' }}>
+                                    Save &amp; place on grid
+                                  </button>
+                                )
+                              })()}
+                            </div>
+                          )}
                           {inConflict && <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--danger)' }}>Conflict detected</p>}
                         </div>
                       )
