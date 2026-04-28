@@ -44,11 +44,16 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
   const descriptionText = course.description
     ? (hasLongDescription && !descExpanded ? course.description.slice(0, 180) : course.description)
     : null
-  const hasSchedule = course.meeting_days?.length > 0 || course.meeting_time
-  const scheduleDays = course.meeting_days?.length ? course.meeting_days.join(' · ') : ''
-  const scheduleTime = course.meeting_time_end
-    ? `${fmt12h(course.meeting_time)}-${fmt12h(course.meeting_time_end)}`
-    : fmt12h(course.meeting_time)
+  // meeting_days may be a string ('MON/WED') or legacy array — handle both
+  const _mdRaw = course.meeting_days
+  const _mdParts = Array.isArray(_mdRaw) ? _mdRaw : (_mdRaw ? String(_mdRaw).split('/').filter(Boolean) : [])
+  const _meetingTime = course.time_start || course.meeting_time
+  const _meetingTimeEnd = course.time_end || course.meeting_time_end
+  const hasSchedule = _mdParts.length > 0 || _meetingTime
+  const scheduleDays = _mdParts.join(' · ')
+  const scheduleTime = _meetingTimeEnd
+    ? `${fmt12h(_meetingTime)}-${fmt12h(_meetingTimeEnd)}`
+    : fmt12h(_meetingTime)
   const scheduleLabel = [scheduleDays, scheduleTime].filter(Boolean).join('  ')
 
   return (
