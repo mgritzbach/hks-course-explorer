@@ -449,8 +449,15 @@ export default function ScheduleBuilder({ courses = [] }) {
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
-        // Use live API when: user typed a query, OR Non-HKS browse (always use API for non-HKS)
-        if ((effectiveQuery && !searchAllYears) || nonHksBrowse) {
+        // SC-39d: Non-HKS auto-browse (no typed query) — skip API, go straight to stubs.
+        // The Harvard API key is HKS-scoped and always returns empty for non-HKS schools.
+        // Stubs are generated from course_sections in Supabase which has cross-reg data.
+        if (nonHksBrowse) {
+          if (!cancelled) { setApiMode('db'); setSearchResults([]) }
+          return
+        }
+        // Use live API when: user typed a query
+        if (effectiveQuery && !searchAllYears) {
           const semesterKey = semester === 'January' ? 'January' : semester
           const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
           const apiOptions = { term: `${termYear}${semesterKey}` }
