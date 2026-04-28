@@ -1364,6 +1364,30 @@ export default function ScheduleBuilder({ courses = [] }) {
                   )}
                 </div>
               </div>
+              {/* Active filter summary + reset */}
+              {(() => {
+                const hasActiveFilters = searchConcentration !== 'All' || searchStem !== 'all' || searchCoreOnly || searchSource !== 'HKS' || searchMinRating || searchDays.length > 0 || searchTimes.length > 0 || searchAllYears || browseAll
+                return hasActiveFilters ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchConcentration('All')
+                      setSearchStem('all')
+                      setSearchCoreOnly(false)
+                      setSearchSource('HKS')
+                      setSearchMinRating('')
+                      setSearchDays([])
+                      setSearchTimes([])
+                      setSearchAllYears(false)
+                      setBrowseAll(false)
+                    }}
+                    className="mt-2 w-full rounded-xl border px-2 py-1 text-xs font-semibold transition-colors"
+                    style={{ borderColor: 'var(--line-strong)', color: 'var(--text-muted)', background: 'var(--panel-soft)' }}
+                  >
+                    ✕ Reset all filters
+                  </button>
+                ) : null
+              })()}
               {searchAllYears && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--gold)' }}>📚 All-years mode — type a query to search Q-guide history</p>
               ) : filteredSearchResults.length > 0 && searchQ.trim() ? (
@@ -1403,7 +1427,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                     <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
                                     {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
                                     {searchAllYears && course.year && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{course.year} {course.term}</span>}
-                                    {histRating && <a href={`/courses?q=${encodeURIComponent(baseCode)}`} target="_blank" rel="noopener noreferrer" title="View evaluations in Q-guide" className="text-[10px] font-semibold hover:underline" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Q ↗</a>}
+                                    {histRating && <a href={`/courses?q=${encodeURIComponent(baseCode)}`} target="_blank" rel="noopener noreferrer" aria-label={`View ${baseCode} evaluations in Q-guide (opens in new tab)`} title="View evaluations in Q-guide" className="text-[10px] font-semibold hover:underline" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Q ↗</a>}
                                   </div>
                                   <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                                 </div>
@@ -1465,7 +1489,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                     <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
                                     {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
                                     {searchAllYears && course.year && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{course.year} {course.term}</span>}
-                                    {histRating && <a href={`/courses?q=${encodeURIComponent(baseCode)}`} target="_blank" rel="noopener noreferrer" title="View evaluations in Q-guide" className="text-[10px] font-semibold hover:underline" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Q ↗</a>}
+                                    {histRating && <a href={`/courses?q=${encodeURIComponent(baseCode)}`} target="_blank" rel="noopener noreferrer" aria-label={`View ${baseCode} evaluations in Q-guide (opens in new tab)`} title="View evaluations in Q-guide" className="text-[10px] font-semibold hover:underline" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Q ↗</a>}
                                   </div>
                                   <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                                 </div>
