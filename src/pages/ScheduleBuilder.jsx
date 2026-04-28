@@ -1380,7 +1380,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                   (() => {
                                     const DAY_ABBR = { MON: 'M', TUE: 'Tu', WED: 'W', THU: 'Th', FRI: 'F', SAT: 'Sa', SUN: 'Su' }
                                     const days = extractDays(course.meeting_days).map((d) => DAY_ABBR[d] || d).join('/')
-                                    return <Chip tone="success">{days}{course.time_start ? ` ${course.time_start}` : ''}</Chip>
+                                    return <Chip tone="success">{days}{course.time_start ? ` ${formatClockLabel(course.time_start)}` : ''}</Chip>
                                   })()
                                 ) : sectionTimesLoading ? (
                                   <Chip tone="default">Times loading</Chip>
@@ -1436,7 +1436,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                   (() => {
                                     const DAY_ABBR = { MON: 'M', TUE: 'Tu', WED: 'W', THU: 'Th', FRI: 'F', SAT: 'Sa', SUN: 'Su' }
                                     const days = extractDays(course.meeting_days).map((d) => DAY_ABBR[d] || d).join('/')
-                                    return <Chip tone="success">{days}{course.time_start ? ` ${course.time_start}` : ''}</Chip>
+                                    return <Chip tone="success">{days}{course.time_start ? ` ${formatClockLabel(course.time_start)}` : ''}</Chip>
                                   })()
                                 ) : sectionTimesLoading ? (
                                   <Chip tone="default">Times loading</Chip>
