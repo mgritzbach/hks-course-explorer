@@ -4,6 +4,7 @@ import { loadPlan, savePlan, PLANS, DEFAULT_PLAN, loadCompleted, saveCompleted }
 import { computeProgress, getPrograms } from '../lib/requirementsEngine'
 import { searchHarvardCourses } from '../lib/harvardApi'
 import { useFavorites } from '../useFavorites'
+import { supabase } from '../lib/supabase.js'
 
 const GRID_START = 480
 const GRID_END = 1170
@@ -650,6 +651,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   }, [])
 
   // Fetch meeting times from Supabase course_sections + live_courses (parallel)
+  // Uses the supabase JS client (credentials hardcoded in src/lib/supabase.js) so this
+  // works in production regardless of VITE_* env vars being set in the build environment.
   useEffect(() => {
     // Clear stale data immediately so stubs don't show wrong-semester courses during reload
     setSectionTimesMap(new Map())
@@ -657,23 +660,24 @@ export default function ScheduleBuilder({ courses = [] }) {
     setSectionInfoMap(new Map())
     setLiveCoursesData([])
     setSectionTimesLoading(true)
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseKey) {
-      setSectionTimesLoading(false)
-      return
-    }
-    // course_sections uses our internal format (no space); live_courses stores Harvard API format (with space)
+    // course_sections uses our internal format (no space)
     const termStrInternal = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
-    const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
 
     Promise.all([
       // course_sections: hand-curated HKS schedule data (semester-scoped)
-      fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStrInternal}&select=course_code_base,meetings,title,instructors,credits&limit=2000`, { headers })
-        .then((r) => r.ok ? r.json() : []),
+      supabase
+        .from('course_sections')
+        .select('course_code_base,meetings,title,instructors,credits')
+        .eq('term', termStrInternal)
+        .limit(2000)
+        .then(({ data }) => data || []),
       // live_courses: ALL terms — user can browse the full Harvard catalog, not just one semester
-      fetch(`${supabaseUrl}/rest/v1/live_courses?select=id,course_code,course_code_base,title,term,credits,instructors,meeting_days,time_start,time_end,school,is_hks&limit=5000&order=term.desc`, { headers })
-        .then((r) => r.ok ? r.json() : []),
+      supabase
+        .from('live_courses')
+        .select('id,course_code,course_code_base,title,term,credits,instructors,meeting_days,time_start,time_end,school,is_hks')
+        .order('term', { ascending: false })
+        .limit(2000)
+        .then(({ data }) => data || []),
     ])
       .then(([sectionRows, liveRows]) => {
         // ── Build sectionTimesMap from course_sections ──
