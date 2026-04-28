@@ -415,6 +415,12 @@ export default function ScheduleBuilder({ courses = [] }) {
     const query = searchQ.trim()
     const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly, semester, searchSource, minRating: searchMinRating, allYears: searchAllYears }
     const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly || (searchSource === 'Non-HKS') || Boolean(searchMinRating) || browseAll || searchAllYears
+    // SC-22: all-years mode requires a typed query — otherwise it would return thousands of courses
+    if (searchAllYears && !query) {
+      setSearching(false)
+      setSearchResults([])
+      return undefined
+    }
     if (!query && !hasFilters) {
       setSearching(false)
       setSearchResults([])
