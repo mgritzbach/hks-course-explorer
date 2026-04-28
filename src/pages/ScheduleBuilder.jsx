@@ -431,7 +431,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
-        if (query) {
+        if (query && !searchAllYears) {
           const semesterKey = semester === 'January' ? 'January' : semester
           const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
           const apiOptions = { term: `${termYear}${semesterKey}` }
@@ -453,10 +453,10 @@ export default function ScheduleBuilder({ courses = [] }) {
             setSearchResults(fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
           }
         } else {
-          // Filter-only mode — use DB
+          // All-years DB search (searchAllYears=true + query), or filter-only mode
           if (cancelled) return
           setApiMode('db')
-          setSearchResults(fallbackSearch('', courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
+          setSearchResults(fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
         }
       } catch {
         if (!cancelled) {
@@ -1753,11 +1753,14 @@ export default function ScheduleBuilder({ courses = [] }) {
                             {!course.enrichment?.is_core && !course.enrichment?.is_stem && <Chip>Elective</Chip>}
                             {course._hasLiveTimes ? (
                               <Chip tone="success">🕐 Live times</Chip>
-                            ) : sectionTimesLoading ? (
+                            ) : courseHasSchedule(course) ? null
+                            : sectionTimesLoading ? (
                               <Chip tone="default">Times loading</Chip>
-                            ) : !courseHasSchedule(course) ? (
+                            ) : isHksCourse(course.courseCode) ? (
                               <Chip tone="danger">No time data</Chip>
-                            ) : null}
+                            ) : (
+                              <Chip tone="muted">No schedule yet</Chip>
+                            )}
                             {(course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
                               <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
                             )}
