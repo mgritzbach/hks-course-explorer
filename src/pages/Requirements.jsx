@@ -140,10 +140,12 @@ export default function Requirements({ courses = [] }) {
     }
 
     window.addEventListener('focus', syncPlanCourses)
+    window.addEventListener('hks-plan-updated', syncPlanCourses)
     document.addEventListener('visibilitychange', syncPlanCourses)
     window.addEventListener('storage', handleStorage)
     return () => {
       window.removeEventListener('focus', syncPlanCourses)
+      window.removeEventListener('hks-plan-updated', syncPlanCourses)
       document.removeEventListener('visibilitychange', syncPlanCourses)
       window.removeEventListener('storage', handleStorage)
     }

@@ -72,6 +72,7 @@ export async function savePlan(planName = DEFAULT_PLAN, planValue = emptyPlan(pl
 
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(storageKey(planName), JSON.stringify(stampedPlan))
+    window.dispatchEvent(new CustomEvent('hks-plan-updated', { detail: { planName: stampedPlan.name } }))
   }
 
   const userId = getLocalUserId()

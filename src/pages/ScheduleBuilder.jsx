@@ -398,10 +398,14 @@ export default function ScheduleBuilder({ courses = [] }) {
         if (query) {
           const semesterKey = semester === 'January' ? 'January' : semester
           const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
-          const remote = await searchHarvardCourses(query, { term: `${termYear}${semesterKey}`, school: 'HKS' })
+          const apiOptions = { term: `${termYear}${semesterKey}` }
+          if (searchSource === 'HKS') apiOptions.school = 'HKS'
+          const remote = await searchHarvardCourses(query, apiOptions)
           if (cancelled) return
           let normalized = (Array.isArray(remote) ? remote : []).map((item, index) => normalizeCourse(item, index))
           // Apply client-side filters to live results
+          if (searchSource === 'HKS') normalized = normalized.filter((c) => isHksCourse(c.courseCode))
+          if (searchSource === 'Non-HKS') normalized = normalized.filter((c) => !isHksCourse(c.courseCode))
           if (searchStem === 'stem') normalized = normalized.filter((c) => c.enrichment?.is_stem)
           if (searchStem === 'nonstem') normalized = normalized.filter((c) => !c.enrichment?.is_stem)
           if (searchCoreOnly) normalized = normalized.filter((c) => c.enrichment?.is_core)

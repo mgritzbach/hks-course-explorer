@@ -235,6 +235,22 @@ export default function App() {
     const storedVersion = window.localStorage.getItem('hks_storage_version')
     if (storedVersion === STORAGE_VERSION) return
 
+    // Back up existing plans before wiping so user can recover
+    const backup = {}
+    ;['Plan A', 'Plan B', 'Plan C', 'Plan D'].forEach((name) => {
+      const key = `hks_plan_${name}`
+      const v = window.localStorage.getItem(key)
+      if (v) backup[name] = v
+    })
+    if (Object.keys(backup).length > 0) {
+      try {
+        window.localStorage.setItem('hks_plan_backup_pre_v2', JSON.stringify({
+          savedAt: new Date().toISOString(),
+          plans: backup,
+        }))
+      } catch {}
+    }
+
     window.localStorage.removeItem('hks_plan_A')
     window.localStorage.removeItem('hks_plan_B')
     window.localStorage.removeItem('hks_plan_C')
