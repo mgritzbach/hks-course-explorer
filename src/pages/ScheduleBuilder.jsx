@@ -364,6 +364,9 @@ export default function ScheduleBuilder({ courses = [] }) {
 
   // Fetch meeting times from Supabase course_sections
   useEffect(() => {
+    // Clear stale data immediately so stubs don't show wrong-semester courses during reload
+    setSectionTimesMap(new Map())
+    setSectionCanonicalCodes(new Set())
     setSectionTimesLoading(true)
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -494,7 +497,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   // Step 1b — generate stub courses from sectionTimesMap for courses not returned by DB search.
   // Iterates CANONICAL codes only (original keys from course_sections, not aliases) to avoid duplicates.
   const sectionMapStubs = useMemo(() => {
-    if (sectionCanonicalCodes.size === 0) return []
+    if (sectionCanonicalCodes.size === 0 || sectionTimesLoading) return []
     const q = searchQ.trim().toLowerCase()
     // Build base-ID set from DB results so DPI-802-M-D and DPI-802M both normalise to DPI-802
     const existingBaseIds = new Set(searchResults.map((r) => getBaseCourseId(r.courseCode)))
@@ -545,7 +548,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       }, 10000 + stubs.length))
     }
     return stubs
-  }, [sectionCanonicalCodes, sectionTimesMap, searchResults, searchQ, searchSource, courses])
+  }, [sectionCanonicalCodes, sectionTimesMap, sectionTimesLoading, searchResults, searchQ, searchSource, courses])
 
   // Step 2 — apply day-of-week and time-slot filters on the enriched results.
   // Courses that still have no schedule data pass through (can't exclude the unknown).
