@@ -764,3 +764,47 @@ Non-HKS browse relied on API returning data → showed zero courses.
 2. **Timetable builder**: stubs have meeting times from `course_sections` → "Add" → plan → "Place on grid" → appears on grid
 3. **Score tester**: HKS Spring 2026 courses → plan → histRatingsMap injects ratings → shown in plan card
 
+
+---
+
+## SC-40 · Non-HKS browse UX polish (UX)
+**Priority**: HIGH
+**Status**: DONE ✅ — commit 77fd352
+
+1. Added "Cross-reg offerings at HBS, FAS, Law, MIT · type to filter" hint text
+   when Non-HKS source is selected and no query is typed (was silent/null)
+2. Non-HKS cards render at full opacity (1.0) when browsing Non-HKS source
+   (only dim to 0.75 in All mode where HKS courses are the primary content)
+
+---
+
+## SC-41 · Use sectionInfoMap in completed-search quick-add (Data)
+**Priority**: MEDIUM
+**Status**: DONE ✅ — commit 86ce5f2
+
+When a cross-reg course code (e.g. BUSS-1000) is typed into the "Already Taken"
+search box and not found in Q-guide, the quick-add fallback now resolves title
+and credits from sectionInfoMap. Previously used hardcoded `credits: 4, title: code`.
+
+---
+
+## SC-42 · Skip Harvard API for ALL Non-HKS queries (Performance + UX)
+**Priority**: HIGH
+**Status**: DONE ✅ — commit e8724aa
+
+Extended SC-39d to cover typed queries in Non-HKS mode (not just auto-browse).
+The API is now completely bypassed for all Non-HKS searches — both browse (no query)
+and typed. Timer debounce reduced to 100ms for Non-HKS (vs 400ms for HKS).
+Effect: Non-HKS typed queries resolve in ~100ms instead of ~700ms.
+
+---
+
+## SC-43 · Merge non-HKS stubs into All-mode typed search results (Core + UX)
+**Priority**: MEDIUM
+**Status**: DONE ✅ — commit 40c2dd2
+
+When source='All' and user types a query, Harvard API returns HKS courses (apiMode='live').
+Now also append non-HKS sectionMapStubs that match the query text. Stubs deduplicate
+HKS API results via existingBaseIds so no duplication occurs. Effect: searching 'finance'
+in All mode now shows both HKS finance courses AND cross-reg 'Entrepreneurial Finance'.
+
