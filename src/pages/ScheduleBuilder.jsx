@@ -603,9 +603,11 @@ export default function ScheduleBuilder({ courses = [] }) {
   // Courses that still have no schedule data pass through (can't exclude the unknown).
   const filteredSearchResults = useMemo(() => {
     // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
-    // Only include stubs in browse/filter mode (browseAll or filter active, not raw text API results)
+    // Stubs: always included in db mode; in live/All mode, also append non-HKS stubs that
+    // match the query text (stubs already deduplicate HKS courses vs API results via existingBaseIds)
     // Suppress stubs when browsing all years — stubs are current-semester only and would mislead
-    const useStubs = apiMode === 'db' && sectionMapStubs.length > 0 && !searchAllYears
+    const useStubs = sectionMapStubs.length > 0 && !searchAllYears &&
+      (apiMode === 'db' || (apiMode === 'live' && searchSource === 'All' && searchQ.trim().length > 0))
     const allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
     const results = allResults.filter((course) => {
       // --- Day filter ---
