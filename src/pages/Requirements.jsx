@@ -340,6 +340,11 @@ export default function Requirements({ courses = [] }) {
                 <div className="mt-4">
                   <ProgressBar value={category.percent} color={category.isComplete ? 'var(--success)' : accentColor} label={`${category.label}: ${category.appliedCredits} of ${category.requiredCredits} credits`} />
                 </div>
+                {category.id === 'stem' && category.overlapExceeded && (
+                  <p style={{ fontSize: 11, color: 'var(--gold)', marginTop: 4 }}>
+                    ⚠ Only 8 STEM credits may count toward other requirements — {category.overlapCredits} credits currently overlap.
+                  </p>
+                )}
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   {category.selectedCourses.length > 0 ? (

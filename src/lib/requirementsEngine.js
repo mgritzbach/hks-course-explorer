@@ -155,6 +155,23 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
     }
   })
 
+  const stemCat = computedCategories.find((category) => category.id === 'stem')
+  if (stemCat?.overlapCap != null) {
+    const otherUsedIndices = new Set(
+      computedCategories
+        .filter((category) => category.id !== 'stem' && !category.nonExclusive)
+        .flatMap((category) => category.selectedCourses.map((course) => course._index))
+    )
+    const overlapCredits = stemCat.selectedCourses
+      .filter((course) => otherUsedIndices.has(course._index))
+      .reduce((sum, course) => sum + course._credits, 0)
+    const cappedOverlap = Math.min(overlapCredits, stemCat.overlapCap || Infinity)
+
+    stemCat.overlapCredits = overlapCredits
+    stemCat.cappedOverlapCredits = cappedOverlap
+    stemCat.overlapExceeded = overlapCredits > (stemCat.overlapCap || Infinity)
+  }
+
   const totalScheduledCredits = normalizedCourses.reduce((sum, course) => sum + course._credits, 0)
   const totalRequiredCredits = Number(program.totalCreditsRequired || 0)
   const overallAppliedCredits = Math.min(totalScheduledCredits, totalRequiredCredits)
