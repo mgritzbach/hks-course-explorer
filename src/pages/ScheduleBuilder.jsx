@@ -296,7 +296,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [planData, setPlanData] = useState(() => loadPlan(DEFAULT_PLAN))
   const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
   const [completedInput, setCompletedInput] = useState('')
-  const [sectionTimesMap, setSectionTimesMap] = useState(new Map()) // courseCodeBase → meetings[]
+  const [sectionTimesMap, setSectionTimesMap] = useState(new Map()) // courseCodeBase (+ aliases) → meetings[]
+  const [sectionCanonicalCodes, setSectionCanonicalCodes] = useState(new Set()) // original codes only (no aliases)
   const [term, setTerm] = useState('FULL')
   const [semester, setSemester] = useState('Spring')
   const [showWeekends, setShowWeekends] = useState(false)
@@ -369,11 +370,13 @@ export default function ScheduleBuilder({ courses = [] }) {
       .then((r) => r.ok ? r.json() : [])
       .then((rows) => {
         const map = new Map()
+        const canonical = new Set()
         ;(Array.isArray(rows) ? rows : []).forEach((row) => {
           if (!row.course_code_base || !Array.isArray(row.meetings) || !row.meetings.length) return
           const meetings = row.meetings
           const code = row.course_code_base
           map.set(code, meetings)
+          canonical.add(code) // track originals only — aliases below are NOT added to canonical
           // "DPI-802M" → also store "DPI-802-M" so lookups for dash-form work
           const withDash = code.replace(/([0-9])([A-Z])/, '$1-$2')
           if (withDash !== code) map.set(withDash, meetings)
@@ -382,6 +385,7 @@ export default function ScheduleBuilder({ courses = [] }) {
           if (base !== code && !map.has(base)) map.set(base, meetings)
         })
         setSectionTimesMap(map)
+        setSectionCanonicalCodes(canonical)
         setSectionTimesLoading(false)
       })
       .catch(() => {
@@ -479,10 +483,9 @@ export default function ScheduleBuilder({ courses = [] }) {
   }, [searchResults, sectionTimesMap])
 
   // Step 1b — generate stub courses from sectionTimesMap for courses not returned by DB search.
-  // These are currently-offered courses that exist in course_sections but not in the Q-guide.
-  // They always have time data (from sectionTimesMap) so they always appear in "offered" bucket.
+  // Iterates CANONICAL codes only (original keys from course_sections, not aliases) to avoid duplicates.
   const sectionMapStubs = useMemo(() => {
-    if (sectionTimesMap.size === 0) return []
+    if (sectionCanonicalCodes.size === 0) return []
     const q = searchQ.trim().toLowerCase()
     const existingCodes = new Set(searchResults.map((r) => r.courseCode))
     const stubs = []
@@ -494,19 +497,21 @@ export default function ScheduleBuilder({ courses = [] }) {
       const existing = histMap.get(key)
       if (!existing || Number(c.year || 0) > Number(existing.year || 0)) histMap.set(key, c)
     })
-    for (const [code, meetings] of sectionTimesMap.entries()) {
-      // Skip codes that are alias keys (contain digits immediately followed by a non-letter or are just prefix-number)
-      // We only want the canonical key (e.g. "IGA-109", "DPI-802M"), not aliases ("DPI-802-M", "DPI-802")
-      // Heuristic: skip entries where the code is already covered by another non-alias entry
+    for (const code of sectionCanonicalCodes) {
       if (existingCodes.has(code)) continue
       const hks = isHksCourse(code)
       if (searchSource === 'HKS' && !hks) continue
       if (searchSource === 'Non-HKS' && hks) continue
-      // Text query filter — only by course code when in query mode
-      if (q && !code.toLowerCase().includes(q)) {
+      // Text query filter — match on course code or historical title
+      if (q) {
         const hist = histMap.get(code)
-        if (!hist || !String(hist.course_name || '').toLowerCase().includes(q)) continue
+        const codeMatch = code.toLowerCase().includes(q)
+        const titleMatch = hist && String(hist.course_name || '').toLowerCase().includes(q)
+        const instrMatch = hist && String(hist.professor_display || hist.professor || '').toLowerCase().includes(q)
+        if (!codeMatch && !titleMatch && !instrMatch) continue
       }
+      const meetings = sectionTimesMap.get(code)
+      if (!meetings?.length) continue
       const hist = histMap.get(code)
       const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
       stubs.push(normalizeCourse({
@@ -530,7 +535,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       }, 10000 + stubs.length))
     }
     return stubs
-  }, [sectionTimesMap, searchResults, searchQ, searchSource, courses])
+  }, [sectionCanonicalCodes, sectionTimesMap, searchResults, searchQ, searchSource, courses])
 
   // Step 2 — apply day-of-week and time-slot filters on the enriched results.
   // Courses that still have no schedule data pass through (can't exclude the unknown).
