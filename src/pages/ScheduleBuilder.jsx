@@ -1453,7 +1453,11 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--gold)' }}>📚 All-years mode — type a query to search Q-guide history</p>
               ) : filteredSearchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result{searchSource !== 'HKS' ? ' · Enter with code to manually add if not found' : ''}</p>
-              ) : apiMode === 'db' && !searchQ.trim() && searchSource !== 'Non-HKS' ? (
+              ) : apiMode === 'db' && !searchQ.trim() && searchSource === 'Non-HKS' ? (
+                <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
+                  {sectionTimesLoading ? 'Loading schedule times…' : `Cross-reg offerings at HBS, FAS, Law, MIT · type to filter`}
+                </p>
+              ) : apiMode === 'db' && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
                   {sectionTimesLoading ? 'Loading schedule times…' : sectionMapStubs.length > 0 ? `${semester} schedule loaded · type to search Harvard catalog` : 'Q-guide history · type to search Harvard catalog'}
                 </p>
@@ -1485,7 +1489,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                           const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(threeBase) || histRatingsMap.get(baseCode)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
-                            <div key={`with-${course.courseCode}-${index}`} role="listitem" className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
+                            <div key={`with-${course.courseCode}-${index}`} role="listitem" className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks || searchSource === 'Non-HKS' ? 1 : 0.75 }}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
@@ -1560,7 +1564,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                           const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(threeBase) || histRatingsMap.get(baseCode)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
-                            <div key={`without-${course.courseCode}-${index}`} role="listitem" className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
+                            <div key={`without-${course.courseCode}-${index}`} role="listitem" className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks || searchSource === 'Non-HKS' ? 1 : 0.75 }}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
