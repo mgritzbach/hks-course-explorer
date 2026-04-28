@@ -406,15 +406,36 @@ export default function ScheduleBuilder({ courses = [] }) {
     { label: '4pm+',    value: '16+',    start: 16, end: 24 },
   ]
 
-  // Apply day-of-week and time-slot filters client-side on top of search results.
-  // Courses with no schedule data always pass through (don't penalise missing data).
+  // Step 1 — enrich search results with live section times from sectionTimesMap.
+  // Mirrors exactly what planCoursesEnriched does for plan courses.
+  // This is why search cards showed "NO TIME DATA" — the map was never applied here.
+  const enrichedSearchResults = useMemo(() => {
+    return searchResults.map((course) => {
+      if (courseHasSchedule(course)) return course // already has time data (e.g. from Harvard API)
+      const meetings =
+        sectionTimesMap.get(course.courseCode) ||
+        sectionTimesMap.get(course.courseCode.split('-').slice(0, 2).join('-'))
+      if (!meetings?.length) return course // genuinely no data
+      const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
+      return {
+        ...course,
+        meeting_days: allDays,
+        time_start: meetings[0].start,
+        time_end: meetings[0].end,
+        location: meetings[0].location || course.location,
+        _hasLiveTimes: true,
+      }
+    })
+  }, [searchResults, sectionTimesMap])
+
+  // Step 2 — apply day-of-week and time-slot filters on the enriched results.
+  // Courses that still have no schedule data pass through (can't exclude the unknown).
   const filteredSearchResults = useMemo(() => {
-    return searchResults.filter((course) => {
+    return enrichedSearchResults.filter((course) => {
       // --- Day filter ---
       if (searchDays.length > 0) {
-        const days = course.meeting_days
-          || extractDays(course.time_start)
-        if (days && days.length > 0) {
+        const days = extractDays(course.meeting_days || course.time_start)
+        if (days.length > 0) {
           const upperDays = days.map((d) => String(d).toUpperCase().slice(0, 3))
           if (!searchDays.some((sd) => upperDays.includes(sd))) return false
         }
@@ -423,7 +444,7 @@ export default function ScheduleBuilder({ courses = [] }) {
 
       // --- Time slot filter ---
       if (searchTimes.length > 0) {
-        const rawTime = course.meeting_time || course.time_start
+        const rawTime = course.time_start || course.meeting_time
         if (rawTime) {
           const hour = parseInt(String(rawTime).split(':')[0], 10)
           const matchesSlot = searchTimes.some((val) => {
@@ -437,7 +458,7 @@ export default function ScheduleBuilder({ courses = [] }) {
 
       return true
     })
-  }, [searchResults, searchDays, searchTimes])
+  }, [enrichedSearchResults, searchDays, searchTimes])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -1198,13 +1219,12 @@ export default function ScheduleBuilder({ courses = [] }) {
                           {hks && course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
                           {course.sections.length > 0 ? (
                             <Chip>{course.sections.length} section{course.sections.length > 1 ? 's' : ''}</Chip>
-                          ) : sectionTimesMap.has(course.courseCode) ? (
+                          ) : courseHasSchedule(course) ? (
+                            // enrichedSearchResults already merged sectionTimesMap onto the course object
                             (() => {
                               const DAY_ABBR = { MON: 'M', TUE: 'Tu', WED: 'W', THU: 'Th', FRI: 'F', SAT: 'Sa', SUN: 'Su' }
-                              const mtgs = sectionTimesMap.get(course.courseCode)
-                              const days = [...new Set(mtgs.map((m) => DAY_ABBR[m.day] || m.day))].join('/')
-                              const start = mtgs[0]?.start || ''
-                              return <Chip tone="success">{days}{start ? ` ${start}` : ''}</Chip>
+                              const days = extractDays(course.meeting_days).map((d) => DAY_ABBR[d] || d).join('/')
+                              return <Chip tone="success">{days}{course.time_start ? ` ${course.time_start}` : ''}</Chip>
                             })()
                           ) : (
                             <Chip tone="danger">No time data</Chip>
