@@ -519,11 +519,15 @@ export default function ScheduleBuilder({ courses = [] }) {
     const stubs = []
     // Build a quick lookup for historical course data by normalized code
     const histMap = new Map()
+    const histMapByBase = new Map() // fallback: getBaseCourseId(key) → course
     ;(Array.isArray(courses) ? courses : []).filter((c) => !c?.is_average).forEach((c) => {
       const key = c.course_code_base || c.course_code
       if (!key) return
       const existing = histMap.get(key)
       if (!existing || Number(c.year || 0) > Number(existing.year || 0)) histMap.set(key, c)
+      const baseKey = getBaseCourseId(key)
+      const existingBase = histMapByBase.get(baseKey)
+      if (!existingBase || Number(c.year || 0) > Number(existingBase.year || 0)) histMapByBase.set(baseKey, c)
     })
     for (const code of sectionCanonicalCodes) {
       if (existingBaseIds.has(getBaseCourseId(code))) continue  // already covered by DB result
@@ -532,7 +536,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (searchSource === 'Non-HKS' && hks) continue
       // Text query filter — match on course code or historical title
       if (q) {
-        const hist = histMap.get(code)
+        const hist = histMap.get(code) || histMapByBase.get(getBaseCourseId(code))
         const codeMatch = code.toLowerCase().includes(q)
         const titleMatch = hist && String(hist.course_name || '').toLowerCase().includes(q)
         const instrMatch = hist && String(hist.professor_display || hist.professor || '').toLowerCase().includes(q)
@@ -540,7 +544,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       }
       const meetings = sectionTimesMap.get(code)
       if (!meetings?.length) continue
-      const hist = histMap.get(code)
+      const hist = histMap.get(code) || histMapByBase.get(getBaseCourseId(code))
       const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
       stubs.push(normalizeCourse({
         courseCode: code,
@@ -1398,7 +1402,9 @@ export default function ScheduleBuilder({ courses = [] }) {
               ) : filteredSearchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result{searchSource === 'Non-HKS' ? ' · or manual add if none found' : ''}</p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
-                <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>Q-guide data shown. Live section times need Harvard API key.</p>
+                <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
+                  {sectionTimesLoading ? 'Loading schedule times…' : sectionMapStubs.length > 0 ? `${semester} schedule loaded · type to search Harvard catalog` : 'Q-guide history · type to search Harvard catalog'}
+                </p>
               ) : null}
             </div>
 
