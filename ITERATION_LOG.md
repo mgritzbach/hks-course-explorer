@@ -20,6 +20,27 @@ Status: COMPLETE ✅ — All categories ≥ 9/10 as of 2026-04-28
 - Accessibility:        9/10  (+4) — aria-live, conflict text label, keyboard grid nav (Tab/Enter/Delete)
 - Code quality:         9/10  (+1) — timeout cleanup, lazy architecture, proper aria patterns
 
+## Post-session improvements (SC-20 through SC-29 — 2026-04-28 continued)
+
+### User feedback addressed (4-point product breakdown):
+1. ✅ Current HKS courses → all show time/day (sectionTimesMap + DB migration)
+2. ✅ Current Non-HKS → Harvard API returns times; help card + manual add (SC-21)
+3. ✅ Historical courses → independently searchable via "📚 All yrs" toggle (SC-22)
+4. ✅ Current courses with Q-guide history → "Q ↗" link to evaluations page (SC-23)
+
+### SC-20 DONE: Rating chips on all search cards (★ XXth instr in gold)
+### SC-21 DONE: Non-HKS cross-reg help card + manual add on Enter or button click
+### SC-22 DONE: "📚 All yrs" toggle for past-semester Q-guide search (DB-only, requires query)
+### SC-23 DONE: Q ↗ link on cards with Q-guide history → /courses?q=<baseCode>
+### SC-24 DONE: Context-aware result counts ("Q-guide: N results across all years" in all-years mode)
+### SC-25 DONE: Fix all-years DB search (was hitting Harvard API instead); cross-reg chip polished
+### SC-26 DONE: Schedule time line in shortlist cards ("🕐 M/Tu/W 1:30 PM–2:50 PM")
+### SC-27 DONE: "✕ Reset all filters" button when any filter active; aria-labels on Q ↗ links
+### SC-28 DONE: All-years mode promotes "✓ Mark done" to primary button (UX intent alignment)
+### SC-29 DONE: role="list"/role="listitem" on search results for screen reader navigation
+
+### Commit range: 73c067a → 3d394c9
+
 ## Context for all agents
 - Project root: C:\Users\micgr\OneDrive\Desktop\Antigravity\Data_Science_Claude\hks-course-explorer
 - React + Vite SPA. Run `npm run build` after every JS/JSX change. Fix ALL errors before marking DONE.
