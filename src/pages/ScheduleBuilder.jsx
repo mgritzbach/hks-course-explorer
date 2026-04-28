@@ -385,7 +385,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     }
     // Map semester label to term string stored in course_sections
     const termStr = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
-    fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStr}&select=course_code_base,meetings,title,instructors&limit=2000`, {
+    fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStr}&select=course_code_base,meetings,title,instructors,credits&limit=2000`, {
       headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
     })
       .then((r) => r.ok ? r.json() : [])
@@ -399,9 +399,13 @@ export default function ScheduleBuilder({ courses = [] }) {
           const code = row.course_code_base
           map.set(code, meetings)
           canonical.add(code) // track originals only — aliases below are NOT added to canonical
-          // Store title + instructors for stub display (important for non-HKS courses not in Q-guide DB)
-          if (row.title || row.instructors?.length) {
-            infoMap.set(code, { title: row.title || null, instructors: Array.isArray(row.instructors) ? row.instructors : [] })
+          // Store title, instructors, credits for stub display (important for non-HKS courses not in Q-guide DB)
+          if (row.title || row.instructors?.length || row.credits != null) {
+            infoMap.set(code, {
+              title: row.title || null,
+              instructors: Array.isArray(row.instructors) ? row.instructors : [],
+              credits: row.credits != null ? Number(row.credits) : null,
+            })
           }
           // "DPI-802M" → also store "DPI-802-M" so lookups for dash-form work
           const withDash = code.replace(/([0-9])([A-Z])/, '$1-$2')
@@ -567,7 +571,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         courseCode: code,
         title: hist?.course_name || secInfo?.title || code,
         instructors: hist ? [hist?.professor_display || hist?.professor].filter(Boolean) : (secInfo?.instructors || []),
-        credits: Number(hist?.credits_min ?? hist?.credits_max ?? hist?.credits ?? 4) || 4,
+        credits: Number(hist?.credits_min ?? hist?.credits_max ?? hist?.credits ?? secInfo?.credits ?? 4) || 4,
         sections: [],
         meeting_days: allDays,
         time_start: meetings[0]?.start || '',
