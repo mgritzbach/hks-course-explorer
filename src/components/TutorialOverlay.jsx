@@ -103,7 +103,7 @@ const TOURS = {
     {
       id: SCHEDULE_TOUR.SEARCH_PANEL,
       title: 'Search and add candidate courses',
-      body: 'The search area is the intake point for your schedule, where you bring shortlisted or newly discovered classes into the planner.',
+      body: 'HKS courses are shown by default. Toggle the source filter to include cross-registration courses from other Harvard schools.',
     },
     {
       id: SCHEDULE_TOUR.GRID,
