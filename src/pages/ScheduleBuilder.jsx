@@ -1844,9 +1844,25 @@ export default function ScheduleBuilder({ courses = [] }) {
                               </select>
                             </div>
                           )}
-                          <button type="button" onClick={() => toggleGrid(course.courseCode)} className="mt-3 w-full rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: onGrid ? 'var(--gold-soft)' : 'var(--accent-soft)', borderColor: onGrid ? 'var(--gold)' : 'var(--line-strong)', color: 'var(--text)' }}>
-                            {onGrid ? 'Remove from grid' : 'Place on grid'}
-                          </button>
+                          {(() => {
+                            const noSchedule = !onGrid && !courseHasSchedule(course)
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => toggleGrid(course.courseCode)}
+                                title={noSchedule ? 'No schedule data yet — cannot place on grid' : onGrid ? 'Remove from weekly grid' : 'Place on weekly grid'}
+                                className="mt-3 w-full rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
+                                style={{
+                                  background: onGrid ? 'var(--gold-soft)' : noSchedule ? 'var(--panel-soft)' : 'var(--accent-soft)',
+                                  borderColor: onGrid ? 'var(--gold)' : noSchedule ? 'var(--line)' : 'var(--line-strong)',
+                                  color: noSchedule ? 'var(--text-muted)' : 'var(--text)',
+                                  opacity: noSchedule ? 0.7 : 1,
+                                }}
+                              >
+                                {onGrid ? 'Remove from grid' : noSchedule ? 'No schedule — can\'t place' : 'Place on grid'}
+                              </button>
+                            )
+                          })()}
                           {gridMessages[course.courseCode] && <p className="mt-3 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{gridMessages[course.courseCode]}</p>}
                           {inConflict && <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--danger)' }}>Conflict detected</p>}
                         </div>
