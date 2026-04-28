@@ -11,15 +11,15 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 import LandingSplash from './components/LandingSplash.jsx'
 import SkeletonCard from './components/SkeletonCard.jsx'
 import { supabase } from './lib/supabase.js'
-import Compare from './pages/Compare.jsx'
-import Courses from './pages/Courses.jsx'
-import Faculty from './pages/Faculty.jsx'
-import Home from './pages/Home.jsx'
 import NotFound from './pages/NotFound.jsx'
-import Resources from './pages/Resources.jsx'
 import { HKS_RESOURCES } from './resourceLinks.js'
 import { useFavorites } from './useFavorites.js'
 import { useNotes } from './useNotes.js'
+const Compare   = lazy(() => import('./pages/Compare.jsx'))
+const Courses   = lazy(() => import('./pages/Courses.jsx'))
+const Faculty   = lazy(() => import('./pages/Faculty.jsx'))
+const Home      = lazy(() => import('./pages/Home.jsx'))
+const Resources = lazy(() => import('./pages/Resources.jsx'))
 
 // Static metric definitions — never change
 const METRICS = [
@@ -40,6 +40,8 @@ const METRICS = [
 ]
 
 const STORAGE_VERSION = 'v2'
+const COURSES_CACHE_KEY = 'hks_courses_cache'
+const COURSES_CACHE_TTL = 30 * 60 * 1000
 
 function median(values) {
   if (!values.length) return null
@@ -69,6 +71,24 @@ async function fetchAllCourses(onProgress) {
     if (onProgress) onProgress(all.length)
   }
   return all
+}
+
+async function fetchAllCoursesWithCache(onProgress) {
+  try {
+    const raw = localStorage.getItem(COURSES_CACHE_KEY)
+    if (raw) {
+      const cached = JSON.parse(raw)
+      if (cached && cached.ts && (Date.now() - cached.ts) < COURSES_CACHE_TTL && Array.isArray(cached.data) && cached.data.length > 1000) {
+        if (onProgress) onProgress(cached.data.length)
+        return cached.data
+      }
+    }
+  } catch (e) {}
+  const courses = await fetchAllCourses(onProgress)
+  try {
+    localStorage.setItem(COURSES_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: courses }))
+  } catch (e) {}
+  return courses
 }
 
 function buildMeta(courses) {
@@ -220,6 +240,7 @@ export default function App() {
     window.localStorage.removeItem('hks_plan_C')
     window.localStorage.removeItem('hks_plan_D')
     window.localStorage.removeItem('hks_completed_courses')
+    window.localStorage.removeItem(COURSES_CACHE_KEY)
     window.localStorage.setItem('hks_storage_version', STORAGE_VERSION)
   }, [])
 
@@ -257,7 +278,7 @@ export default function App() {
     setLoading(true)
     setError(null)
     setLoadCount(0)
-    fetchAllCourses((n) => setLoadCount(n))
+    fetchAllCoursesWithCache((n) => setLoadCount(n))
       .then((courses) => {
         courses.forEach(c => {
           if (c.metrics_raw) {
