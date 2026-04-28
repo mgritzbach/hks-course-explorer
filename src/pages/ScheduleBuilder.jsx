@@ -609,6 +609,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [gridMessages, setGridMessages] = useState({})
   const [manualTimeEdit, setManualTimeEdit] = useState({}) // courseCode → {days:[], start:'', end:''}
   const [manualCourseModal, setManualCourseModal] = useState(null)
+  const [browseLimit, setBrowseLimit] = useState(25)
   const [exportMsg, setExportMsg] = useState(null)
   const exportMsgTimeoutRef = useRef(null)
   const [copyPlanMsg, setCopyPlanMsg] = useState(null)
@@ -664,15 +665,14 @@ export default function ScheduleBuilder({ courses = [] }) {
     }
     // course_sections uses our internal format (no space); live_courses stores Harvard API format (with space)
     const termStrInternal = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
-    const termStrApi      = semester === 'Spring' ? '2026 Spring' : semester === 'Fall' ? '2025 Fall' : '2025 January'
     const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
 
     Promise.all([
-      // course_sections: hand-curated HKS schedule data (internal term format)
+      // course_sections: hand-curated HKS schedule data (semester-scoped)
       fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStrInternal}&select=course_code_base,meetings,title,instructors,credits&limit=2000`, { headers })
         .then((r) => r.ok ? r.json() : []),
-      // live_courses: daily-synced full catalog — Harvard API term format (e.g. "2026 Spring")
-      fetch(`${supabaseUrl}/rest/v1/live_courses?term=eq.${encodeURIComponent(termStrApi)}&select=*&limit=5000`, { headers })
+      // live_courses: ALL terms — user can browse the full Harvard catalog, not just one semester
+      fetch(`${supabaseUrl}/rest/v1/live_courses?select=id,course_code,course_code_base,title,term,credits,instructors,meeting_days,time_start,time_end,school,is_hks&limit=5000&order=term.desc`, { headers })
         .then((r) => r.ok ? r.json() : []),
     ])
       .then(([sectionRows, liveRows]) => {
@@ -776,6 +776,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     }
     let cancelled = false
     if (query && browseAll) setBrowseAll(false)
+    setBrowseLimit(25) // reset pagination on any new search
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
@@ -1624,20 +1625,6 @@ export default function ScheduleBuilder({ courses = [] }) {
                     <option value="Fall">Fall 2025</option>
                     <option value="January">January 2025</option>
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => setSearchMode((mode) => mode === 'history' ? 'live' : 'history')}
-                    title="Search across all years in Q-guide (requires a search query)"
-                    className="shrink-0 rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
-                    style={{
-                      background: searchMode === 'history' ? 'var(--gold-soft)' : 'var(--panel-soft)',
-                      borderColor: searchMode === 'history' ? 'var(--gold)' : 'var(--line-strong)',
-                      color: searchMode === 'history' ? 'var(--text)' : 'var(--text-muted)',
-                    }}
-                    aria-pressed={searchMode === 'history'}
-                  >
-                    📚 All yrs
-                  </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Course source filter">
                   {['All', 'HKS', 'Non-HKS'].map((option) => {
@@ -1838,19 +1825,23 @@ export default function ScheduleBuilder({ courses = [] }) {
                   {(() => {
                     const withTime = filteredSearchResults.filter((course) => courseHasSchedule(course) || course._hasLiveTimes)
                     const withoutTime = filteredSearchResults.filter((course) => !courseHasSchedule(course) && !course._hasLiveTimes)
+                    const visibleResults = filteredSearchResults.slice(0, browseLimit)
+                    const visibleWithTime = visibleResults.filter((course) => courseHasSchedule(course) || course._hasLiveTimes)
+                    const visibleWithoutTime = visibleResults.filter((course) => !courseHasSchedule(course) && !course._hasLiveTimes)
+                    const hasMore = filteredSearchResults.length > browseLimit
                     return (
                       <>
                         <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
                           {searchMode === 'history'
                             ? `Q-guide: ${filteredSearchResults.length} result${filteredSearchResults.length !== 1 ? 's' : ''} across all years`
-                            : searchSource === 'Non-HKS' && !searchQ.trim()
-                              ? `${filteredSearchResults.length} non-HKS offering${filteredSearchResults.length !== 1 ? 's' : ''} · browse · type to narrow`
+                            : !searchQ.trim() && (searchSource === 'Non-HKS' || searchSource === 'All')
+                              ? `${filteredSearchResults.length} course${filteredSearchResults.length !== 1 ? 's' : ''} · all schools · type to narrow`
                               : `${withTime.length} with schedule${withoutTime.length > 0 ? ` · ${withoutTime.length} historical` : ''}`}
                           {searchDays.length > 0 ? ` · ${searchDays.map(d => d[0] + d.slice(1).toLowerCase()).join('/')}` : ''}
                           {(searchTimeFrom || searchTimeTo) ? ` · ${searchTimeFrom || '–'}–${searchTimeTo || '–'}` : ''}
                           {searchCredits ? ` · ${searchCredits} cr` : ''}
                         </p>
-                        {withTime.map((course, index) => {
+                        {visibleWithTime.map((course, index) => {
                           const added = addedCourseCodes.has(course.courseCode)
                           const done = completedCourseCodes.has(course.courseCode)
                           const hks = isHksCourse(course.courseCode)
@@ -1918,14 +1909,14 @@ export default function ScheduleBuilder({ courses = [] }) {
                             </div>
                           )
                         })}
-                        {withoutTime.length > 0 && (
+                        {visibleWithoutTime.length > 0 && (
                           <div style={{ borderTop: '1px solid var(--line)', margin: '8px 0 4px', paddingTop: 8 }}>
                             <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--text-muted)' }}>
                               {searchMode === 'history' ? `Past semesters · ${withoutTime.length}` : `Historical / no schedule · ${withoutTime.length}`}
                             </p>
                           </div>
                         )}
-                        {withoutTime.map((course, index) => {
+                        {visibleWithoutTime.map((course, index) => {
                           const added = addedCourseCodes.has(course.courseCode)
                           const done = completedCourseCodes.has(course.courseCode)
                           const hks = isHksCourse(course.courseCode)
@@ -1994,6 +1985,16 @@ export default function ScheduleBuilder({ courses = [] }) {
                             </div>
                           )
                         })}
+                        {hasMore && (
+                          <button
+                            type="button"
+                            onClick={() => setBrowseLimit((n) => n + 25)}
+                            className="mt-2 w-full rounded-full border py-2 text-xs font-semibold transition-colors"
+                            style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text-muted)' }}
+                          >
+                            Show more ({filteredSearchResults.length - browseLimit} remaining)
+                          </button>
+                        )}
                       </>
                     )
                   })()}
@@ -2018,7 +2019,15 @@ export default function ScheduleBuilder({ courses = [] }) {
                 ) : searchSource === 'Non-HKS' && !searchQ.trim() && searchMode === 'history' ? (
                   <div className="flex flex-col items-center gap-3 py-10 text-center">
                     <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>No cross-reg history</p>
-                    <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>Q-guide history only covers HKS courses. Switch to <strong>🔴 Live</strong> to browse non-HKS offerings, or type a specific code.</p>
+                    <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>Q-guide history only covers HKS courses.</p>
+                    <button
+                      type="button"
+                      onClick={() => setSearchMode('live')}
+                      className="rounded-full border px-4 py-2 text-xs font-semibold transition-colors"
+                      style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--text)' }}
+                    >
+                      🔴 Switch to Live to browse all schools
+                    </button>
                   </div>
                 ) : searchSource === 'Non-HKS' && searchQ.trim() ? (
                   <div className="rounded-[20px] border p-4 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
