@@ -422,7 +422,11 @@ export default function ScheduleBuilder({ courses = [] }) {
       setSearchResults([])
       return undefined
     }
-    if (!query && !hasFilters) {
+    // SC-38b: Non-HKS browse — auto-populate with broad query so panel isn't blank
+    // Use 'a' as the effective query when Non-HKS is selected with no user query
+    const nonHksBrowse = searchSource === 'Non-HKS' && !query
+    const effectiveQuery = nonHksBrowse ? 'a' : query
+    if (!effectiveQuery && !hasFilters) {
       setSearching(false)
       setSearchResults([])
       return undefined
@@ -432,7 +436,8 @@ export default function ScheduleBuilder({ courses = [] }) {
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
-        if (query && !searchAllYears) {
+        // Use live API when: user typed a query, OR Non-HKS browse (always use API for non-HKS)
+        if ((effectiveQuery && !searchAllYears) || nonHksBrowse) {
           const semesterKey = semester === 'January' ? 'January' : semester
           const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
           const apiOptions = { term: `${termYear}${semesterKey}` }
@@ -440,7 +445,7 @@ export default function ScheduleBuilder({ courses = [] }) {
           if (searchSource === 'HKS') apiOptions.school = 'HKS'
           else if (searchSource === 'Non-HKS') apiOptions.school = 'Non-HKS'
           else apiOptions.school = 'All'
-          const remote = await searchHarvardCourses(query, apiOptions)
+          const remote = await searchHarvardCourses(effectiveQuery, apiOptions)
           if (cancelled) return
           let normalized = (Array.isArray(remote) ? remote : []).map((item, index) => normalizeCourse(item, index))
           // Apply client-side filters to live results
@@ -453,24 +458,25 @@ export default function ScheduleBuilder({ courses = [] }) {
             setApiMode('live')
             setSearchResults(normalized)
           } else {
+            // API returned nothing — fall back to DB (for HKS) or show empty (Non-HKS)
             setApiMode('db')
-            setSearchResults(fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
+            setSearchResults(query ? fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)) : [])
           }
         } else {
           // All-years DB search (searchAllYears=true + query), or filter-only mode
           if (cancelled) return
           setApiMode('db')
-          setSearchResults(fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
+          setSearchResults(fallbackSearch(effectiveQuery, courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
         }
       } catch {
         if (!cancelled) {
           setApiMode('db')
-          setSearchResults(fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)))
+          setSearchResults(query ? fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)) : [])
         }
       } finally {
         if (!cancelled) setSearching(false)
       }
-    }, 400)
+    }, nonHksBrowse ? 100 : 400) // faster response for auto-browse
     return () => {
       cancelled = true
       window.clearTimeout(timer)
@@ -842,6 +848,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const applyManualTime = (courseCode) => {
     const edit = manualTimeEdit[courseCode]
     if (!edit || !edit.days?.length || !edit.start || !edit.end) return
+    // SC-38c: write times AND set isOnGrid:true in one operation (single-click flow)
     setPlanData((current) => ({
       ...current,
       courses: (Array.isArray(current?.courses) ? current.courses : []).map((course) => {
@@ -852,6 +859,7 @@ export default function ScheduleBuilder({ courses = [] }) {
           meeting_days: edit.days.join('/'),
           time_start: edit.start,
           time_end: edit.end,
+          isOnGrid: true,
         }
       }),
     }))
@@ -1022,9 +1030,10 @@ export default function ScheduleBuilder({ courses = [] }) {
     if (event.key !== 'Enter') return
     const firstUnadded = filteredSearchResults.find((r) => !addedCourseCodes.has(r.courseCode))
     if (firstUnadded) { addToShortlist(firstUnadded); return }
-    // SC-21: Non-HKS manual add — if no results and user typed a course code, create a cross-reg stub
+    // SC-21/SC-38c: manual add for Non-HKS AND All modes — if no results, create a cross-reg stub
+    // Do NOT auto-create for HKS mode (all HKS courses should be in our DB)
     const q = searchQ.trim()
-    if (searchSource === 'Non-HKS' && q && !firstUnadded) {
+    if (searchSource !== 'HKS' && q && filteredSearchResults.length === 0) {
       const code = q.toUpperCase().replace(/\s+/g, '-')
       if (!addedCourseCodes.has(code)) {
         addToShortlist(normalizeCourse({ courseCode: code, title: code, instructors: [], credits: 4, sections: [], enrichment: {}, _crossRegManual: true }))
@@ -1287,13 +1296,14 @@ export default function ScheduleBuilder({ courses = [] }) {
                     📚 All yrs
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Course source filter">
                   {['All', 'HKS', 'Non-HKS'].map((option) => {
                     const active = searchSource === option
                     return (
                       <button
                         key={option}
                         type="button"
+                        aria-pressed={active}
                         onClick={() => setSearchSource(option)}
                         className="rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
                         style={{
@@ -1420,8 +1430,8 @@ export default function ScheduleBuilder({ courses = [] }) {
               {searchAllYears && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--gold)' }}>📚 All-years mode — type a query to search Q-guide history</p>
               ) : filteredSearchResults.length > 0 && searchQ.trim() ? (
-                <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result{searchSource === 'Non-HKS' ? ' · or manual add if none found' : ''}</p>
-              ) : apiMode === 'db' && !searchQ.trim() ? (
+                <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result{searchSource !== 'HKS' ? ' · Enter with code to manually add if not found' : ''}</p>
+              ) : apiMode === 'db' && !searchQ.trim() && searchSource !== 'Non-HKS' ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
                   {sectionTimesLoading ? 'Loading schedule times…' : sectionMapStubs.length > 0 ? `${semester} schedule loaded · type to search Harvard catalog` : 'Q-guide history · type to search Harvard catalog'}
                 </p>

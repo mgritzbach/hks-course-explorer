@@ -1,12 +1,17 @@
-// GET /api/harvard-courses?q=API-101&term=2026Spring
+// GET /api/harvard-courses?q=API-101&term=2026Spring&school=HKS|Non-HKS|All|<code>
 // Proxies Harvard ATS Course v2 API; hides API key; normalises & caches 5 min.
 // Env var required: HARVARD_API_KEY (set in Cloudflare Pages dashboard)
+//
+// school=Non-HKS  → fan-out to HBS, FAS, GSE, LAW, HSPH, GSD, SEAS in parallel,
+//                   merge & deduplicate by harvardId, cap at limit.
 
 import { corsHeaders, handleOptions } from '../_shared/cors.js'
 
 const UPSTREAM_BASE = 'https://go.apis.huit.harvard.edu/ats/course/v2/search'
-const DEFAULT_SCHOOL = 'HKS'
 const MAX_LIMIT = 50
+
+// Schools to fan-out to when school=Non-HKS
+const NON_HKS_SCHOOLS = ['HBS', 'FAS', 'GSE', 'LAW', 'HSPH', 'GSD', 'SEAS']
 
 function jsonResp(obj, status = 200, req = null) {
   return new Response(JSON.stringify(obj), {
@@ -106,49 +111,122 @@ function normTime(t) {
   return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`
 }
 
+/** Fetch one upstream school, normalise, return results array. Never throws. */
+async function fetchOneSchool(schoolCode, q, limit, passThrough, apiKey, cache) {
+  const upstream = new URL(UPSTREAM_BASE)
+  upstream.searchParams.set('q', q)
+  upstream.searchParams.set('catalogSchool', schoolCode)
+  upstream.searchParams.set('limit', String(limit))
+  for (const [key, val] of Object.entries(passThrough)) {
+    if (val != null && val !== '') upstream.searchParams.set(key, val)
+  }
+
+  // Check edge cache per school+query combo
+  const cacheKey = new Request(upstream.toString(), { headers: { Accept: 'application/json' } })
+  const cached = await cache.match(cacheKey)
+  if (cached) {
+    try {
+      const raw = await cached.json()
+      return normalise(raw).results
+    } catch { return [] }
+  }
+
+  try {
+    const resp = await fetch(upstream.toString(), {
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+        'User-Agent': 'HKS-Course-Explorer/2.0',
+      },
+    })
+    if (!resp.ok) return []
+    const raw = await resp.json().catch(() => ({}))
+    const normalised = normalise(raw)
+    // Cache per school
+    const cacheResp = new Response(JSON.stringify(raw), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
+    })
+    await cache.put(cacheKey, cacheResp)
+    return normalised.results
+  } catch {
+    return []
+  }
+}
+
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url)
   const q = url.searchParams.get('q')?.trim() ?? ''
   const limit = Math.min(Number(url.searchParams.get('limit') ?? 25), MAX_LIMIT)
 
-  if (!q || q.length < 2) {
-    return jsonResp({ error: 'q must be at least 2 characters', results: [] }, 400, request)
+  // Allow single-char queries (needed for Non-HKS browse mode: q='a')
+  if (!q || q.length < 1) {
+    return jsonResp({ error: 'q must be at least 1 character', results: [] }, 400, request)
   }
 
   // Check for API key
   const apiKey = env?.HARVARD_API_KEY
   if (!apiKey) {
-    // No key configured — return empty results gracefully (dev environment)
     console.warn('HARVARD_API_KEY not configured')
     return jsonResp({ results: [], total: 0, _note: 'API key not configured' }, 200, request)
   }
 
-  // Build upstream URL
-  const upstream = new URL(UPSTREAM_BASE)
-  if (q) upstream.searchParams.set('q', q)
-  // School filter: HKS-only by default; Non-HKS or All searches all Harvard schools
   const schoolParam = url.searchParams.get('school') ?? 'HKS'
+  const PASS_THROUGH_KEYS = ['term', 'session', 'day', 'crossreg', 'instructionMode', 'unitsMin', 'unitsMax']
+  const passThrough = {}
+  for (const key of PASS_THROUGH_KEYS) {
+    const val = url.searchParams.get(key)
+    if (val != null && val !== '') passThrough[key] = val
+  }
+
+  const cache = caches.default
+
+  // ── Non-HKS: fan-out to multiple schools in parallel ──────────────────────
+  if (schoolParam === 'Non-HKS') {
+    // Per-school limit: fetch more per school so merged result has enough variety
+    const perSchoolLimit = Math.min(Math.ceil(limit * 1.5), MAX_LIMIT)
+    const schoolResults = await Promise.all(
+      NON_HKS_SCHOOLS.map(sc => fetchOneSchool(sc, q, perSchoolLimit, passThrough, apiKey, cache))
+    )
+    // Merge + deduplicate by harvardId (fallback: courseCode)
+    const seen = new Set()
+    const merged = []
+    for (const results of schoolResults) {
+      for (const item of results) {
+        const key = item.harvardId || item.courseCode
+        if (key && seen.has(key)) continue
+        if (key) seen.add(key)
+        merged.push(item)
+        if (merged.length >= limit) break
+      }
+      if (merged.length >= limit) break
+    }
+    const body = JSON.stringify({ results: merged, total: merged.length })
+    return new Response(body, {
+      headers: {
+        'Content-Type': 'application/json',
+        'CF-Cache-Status': 'MISS',
+        ...(request ? corsHeaders(request) : {}),
+      },
+    })
+  }
+
+  // ── Single school (HKS default, or explicit code) ─────────────────────────
+  const upstream = new URL(UPSTREAM_BASE)
+  upstream.searchParams.set('q', q)
   if (schoolParam === 'HKS') {
     upstream.searchParams.set('catalogSchool', 'HKS')
-  } else if (schoolParam !== 'Non-HKS' && schoolParam !== 'All' && schoolParam !== '') {
-    // Specific school code passed (e.g. 'FAS', 'GSE')
+  } else if (schoolParam !== 'All' && schoolParam !== '') {
     upstream.searchParams.set('catalogSchool', schoolParam)
   }
-  // else: no catalogSchool filter → search all Harvard schools (for cross-reg)
   upstream.searchParams.set('limit', String(limit))
-  // Pass-through optional filter params from the frontend
-  const PASS_THROUGH = ['term', 'session', 'day', 'crossreg', 'instructionMode', 'unitsMin', 'unitsMax']
-  for (const key of PASS_THROUGH) {
-    const val = url.searchParams.get(key)
-    if (val != null && val !== '') upstream.searchParams.set(key, val)
+  for (const [key, val] of Object.entries(passThrough)) {
+    upstream.searchParams.set(key, val)
   }
 
   // Try edge cache first
-  const cache = caches.default
   const cacheKey = new Request(upstream.toString(), { headers: { Accept: 'application/json' } })
-  let cached = await cache.match(cacheKey)
+  const cached = await cache.match(cacheKey)
   if (cached) {
-    // Return cached but add CORS headers
     const body = await cached.text()
     return new Response(body, {
       headers: {
