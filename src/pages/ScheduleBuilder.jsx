@@ -2050,7 +2050,8 @@ export default function ScheduleBuilder({ courses = [] }) {
                             type="button"
                             onClick={() => {
                               const code = completedSearchQ.trim().toUpperCase().replace(/\s+/g, '-')
-                              addToCompleted({ courseCode: code, title: code, credits: 4, sections: [], instructors: [], enrichment: {} })
+                              const secInfo = sectionInfoMap.get(code)
+                              addToCompleted({ courseCode: code, title: secInfo?.title || code, credits: secInfo?.credits ?? 4, sections: [], instructors: secInfo?.instructors || [], enrichment: {} })
                               setCompletedSearchQ('')
                             }}
                             className="rounded-full border px-2 py-0.5 text-[11px] font-semibold"
