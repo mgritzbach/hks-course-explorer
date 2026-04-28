@@ -1812,9 +1812,16 @@ export default function ScheduleBuilder({ courses = [] }) {
                     <button type="button" onClick={() => toggleSection('shortlist')} className="flex h-4 w-4 items-center justify-center text-[10px] transition-transform" style={{ color: 'var(--text-muted)', transform: collapsedSections.shortlist ? 'rotate(-90deg)' : 'rotate(0deg)' }} aria-label="Toggle shortlist">▾</button>
                     <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Shortlist</p>
                     <span className="text-sm" style={{ color: 'var(--text-soft)' }}>{normalizedPlanCourses.length}</span>
-                    {normalizedPlanCourses.length > 0 && (
-                      <span className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>{normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)} cr</span>
-                    )}
+                    {normalizedPlanCourses.length > 0 && (() => {
+                      const totalCr = normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)
+                      const crossCr = normalizedPlanCourses.filter((c) => !isHksCourse(c.courseCode)).reduce((sum, c) => sum + (c.credits || 4), 0)
+                      return (
+                        <>
+                          <span className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>{totalCr} cr</span>
+                          {crossCr > 0 && <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>({crossCr} cross-reg)</span>}
+                        </>
+                      )
+                    })()}
                   </div>
                   {normalizedPlanCourses.length >= 2 && (
                     <a href={`/compare?ids=${normalizedPlanCourses.slice(0, 5).map((c) => encodeURIComponent(c.courseCode)).join(',')}`} className="text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ color: 'var(--accent)' }} title="Compare top 5">⇄ Compare</a>
@@ -1895,9 +1902,10 @@ export default function ScheduleBuilder({ courses = [] }) {
                             <button type="button" onClick={() => removeCourse(course.courseCode)} className="shrink-0 text-sm font-semibold" style={{ color: 'var(--danger)' }} aria-label={`Remove ${course.courseCode}`}>×</button>
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">
+                            {!isHksCourse(course.courseCode) && <Chip tone="muted">Cross-reg</Chip>}
                             {course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
                             {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
-                            {!course.enrichment?.is_core && !course.enrichment?.is_stem && <Chip>Elective</Chip>}
+                            {isHksCourse(course.courseCode) && !course.enrichment?.is_core && !course.enrichment?.is_stem && <Chip>Elective</Chip>}
                             {course._hasLiveTimes ? (
                               <Chip tone="success">🕐 Live times</Chip>
                             ) : courseHasSchedule(course) ? null
