@@ -1502,7 +1502,11 @@ export default function ScheduleBuilder({ courses = [] }) {
                     return (
                       <>
                         <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                          {searchAllYears ? `Q-guide: ${filteredSearchResults.length} result${filteredSearchResults.length !== 1 ? 's' : ''} across all years` : `${withTime.length} with schedule${withoutTime.length > 0 ? ` · ${withoutTime.length} historical` : ''}`}
+                          {searchAllYears
+                            ? `Q-guide: ${filteredSearchResults.length} result${filteredSearchResults.length !== 1 ? 's' : ''} across all years`
+                            : searchSource === 'Non-HKS' && !searchQ.trim()
+                              ? `${withTime.length} cross-reg offering${withTime.length !== 1 ? 's' : ''} · Spring 2026`
+                              : `${withTime.length} with schedule${withoutTime.length > 0 ? ` · ${withoutTime.length} historical` : ''}`}
                           {searchDays.length > 0 ? ` · ${searchDays.map(d => d[0] + d.slice(1).toLowerCase()).join('/')}` : ''}
                           {searchTimes.length > 0 ? ` · ${searchTimes.map(v => TIME_SLOTS.find(s => s.value === v)?.label).join('/')}` : ''}
                         </p>
