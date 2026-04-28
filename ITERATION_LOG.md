@@ -1,249 +1,225 @@
 # Iteration Log
-Generated: 2026-04-26
-Goal: Add day-of-week and time-of-day filter to the course list
+Generated: 2026-04-27
+Goal: 4-issue quality pass — Schedule Builder UX, mobile pinch zoom, requirements double-counting, HKS default view
 Status: COMPLETE
 
 ## Context for all agents
 - Project root: C:\Users\micgr\OneDrive\Desktop\Antigravity\Data_Science_Claude\hks-course-explorer
-- React + Vite SPA. Data served from Supabase (5,581 courses) AND cached in public/courses.json
-- NO meeting schedule data exists anywhere in the current dataset — courses.json has no day/time fields
-- All filter logic lives in src/pages/Home.jsx (applyFilters function) and src/components/Sidebar.jsx
-- Filters state is managed in App.jsx and passed down as props
-- Term filter uses toggle pills (multi-select array). Day filter should follow the same pattern
-- After any JS/JSX change: run `npm run build` in project root to verify no compile errors
-- Commit each SC separately with message: "feat: SC-N · <title>"
+- React + Vite SPA. Run `npm run build` after every JS/JSX change. Fix ALL errors before marking DONE.
+- Commit each SC separately: `git commit -m "fix: SC-N · <title>"`
+- Read every file before editing. Never blindly overwrite.
+- Today is April 2026 → current semester is Spring.
+- The sectionTimesMap is keyed by course_code_base (e.g. "IGA-109"), not full code.
+- enrichedSearchResults already merges sectionTimesMap into search result objects.
 
 ---
 
-## SC-1 · Add meeting_days and meeting_time fields to the data schema
+## SC-1 · Remove prominent Spring/Fall/J-term tabs from Schedule Builder search panel
 **Priority**: HIGH
-**Goal**: Every course object throughout the codebase (courses.json structure, Supabase table,
-load_to_supabase.py prepare_row) gains two new nullable fields:
-  - `meeting_days`: array of strings e.g. ["Mon", "Wed"] — null if unknown
-  - `meeting_time`: string "HH:MM" 24h start time e.g. "10:00" — null if unknown
-  - `meeting_time_end`: string "HH:MM" 24h end time e.g. "11:30" — null if unknown
+**Goal**: The semester pills (Spring | Fall | J-term) should not take up a full row in the search panel. Replace with a small compact inline selector that is visually secondary. The semester is still needed internally (it drives sectionTimesMap fetch and search API calls), so don't delete the state — just demote the UI.
 
-Tasks:
-1. Add an ALTER TABLE migration SQL file at supabase/migrations/add_meeting_schedule.sql:
-   ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS meeting_days text[] DEFAULT NULL;
-   ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS meeting_time text DEFAULT NULL;
-   ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS meeting_time_end text DEFAULT NULL;
-   CREATE INDEX IF NOT EXISTS idx_courses_meeting_days ON public.courses USING GIN (meeting_days);
+Read src/pages/ScheduleBuilder.jsx.
+Find the two occurrences of SEMESTER_OPTIONS.map in the JSX (search panel filter area).
+The one INSIDE the filter section (around line 1049–1068): replace the full pill row with a single compact inline `<select>` dropdown styled like the other selects in the panel:
+  <select value={semester} onChange={e => setSemester(e.target.value)} style={{ ...existing select styles... }}>
+    <option value="Spring">Spring 2026</option>
+    <option value="Fall">Fall 2025</option>
+    <option value="January">January 2025</option>
+  </select>
 
-2. In scripts/load_to_supabase.py inside prepare_row(), add the three new fields with
-   row.get('meeting_days', None), row.get('meeting_time', None), row.get('meeting_time_end', None)
+The other occurrence (around line 902 — if it's in the top-of-panel header area): remove it entirely.
 
-3. In public/courses.json — do NOT modify the file itself. The schema change is additive;
-   courses without schedule data will simply have null for these fields when loaded.
+After the change the semester is still fully functional — just takes up a single compact dropdown line instead of a full pill row.
 
-4. Add a comment in src/App.jsx above the fetchAllCourses function noting that
-   meeting_days, meeting_time, meeting_time_end are nullable fields added 2026-04-26.
-
-Done when: migration SQL file exists, load_to_supabase.py includes the three fields,
-src/App.jsx has the comment. `npm run build` passes.
+Done when: semester pills are gone, replaced by a compact select, build passes.
 **Status**: DONE
 
 ---
 
-## SC-2 · Write a meeting-time scraper script
+## SC-2 · Make "Added ✓" button toggle — click again removes course from plan
 **Priority**: HIGH
-**Goal**: Create scripts/scrape_meeting_times.py that fetches meeting schedule data
-from public HKS course catalog pages and writes results to scripts/meeting_times_output.json.
+**Goal**: When a course card in the search results shows "Added ✓", clicking it again should remove the course from the plan (call removeCourse). Currently the button is `disabled={added || done}`.
 
-The script must:
-1. Read public/courses.json and extract all unique course_url values where course_url is not null/empty
-2. For each URL (rate-limited to 1 request/second, with retry on 429/503):
-   - Fetch the HKS course page (e.g. https://www.hks.harvard.edu/courses/api-101)
-   - Parse HTML using BeautifulSoup to find meeting day/time patterns
-   - Look for patterns like: "Monday, Wednesday 10:00am-11:30am", "Tues/Thurs 2:15-3:45pm"
-   - Common CSS selectors to try: .course-schedule, .meeting-times, .field--name-field-meeting-time,
-     any element containing text matching regex: (Mon|Tue|Wed|Thu|Fri|Monday|Tuesday|Wednesday|Thursday|Friday)
-3. Normalize extracted data into:
-   - meeting_days: list of short codes ["Mon", "Tue", "Wed", "Thu", "Fri"]
-   - meeting_time: "HH:MM" 24h string for start
-   - meeting_time_end: "HH:MM" 24h string for end
-4. Write results to scripts/meeting_times_output.json as:
-   { "course_url": { "meeting_days": [...], "meeting_time": "...", "meeting_time_end": "..." }, ... }
-5. Print progress every 50 URLs. Skip URLs that 404 or timeout after 10s.
+In src/pages/ScheduleBuilder.jsx, find the search result card button (around line 1206):
+  <button ... disabled={added || done} onClick={() => addToShortlist(course)}>
+    {added ? 'Added ✓' : 'Add'}
+  </button>
 
-Also create scripts/apply_meeting_times.py that:
-- Reads scripts/meeting_times_output.json
-- Reads public/courses.json
-- Merges meeting schedule data into each course by matching course_url
-- Writes updated public/courses.json in place (preserving all other fields)
+Change to:
+  <button
+    type="button"
+    disabled={done}  // only disable if marked done, not if added
+    onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)}
+    className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
+    style={{
+      background: added ? 'var(--danger-soft, #fff0f0)' : 'var(--accent-soft)',
+      borderColor: added ? 'var(--danger, #c0392b)' : 'var(--line-strong)',
+      color: added ? 'var(--danger, #c0392b)' : 'var(--text)',
+    }}
+    aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}
+  >
+    {added ? 'Remove ✕' : 'Add'}
+  </button>
 
-Done when: both scripts exist, are syntactically valid Python 3, include a `if __name__ == "__main__":` block,
-and have a short usage comment at the top. No need to actually run them — Codex should not make network calls.
+Done when: clicking "Remove ✕" removes the course from the plan and card reverts to "Add". Build passes.
 **Status**: DONE
 
 ---
 
-## SC-3 · Add Day-of-Week filter UI to Sidebar
+## SC-3 · Sort search results: time-data courses first, then "not currently offered"
 **Priority**: HIGH
-**Goal**: Add a "Days" filter section to src/components/Sidebar.jsx that lets users
-select one or more days (Mon Tue Wed Thu Fri) using toggle pills — identical in style
-to the existing Term filter pills (Fall / Spring / January).
+**Goal**: Courses with schedule/time data (from sectionTimesMap or API) appear at the TOP of search results. Courses with no time data (DB-only, not currently offered in the selected semester) appear at the BOTTOM with a visual separator label.
+
+In src/pages/ScheduleBuilder.jsx, in the `filteredSearchResults` useMemo (currently the final filter step):
+After filtering, sort the results:
+  const withTime = results.filter(c => courseHasSchedule(c) || c._hasLiveTimes)
+  const withoutTime = results.filter(c => !courseHasSchedule(c) && !c._hasLiveTimes)
+  return [...withTime, ...withoutTime]
+
+Then in the JSX where filteredSearchResults.map renders cards, split the render into two groups:
+  const withTime = filteredSearchResults.filter(c => courseHasSchedule(c) || c._hasLiveTimes)
+  const withoutTime = filteredSearchResults.filter(c => !courseHasSchedule(c) && !c._hasLiveTimes)
+
+Render withTime group first (no label needed, or small "Offered this semester" label).
+Then if withoutTime.length > 0, render a divider:
+  <div style={{ borderTop: '1px solid var(--line)', margin: '8px 0 4px', paddingTop: 8 }}>
+    <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--text-muted)' }}>
+      Not offered this semester · {withoutTime.length}
+    </p>
+  </div>
+Then render withoutTime cards.
+
+Update the result count line to show: "N offered · M not offered this semester" when both groups are present.
+
+Done when: courses with time data visually appear first, "Not offered this semester" section is clearly labeled, build passes.
+**Status**: DONE
+
+---
+
+## SC-4 · Mobile: scatter plot zooms only on 2-finger pinch, not on single-touch scroll
+**Priority**: HIGH
+**Goal**: On mobile, scrolling into the corner of the scatter plot currently triggers zoom. Fix: disable Plotly's built-in scrollZoom and implement custom 2-finger pinch detection that calls the existing zoom function.
+
+Read src/components/ScatterPlot.jsx.
+
+Step 1: In the plotConfig useMemo (around line 669), change:
+  scrollZoom: true
+to:
+  scrollZoom: false
+
+Step 2: Find where chartWrapperRef is used. Add a useEffect that attaches touch listeners to the plot container div:
+
+useEffect(() => {
+  const el = chartWrapperRef.current
+  if (!el) return
+  let lastDist = null
+
+  const onTouchMove = (e) => {
+    if (e.touches.length !== 2) return  // only 2-finger pinch
+    e.preventDefault()
+    const dx = e.touches[0].clientX - e.touches[1].clientX
+    const dy = e.touches[0].clientY - e.touches[1].clientY
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    if (lastDist !== null) {
+      const factor = lastDist / dist  // >1 = zoom in, <1 = zoom out
+      if (Math.abs(factor - 1) > 0.01) {
+        // call the existing handleWheel-style zoom — look for handleWheel or zoom function
+        // If there's a handleZoom or handleWheel function, call it with factor
+        // Otherwise call setZoomedX/setZoomedY directly:
+        setZoomedX(prev => zoomNumericDomain(prev, xMode.domain, factor))
+        setZoomedY(prev => zoomNumericDomain(prev, yMode.domain, factor))
+      }
+    }
+    lastDist = dist
+  }
+
+  const onTouchEnd = () => { lastDist = null }
+
+  el.addEventListener('touchmove', onTouchMove, { passive: false })
+  el.addEventListener('touchend', onTouchEnd, { passive: true })
+  return () => {
+    el.removeEventListener('touchmove', onTouchMove)
+    el.removeEventListener('touchend', onTouchEnd)
+  }
+}, [xMode.domain, yMode.domain])
+
+Read the file carefully to find the exact names of: chartWrapperRef, zoomNumericDomain, xMode, yMode, setZoomedX, setZoomedY. Use the exact names from the file.
+
+Done when: single-finger touch no longer zooms the plot on mobile; two-finger pinch still zooms; desktop scroll wheel still works (if handled separately); build passes.
+**Status**: DONE
+
+---
+
+## SC-5 · Fix STEM double-counting cap: only 8 credits may overlap with other requirements
+**Priority**: HIGH
+**Goal**: The rule is: "16 STEM credits required. Up to 8 credits may simultaneously count toward another distribution requirement." Currently the engine has nonExclusive: true with NO credit cap — all 16 STEM credits can also count for other requirements, which is wrong.
+
+Read src/lib/requirementsEngine.js and src/data/programRequirements.json.
+
+The fix requires two parts:
+
+Part A — programRequirements.json:
+For each program that has a STEM category (MPA_2YR, MPA_ID, MC_MPA), add a field:
+  "overlapCap": 8
+to the STEM category object. This means "at most 8 credits of this nonExclusive category may also count toward exclusive categories."
+
+Part B — requirementsEngine.js:
+In the computeProgress function, after computing all categories, find the STEM category result.
+Currently nonExclusive categories "don't consume usedIndices" — all their courses remain available for other categories.
+With the overlapCap fix:
+- STEM courses that are ALSO counted by another (exclusive) category should be capped at 8 credits
+- Courses beyond the 8-credit overlap must be STEM-only (they count toward STEM but NOT toward other exclusive requirements)
 
 Implementation:
-1. The filter value is `filters.days` — an array of day codes e.g. ["Mon", "Wed"].
-   Empty array means "all days" (no filter applied). This matches how `filters.terms` works.
-2. In Sidebar.jsx add the Days section directly below the Term pills section.
-   Only show it when `filters.year !== 0` (same condition as Term filter).
-   Label: "Days" (same kicker style as other filter labels).
-   Pills: Mon · Tue · Wed · Thu · Fri — each toggles its code in/out of filters.days.
-   Pill style: match exactly the Term pill style (aria-pressed, active class, same colors).
-3. Add a "Time" filter section directly below Days:
-   Three toggle pills: "Morning" (before 12:00) · "Afternoon" (12:00–17:00) · "Evening" (after 17:00)
-   Filter value: `filters.timeOfDay` — array of "morning"/"afternoon"/"evening". Empty = all.
-4. In the filter reset logic (wherever "Clear all" or preset reset happens), add
-   days: [] and timeOfDay: [] to the reset object.
-5. Add days: [] and timeOfDay: [] to the initial filter state in App.jsx.
+After the main category loop, do a second pass:
+1. Find all categories with overlapCap defined
+2. For each such category, look at how many credits of its selectedCourses are ALSO in other categories' selectedCourses
+3. If overlap exceeds overlapCap, un-consume the excess from other categories (add back to usedIndices) and report a warning in the category result
 
-Done when: Days and Time pills render in sidebar, toggling them updates filter state,
-cleared by reset, and `npm run build` passes with no errors.
+Simpler approach (good enough for display purposes):
+In the STEM category result, add a field:
+  overlapCredits: number of STEM credits that also appear in other categories' selectedCourses
+  cappedOverlapCredits: Math.min(overlapCredits, category.overlapCap || Infinity)
+  effectiveNonStemCredits: STEM credits that do NOT overlap (must be satisfied by pure STEM courses)
+
+Then in the Requirements UI display (find the STEM category display in src/pages/Requirements.jsx or wherever it renders), show a note:
+  "Up to 8 credits may also count toward distribution requirements. X of your Y STEM credits currently overlap."
+
+Done when: overlapCap: 8 added to all STEM categories in programRequirements.json, engine tracks overlap, UI shows a note if overlap > 8; build passes.
 **Status**: DONE
 
 ---
 
-## SC-4 · Wire day/time filters into applyFilters() in Home.jsx
+## SC-6 · Make HKS the default source view; update onboarding tour to reflect this
+**Priority**: MEDIUM
+**Goal**: The Schedule Builder already defaults to HKS (useState('HKS') at line 287 — confirmed). Check and confirm this is working. Then update the onboarding tour steps and user-guide.html to say "HKS courses" as the default view, not "All sources".
+
+Step 1: Read src/pages/ScheduleBuilder.jsx line 287. Confirm searchSource default is 'HKS'. If not, change it.
+
+Step 2: Read src/components/OnboardingTour.jsx. Find any step text that mentions "All sources", "all courses", or implies non-HKS courses are shown by default. Update to say "HKS courses are shown by default. Use the source filter to include cross-registration courses."
+
+Step 3: Check if public/user-guide.html exists. If yes, find any mention of "All" sources filter. Update to reflect HKS as default.
+
+Step 4: In the Schedule Builder search panel, confirm the "All | HKS | Non-HKS" row visually shows HKS as highlighted/selected by default when the page loads. If the default state already does this, just verify.
+
+Done when: HKS confirmed as default, tour/guide text updated, build passes.
+**Status**: DONE
+
+---
+
+## SC-7 · End-to-end verification + real-life test checklist
 **Priority**: HIGH
-**Goal**: The day and time filters actually remove courses from the list.
+**Goal**: Run a systematic check of all 6 SCs after they are implemented.
 
-In src/pages/Home.jsx inside applyFilters():
+1. `npm run build` — must pass with zero errors
+2. Check SC-1: read ScheduleBuilder.jsx — semester pills line must be gone, compact select must exist
+3. Check SC-2: read the Add/Remove button — must call removeCourse when added=true
+4. Check SC-3: read filteredSearchResults logic — withTime sorted before withoutTime
+5. Check SC-4: read ScatterPlot.jsx — scrollZoom must be false, touchmove handler must exist, 2-touch check must be present
+6. Check SC-5: read programRequirements.json — STEM categories must have overlapCap: 8; read requirementsEngine.js — overlap tracking must exist
+7. Check SC-6: confirm useState('HKS') default in ScheduleBuilder
+8. Run build one more time after all checks pass
+9. Mark ITERATION_LOG Status: COMPLETE
 
-1. After the existing term filter block, add a Days filter block:
-   ```
-   if (filters.days && filters.days.length > 0) {
-     if (!course.meeting_days || course.meeting_days.length === 0) {
-       // If "Hide courses without schedule" is true, exclude; otherwise include (null = unknown)
-       // Default: INCLUDE courses with no schedule data (don't penalize missing data)
-       // Only exclude if course has schedule data that doesn't match
-     } else {
-       const match = filters.days.some(d => course.meeting_days.includes(d));
-       if (!match) return false;
-     }
-   }
-   ```
-
-2. Add a timeOfDay filter block:
-   ```
-   if (filters.timeOfDay && filters.timeOfDay.length > 0 && course.meeting_time) {
-     const hour = parseInt(course.meeting_time.split(':')[0], 10);
-     const bucket = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-     if (!filters.timeOfDay.includes(bucket)) return false;
-   }
-   ```
-   (Courses with null meeting_time are always included when a time filter is active)
-
-3. Add the same filters to the FilterSidebar inside src/pages/Courses.jsx if it has
-   its own separate applyFilters or filter logic — check the file first and mirror the change.
-
-4. Ensure filters.days and filters.timeOfDay are passed through all filter prop chains.
-
-Done when: selecting "Mon" removes courses that have schedule data for other days,
-courses with null meeting_days are still shown, `npm run build` passes.
-**Status**: DONE
-
----
-
-## SC-5 · Show meeting time on CourseCard
-**Priority**: MEDIUM
-**Goal**: When a course has meeting_days and/or meeting_time data, display it
-on the CourseCard in a compact, legible way.
-
-In src/components/CourseCard.jsx:
-1. Add a meeting-time display row between the course code/title area and the metrics.
-   Only render if `course.meeting_days?.length > 0 || course.meeting_time`.
-2. Format: "Mon · Wed  10:00–11:30am" — days joined with " · ", time formatted as
-   12h with am/pm (e.g. "10:00" → "10:00am", "13:30" → "1:30pm").
-   If only days known (no time): "Mon · Wed"
-   If only time known (no days): "10:00–11:30am"
-3. Style: small muted line (11px, color: var(--text-muted)), with a 🕐 or calendar
-   icon prefix (use the existing icon patterns in the file — likely just an emoji or SVG).
-4. In compact card mode (when `compact` prop is true), still show meeting time —
-   it's critical scheduling info.
-5. Do NOT show this row when meeting_days is null AND meeting_time is null.
-
-Done when: a course object with meeting_days:["Mon","Wed"] and meeting_time:"10:00"
-meeting_time_end:"11:30" renders "🕐 Mon · Wed  10:00–11:30am" below the title,
-null fields render nothing, `npm run build` passes.
-**Status**: DONE
-
----
-
-## SC-6 · Add "Hide courses with no schedule" toggle + filter count badge
-**Priority**: MEDIUM
-**Goal**: Two small quality-of-life additions to the day/time filter.
-
-1. Below the Days pills in Sidebar.jsx, add a small checkbox:
-   "□ Hide courses without schedule info"
-   Filter value: `filters.hideNoSchedule` (boolean, default false).
-   When true: applyFilters excludes any course where meeting_days is null/empty.
-   When false (default): courses without schedule data are always shown.
-
-   Wire this into applyFilters() in Home.jsx:
-   if (filters.hideNoSchedule && (!course.meeting_days || course.meeting_days.length === 0)) return false;
-
-2. When any day or time filter is active, show a count badge on the filter toggle button
-   (the "Filters" button that opens the sidebar on mobile) indicating how many
-   schedule-related filters are active. Follow the existing pattern for other filter badges.
-
-3. Update the Sidebar's active-filter summary chips (if they exist — check the file)
-   to include active day pills and time-of-day pills in the same dismissible chip style
-   as existing filter chips.
-
-Done when: checkbox renders, hideNoSchedule wired into filter, badge appears when
-day/time filters active, `npm run build` passes.
-**Status**: DONE
-
----
-
-## SC-7 · Seed 30 courses with realistic mock schedule data for testing
-**Priority**: MEDIUM
-**Goal**: Since the scraper (SC-2) hasn't run yet and the Supabase table has no real
-schedule data, seed 30 representative courses in public/courses.json with
-realistic HKS meeting patterns so the filter can be visually tested locally.
-
-HKS typical patterns:
-- Mon/Wed 10:15am–11:45am  → meeting_days:["Mon","Wed"], meeting_time:"10:15", meeting_time_end:"11:45"
-- Tue/Thu 1:00pm–2:30pm    → meeting_days:["Tue","Thu"], meeting_time:"13:00", meeting_time_end:"14:30"
-- Mon/Wed/Fri 9:00–10:00am → meeting_days:["Mon","Wed","Fri"], meeting_time:"09:00", meeting_time_end:"10:00"
-- Thursday 6:15pm–8:45pm   → meeting_days:["Thu"], meeting_time:"18:15", meeting_time_end:"20:45"
-- Tue/Thu 10:15am–11:45am  → meeting_days:["Tue","Thu"], meeting_time:"10:15", meeting_time_end:"11:45"
-
-Write a small Python script scripts/seed_mock_schedule.py that:
-1. Reads public/courses.json
-2. Picks the first 30 courses from the first 3 concentrations (API, DPI, HKS)
-   that have year=2024 and has_eval=true
-3. Assigns one of the 5 patterns above round-robin
-4. Writes updated public/courses.json
-
-Run the script to actually update public/courses.json so the dev server has testable data.
-
-Done when: scripts/seed_mock_schedule.py exists, public/courses.json has 30 courses
-with non-null meeting_days values, `npm run build` passes.
-**Status**: DONE
-
----
-
-## SC-8 · End-to-end smoke test + README update
-**Priority**: LOW
-**Goal**: Verify the complete filter pipeline works and document the new feature.
-
-1. Run `npm run build` — must pass with zero errors and zero new warnings.
-2. Check that src/components/Sidebar.jsx renders the Days and Time sections
-   without any undefined-variable or missing-prop errors (read the file and verify
-   all referenced variables are defined and passed).
-3. Check that applyFilters in Home.jsx references filters.days, filters.timeOfDay,
-   and filters.hideNoSchedule without typos.
-4. Add a section to the project's README.md (if it exists) or create a
-   docs/FEATURES.md entry describing the day/time filter:
-   "## Day & Time Filter
-   Filter courses by meeting day (Mon–Fri) and time of day (Morning/Afternoon/Evening).
-   Courses without schedule data are shown by default; use 'Hide courses without schedule info'
-   to show only courses with known meeting times.
-   Schedule data is populated via scripts/scrape_meeting_times.py + apply_meeting_times.py."
-5. Commit everything with message "feat: SC-8 · smoke test + docs"
-
-Done when: build passes, no prop/variable errors found in key files, docs updated.
+Done when: all checks pass, build passes, status set to COMPLETE.
 **Status**: DONE
