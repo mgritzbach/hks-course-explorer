@@ -980,17 +980,6 @@ export default function ScheduleBuilder({ courses = [] }) {
           </div>
 
           <div className="flex items-center gap-3">
-            <select
-              value={semester}
-              onChange={(e) => setSemester(e.target.value)}
-              className="w-full rounded-xl border px-2 py-1.5 text-xs"
-              style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
-              aria-label="Semester"
-            >
-              <option value="Spring">Spring 2026</option>
-              <option value="Fall">Fall 2025</option>
-              <option value="January">January 2025</option>
-            </select>
             <div className="inline-flex rounded-full border p-1" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
               {TERM_OPTIONS.map((option) => {
                 const active = option === term
@@ -1455,12 +1444,35 @@ export default function ScheduleBuilder({ courses = [] }) {
                     const section = getActiveSection(course)
                     const dayIndex = DAY_INDEX[day]
                     return (
-                      <div key={key} className="absolute z-10 rounded-2xl border p-2" style={{ top: `${top + 2}px`, left: `calc(52px + ${dayIndex} * (100% - 52px) / ${numDays} + 2px)`, width: `calc((100% - 52px) / ${numDays} - 4px)`, height: `${Math.max(height - 4, 28)}px`, background: conflict ? 'var(--panel-soft)' : 'var(--accent-soft)', borderColor: conflict ? 'var(--danger)' : 'var(--accent)', color: 'var(--text)' }}>
+                      <div
+                        key={key}
+                        className="absolute z-10 rounded-2xl border p-2"
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`${course.courseCode}: ${course.title}${conflict ? ' — time conflict' : ''}. Press Enter to expand, Delete to remove from grid.`}
+                        aria-expanded={expandedBlock === course.courseCode}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setExpandedBlock((current) => (current === course.courseCode ? null : course.courseCode))
+                            return
+                          }
+                          if (event.key === 'Escape') {
+                            setExpandedBlock(null)
+                            return
+                          }
+                          if (event.key === 'Delete' || event.key === 'Backspace') {
+                            event.preventDefault()
+                            toggleGrid(course.courseCode)
+                          }
+                        }}
+                        style={{ top: `${top + 2}px`, left: `calc(52px + ${dayIndex} * (100% - 52px) / ${numDays} + 2px)`, width: `calc((100% - 52px) / ${numDays} - 4px)`, height: `${Math.max(height - 4, 28)}px`, background: conflict ? 'var(--panel-soft)' : 'var(--accent-soft)', borderColor: conflict ? 'var(--danger)' : 'var(--accent)', color: 'var(--text)' }}
+                      >
                         <button type="button" onClick={() => setExpandedBlock((current) => (current === course.courseCode ? null : course.courseCode))} className="block h-full w-full text-left" aria-label={course.courseCode + (conflict ? ' — time conflict' : '')}>
                           <p className="truncate pr-6 text-xs font-semibold">{course.courseCode}</p>
                           <p className="mt-1 text-[11px] leading-4" style={{ color: 'var(--text-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{course.title}</p>
                           {conflict && (
-                            <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.08em]" style={{ color: 'var(--danger)' }}>Conflict</p>
+                            <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.08em]" style={{ color: 'var(--danger)' }}>⚡ Conflict</p>
                           )}
                           {height > 72 && course.instructors?.length > 0 && (
                             <p className="mt-1 truncate text-[10px]" style={{ color: 'var(--text-muted)' }}>{course.instructors[0]}</p>

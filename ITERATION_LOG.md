@@ -524,6 +524,60 @@ Done when: adding a course in Schedule Builder immediately updates Requirements 
 
 ---
 
+## SC-17 · Keyboard navigation on schedule grid blocks (Accessibility)
+**Priority**: MEDIUM
+**Category impact**: Accessibility +0.5
+**Goal**: Make schedule grid blocks keyboard-operable so users can focus, expand, and remove blocks without a mouse.
+
+In `src/pages/ScheduleBuilder.jsx`, update the outer schedule block div to support:
+- `tabIndex={0}`
+- `role="button"`
+- `aria-expanded`
+- descriptive `aria-label`
+- `Enter` / `Space` to expand-collapse
+- `Escape` to collapse
+- `Delete` / `Backspace` to remove from grid
+
+Done when: schedule blocks are keyboard navigable and build passes.
+**Status**: DONE
+
+---
+
+## SC-18 · PAC area manual override in Requirements page (UX)
+**Priority**: MEDIUM
+**Category impact**: UX +0.5, Core functionality +0.2
+**Goal**: Let users manually lock the PAC area used for requirements tracking and suggestion generation.
+
+In `src/lib/requirementsEngine.js`:
+- add `options = {}` to `computeProgress`
+- add `preferredPrefix = null` to `selectPacCourses`
+- return the preferred PAC bucket immediately when present
+- pass `options.preferredPacArea || null` into PAC selection
+- pass options through `findCompletingCourses`
+
+In `src/pages/Requirements.jsx`:
+- persist `preferredPacArea` in localStorage via `hks_pac_area`
+- pass it into `computeProgress` and `findCompletingCourses`
+- add PAC area toggle pills for `BGP`, `DPI`, `IGA`, `DEV`, `SUP`
+- add a clear button when an override is active
+
+Done when: PAC area can be manually overridden and build passes.
+**Status**: DONE
+
+---
+
+## SC-19 · Remove duplicate semester select from header toolbar (UX polish)
+**Priority**: LOW
+**Category impact**: UX +0.2
+**Goal**: Remove the duplicate semester selector from the top header toolbar while keeping the one in the search filter panel.
+
+In `src/pages/ScheduleBuilder.jsx`, remove only the header toolbar semester select with `aria-label="Semester"`.
+
+Done when: only the filter-panel semester select remains and build passes.
+**Status**: DONE
+
+---
+
 ## SC-16 · End-to-end score verification
 **Priority**: HIGH
 **Goal**: After all SCs are DONE, re-evaluate all 6 category scores. Each must be 9/10 or higher.

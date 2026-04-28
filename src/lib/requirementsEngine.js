@@ -50,7 +50,7 @@ function courseMatchesCategory(course, category) {
   return false
 }
 
-function selectPacCourses(courses, category) {
+function selectPacCourses(courses, category, preferredPrefix = null) {
   const groups = ['BGP', 'DPI', 'IGA', 'DEV', 'SUP']
   const buckets = new Map(groups.map((group) => [group, []]))
 
@@ -58,6 +58,13 @@ function selectPacCourses(courses, category) {
     const prefix = course._courseCodeNormalized.split('-')[0]
     if (buckets.has(prefix) && courseMatchesCategory(course, category)) {
       buckets.get(prefix).push(course)
+    }
+  }
+
+  if (preferredPrefix && buckets.has(preferredPrefix)) {
+    return {
+      chosenPrefix: preferredPrefix,
+      courses: buckets.get(preferredPrefix),
     }
   }
 
@@ -105,7 +112,7 @@ export function getPrograms() {
     }))
 }
 
-export function computeProgress(programId, scheduledCourses = [], completedCourses = []) {
+export function computeProgress(programId, scheduledCourses = [], completedCourses = [], options = {}) {
   const program = programRequirements[programId]
   if (!program) return null
 
@@ -124,7 +131,7 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
     let chosenArea = null
 
     if (category.id === 'pac') {
-      const pacSelection = selectPacCourses(available, category)
+      const pacSelection = selectPacCourses(available, category, options.preferredPacArea || null)
       matchedCourses = pacSelection.courses
       chosenArea = pacSelection.chosenPrefix
     } else if (category.id === 'electives') {
@@ -187,8 +194,8 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
   }
 }
 
-export function findCompletingCourses(programId, scheduledCourses = [], allCourses = [], categoryId = null) {
-  const progress = computeProgress(programId, scheduledCourses)
+export function findCompletingCourses(programId, scheduledCourses = [], allCourses = [], categoryId = null, options = {}) {
+  const progress = computeProgress(programId, scheduledCourses, [], options)
   if (!progress) return []
 
   const scheduledCodes = new Set(scheduledCourses.map((course) => normalizeCode(course?.course_code || course?.course_code_base || course?.courseCode || course?.code)))

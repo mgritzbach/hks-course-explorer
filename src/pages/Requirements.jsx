@@ -3,6 +3,7 @@ import { DEFAULT_PLAN, PLANS, loadCompleted, loadPlan, savePlan } from '../lib/s
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
 
 const PROGRAM_STORAGE_KEY = 'hks_req_program'
+const PAC_AREA_STORAGE_KEY = 'hks_pac_area'
 
 function getUrlProgram() {
   if (typeof window === 'undefined') return null
@@ -62,6 +63,10 @@ export default function Requirements({ courses = [] }) {
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
   const [scheduledCourses, setScheduledCourses] = useState(() => getPlanCourses(DEFAULT_PLAN))
   const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
+  const [preferredPacArea, setPreferredPacArea] = useState(() => {
+    if (typeof window === 'undefined') return null
+    return window.localStorage.getItem(PAC_AREA_STORAGE_KEY) || null
+  })
   const [openSuggestions, setOpenSuggestions] = useState({})
   const [addedToPlan, setAddedToPlan] = useState(() => {
     const codes = new Set(getPlanCourses(DEFAULT_PLAN).map(getCourseCode).filter(Boolean))
@@ -69,6 +74,17 @@ export default function Requirements({ courses = [] }) {
   })
   const [copyMsg, setCopyMsg] = useState(null)
   const copyTimeoutRef = useRef(null)
+
+  const handlePacAreaChange = (area) => {
+    const nextValue = preferredPacArea === area ? null : area
+    setPreferredPacArea(nextValue)
+    if (typeof window === 'undefined') return
+    if (nextValue) {
+      window.localStorage.setItem(PAC_AREA_STORAGE_KEY, nextValue)
+    } else {
+      window.localStorage.removeItem(PAC_AREA_STORAGE_KEY)
+    }
+  }
 
   // Re-read plan when user switches plan tabs
   useEffect(() => {
@@ -152,8 +168,8 @@ export default function Requirements({ courses = [] }) {
   }, [selectedProgram, activePlan])
 
   const progress = useMemo(
-    () => computeProgress(selectedProgram, scheduledCourses, completedCourses),
-    [scheduledCourses, selectedProgram, completedCourses]
+    () => computeProgress(selectedProgram, scheduledCourses, completedCourses, { preferredPacArea }),
+    [scheduledCourses, selectedProgram, completedCourses, preferredPacArea]
   )
 
   const suggestionMap = useMemo(() => {
@@ -162,10 +178,10 @@ export default function Requirements({ courses = [] }) {
     return Object.fromEntries(
       progress.categories.map((category) => [
         category.id,
-        findCompletingCourses(selectedProgram, scheduledCourses, courses, category.id),
+        findCompletingCourses(selectedProgram, scheduledCourses, courses, category.id, { preferredPacArea }),
       ])
     )
-  }, [courses, progress, scheduledCourses, selectedProgram])
+  }, [courses, progress, scheduledCourses, selectedProgram, preferredPacArea])
 
   if (!progress) {
     return (
@@ -342,6 +358,43 @@ export default function Requirements({ courses = [] }) {
                 <div className="mt-4">
                   <ProgressBar value={category.percent} color={category.isComplete ? 'var(--success)' : accentColor} label={`${category.label}: ${category.appliedCredits} of ${category.requiredCredits} credits`} />
                 </div>
+                {category.id === 'pac' && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {['BGP', 'DPI', 'IGA', 'DEV', 'SUP'].map((area) => {
+                      const active = preferredPacArea === area
+                      return (
+                        <button
+                          key={area}
+                          type="button"
+                          onClick={() => handlePacAreaChange(area)}
+                          aria-pressed={active}
+                          className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+                          style={{
+                            background: active ? 'var(--accent-soft)' : 'transparent',
+                            borderColor: active ? 'var(--accent)' : 'var(--line-strong)',
+                            color: active ? 'var(--text)' : 'var(--text-muted)',
+                          }}
+                        >
+                          {area}
+                        </button>
+                      )
+                    })}
+                    {preferredPacArea && (
+                      <button
+                        type="button"
+                        onClick={() => handlePacAreaChange(preferredPacArea)}
+                        className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+                        style={{
+                          background: 'transparent',
+                          borderColor: 'var(--line-strong)',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
                 {category.id === 'stem' && category.overlapExceeded && (
                   <p style={{ fontSize: 11, color: 'var(--gold)', marginTop: 4 }}>
                     ⚠ Only 8 STEM credits may count toward other requirements — {category.overlapCredits} credits currently overlap.
