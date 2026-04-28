@@ -243,6 +243,259 @@ function EmptyScheduleState() {
   )
 }
 
+function ManualCourseModal({ initial, onAdd, onClose }) {
+  const [code, setCode] = useState(initial?.code || '')
+  const [title, setTitle] = useState('')
+  const [instructor, setInstructor] = useState('')
+  const [credits, setCredits] = useState(4)
+  const [days, setDays] = useState([])
+  const [timeStart, setTimeStart] = useState('')
+  const [timeEnd, setTimeEnd] = useState('')
+  const [location, setLocation] = useState('')
+  const [isStem, setIsStem] = useState(false)
+  const [isCore, setIsCore] = useState(false)
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  const toggleDay = (day) => {
+    setDays((current) => current.includes(day) ? current.filter((value) => value !== day) : [...current, day].sort((a, b) => DAY_INDEX[a] - DAY_INDEX[b]))
+  }
+
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    const normalizedCode = code.trim().toUpperCase().replace(/\s+/g, '-')
+    if (!normalizedCode) return
+    onAdd({
+      courseCode: normalizedCode,
+      title: title.trim() || normalizedCode,
+      instructors: instructor.trim() ? [instructor.trim()] : [],
+      credits,
+      sections: [],
+      meeting_days: days.join('/'),
+      time_start: timeStart || null,
+      time_end: timeEnd || null,
+      location: location.trim() || null,
+      enrichment: {
+        is_stem: isStem,
+        is_core: isCore,
+        metrics_pct: null,
+      },
+      _crossRegManual: true,
+    })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+      style={{ background: 'rgba(15, 23, 42, 0.62)' }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="manual-course-modal-title"
+    >
+      <div
+        className="w-full max-w-2xl rounded-[28px] border p-6 shadow-2xl"
+        style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>Manual course</p>
+            <h2 id="manual-course-modal-title" className="mt-2 text-2xl font-semibold">Add a cross-registration course</h2>
+            <p className="mt-2 text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
+              Fill in what you know now. You can still edit timing directly in the schedule later.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-10 w-10 items-center justify-center rounded-full border text-lg transition-transform hover:-translate-y-[1px]"
+            style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text-muted)' }}
+            aria-label="Close manual course form"
+          >
+            ×
+          </button>
+        </div>
+
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Course code</span>
+              <input
+                type="text"
+                value={code}
+                onChange={(event) => setCode(event.target.value.toUpperCase())}
+                placeholder="MIT-15.783"
+                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors"
+                style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Title</span>
+              <input
+                type="text"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Machine Learning for Policy"
+                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors"
+                style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[1.3fr,0.7fr]">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Instructor</span>
+              <input
+                type="text"
+                value={instructor}
+                onChange={(event) => setInstructor(event.target.value)}
+                placeholder="Prof. Example"
+                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors"
+                style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+              />
+            </label>
+            <div>
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Credits</span>
+              <div className="flex gap-2">
+                {[2, 3, 4].map((value) => {
+                  const active = credits === value
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setCredits(value)}
+                      className="flex-1 rounded-full border px-3 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
+                      style={{
+                        background: active ? 'var(--accent)' : 'var(--accent-soft)',
+                        borderColor: active ? 'var(--accent)' : 'var(--line-strong)',
+                        color: active ? '#fff' : 'var(--text)',
+                      }}
+                    >
+                      {value} cr
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Meeting days</span>
+            <div className="flex flex-wrap gap-2">
+              {['MON', 'TUE', 'WED', 'THU', 'FRI'].map((day) => {
+                const active = days.includes(day)
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleDay(day)}
+                    className="rounded-full border px-3 py-2 text-xs font-semibold tracking-[0.08em] transition-transform hover:-translate-y-[1px]"
+                    style={{
+                      background: active ? 'var(--blue)' : 'var(--blue-soft)',
+                      borderColor: active ? 'var(--blue)' : 'var(--line-strong)',
+                      color: active ? '#fff' : 'var(--text)',
+                    }}
+                  >
+                    {day}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Start time</span>
+              <input
+                type="time"
+                value={timeStart}
+                onChange={(event) => setTimeStart(event.target.value)}
+                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors"
+                style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>End time</span>
+              <input
+                type="time"
+                value={timeEnd}
+                onChange={(event) => setTimeEnd(event.target.value)}
+                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors"
+                style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Location</span>
+              <input
+                type="text"
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+                placeholder="Building / room"
+                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors"
+                style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+              />
+            </label>
+          </div>
+
+          <div>
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Tags</span>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'stem', label: 'STEM', active: isStem, onClick: () => setIsStem((value) => !value) },
+                { key: 'core', label: 'Core', active: isCore, onClick: () => setIsCore((value) => !value) },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={item.onClick}
+                  className="rounded-full border px-3 py-2 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
+                  style={{
+                    background: item.active ? 'var(--accent)' : 'var(--panel-soft)',
+                    borderColor: item.active ? 'var(--accent)' : 'var(--line-strong)',
+                    color: item.active ? '#fff' : 'var(--text)',
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t pt-5" style={{ borderColor: 'var(--line-strong)' }}>
+            <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>
+              This creates a manual shortlist entry marked as cross-registration.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
+                style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-full border px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
+                style={{ background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' }}
+              >
+                Add to schedule
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 const SEMESTER_STARTS = {
   'Fall-Q1': '20250902',
   'Fall-Q2': '20251027',
@@ -355,6 +608,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [reqProgram, setReqProgram] = useState(() => getPrograms()[0]?.id || '')
   const [gridMessages, setGridMessages] = useState({})
   const [manualTimeEdit, setManualTimeEdit] = useState({}) // courseCode → {days:[], start:'', end:''}
+  const [manualCourseModal, setManualCourseModal] = useState(null)
   const [exportMsg, setExportMsg] = useState(null)
   const exportMsgTimeoutRef = useRef(null)
   const [copyPlanMsg, setCopyPlanMsg] = useState(null)
@@ -363,6 +617,10 @@ export default function ScheduleBuilder({ courses = [] }) {
   const toggleSection = (key) => setCollapsedSections((s) => ({ ...s, [key]: !s[key] }))
   const importInputRef = useRef(null)
   const [saveLoadMsg, setSaveLoadMsg] = useState(null)
+
+  function openManualModal(prefillCode) {
+    setManualCourseModal({ code: prefillCode || '' })
+  }
   const saveLoadTimeoutRef = useRef(null)
   const announcerRef = useRef(null)
   const announce = useCallback((msg) => {
@@ -404,15 +662,17 @@ export default function ScheduleBuilder({ courses = [] }) {
       setSectionTimesLoading(false)
       return
     }
-    const termStr = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
+    // course_sections uses our internal format (no space); live_courses stores Harvard API format (with space)
+    const termStrInternal = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
+    const termStrApi      = semester === 'Spring' ? '2026 Spring' : semester === 'Fall' ? '2025 Fall' : '2025 January'
     const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
 
     Promise.all([
-      // course_sections: hand-curated HKS schedule data
-      fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStr}&select=course_code_base,meetings,title,instructors,credits&limit=2000`, { headers })
+      // course_sections: hand-curated HKS schedule data (internal term format)
+      fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStrInternal}&select=course_code_base,meetings,title,instructors,credits&limit=2000`, { headers })
         .then((r) => r.ok ? r.json() : []),
-      // live_courses: daily-synced full catalog (all schools)
-      fetch(`${supabaseUrl}/rest/v1/live_courses?term=eq.${termStr}&select=*&limit=5000`, { headers })
+      // live_courses: daily-synced full catalog — Harvard API term format (e.g. "2026 Spring")
+      fetch(`${supabaseUrl}/rest/v1/live_courses?term=eq.${encodeURIComponent(termStrApi)}&select=*&limit=5000`, { headers })
         .then((r) => r.ok ? r.json() : []),
     ])
       .then(([sectionRows, liveRows]) => {
@@ -481,35 +741,33 @@ export default function ScheduleBuilder({ courses = [] }) {
       setSearchResults([])
       return undefined
     }
-    // Non-HKS + Live mode with no query: serve from live_courses Supabase table (instant, no API call).
-    // Fall back to API seed query 'a' only if live_courses table is still empty (first deploy).
-    const nonHksBrowse = searchSource === 'Non-HKS' && !query && searchMode === 'live'
-    if (nonHksBrowse) {
-      const nonHksRows = liveCoursesData.filter((r) => !r.is_hks)
-      if (nonHksRows.length > 0) {
-        // Serve directly from Supabase live_courses — no API call needed
-        const normalized = nonHksRows.map((r, i) => normalizeCourse({
-          courseCode:  r.course_code || r.course_code_base,
-          title:       r.title || '',
-          instructors: Array.isArray(r.instructors) ? r.instructors : [],
-          credits:     r.credits,
-          sections:    [],
-          meeting_days: r.meeting_days || null,
-          time_start:  r.time_start || null,
-          time_end:    r.time_end   || null,
-          location:    r.location   || null,
-          term:        r.term       || null,
-          _fromLiveDB: true,
-        }, i))
-        setApiMode('live')
-        setSearchResults(normalized)
-        setSearching(false)
-        return undefined
-      }
-      // Table empty → fall back to API seed (will self-resolve after first sync runs)
+    // Live browse (no query): serve directly from live_courses Supabase table — instant, no API call.
+    // Covers Non-HKS and All source modes. Falls back to API seed 'a' if table still empty.
+    const liveBrowse = !query && searchMode === 'live' && (searchSource === 'Non-HKS' || searchSource === 'All')
+    if (liveBrowse && liveCoursesData.length > 0) {
+      const rows = searchSource === 'Non-HKS'
+        ? liveCoursesData.filter((r) => !r.is_hks)
+        : liveCoursesData  // All: show every school
+      const normalized = rows.map((r, i) => normalizeCourse({
+        courseCode:   r.course_code || r.course_code_base,
+        title:        r.title || '',
+        instructors:  Array.isArray(r.instructors) ? r.instructors : [],
+        credits:      r.credits,
+        sections:     [],
+        meeting_days: r.meeting_days || null,
+        time_start:   r.time_start   || null,
+        time_end:     r.time_end     || null,
+        location:     r.location     || null,
+        term:         r.term         || null,
+        _fromLiveDB:  true,
+      }, i))
+      setApiMode('live')
+      setSearchResults(normalized)
+      setSearching(false)
+      return undefined
     }
-    // effectiveQuery: use typed query, or 'a' as browse seed for Non-HKS live browse when table empty
-    const effectiveQuery = query || (nonHksBrowse ? 'a' : '')
+    // effectiveQuery: typed query, or 'a' as browse seed when live_courses table is still empty
+    const effectiveQuery = query || (liveBrowse ? 'a' : '')
     if (!effectiveQuery && !hasFilters) {
       setSearching(false)
       setSearchResults([])
@@ -1123,8 +1381,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     if (searchSource !== 'HKS' && q && filteredSearchResults.length === 0) {
       const code = q.toUpperCase().replace(/\s+/g, '-')
       if (!addedCourseCodes.has(code)) {
-        addToShortlist(normalizeCourse({ courseCode: code, title: code, instructors: [], credits: 4, sections: [], enrichment: {}, _crossRegManual: true }))
-        setSearchQ('')
+        openManualModal(code)
       }
     }
   }
@@ -1774,14 +2031,13 @@ export default function ScheduleBuilder({ courses = [] }) {
                       onClick={() => {
                         const code = searchQ.trim().toUpperCase().replace(/\s+/g, '-')
                         if (code && !addedCourseCodes.has(code)) {
-                          addToShortlist(normalizeCourse({ courseCode: code, title: code, instructors: [], credits: 4, sections: [], enrichment: {}, _crossRegManual: true }))
-                          setSearchQ('')
+                          openManualModal(code)
                         }
                       }}
                       className="mt-3 rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
                       style={{ background: 'var(--accent-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
                     >
-                      + Add {searchQ.trim().toUpperCase().replace(/\s+/g, '-')} manually
+                      + Add {searchQ.trim().toUpperCase().replace(/\s+/g, '-')} with details
                     </button>
                   </div>
                 ) : searchQ.trim() ? (
@@ -2294,6 +2550,17 @@ export default function ScheduleBuilder({ courses = [] }) {
             </div>
           </aside>
         </div>
+        {manualCourseModal !== null && (
+          <ManualCourseModal
+            initial={manualCourseModal}
+            onAdd={(courseData) => {
+              addToShortlist(normalizeCourse(courseData))
+              setManualCourseModal(null)
+              setSearchQ('')
+            }}
+            onClose={() => setManualCourseModal(null)}
+          />
+        )}
       </div>
     </div>
   )
