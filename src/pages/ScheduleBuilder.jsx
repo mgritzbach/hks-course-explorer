@@ -449,11 +449,11 @@ export default function ScheduleBuilder({ courses = [] }) {
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
-        // SC-39d/SC-42: Non-HKS (both auto-browse and typed queries) — skip Harvard API entirely.
+        // SC-39d/SC-42/SC-46: Non-HKS (browse, typed, and all-years) — skip Harvard API entirely.
         // The API key is HKS-scoped and always returns empty for non-HKS schools.
         // Cross-reg results come from sectionMapStubs (Supabase course_sections) which filter
         // in the sectionMapStubs useMemo based on the typed query text.
-        if (nonHksBrowse || (effectiveQuery && !searchAllYears && searchSource === 'Non-HKS')) {
+        if (nonHksBrowse || (searchSource === 'Non-HKS')) {
           if (!cancelled) { setApiMode('db'); setSearchResults([]) }
           return
         }
@@ -605,9 +605,12 @@ export default function ScheduleBuilder({ courses = [] }) {
     // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
     // Stubs: always included in db mode; in live/All mode, also append non-HKS stubs that
     // match the query text (stubs already deduplicate HKS courses vs API results via existingBaseIds)
-    // Suppress stubs when browsing all years — stubs are current-semester only and would mislead
-    const useStubs = sectionMapStubs.length > 0 && !searchAllYears &&
-      (apiMode === 'db' || (apiMode === 'live' && searchSource === 'All' && searchQ.trim().length > 0))
+    // Stubs allowed when: db mode, OR live+All+typed query, OR Non-HKS (always — API never works there)
+    // For Non-HKS, allow stubs even in all-years mode (stubs are the only non-HKS data source)
+    const useStubs = sectionMapStubs.length > 0 && (
+      (searchSource === 'Non-HKS') ||
+      (!searchAllYears && (apiMode === 'db' || (apiMode === 'live' && searchSource === 'All' && searchQ.trim().length > 0)))
+    )
     const allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
     const results = allResults.filter((course) => {
       // --- Day filter ---
@@ -645,7 +648,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (aHasTime === bHasTime) return 0
       return aHasTime ? -1 : 1
     })
-  }, [enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimes, searchAllYears])
+  }, [enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimes, searchAllYears, searchSource, searchQ])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -1458,7 +1461,11 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result{searchSource !== 'HKS' ? ' · Enter with code to manually add if not found' : ''}</p>
               ) : apiMode === 'db' && !searchQ.trim() && searchSource === 'Non-HKS' ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-                  {sectionTimesLoading ? 'Loading schedule times…' : `Cross-reg offerings at HBS, FAS, Law, MIT · type to filter`}
+                  {sectionTimesLoading
+                    ? 'Loading schedule times…'
+                    : filteredSearchResults.length > 0
+                      ? `${filteredSearchResults.length} cross-reg offering${filteredSearchResults.length !== 1 ? 's' : ''} for ${semester} · type to filter`
+                      : 'Cross-reg offerings at HBS, FAS, Law, MIT · type to filter'}
                 </p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
@@ -1680,6 +1687,14 @@ export default function ScheduleBuilder({ courses = [] }) {
                       style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--text)' }}
                     >
                       Browse all {semester} HKS courses
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSearchSource('Non-HKS')}
+                      className="rounded-full border px-4 py-2 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
+                      style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text-soft)' }}
+                    >
+                      Browse cross-reg offerings (HBS, MIT…)
                     </button>
                   </div>
                 )
