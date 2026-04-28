@@ -51,6 +51,8 @@ function fallbackSearch(q, allCourses, filters = {}) {
       time_start: c.time_start || null,
       time_end: c.time_end || null,
       location: c.location || null,
+      year: c.year || null,
+      term: c.term || null,
       enrichment: {
         is_stem: c.is_stem,
         is_core: c.is_core,
@@ -172,6 +174,8 @@ function normalizeCourse(raw, index = 0) {
     time_end: raw?.time_end || main?.time_end || '',
     location: raw?.location || main?.location || '',
     isOnGrid: Boolean(raw?.isOnGrid),
+    year: raw?.year ?? null,
+    term: raw?.term ?? null,
     enrichment: {
       is_core: Boolean(raw?.enrichment?.is_core ?? raw?.is_core),
       is_stem: Boolean(raw?.enrichment?.is_stem ?? raw?.is_stem),
@@ -281,6 +285,7 @@ function Chip({ children, tone = 'default' }) {
     blue: { background: 'var(--blue)', borderColor: 'var(--blue)', color: 'var(--panel)' },
     danger: { background: 'var(--panel-soft)', borderColor: 'var(--danger)', color: 'var(--danger)' },
     gold: { background: 'var(--gold-soft)', borderColor: 'var(--gold)', color: 'var(--gold)' },
+    muted: { background: 'transparent', borderColor: 'var(--line)', color: 'var(--text-muted)' },
   }
   return (
     <span className="inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]" style={styles[tone] || styles.default}>
@@ -317,6 +322,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searchSource, setSearchSource] = useState('HKS')
   const [searchMinRating, setSearchMinRating] = useState('')
   const [browseAll, setBrowseAll] = useState(false)
+  const [searchAllYears, setSearchAllYears] = useState(false) // SC-22: include past semesters
   const [searchDays, setSearchDays] = useState([])
   const [searchTimes, setSearchTimes] = useState([])
   const [completedSearchQ, setCompletedSearchQ] = useState('')
@@ -407,8 +413,8 @@ export default function ScheduleBuilder({ courses = [] }) {
 
   useEffect(() => {
     const query = searchQ.trim()
-    const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly, semester, searchSource, minRating: searchMinRating }
-    const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly || (searchSource === 'Non-HKS') || Boolean(searchMinRating) || browseAll
+    const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly, semester, searchSource, minRating: searchMinRating, allYears: searchAllYears }
+    const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly || (searchSource === 'Non-HKS') || Boolean(searchMinRating) || browseAll || searchAllYears
     if (!query && !hasFilters) {
       setSearching(false)
       setSearchResults([])
@@ -459,7 +465,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [browseAll, courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating])
+  }, [browseAll, courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating, searchAllYears])
 
   // TIME_SLOTS: label shown in UI → [startHour, endHour) range (24h)
   const TIME_SLOTS = [
@@ -555,7 +561,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   const filteredSearchResults = useMemo(() => {
     // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
     // Only include stubs in browse/filter mode (browseAll or filter active, not raw text API results)
-    const useStubs = apiMode === 'db' && sectionMapStubs.length > 0
+    // Suppress stubs when browsing all years — stubs are current-semester only and would mislead
+    const useStubs = apiMode === 'db' && sectionMapStubs.length > 0 && !searchAllYears
     const allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
     const results = allResults.filter((course) => {
       // --- Day filter ---
@@ -593,7 +600,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (aHasTime === bHasTime) return 0
       return aHasTime ? -1 : 1
     })
-  }, [enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimes])
+  }, [enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimes, searchAllYears])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -979,7 +986,16 @@ export default function ScheduleBuilder({ courses = [] }) {
   const handleSearchKeyDown = (event) => {
     if (event.key !== 'Enter') return
     const firstUnadded = filteredSearchResults.find((r) => !addedCourseCodes.has(r.courseCode))
-    if (firstUnadded) addToShortlist(firstUnadded)
+    if (firstUnadded) { addToShortlist(firstUnadded); return }
+    // SC-21: Non-HKS manual add — if no results and user typed a course code, create a cross-reg stub
+    const q = searchQ.trim()
+    if (searchSource === 'Non-HKS' && q && !firstUnadded) {
+      const code = q.toUpperCase().replace(/\s+/g, '-')
+      if (!addedCourseCodes.has(code)) {
+        addToShortlist(normalizeCourse({ courseCode: code, title: code, instructors: [], credits: 4, sections: [], enrichment: {}, _crossRegManual: true }))
+        setSearchQ('')
+      }
+    }
   }
 
   const timeLabels = useMemo(() => {
@@ -1208,17 +1224,34 @@ export default function ScheduleBuilder({ courses = [] }) {
                     Core
                   </button>
                 </div>
-                <select
-                  value={semester}
-                  onChange={(e) => setSemester(e.target.value)}
-                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
-                  style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
-                  aria-label="Semester"
-                >
-                  <option value="Spring">Spring 2026</option>
-                  <option value="Fall">Fall 2025</option>
-                  <option value="January">January 2025</option>
-                </select>
+                <div className="flex gap-1.5">
+                  <select
+                    value={semester}
+                    onChange={(e) => { setSemester(e.target.value); if (searchAllYears) setSearchAllYears(false) }}
+                    className="flex-1 rounded-xl border px-2 py-1.5 text-xs"
+                    style={{ background: 'var(--panel-soft)', borderColor: searchAllYears ? 'var(--line)' : 'var(--line-strong)', color: searchAllYears ? 'var(--text-muted)' : 'var(--text)', opacity: searchAllYears ? 0.5 : 1 }}
+                    aria-label="Semester"
+                    disabled={searchAllYears}
+                  >
+                    <option value="Spring">Spring 2026</option>
+                    <option value="Fall">Fall 2025</option>
+                    <option value="January">January 2025</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setSearchAllYears((v) => !v)}
+                    title="Search across all years in Q-guide (requires a search query)"
+                    className="shrink-0 rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
+                    style={{
+                      background: searchAllYears ? 'var(--gold-soft)' : 'var(--panel-soft)',
+                      borderColor: searchAllYears ? 'var(--gold)' : 'var(--line-strong)',
+                      color: searchAllYears ? 'var(--text)' : 'var(--text-muted)',
+                    }}
+                    aria-pressed={searchAllYears}
+                  >
+                    📚 All yrs
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {['All', 'HKS', 'Non-HKS'].map((option) => {
                     const active = searchSource === option
@@ -1325,8 +1358,10 @@ export default function ScheduleBuilder({ courses = [] }) {
                   )}
                 </div>
               </div>
-              {filteredSearchResults.length > 0 && searchQ.trim() ? (
-                <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result</p>
+              {searchAllYears && !searchQ.trim() ? (
+                <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--gold)' }}>📚 All-years mode — type a query to search Q-guide history</p>
+              ) : filteredSearchResults.length > 0 && searchQ.trim() ? (
+                <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result{searchSource === 'Non-HKS' ? ' · or manual add if none found' : ''}</p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>Q-guide data shown. Live section times need Harvard API key.</p>
               ) : null}
@@ -1352,6 +1387,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                           const added = addedCourseCodes.has(course.courseCode)
                           const done = completedCourseCodes.has(course.courseCode)
                           const hks = isHksCourse(course.courseCode)
+                          const baseCode = course.courseCode.split('-').slice(0, 2).join('-')
+                          const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(baseCode)
+                          const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
                             <div key={`with-${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
                               <div className="flex items-start justify-between gap-3">
@@ -1359,6 +1397,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                   <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
                                     {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
+                                    {searchAllYears && course.year && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{course.year} {course.term}</span>}
                                   </div>
                                   <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                                 </div>
@@ -1390,6 +1429,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                 ) : (
                                   <Chip tone="danger">No time data</Chip>
                                 )}
+                                {instrPct != null && <Chip tone="gold">★ {Math.round(instrPct)}th instr</Chip>}
                                 {hks && (course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
                                   <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
                                 )}
@@ -1408,6 +1448,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                           const added = addedCourseCodes.has(course.courseCode)
                           const done = completedCourseCodes.has(course.courseCode)
                           const hks = isHksCourse(course.courseCode)
+                          const baseCode = course.courseCode.split('-').slice(0, 2).join('-')
+                          const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(baseCode)
+                          const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
                             <div key={`without-${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
                               <div className="flex items-start justify-between gap-3">
@@ -1415,6 +1458,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                   <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
                                     {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
+                                    {searchAllYears && course.year && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{course.year} {course.term}</span>}
                                   </div>
                                   <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                                 </div>
@@ -1444,8 +1488,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                                 ) : sectionTimesLoading ? (
                                   <Chip tone="default">Times loading</Chip>
                                 ) : (
-                                  <Chip tone="danger">No time data</Chip>
+                                  <Chip tone="muted">Historical / no schedule</Chip>
                                 )}
+                                {instrPct != null && <Chip tone="gold">★ {Math.round(instrPct)}th instr</Chip>}
                                 {hks && (course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
                                   <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
                                 )}
@@ -1473,6 +1518,27 @@ export default function ScheduleBuilder({ courses = [] }) {
                         </div>
                       ))}
                     </div>
+                  </div>
+                ) : searchSource === 'Non-HKS' && searchQ.trim() ? (
+                  <div className="rounded-[20px] border p-4 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+                    <p className="font-semibold" style={{ color: 'var(--text)' }}>Cross-registration</p>
+                    <p className="mt-2 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>
+                      Non-HKS courses may not be in our Q-guide database. If the Harvard API returned no results, press <kbd className="rounded border px-1 py-0.5 font-mono text-[10px]" style={{ borderColor: 'var(--line-strong)', color: 'var(--text-soft)' }}>Enter</kbd> to add <strong style={{ color: 'var(--text)' }}>{searchQ.trim().toUpperCase().replace(/\s+/g, '-')}</strong> as a manual cross-reg course.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const code = searchQ.trim().toUpperCase().replace(/\s+/g, '-')
+                        if (code && !addedCourseCodes.has(code)) {
+                          addToShortlist(normalizeCourse({ courseCode: code, title: code, instructors: [], credits: 4, sections: [], enrichment: {}, _crossRegManual: true }))
+                          setSearchQ('')
+                        }
+                      }}
+                      className="mt-3 rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
+                      style={{ background: 'var(--accent-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+                    >
+                      + Add {searchQ.trim().toUpperCase().replace(/\s+/g, '-')} manually
+                    </button>
                   </div>
                 ) : searchQ.trim() ? (
                   <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No matching courses found.</div>
