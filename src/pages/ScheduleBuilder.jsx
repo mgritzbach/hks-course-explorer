@@ -1736,6 +1736,17 @@ export default function ScheduleBuilder({ courses = [] }) {
                                 <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>{course.credits || 4} cr</span>
                               </div>
                               <p className="mt-1 truncate text-sm" style={{ color: 'var(--text-soft)' }}>{course.title}</p>
+                              {courseHasSchedule(course) && (
+                                (() => {
+                                  const DAY_ABBR = { MON: 'M', TUE: 'Tu', WED: 'W', THU: 'Th', FRI: 'F', SAT: 'Sa', SUN: 'Su' }
+                                  const days = extractDays(course.meeting_days).map((d) => DAY_ABBR[d] || d).join('/')
+                                  return (
+                                    <p className="mt-1 text-[11px]" style={{ color: 'var(--text-soft)' }}>
+                                      🕐 {days} {formatClockLabel(course.time_start)}–{formatClockLabel(course.time_end)}
+                                    </p>
+                                  )
+                                })()
+                              )}
                               {hasRatings && (
                                 <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
                                   Instr. <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{Math.round(course.enrichment.metrics_pct.Instructor_Rating)}%</span>
