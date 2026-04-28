@@ -287,6 +287,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searchSource, setSearchSource] = useState('HKS')
   const [searchMinRating, setSearchMinRating] = useState('')
   const [searchDays, setSearchDays] = useState([])
+  const [searchTimes, setSearchTimes] = useState([])
   const [completedSearchQ, setCompletedSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -396,19 +397,47 @@ export default function ScheduleBuilder({ courses = [] }) {
     }
   }, [courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating])
 
-  // Apply day-of-week filter client-side on top of search results.
-  // Courses with no meeting_days data always pass through (don't penalise missing data).
+  // TIME_SLOTS: label shown in UI → [startHour, endHour) range (24h)
+  const TIME_SLOTS = [
+    { label: '8–10am',  value: '8-10',   start: 8,  end: 10 },
+    { label: '10–12pm', value: '10-12',  start: 10, end: 12 },
+    { label: '12–2pm',  value: '12-14',  start: 12, end: 14 },
+    { label: '2–4pm',   value: '14-16',  start: 14, end: 16 },
+    { label: '4pm+',    value: '16+',    start: 16, end: 24 },
+  ]
+
+  // Apply day-of-week and time-slot filters client-side on top of search results.
+  // Courses with no schedule data always pass through (don't penalise missing data).
   const filteredSearchResults = useMemo(() => {
-    if (!searchDays.length) return searchResults
     return searchResults.filter((course) => {
-      const days = course.meeting_days   // e.g. ["Mon","Wed"] from DB seed
-        || extractDays(course.time_start) // e.g. ["MON","WED"] from Harvard API
-      if (!days || !days.length) return true // no data → always show
-      // Normalise to uppercase for comparison
-      const upperDays = days.map((d) => String(d).toUpperCase().slice(0, 3))
-      return searchDays.some((sd) => upperDays.includes(sd))
+      // --- Day filter ---
+      if (searchDays.length > 0) {
+        const days = course.meeting_days
+          || extractDays(course.time_start)
+        if (days && days.length > 0) {
+          const upperDays = days.map((d) => String(d).toUpperCase().slice(0, 3))
+          if (!searchDays.some((sd) => upperDays.includes(sd))) return false
+        }
+        // no day data → passes through
+      }
+
+      // --- Time slot filter ---
+      if (searchTimes.length > 0) {
+        const rawTime = course.meeting_time || course.time_start
+        if (rawTime) {
+          const hour = parseInt(String(rawTime).split(':')[0], 10)
+          const matchesSlot = searchTimes.some((val) => {
+            const slot = TIME_SLOTS.find((s) => s.value === val)
+            return slot && hour >= slot.start && hour < slot.end
+          })
+          if (!matchesSlot) return false
+        }
+        // no time data → passes through
+      }
+
+      return true
     })
-  }, [searchResults, searchDays])
+  }, [searchResults, searchDays, searchTimes])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -1086,6 +1115,40 @@ export default function ScheduleBuilder({ courses = [] }) {
                     </button>
                   )}
                 </div>
+                {/* Time slot filter */}
+                <div className="flex flex-wrap gap-1.5">
+                  {TIME_SLOTS.map((slot) => {
+                    const active = searchTimes.includes(slot.value)
+                    return (
+                      <button
+                        key={slot.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setSearchTimes((prev) =>
+                          prev.includes(slot.value) ? prev.filter((t) => t !== slot.value) : [...prev, slot.value]
+                        )}
+                        className="rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
+                        style={{
+                          background: active ? 'var(--accent-soft)' : 'var(--panel-soft)',
+                          borderColor: active ? 'var(--accent)' : 'var(--line-strong)',
+                          color: active ? 'var(--text)' : 'var(--text-muted)',
+                        }}
+                      >
+                        {slot.label}
+                      </button>
+                    )
+                  })}
+                  {searchTimes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTimes([])}
+                      className="rounded-xl border px-2 py-1.5 text-xs transition-colors"
+                      style={{ borderColor: 'var(--line-strong)', color: 'var(--text-muted)', background: 'var(--panel-soft)' }}
+                    >
+                      Any time
+                    </button>
+                  )}
+                </div>
               </div>
               {filteredSearchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result</p>
@@ -1099,7 +1162,11 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Searching…</div>
               ) : filteredSearchResults.length > 0 ? (
                 <div className="space-y-3">
-                  <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>{filteredSearchResults.length} course{filteredSearchResults.length !== 1 ? 's' : ''} found{searchDays.length > 0 ? ` · ${searchDays.map(d => d[0]+d.slice(1).toLowerCase()).join('/')} only` : ''}</p>
+                  <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                    {filteredSearchResults.length} course{filteredSearchResults.length !== 1 ? 's' : ''} found
+                    {searchDays.length > 0 ? ` · ${searchDays.map(d => d[0]+d.slice(1).toLowerCase()).join('/')}` : ''}
+                    {searchTimes.length > 0 ? ` · ${searchTimes.map(v => TIME_SLOTS.find(s=>s.value===v)?.label).join('/')}` : ''}
+                  </p>
                   {filteredSearchResults.map((course, index) => {
                     const added = addedCourseCodes.has(course.courseCode)
                     const done = completedCourseCodes.has(course.courseCode)
