@@ -586,7 +586,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [sectionInfoMap, setSectionInfoMap] = useState(new Map()) // courseCodeBase → { title, instructors } from course_sections
   const [liveCoursesData, setLiveCoursesData] = useState([])     // rows from live_courses table (all schools)
   const [term, setTerm] = useState('FULL')
-  const [semester, setSemester] = useState('Spring')
+  const [semesterYear, setSemesterYear] = useState('2026')
+  const [semester, setSemester] = useState('Spring') // Spring | Fall | Summer | January
   const [showWeekends, setShowWeekends] = useState(false)
   const [searchQ, setSearchQ] = useState('')
   const [searchConcentration, setSearchConcentration] = useState('All')
@@ -599,6 +600,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searchTimeFrom, setSearchTimeFrom] = useState('') // HH:MM
   const [searchTimeTo, setSearchTimeTo] = useState('')     // HH:MM
   const [searchCredits, setSearchCredits] = useState('')   // '' | '2' | '3' | '4'
+  const [filterCrossRegOnly, setFilterCrossRegOnly] = useState(true) // hide NONH courses by default
   const [searchMode, setSearchMode] = useState('live')
   const [completedSearchQ, setCompletedSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -650,37 +652,37 @@ export default function ScheduleBuilder({ courses = [] }) {
     }
   }, [])
 
-  // Fetch meeting times from Supabase course_sections + live_courses (parallel)
-  // Uses the supabase JS client (credentials hardcoded in src/lib/supabase.js) so this
-  // works in production regardless of VITE_* env vars being set in the build environment.
+  // ── (a) Fetch live_courses ONCE on mount (all terms, semester-independent) ──
+  // Uses hardcoded-credential supabase client so it always works in Cloudflare Pages.
+  // We fetch ALL terms up-front; term filtering happens client-side in filteredSearchResults.
+  // Keeping this separate from course_sections prevents liveCoursesData from flashing
+  // empty when the user changes semester (which was causing Non-HKS browse to disappear).
   useEffect(() => {
-    // Clear stale data immediately so stubs don't show wrong-semester courses during reload
+    supabase
+      .from('live_courses')
+      .select('id,course_code,course_code_base,title,term,credits,instructors,meeting_days,time_start,time_end,school,is_hks')
+      .order('term', { ascending: false })
+      .limit(2000)
+      .then(({ data }) => setLiveCoursesData(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, []) // run once — all terms are fetched; client-side filter picks the right semester
+
+  // ── (b) Fetch course_sections on semester/year change ──
+  // course_sections holds HKS schedule data (meeting times) for a specific semester.
+  // Uses our internal term format without space: '2026Spring', '2025Fall', etc.
+  useEffect(() => {
     setSectionTimesMap(new Map())
     setSectionCanonicalCodes(new Set())
     setSectionInfoMap(new Map())
-    setLiveCoursesData([])
     setSectionTimesLoading(true)
-    // course_sections uses our internal format (no space)
-    const termStrInternal = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
-
-    Promise.all([
-      // course_sections: hand-curated HKS schedule data (semester-scoped)
-      supabase
-        .from('course_sections')
-        .select('course_code_base,meetings,title,instructors,credits')
-        .eq('term', termStrInternal)
-        .limit(2000)
-        .then(({ data }) => data || []),
-      // live_courses: ALL terms — user can browse the full Harvard catalog, not just one semester
-      supabase
-        .from('live_courses')
-        .select('id,course_code,course_code_base,title,term,credits,instructors,meeting_days,time_start,time_end,school,is_hks')
-        .order('term', { ascending: false })
-        .limit(2000)
-        .then(({ data }) => data || []),
-    ])
-      .then(([sectionRows, liveRows]) => {
-        // ── Build sectionTimesMap from course_sections ──
+    const termStrInternal = `${semesterYear}${semester === 'January' ? 'January' : semester}`
+    supabase
+      .from('course_sections')
+      .select('course_code_base,meetings,title,instructors,credits')
+      .eq('term', termStrInternal)
+      .limit(2000)
+      .then(({ data }) => {
+        const sectionRows = data || []
         const map = new Map()
         const canonical = new Set()
         const infoMap = new Map()
@@ -702,38 +704,13 @@ export default function ScheduleBuilder({ courses = [] }) {
           const base = code.replace(/-?[A-Z]+$/, '')
           if (base !== code && !map.has(base)) map.set(base, meetings)
         })
-
-        // ── Also fold live_courses HKS rows into sectionTimesMap ──
-        // (fills gaps where course_sections doesn't have an entry)
-        ;(Array.isArray(liveRows) ? liveRows : []).filter((r) => r.is_hks && r.meeting_days && r.time_start).forEach((row) => {
-          const code = row.course_code_base || row.course_code
-          if (!code || map.has(code)) return // course_sections takes priority
-          const days = String(row.meeting_days).split('/').filter(Boolean)
-          const meetings = days.map((day) => ({ day, start: row.time_start, end: row.time_end || '', location: row.location || '' }))
-          if (meetings.length) {
-            map.set(code, meetings)
-            canonical.add(code)
-            if (row.title || row.instructors?.length || row.credits != null) {
-              infoMap.set(code, {
-                title: row.title || null,
-                instructors: Array.isArray(row.instructors) ? row.instructors : [],
-                credits: row.credits != null ? Number(row.credits) : null,
-              })
-            }
-          }
-        })
-
         setSectionTimesMap(map)
         setSectionCanonicalCodes(canonical)
         setSectionInfoMap(infoMap)
-        // Store the full live_courses array for Non-HKS browse
-        setLiveCoursesData(Array.isArray(liveRows) ? liveRows : [])
         setSectionTimesLoading(false)
       })
-      .catch(() => {
-        setSectionTimesLoading(false)
-      })
-  }, [semester])
+      .catch(() => setSectionTimesLoading(false))
+  }, [semesterYear, semester])
 
   useEffect(() => {
     const query = searchQ.trim()
@@ -746,8 +723,8 @@ export default function ScheduleBuilder({ courses = [] }) {
       return undefined
     }
     // Live browse (no query): serve directly from live_courses Supabase table — instant, no API call.
-    // Covers Non-HKS and All source modes. Falls back to API seed 'a' if table still empty.
-    const liveBrowse = !query && searchMode === 'live' && (searchSource === 'Non-HKS' || searchSource === 'All')
+    // Covers Non-HKS, specific school, and All source modes.
+    const liveBrowse = !query && searchMode === 'live' && searchSource !== 'HKS'
     if (liveBrowse && liveCoursesData.length > 0) {
       const rows = searchSource === 'Non-HKS'
         ? liveCoursesData.filter((r) => !r.is_hks)
@@ -787,12 +764,12 @@ export default function ScheduleBuilder({ courses = [] }) {
         // Use live API when mode=live and we have a query (typed or browse seed)
         if (effectiveQuery && searchMode === 'live') {
           const semesterKey = semester === 'January' ? 'January' : semester
-          const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
-          const apiOptions = { term: `${termYear}${semesterKey}` }
-          // Pass school explicitly — proxy defaults to HKS if absent
+          const apiOptions = { term: `${semesterYear}${semesterKey}` }
+          // Pass school to proxy — specific school selections use 'Non-HKS' + client-side filter
           if (searchSource === 'HKS') apiOptions.school = 'HKS'
           else if (searchSource === 'Non-HKS') apiOptions.school = 'Non-HKS'
-          else apiOptions.school = 'All'
+          else if (searchSource === 'All') apiOptions.school = 'All'
+          else apiOptions.school = 'Non-HKS' // specific school: fetch Non-HKS, filter client-side
           const remote = await searchHarvardCourses(effectiveQuery, apiOptions)
           if (cancelled) return
           // Proxy returns { results: [...], total: N } — extract .results array
@@ -831,7 +808,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [browseAll, courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating, searchMode, liveCoursesData])
+  }, [browseAll, courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, semesterYear, searchMinRating, searchMode, liveCoursesData])
 
   // TIME_SLOTS removed — replaced with From/To time inputs (searchTimeFrom / searchTimeTo)
 
@@ -929,16 +906,26 @@ export default function ScheduleBuilder({ courses = [] }) {
     // ── Browse mode: no typed query + live mode ─────────────────────────────
     // Synchronously derive from liveCoursesData — avoids the race condition where
     // the search effect fires before the Supabase fetch completes (liveCoursesData=[]).
-    // Map the semester selector to Harvard API term format (how live_courses stores it).
-    const apiTerm = semester === 'Spring' ? '2026 Spring' : semester === 'Fall' ? '2025 Fall' : '2025 January'
-    const isBrowseLiveNonHKS = !hasTypedQuery && searchMode === 'live' &&
-      (searchSource === 'Non-HKS' || searchSource === 'All') && liveCoursesData.length > 0
+    // live_courses stores terms as "YYYY Semester" (e.g. "2026 Spring", "2025 Fall").
+    const apiTerm = `${semesterYear} ${semester === 'January' ? 'January' : semester}`
+    // Specific school codes that can be selected (all are non-HKS Harvard schools or NONH)
+    const SPECIFIC_SCHOOLS = new Set(['HLS', 'HGSE', 'HMS', 'HSPH', 'FAS', 'GSD', 'HBS', 'HDS', 'NONH'])
+    const isSpecificSchool = SPECIFIC_SCHOOLS.has(searchSource)
+    const isBrowseLive = !hasTypedQuery && searchMode === 'live' &&
+      searchSource !== 'HKS' && liveCoursesData.length > 0
 
     let allResults
-    if (isBrowseLiveNonHKS) {
-      const liveRows = liveCoursesData
-        .filter((r) => r.term === apiTerm)
-        .filter((r) => searchSource === 'Non-HKS' ? !r.is_hks : true)
+    if (isBrowseLive) {
+      let liveRows = liveCoursesData.filter((r) => r.term === apiTerm)
+      // Apply school filter
+      if (searchSource === 'Non-HKS') liveRows = liveRows.filter((r) => !r.is_hks)
+      else if (searchSource === 'HBS') liveRows = liveRows.filter((r) => r.school === 'HBSD' || r.school === 'HBSM')
+      else if (isSpecificSchool) liveRows = liveRows.filter((r) => r.school === searchSource)
+      // else searchSource === 'All': show every school
+      // Cross-reg filter: hide NONH (non-Harvard) courses unless NONH is explicitly chosen
+      if (filterCrossRegOnly && searchSource !== 'NONH') {
+        liveRows = liveRows.filter((r) => r.school !== 'NONH')
+      }
       allResults = liveRows.map((r, i) => {
         const norm = normalizeCourse({
           courseCode:   r.course_code || r.course_code_base,
@@ -1000,7 +987,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (aHasTime === bHasTime) return 0
       return aHasTime ? -1 : 1
     })
-  }, [liveCoursesData, enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimeFrom, searchTimeTo, searchCredits, searchMode, searchSource, searchQ, semester])
+  }, [liveCoursesData, enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimeFrom, searchTimeTo, searchCredits, searchMode, searchSource, searchQ, semester, semesterYear, filterCrossRegOnly])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -1647,7 +1634,20 @@ export default function ScheduleBuilder({ courses = [] }) {
                     Core
                   </button>
                 </div>
+                {/* Year + Semester selectors */}
                 <div className="flex gap-1.5">
+                  <select
+                    value={semesterYear}
+                    onChange={(e) => setSemesterYear(e.target.value)}
+                    className="rounded-xl border px-2 py-1.5 text-xs"
+                    style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+                    aria-label="Year"
+                  >
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                    <option value="2028">2028</option>
+                  </select>
                   <select
                     value={semester}
                     onChange={(e) => setSemester(e.target.value)}
@@ -1655,32 +1655,56 @@ export default function ScheduleBuilder({ courses = [] }) {
                     style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
                     aria-label="Semester"
                   >
-                    <option value="Spring">Spring 2026</option>
-                    <option value="Fall">Fall 2025</option>
-                    <option value="January">January 2025</option>
+                    <option value="Spring">Spring</option>
+                    <option value="Fall">Fall</option>
+                    <option value="Summer">Summer</option>
+                    <option value="January">J-Term</option>
                   </select>
                 </div>
-                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Course source filter">
-                  {['All', 'HKS', 'Non-HKS'].map((option) => {
-                    const active = searchSource === option
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setSearchSource(option)}
-                        className="rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
-                        style={{
-                          background: active ? 'var(--accent-soft)' : 'var(--panel-soft)',
-                          borderColor: active ? 'var(--accent)' : 'var(--line-strong)',
-                          color: active ? 'var(--text)' : 'var(--text-muted)',
-                        }}
-                      >
-                        {option}
-                      </button>
-                    )
-                  })}
+                {/* School dropdown — replaces All/HKS/Non-HKS buttons */}
+                <div className="flex gap-1.5">
+                  <select
+                    value={searchSource}
+                    onChange={(e) => setSearchSource(e.target.value)}
+                    className="flex-1 rounded-xl border px-2 py-1.5 text-xs"
+                    style={{
+                      background: 'var(--panel-soft)',
+                      borderColor: searchSource !== 'HKS' ? 'var(--accent)' : 'var(--line-strong)',
+                      color: 'var(--text)',
+                    }}
+                    aria-label="School filter"
+                  >
+                    <option value="All">All schools</option>
+                    <optgroup label="Harvard">
+                      <option value="HKS">HKS</option>
+                      <option value="Non-HKS">Non-HKS (All Harvard)</option>
+                      <option value="HLS">HLS — Law</option>
+                      <option value="HGSE">HGSE — Education</option>
+                      <option value="HMS">HMS — Medicine</option>
+                      <option value="HSPH">HSPH — Public Health</option>
+                      <option value="FAS">FAS — Arts &amp; Sciences</option>
+                      <option value="GSD">GSD — Design</option>
+                      <option value="HBS">HBS — Business</option>
+                      <option value="HDS">HDS — Divinity</option>
+                    </optgroup>
+                    <optgroup label="Other">
+                      <option value="NONH">Non-Harvard</option>
+                    </optgroup>
+                  </select>
                 </div>
+                {/* Cross-reg filter — only show when a non-HKS source is selected */}
+                {searchSource !== 'HKS' && searchSource !== 'NONH' && (
+                  <label className="flex cursor-pointer items-center gap-1.5 px-0.5 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={filterCrossRegOnly}
+                      onChange={(e) => setFilterCrossRegOnly(e.target.checked)}
+                      className="h-3 w-3 rounded"
+                      style={{ accentColor: 'var(--accent)' }}
+                    />
+                    <span style={{ color: filterCrossRegOnly ? 'var(--text)' : 'var(--text-muted)' }}>Harvard cross-reg only</span>
+                  </label>
+                )}
                 <div className="flex items-center gap-1.5">
                   <select
                     value={searchMinRating}
@@ -1812,7 +1836,7 @@ export default function ScheduleBuilder({ courses = [] }) {
               </div>
               {/* Active filter summary + reset */}
               {(() => {
-                const hasActiveFilters = searchConcentration !== 'All' || searchStem !== 'all' || searchCoreOnly || searchSource !== 'HKS' || searchMinRating || searchDays.length > 0 || searchTimeFrom || searchTimeTo || searchCredits || searchMode !== 'live' || browseAll
+                const hasActiveFilters = searchConcentration !== 'All' || searchStem !== 'all' || searchCoreOnly || searchSource !== 'HKS' || searchMinRating || searchDays.length > 0 || searchTimeFrom || searchTimeTo || searchCredits || searchMode !== 'live' || browseAll || semesterYear !== '2026' || semester !== 'Spring' || !filterCrossRegOnly
                 return hasActiveFilters ? (
                   <button
                     type="button"
@@ -1828,6 +1852,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                       setSearchCredits('')
                       setSearchMode('live')
                       setBrowseAll(false)
+                      setSemesterYear('2026')
+                      setSemester('Spring')
+                      setFilterCrossRegOnly(true)
                     }}
                     className="mt-2 w-full rounded-xl border px-2 py-1 text-xs font-semibold transition-colors"
                     style={{ borderColor: 'var(--line-strong)', color: 'var(--text-muted)', background: 'var(--panel-soft)' }}
@@ -1840,15 +1867,15 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--gold)' }}>📚 All-years mode — type a query to search Q-guide history</p>
               ) : filteredSearchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result{searchSource !== 'HKS' ? ' · Enter with code to manually add if not found' : ''}</p>
-              ) : !searchQ.trim() && (searchSource === 'Non-HKS' || searchSource === 'All') && searchMode === 'live' ? (
+              ) : !searchQ.trim() && searchSource !== 'HKS' && searchMode === 'live' ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
                   {liveCoursesData.length > 0
-                    ? `Browsing ${semester} catalog — type to narrow`
+                    ? `Browsing ${semesterYear} ${semester} catalog — type to narrow`
                     : 'Loading catalog…'}
                 </p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-                  {sectionTimesLoading ? 'Loading schedule times…' : sectionMapStubs.length > 0 ? `${semester} schedule loaded · type to search Harvard catalog` : 'Q-guide history · type to search Harvard catalog'}
+                  {sectionTimesLoading ? 'Loading schedule times…' : sectionMapStubs.length > 0 ? `${semesterYear} ${semester} schedule loaded · type to search Harvard catalog` : 'Q-guide history · type to search Harvard catalog'}
                 </p>
               ) : null}
             </div>
@@ -1870,8 +1897,8 @@ export default function ScheduleBuilder({ courses = [] }) {
                         <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
                           {searchMode === 'history'
                             ? `Q-guide: ${filteredSearchResults.length} result${filteredSearchResults.length !== 1 ? 's' : ''} across all years`
-                            : !searchQ.trim() && (searchSource === 'Non-HKS' || searchSource === 'All')
-                              ? `${filteredSearchResults.length} course${filteredSearchResults.length !== 1 ? 's' : ''} · all schools · type to narrow`
+                            : !searchQ.trim() && searchSource !== 'HKS'
+                              ? `${filteredSearchResults.length} course${filteredSearchResults.length !== 1 ? 's' : ''} · ${searchSource === 'All' ? 'all schools' : searchSource} · type to narrow`
                               : `${withTime.length} with schedule${withoutTime.length > 0 ? ` · ${withoutTime.length} historical` : ''}`}
                           {searchDays.length > 0 ? ` · ${searchDays.map(d => d[0] + d.slice(1).toLowerCase()).join('/')}` : ''}
                           {(searchTimeFrom || searchTimeTo) ? ` · ${searchTimeFrom || '–'}–${searchTimeTo || '–'}` : ''}
@@ -2096,7 +2123,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                       className="rounded-full border px-4 py-2 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
                       style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--text)' }}
                     >
-                      Browse all {semester} HKS courses
+                      Browse all {semesterYear} {semester} HKS courses
                     </button>
                     <button
                       type="button"
