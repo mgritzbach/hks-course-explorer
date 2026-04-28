@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HKS Course Explorer — Pitch Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --crimson:  #8B1A1A;
+    --crimson2: #6e1515;
+    --gold:     #C9922A;
+    --gold-lt:  #f5e8cf;
+    --cream:    #FAF7F2;
+    --ink:      #1a1512;
+    --ink2:     #3d3530;
+    --muted:    #8a7f78;
+    --line:     rgba(139,26,26,.14);
+    --slide-w:  1280px;
+    --slide-h:  720px;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #111;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Deck viewport ── */
+  #deck {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  #scaler {
+    position: relative;
+    width: var(--slide-w);
+    height: var(--slide-h);
+    transform-origin: top left;
+  }
+
+  /* ── Slides ── */
+  .slide {
+    position: absolute; inset: 0;
+    display: flex;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .45s ease, transform .45s ease;
+    transform: translateX(48px);
+    overflow: hidden;
+  }
+  .slide.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateX(0);
+  }
+  .slide.exit {
+    opacity: 0;
+    transform: translateX(-48px);
+    pointer-events: none;
+  }
+
+  /* ── Nav bar (bottom) ── */
+  #nav {
+    position: absolute;
+    bottom: 28px; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: center;
+    gap: 14px;
+    z-index: 100;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(255,255,255,.25);
+    cursor: pointer;
+    transition: background .2s, transform .2s;
+  }
+  .dot.on { background: rgba(255,255,255,.9); transform: scale(1.3); }
+
+  .nav-btn {
+    position: absolute;
+    bottom: 20px;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,.55);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: color .2s, background .2s;
+    font-family: inherit;
+  }
+  .nav-btn:hover { color: #fff; background: rgba(255,255,255,.08); }
+  #btn-prev { left: 36px; }
+  #btn-next { right: 36px; }
+
+  /* slide # badge */
+  #slide-num {
+    position: absolute;
+    top: 26px; right: 36px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; font-weight: 500;
+    color: rgba(255,255,255,.35);
+    letter-spacing: .12em;
+    z-index: 99;
+  }
+
+  /* ── SHARED layout helpers ── */
+  .serif { font-family: 'EB Garamond', Georgia, serif; }
+  .kicker {
+    font-size: 11px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 10px; font-weight: 600; letter-spacing: .09em;
+    text-transform: uppercase;
+    padding: 3px 9px; border-radius: 100px;
+  }
+
+  /* left-rail accent bar */
+  .rail {
+    width: 5px; flex-shrink: 0;
+    background: var(--crimson);
+  }
+
+  /* ══════════════════════════════════════
+     SLIDE 1 — HOOK
+  ══════════════════════════════════════ */
+  #s1 {
+    background: var(--crimson);
+    flex-direction: row;
+  }
+  #s1 .left {
+    flex: 1;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 72px 64px;
+  }
+  #s1 .right {
+    width: 420px;
+    background: var(--crimson2);
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    padding: 48px 40px;
+    gap: 32px;
+  }
+
+  #s1 .eyebrow {
+    font-size: 11px; font-weight: 600; letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.55);
+    margin-bottom: 24px;
+  }
+  #s1 h1 {
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 68px; line-height: 1.08;
+    font-weight: 500;
+    color: #fff;
+    margin-bottom: 32px;
+  }
+  #s1 h1 em { font-style: italic; color: var(--gold-lt); }
+  #s1 .subtitle {
+    font-size: 17px; line-height: 1.6; font-weight: 300;
+    color: rgba(255,255,255,.75);
+    max-width: 440px;
+    margin-bottom: 40px;
+  }
+  #s1 .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 100px; padding: 7px 16px;
+    font-size: 12px; font-weight: 500; color: rgba(255,255,255,.85);
+  }
+  #s1 .pill svg { flex-shrink: 0; }
+
+  /* right panel: big stat cards */
+  .stat-card {
+    width: 100%;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 16px;
+    padding: 24px 28px;
+    text-align: center;
+  }
+  .stat-card .num {
+    font-family: 'EB Garamond', serif;
+    font-size: 56px; line-height: 1;
+    font-weight: 600; color: var(--gold-lt);
+  }
+  .stat-card .label {
+    font-size: 12px; font-weight: 400;
+    color: rgba(255,255,255,.6);
+    margin-top: 6px; line-height: 1.4;
+  }
+
+  /* ══════════════════════════════════════
+     SLIDE 2 — PROBLEM
+  ══════════════════════════════════════ */
+  #s2 { background: var(--cream); flex-direction: column; }
+
+  #s2 .top-bar {
+    height: 6px; background: var(--crimson); flex-shrink: 0;
+  }
+  #s2 .content {
+    flex: 1; display: flex; flex-direction: column;
+    padding: 52px 72px 48px;
+  }
+  #s2 .hd {
+    margin-bottom: 44px;
+  }
+  #s2 .hd .kicker { color: var(--crimson); margin-bottom: 8px; }
+  #s2 .hd h2 {
+    font-family: 'EB Garamond', serif;
+    font-size: 48px; font-weight: 500; line-height: 1.1;
+    color: var(--ink);
+  }
+  #s2 .hd h2 span { color: var(--crimson); }
+
+  #s2 .problems {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+    flex: 1;
+  }
+  .prob-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 32px 28px;
+    display: flex; flex-direction: column;
+    position: relative; overflow: hidden;
+  }
+  .prob-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: var(--crimson);
+  }
+  .prob-card .icon {
+    font-size: 32px; margin-bottom: 16px;
+  }
+  .prob-card h3 {
+    font-family: 'EB Garamond', serif;
+    font-size: 22px; font-weight: 500; line-height: 1.25;
+    color: var(--ink); margin-bottom: 12px;
+  }
+  .prob-card p {
+    font-size: 13.5px; line-height: 1.65;
+    color: var(--ink2); flex: 1;
+  }
+  .prob-card .impact {
+    margin-top: 18px;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600;
+    color: var(--crimson); letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  /* quote at bottom */
+  #s2 .pull-quote {
+    margin-top: 28px;
+    padding: 16px 24px;
+    border-left: 3px solid var(--gold);
+    background: rgba(201,146,42,.06);
+    border-radius: 0 10px 10px 0;
+    font-family: 'EB Garamond', serif;
+    font-size: 17px; font-style: italic; line-height: 1.5;
+    color: var(--ink2);
+  }
+  #s2 .pull-quote cite {
+    display: block; margin-top: 6px;
+    font-size: 11px; font-style: normal; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .1em; color: var(--muted);
+  }
+
+  /* ══════════════════════════════════════
+     SLIDE 3 — SOLUTION
+  ══════════════════════════════════════ */
+  #s3 { background: #fff; flex-direction: row; }
+
+  #s3 .left {
+    width: 400px;
+    background: var(--ink);
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 64px 52px;
+  }
+  #s3 .left .kicker { color: var(--gold); margin-bottom: 10px; }
+  #s3 .left h2 {
+    font-family: 'EB Garamond', serif;
+    font-size: 44px; font-weight: 500; line-height: 1.1;
+    color: #fff; margin-bottom: 20px;
+  }
+  #s3 .left p {
+    font-size: 14px; line-height: 1.7; color: rgba(255,255,255,.6);
+    margin-bottom: 32px;
+  }
+  #s3 .left .url {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; font-weight: 500; letter-spacing: .06em;
+    color: var(--gold);
+    border: 1px solid rgba(201,146,42,.35);
+    border-radius: 8px;
+    padding: 6px 12px; display: inline-block;
+  }
+
+  #s3 .right {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    padding: 56px 60px;
+  }
+  #s3 .right .tag {
+    background: var(--gold-lt); color: var(--gold);
+    border: 1px solid rgba(201,146,42,.25);
+    margin-bottom: 28px;
+  }
+  .feature-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+  }
+  .feat {
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 22px;
+    border: 1px solid #e8e4df;
+    border-radius: 14px;
+    background: var(--cream);
+    transition: border-color .2s;
+  }
+  .feat:hover { border-color: var(--crimson); }
+  .feat .ico {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--crimson); display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .feat .txt h4 {
+    font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px;
+  }
+  .feat .txt p {
+    font-size: 12px; line-height: 1.5; color: var(--muted);
+  }
+
+  /* ══════════════════════════════════════
+     SLIDE 4 — IMPACT
+  ══════════════════════════════════════ */
+  #s4 { background: var(--cream); flex-direction: column; }
+  #s4 .bar { height: 6px; background: var(--crimson); flex-shrink: 0; }
+
+  #s4 .body {
+    flex: 1; display: flex; flex-direction: column;
+    padding: 52px 72px 44px;
+  }
+  #s4 .hd { margin-bottom: 36px; }
+  #s4 .hd .kicker { color: var(--crimson); margin-bottom: 8px; }
+  #s4 .hd h2 {
+    font-family: 'EB Garamond', serif;
+    font-size: 44px; font-weight: 500; line-height: 1.1; color: var(--ink);
+  }
+
+  #s4 .two-col {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 28px; flex: 1;
+  }
+  .impact-col h3 {
+    font-size: 11px; font-weight: 700; letter-spacing: .13em;
+    text-transform: uppercase; margin-bottom: 14px;
+  }
+  .impact-col.students h3 { color: var(--crimson); }
+  .impact-col.offices h3 { color: var(--gold); }
+
+  .impact-item {
+    display: flex; gap: 14px; align-items: flex-start;
+    margin-bottom: 14px;
+    padding: 16px 18px;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+  }
+  .impact-item .bullet {
+    width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
+  }
+  .students .bullet { background: var(--crimson); }
+  .offices .bullet { background: var(--gold); }
+  .impact-item p { font-size: 13.5px; line-height: 1.5; color: var(--ink2); }
+  .impact-item strong { color: var(--ink); font-weight: 600; }
+
+  #s4 .numbers-row {
+    display: flex; gap: 20px; margin-top: 20px;
+  }
+  .mini-stat {
+    flex: 1;
+    background: var(--crimson); border-radius: 14px;
+    padding: 18px 20px; text-align: center;
+  }
+  .mini-stat .n {
+    font-family: 'EB Garamond', serif;
+    font-size: 40px; font-weight: 600; line-height: 1; color: var(--gold-lt);
+  }
+  .mini-stat .l { font-size: 11px; color: rgba(255,255,255,.65); margin-top: 4px; }
+
+  /* ══════════════════════════════════════
+     SLIDE 5 — BUILT FOR $0
+  ══════════════════════════════════════ */
+  #s5 { background: var(--ink); flex-direction: row; }
+
+  #s5 .left {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    padding: 72px 68px;
+  }
+  #s5 .left .kicker { color: var(--gold); margin-bottom: 12px; }
+  #s5 .left h2 {
+    font-family: 'EB Garamond', serif;
+    font-size: 56px; line-height: 1.08; font-weight: 500; color: #fff;
+    margin-bottom: 24px;
+  }
+  #s5 .left h2 em { font-style: italic; color: var(--gold-lt); }
+  #s5 .left .body-text {
+    font-size: 16px; line-height: 1.7; color: rgba(255,255,255,.65);
+    max-width: 460px; margin-bottom: 36px;
+  }
+
+  #s5 .stack {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .stack-item {
+    display: flex; align-items: center; gap: 14px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 10px;
+    padding: 12px 18px;
+  }
+  .stack-item .lbl { font-size: 12px; font-weight: 500; color: rgba(255,255,255,.5); width: 100px; }
+  .stack-item .val { font-size: 13px; font-weight: 500; color: rgba(255,255,255,.85); }
+  .stack-item .cost { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--gold); }
+
+  #s5 .right {
+    width: 380px;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    padding: 60px 48px;
+    border-left: 1px solid rgba(255,255,255,.06);
+  }
+  .big-zero {
+    font-family: 'EB Garamond', serif;
+    font-size: 160px; line-height: 1; font-weight: 600;
+    color: var(--gold); opacity: .18;
+    position: absolute;
+  }
+  #s5 .right .inner { position: relative; text-align: center; }
+  #s5 .right .inner p {
+    font-size: 15px; line-height: 1.65; color: rgba(255,255,255,.6);
+    margin-bottom: 24px;
+  }
+  #s5 .right .inner .tag {
+    background: rgba(201,146,42,.12);
+    color: var(--gold);
+    border: 1px solid rgba(201,146,42,.3);
+    font-size: 11px;
+  }
+  .proof-list {
+    list-style: none; display: flex; flex-direction: column; gap: 10px;
+    margin-top: 24px;
+  }
+  .proof-list li {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: rgba(255,255,255,.6);
+  }
+  .proof-list li::before {
+    content: '✓';
+    color: var(--gold); font-weight: 700; font-size: 14px;
+  }
+
+  /* ══════════════════════════════════════
+     SLIDE 6 — THE ASK
+  ══════════════════════════════════════ */
+  #s6 { background: var(--crimson); flex-direction: column; }
+  #s6 .hd-band {
+    padding: 48px 72px 0;
+    flex-shrink: 0;
+  }
+  #s6 .hd-band .kicker { color: rgba(255,255,255,.55); margin-bottom: 10px; }
+  #s6 .hd-band h2 {
+    font-family: 'EB Garamond', serif;
+    font-size: 52px; font-weight: 500; color: #fff; line-height: 1.08;
+  }
+  #s6 .hd-band p {
+    font-size: 15px; color: rgba(255,255,255,.65); margin-top: 10px;
+    max-width: 560px; line-height: 1.6;
+  }
+
+  #s6 .asks {
+    flex: 1;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+    padding: 36px 72px 52px;
+  }
+  .ask-card {
+    background: rgba(255,255,255,.09);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 20px;
+    padding: 32px 28px;
+    display: flex; flex-direction: column;
+    position: relative; overflow: hidden;
+    transition: background .25s;
+  }
+  .ask-card:hover { background: rgba(255,255,255,.13); }
+  .ask-card .tier {
+    font-size: 10px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.45);
+    margin-bottom: 16px;
+  }
+  .ask-card .ask-num {
+    font-family: 'EB Garamond', serif;
+    font-size: 72px; font-weight: 600; line-height: 1;
+    color: rgba(255,255,255,.08);
+    position: absolute; bottom: 16px; right: 24px;
+  }
+  .ask-card h3 {
+    font-family: 'EB Garamond', serif;
+    font-size: 24px; font-weight: 500; color: #fff;
+    margin-bottom: 12px; line-height: 1.2;
+  }
+  .ask-card p {
+    font-size: 13px; line-height: 1.65; color: rgba(255,255,255,.65); flex: 1;
+  }
+  .ask-card .ctag {
+    display: inline-flex; margin-top: 18px;
+    font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 4px 10px; border-radius: 6px;
+    color: var(--gold); background: rgba(201,146,42,.15);
+    border: 1px solid rgba(201,146,42,.25);
+    align-self: flex-start;
+  }
+
+  /* closing line */
+  #s6 .closing {
+    flex-shrink: 0;
+    padding: 0 72px 32px;
+    text-align: center;
+  }
+  #s6 .closing p {
+    font-family: 'EB Garamond', serif;
+    font-size: 19px; font-style: italic; color: rgba(255,255,255,.55);
+  }
+
+  /* ── keyboard hint ── */
+  #kbd-hint {
+    position: fixed;
+    bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: rgba(255,255,255,.2);
+    letter-spacing: .08em;
+    pointer-events: none;
+    opacity: 1; transition: opacity 3s;
+  }
+  #kbd-hint.hidden { opacity: 0; }
+
+  /* ── progress bar ── */
+  #progress {
+    position: fixed;
+    top: 0; left: 0; height: 2px;
+    background: var(--gold);
+    transition: width .4s ease;
+    z-index: 200;
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div id="slide-num"></div>
+<div id="kbd-hint">← → to navigate · Space to advance · F to fullscreen</div>
+
+<div id="deck">
+  <div id="scaler">
+
+    <!-- ══════════ SLIDE 1: HOOK ══════════ -->
+    <section class="slide active" id="s1">
+      <div class="left">
+        <p class="eyebrow">Harvard Kennedy School · 2025</p>
+        <h1>Stop <em>guessing</em> which courses are worth it.</h1>
+        <p class="subtitle">
+          HKS Course Explorer is the one-stop shop for students <em style="font-style:italic;color:var(--gold-lt)">and</em> program offices — combining ratings, requirements, bidding history, and conflict-free schedule building in a single tool no one had to build from scratch.
+        </p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div class="pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Built in one semester
+          </div>
+          <div class="pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-8 0v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            5,581 courses · students + program offices
+          </div>
+          <div class="pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            Data already exists — just fragmented
+          </div>
+        </div>
+      </div>
+      <div class="right">
+        <div class="stat-card">
+          <div class="num">5,581</div>
+          <div class="label">Course records across all<br>years, terms & professors</div>
+        </div>
+        <div class="stat-card">
+          <div class="num">14</div>
+          <div class="label">Evaluation dimensions<br>surfaced per course</div>
+        </div>
+        <div class="stat-card">
+          <div class="num">$0</div>
+          <div class="label">Cost to Harvard — fully<br>built and operated by a student</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ SLIDE 2: PROBLEM ══════════ -->
+    <section class="slide" id="s2">
+      <div class="top-bar"></div>
+      <div class="content">
+        <div class="hd">
+          <p class="kicker">The Problem</p>
+          <h2>The data exists. It's just <span>scattered everywhere.</span></h2>
+        </div>
+        <div class="problems">
+          <div class="prob-card">
+            <div class="icon">🗂️</div>
+            <h3>Fragmented across systems</h3>
+            <p>
+              Evaluation scores live in one portal. Bidding records in another. Program requirements in a third. Schedules in a fourth. Students must visit 4+ tools — and reconcile the results themselves.
+            </p>
+            <span class="impact">→ Synthesis burden falls on the student</span>
+          </div>
+          <div class="prob-card">
+            <div class="icon">💸</div>
+            <h3>Bidding without context</h3>
+            <p>
+              Raw bidding data exists — but without historical clearing prices, capacity trends, or peer benchmarks, students can't act on it. Overbidding wastes points; underbidding loses seats.
+            </p>
+            <span class="impact">→ Systematic resource misallocation</span>
+          </div>
+          <div class="prob-card">
+            <div class="icon">📋</div>
+            <h3>No unified planning layer</h3>
+            <p>
+              Program offices and RAs repeatedly answer the same questions: what counts toward requirements, which sections conflict, which professor has the better reviews. No self-service tool exists.
+            </p>
+            <span class="impact">→ Advisor time burned on solvable queries</span>
+          </div>
+        </div>
+        <div class="pull-quote">
+          "The data was always there — evaluations, bidding, requirements — just never in one place where you could actually think with it."
+          <cite>— MPP student, HKS Class of 2025 (composite)</cite>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ SLIDE 3: SOLUTION ══════════ -->
+    <section class="slide" id="s3">
+      <div class="left">
+        <p class="kicker">The Solution</p>
+        <h2>One tool. All the signal.</h2>
+
+          HKS Course Explorer pulls together data that already exists across HKS systems — evaluations, bidding records, program requirements, scheduling — into one fast, filterable, mobile-ready app for students and program offices alike.
+        </p>
+        <span class="url">hks-course-explorer.org</span>
+        <div style="margin-top:28px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.5);font-size:12px;">
+            <span style="color:var(--gold);">●</span> Live at Cloudflare Pages (99.99% uptime)
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.5);font-size:12px;">
+            <span style="color:var(--gold);">●</span> Android APK available — iOS-ready
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.5);font-size:12px;">
+            <span style="color:var(--gold);">●</span> HKS login via Google SSO (Harvard accounts)
+          </div>
+        </div>
+      </div>
+      <div class="right">
+        <span class="tag">Core Features</span>
+        <div class="feature-grid">
+          <div class="feat">
+            <div class="ico">📊</div>
+            <div class="txt">
+              <h4>Course Ratings</h4>
+              <p>14 evaluation dimensions with percentile rankings, N-size warnings, and year-over-year trends.</p>
+            </div>
+          </div>
+          <div class="feat">
+            <div class="ico">💰</div>
+            <div class="txt">
+              <h4>Bidding History</h4>
+              <p>Historical clearing prices, capacity, and bid counts — so students bid intelligently.</p>
+            </div>
+          </div>
+          <div class="feat">
+            <div class="ico">⚖️</div>
+            <div class="txt">
+              <h4>Side-by-Side Compare</h4>
+              <p>Compare any two courses across all metrics instantly — no tabs, no spreadsheets.</p>
+            </div>
+          </div>
+          <div class="feat">
+            <div class="ico">📅</div>
+            <div class="txt">
+              <h4>Schedule Builder</h4>
+              <p>Drag-and-drop weekly planner with conflict detection and workload load warnings.</p>
+            </div>
+          </div>
+          <div class="feat">
+            <div class="ico">👤</div>
+            <div class="txt">
+              <h4>Faculty Explorer</h4>
+              <p>Full professor profiles with all courses taught, ratings history, and teaching patterns.</p>
+            </div>
+          </div>
+          <div class="feat">
+            <div class="ico">🔬</div>
+            <div class="txt">
+              <h4>Similarity Map</h4>
+              <p>PCA-powered 2D scatter plot surfaces similar courses by content — discover hidden gems.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ SLIDE 4: IMPACT ══════════ -->
+    <section class="slide" id="s4">
+      <div class="bar"></div>
+      <div class="body">
+        <div class="hd">
+          <p class="kicker">One Stop Shop</p>
+          <h2>One tool. Two audiences. Every answer in one place.</h2>
+        </div>
+        <div class="two-col">
+          <div class="impact-col students">
+            <h3>🎓 Students</h3>
+            <div class="impact-item">
+              <div class="bullet"></div>
+              <p><strong>Requirements + ratings in one view</strong> — see what counts toward your program and how past students rated it, without switching portals.</p>
+            </div>
+            <div class="impact-item">
+              <div class="bullet"></div>
+              <p><strong>Smarter bidding</strong> — historical clearing prices turn blind guessing into informed strategy.</p>
+            </div>
+            <div class="impact-item">
+              <div class="bullet"></div>
+              <p><strong>Conflict-free schedules</strong> — drag-and-drop builder flags time conflicts and workload overloads before you commit.</p>
+            </div>
+            <div class="impact-item">
+              <div class="bullet"></div>
+              <p><strong>Self-directed research</strong> — students arrive at advisor meetings with a shortlist, not a blank page.</p>
+            </div>
+          </div>
+          <div class="impact-col offices">
+            <h3>🏛️ Program Offices & Advisors</h3>
+            <div class="impact-item">
+              <div class="bullet"></div>
+              <p><strong>Shared language with students</strong> — advisors and students can review the same data together, in the same tool, in real time.</p>
+            </div>
+            <div class="impact-item">
+              <div class="bullet"></div>
+              <p><strong>Reduced repetitive queries</strong> — "which courses count toward X?" and "who has the better reviews?" answer themselves.</p>
+            </div>
+            <div class="impact-item">
+              <div class="bullet"></div>
+              <p><strong>Curriculum-level visibility</strong> — rating distributions, workload trends, and content overlap across the full catalog.</p>
+            </div>
+            <div class="impact-item">
+              <div class="bullet"></div>
+              <p><strong>Zero IT burden</strong> — no HKS servers, no maintenance contract; hosted on proven infrastructure already running.</p>
+            </div>
+          </div>
+        </div>
+        <div class="numbers-row">
+          <div class="mini-stat"><div class="n">1,000+</div><div class="l">HKS students per cohort who plan courses annually</div></div>
+          <div class="mini-stat"><div class="n">4+</div><div class="l">Separate systems currently needed to answer one advising question</div></div>
+          <div class="mini-stat"><div class="n">5×</div><div class="l">Courses considered vs. enrolled — all need evaluation</div></div>
+          <div class="mini-stat"><div class="n">1</div><div class="l">Tool to replace all of them — already live</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ SLIDE 5: BUILT FOR $0 ══════════ -->
+    <section class="slide" id="s5">
+      <div class="left">
+        <p class="kicker">The Credibility Slide</p>
+        <h2><em>Built</em> for $0.<br>Integration is the investment.</h2>
+        <p class="body-text">
+          No budget, no team, no IT support — a student built the full product over one semester. The hard work is done. What integration and institutionalization require is coordination effort and data access, not rebuilding anything from scratch.
+        </p>
+        <div class="stack">
+          <div class="stack-item">
+            <span class="lbl">Frontend</span>
+            <span class="val">React + Vite on Cloudflare Pages</span>
+            <span class="cost">Free</span>
+          </div>
+          <div class="stack-item">
+            <span class="lbl">Database</span>
+            <span class="val">Supabase (PostgreSQL) — 5,581 rows</span>
+            <span class="cost">Free</span>
+          </div>
+          <div class="stack-item">
+            <span class="lbl">Auth</span>
+            <span class="val">Harvard Google SSO via Cloudflare Workers</span>
+            <span class="cost">Free</span>
+          </div>
+          <div class="stack-item">
+            <span class="lbl">Mobile</span>
+            <span class="val">Capacitor → Android APK (9.7 MB)</span>
+            <span class="cost">Free</span>
+          </div>
+          <div class="stack-item">
+            <span class="lbl">Domain</span>
+            <span class="val">hks-course-explorer.org</span>
+            <span class="cost">~$12/yr</span>
+          </div>
+        </div>
+      </div>
+      <div class="right" style="position:relative;">
+        <div class="big-zero">$0</div>
+        <div class="inner">
+          <span class="tag" style="background:rgba(201,146,42,.12);color:var(--gold);border:1px solid rgba(201,146,42,.3);font-size:11px;margin-bottom:20px;display:inline-block;">What this proves</span>
+          <p>
+            The product is live. The ask is not to fund a build — it's to connect existing HKS data sources and give the tool a permanent home.
+          </p>
+          <ul class="proof-list">
+            <li>Build cost: $0 (already complete)</li>
+            <li>Integration: data access + IT coordination</li>
+            <li>Hosting: free tier, ~$12/yr domain</li>
+            <li>Full source code open on GitHub</li>
+            <li>Extensible to program office admin views</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ SLIDE 6: THE ASK ══════════ -->
+    <section class="slide" id="s6">
+      <div class="hd-band">
+        <p class="kicker">The Ask</p>
+        <h2>Three ways HKS can make this permanent.</h2>
+        <p>This tool is already live and working. These steps transform it from a student side-project into lasting institutional infrastructure.</p>
+      </div>
+      <div class="asks">
+        <div class="ask-card">
+          <p class="tier">Tier 1 · Immediate</p>
+          <h3>Official Recognition</h3>
+          <p>
+            Link the tool from the HKS registrar, advising, and student life pages. A brief endorsement from your office signals legitimacy and drives adoption across all incoming students.
+          </p>
+          <span class="ctag">Zero cost · This week</span>
+          <span class="ask-num">1</span>
+        </div>
+        <div class="ask-card">
+          <p class="tier">Tier 2 · Near-term</p>
+          <h3>Data Access Agreement</h3>
+          <p>
+            Formalize read-only API access to evaluation exports and the bidding system. This eliminates manual data refresh and keeps the tool current semester-over-semester automatically.
+          </p>
+          <span class="ctag">Legal + IT coordination</span>
+          <span class="ask-num">2</span>
+        </div>
+        <div class="ask-card">
+          <p class="tier">Tier 3 · Strategic</p>
+          <h3>Sustainability Support</h3>
+          <p>
+            A small annual stipend ($1–2K) or a Dean's Innovation grant covers the domain and ensures the tool survives graduation. Alternatively: adopt into the HKS tech portfolio.
+          </p>
+          <span class="ctag">Long-term infrastructure</span>
+          <span class="ask-num">3</span>
+        </div>
+      </div>
+      <div class="closing">
+        <p>The data already exists. The tool already works. The ask is simply to connect them — permanently.</p>
+      </div>
+    </section>
+
+    <!-- bottom nav -->
+    <div id="nav">
+      <button class="nav-btn" id="btn-prev" aria-label="Previous slide">←</button>
+      <div class="dot on" data-i="0"></div>
+      <div class="dot" data-i="1"></div>
+      <div class="dot" data-i="2"></div>
+      <div class="dot" data-i="3"></div>
+      <div class="dot" data-i="4"></div>
+      <div class="dot" data-i="5"></div>
+      <button class="nav-btn" id="btn-next" aria-label="Next slide">→</button>
+    </div>
+
+  </div><!-- /scaler -->
+</div><!-- /deck -->
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const dots   = Array.from(document.querySelectorAll('.dot'));
+  const progress = document.getElementById('progress');
+  const slideNum = document.getElementById('slide-num');
+  const kbdHint  = document.getElementById('kbd-hint');
+  let cur = 0, animating = false;
+
+  function scale() {
+    const scaler = document.getElementById('scaler');
+    const sw = 1280, sh = 720;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const s = Math.min(vw / sw, vh / sh);
+    scaler.style.transform = `scale(${s})`;
+    scaler.style.width  = sw + 'px';
+    scaler.style.height = sh + 'px';
+    const ox = (vw - sw * s) / 2;
+    const oy = (vh - sh * s) / 2;
+    scaler.style.left = ox + 'px';
+    scaler.style.top  = oy + 'px';
+    scaler.style.position = 'absolute';
+  }
+  scale();
+  window.addEventListener('resize', scale);
+
+  function goto(idx) {
+    if (animating || idx === cur || idx < 0 || idx >= slides.length) return;
+    animating = true;
+    const prev = cur;
+    cur = idx;
+
+    slides[prev].classList.add('exit');
+    slides[prev].classList.remove('active');
+    slides[cur].classList.add('active');
+
+    dots.forEach((d, i) => d.classList.toggle('on', i === cur));
+    slideNum.textContent = (cur + 1) + ' / ' + slides.length;
+    progress.style.width = ((cur + 1) / slides.length * 100) + '%';
+
+    setTimeout(() => {
+      slides[prev].classList.remove('exit');
+      animating = false;
+    }, 480);
+  }
+
+  document.getElementById('btn-prev').addEventListener('click', () => goto(cur - 1));
+  document.getElementById('btn-next').addEventListener('click', () => goto(cur + 1));
+  dots.forEach(d => d.addEventListener('click', () => goto(+d.dataset.i)));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); goto(cur + 1); }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); goto(cur - 1); }
+    if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+    }
+  });
+
+  // touch / swipe
+  let touchX = null;
+  document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) goto(dx < 0 ? cur + 1 : cur - 1);
+    touchX = null;
+  }, { passive: true });
+
+  // init
+  slideNum.textContent = '1 / ' + slides.length;
+  progress.style.width = (1 / slides.length * 100) + '%';
+
+  // hide kbd hint after 5s
+  setTimeout(() => kbdHint.classList.add('hidden'), 5000);
+</script>
+</body>
+</html>

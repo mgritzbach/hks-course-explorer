@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>HKS Course Explorer — Print Poster</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --cr:   #A51C30;
+    --crd:  #7a1020;
+    --gold: #C9A84C;
+    --gl:   #e8cc7a;
+    --cream:#FFFDF7;
+    --dark: #1a1208;
+    --mid:  #5a4a2a;
+    --line: #ddd5c0;
+  }
+
+  @page { size: letter portrait; margin: 0; }
+
+  html, body {
+    width: 8.5in; height: 11in;
+    background: #d0c8b8;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .poster {
+    width: 8.5in; height: 11in;
+    background: var(--cream);
+    display: flex; flex-direction: column;
+    overflow: hidden; position: relative;
+  }
+
+  /* ─── TOP BAND ─── */
+  .top {
+    background: var(--cr);
+    padding: 0.28in 0.38in 0.22in;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .top::after {
+    content: '';
+    position: absolute; bottom: -14px; left: 0; right: 0; height: 16px;
+    background: var(--cr);
+    clip-path: ellipse(52% 100% at 50% 0%);
+  }
+
+  .lockup {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 0.16in;
+  }
+  .lockup svg { width: 40px; height: 46px; flex-shrink: 0; }
+
+  .hks-label {
+    color: rgba(255,255,255,0.85);
+    font-size: 9.5pt; font-weight: 400; line-height: 1.5;
+  }
+  .hks-label strong {
+    display: block; color: #fff;
+    font-size: 11pt; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+  }
+
+  .headline {
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 40pt; font-weight: 800; line-height: 1.0;
+    color: #fff; letter-spacing: -0.01em;
+  }
+  .headline em { font-style: italic; color: var(--gl); }
+
+  .sub {
+    margin-top: 0.08in;
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 14pt; font-style: italic;
+    color: rgba(255,255,255,0.80); line-height: 1.35;
+  }
+
+  /* ─── BODY ─── */
+  .body {
+    flex: 1; display: flex; flex-direction: column;
+    padding: 0.22in 0.38in 0;
+    overflow: hidden;
+  }
+
+  /* ─── MOCKUP ROW ─── */
+  .mockups {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.14in; margin-top: 0.18in;
+  }
+
+  .mock-frame {
+    border-radius: 8px; overflow: hidden;
+    border: 1.5px solid var(--line);
+    box-shadow: 0 3px 14px rgba(0,0,0,0.13);
+    background: #f8f8f8;
+  }
+
+  .mock-bar {
+    background: #e8e4de; padding: 4px 8px;
+    display: flex; align-items: center; gap: 5px;
+    border-bottom: 1px solid var(--line);
+  }
+  .mock-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .mock-url {
+    flex: 1; text-align: center;
+    font-size: 5.5pt; color: #888;
+    font-family: 'Inter', sans-serif;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mock-label {
+    margin-top: 5px; text-align: center;
+    font-size: 7pt; font-weight: 600;
+    color: var(--cr); letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* ─── PROPS ─── */
+  .props {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.14in; margin-top: 0.16in;
+  }
+  .prop { border-top: 2.5px solid var(--cr); padding-top: 0.08in; }
+  .prop-icon { font-size: 16pt; margin-bottom: 3px; display: block; }
+  .prop-title {
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 12pt; font-weight: 700; color: var(--dark); margin-bottom: 2px;
+  }
+  .prop-body { font-size: 7.5pt; color: var(--mid); line-height: 1.5; }
+
+  /* ─── RULE ─── */
+  .rule {
+    height: 1px; margin: 0.12in 0;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  /* ─── QUOTE ─── */
+  .quote {
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 13.5pt; font-style: italic;
+    color: var(--dark); line-height: 1.4; text-align: center;
+    padding: 0 0.3in;
+  }
+  .quote::before { content: '\201C'; color: var(--cr); opacity: 0.25; font-size: 36pt; line-height: 0; vertical-align: -10pt; }
+  .quote::after  { content: '\201D'; color: var(--cr); opacity: 0.25; font-size: 36pt; line-height: 0; vertical-align: -10pt; }
+  .quote-attr { text-align: center; font-size: 7.5pt; color: var(--mid); margin-top: 4px; }
+
+  /* ─── QR + CTA ─── */
+  .cta {
+    display: flex; align-items: center; gap: 0.18in;
+    padding: 0.14in 0.16in;
+    background: linear-gradient(135deg, #f3ede0, #e8dfc8);
+    border-radius: 12px; border: 1.5px solid var(--gold);
+    margin-top: 0.1in;
+  }
+  .qr-box {
+    flex-shrink: 0; width: 1.4in; height: 1.4in;
+    background: #fff; border-radius: 8px; padding: 5px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qr-box img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+  .cta-text { flex: 1; }
+  .cta-eye { font-size: 7pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cr); margin-bottom: 3px; }
+  .cta-main { font-family: 'EB Garamond', Georgia, serif; font-size: 18pt; font-weight: 700; color: var(--dark); line-height: 1.15; margin-bottom: 5px; }
+  .cta-url {
+    font-size: 8.5pt; font-weight: 600; color: var(--cr);
+    background: rgba(165,28,48,0.09); display: inline-block;
+    padding: 2px 7px; border-radius: 4px; margin-bottom: 5px;
+    font-family: 'Inter', monospace;
+  }
+  .cta-note { font-size: 7.5pt; color: var(--mid); line-height: 1.45; }
+  .share {
+    display: inline-flex; align-items: center; gap: 5px;
+    margin-top: 5px; font-size: 8pt; font-weight: 600; color: var(--dark);
+  }
+  .share span {
+    background: var(--cr); color: #fff;
+    font-size: 6.5pt; padding: 1.5px 7px; border-radius: 20px;
+  }
+
+  /* ─── BOTTOM ─── */
+  .bottom {
+    background: var(--cr); margin-top: auto;
+    padding: 0.07in 0.38in;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .bot-l { font-size: 7pt; color: rgba(255,255,255,0.7); font-style: italic; }
+  .bot-r { font-size: 7pt; color: rgba(255,255,255,0.6); text-align: right; }
+
+  @media print {
+    html, body { background: none; }
+    .poster { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <!-- TOP BAND -->
+  <div class="top">
+    <div class="lockup">
+      <svg viewBox="0 0 100 115" xmlns="http://www.w3.org/2000/svg">
+        <path d="M50 4L94 20L94 72Q94 98 50 112Q6 98 6 72L6 20Z" fill="#8B1525" stroke="rgba(255,255,255,0.35)" stroke-width="2"/>
+        <rect x="30" y="28" width="40" height="26" rx="3" fill="white" opacity="0.92"/>
+        <line x1="50" y1="28" x2="50" y2="54" stroke="#A51C30" stroke-width="3"/>
+        <text x="50" y="47" text-anchor="middle" font-family="Georgia,serif" font-size="16" font-weight="bold" fill="#A51C30">VE</text>
+        <rect x="18" y="60" width="30" height="22" rx="3" fill="white" opacity="0.92"/>
+        <text x="33" y="76" text-anchor="middle" font-family="Georgia,serif" font-size="14" font-weight="bold" fill="#A51C30">RI</text>
+        <rect x="52" y="60" width="30" height="22" rx="3" fill="white" opacity="0.92"/>
+        <text x="67" y="76" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="bold" fill="#A51C30">TAS</text>
+      </svg>
+      <div class="hks-label">
+        <strong>Harvard Kennedy School</strong>
+        Student-built · Free · No login required
+      </div>
+    </div>
+    <div class="headline">Stop <em>guessing</em> which<br>courses are worth it.</div>
+    <div class="sub">12 years of HKS evaluations, real ratings &amp; bidding data — all in one place.</div>
+  </div>
+
+  <!-- BODY -->
+  <div class="body">
+
+    <!-- APP MOCKUPS -->
+    <div class="mockups">
+
+      <!-- Mockup 1: Course Cards -->
+      <div>
+        <div class="mock-frame">
+          <div class="mock-bar">
+            <div class="mock-dot" style="background:#ff5f57"></div>
+            <div class="mock-dot" style="background:#ffbd2e"></div>
+            <div class="mock-dot" style="background:#28c840"></div>
+            <div class="mock-url">hks-course-explorer.pages.dev</div>
+          </div>
+          <svg viewBox="0 0 280 210" xmlns="http://www.w3.org/2000/svg" width="100%" style="display:block">
+            <!-- BG -->
+            <rect width="280" height="210" fill="#f9f7f4"/>
+            <!-- Sidebar strip -->
+            <rect width="68" height="210" fill="#f0ebe2"/>
+            <rect x="0" y="0" width="68" height="210" fill="none" stroke="#e0d8cc" stroke-width="0.5"/>
+            <!-- Sidebar labels -->
+            <text x="8" y="16" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#A51C30" letter-spacing="0.5">SEARCH COURSES</text>
+            <rect x="8" y="20" width="52" height="10" rx="3" fill="#fff" stroke="#ddd" stroke-width="0.5"/>
+            <text x="13" y="27" font-family="Inter,sans-serif" font-size="5" fill="#bbb">Leadership, climate…</text>
+            <text x="8" y="42" font-family="Inter,sans-serif" font-size="4.5" font-weight="600" fill="#666">YEAR</text>
+            <rect x="8" y="46" width="52" height="9" rx="2.5" fill="#A51C30"/>
+            <text x="34" y="52.5" font-family="Inter,sans-serif" font-size="5.5" font-weight="600" fill="#fff" text-anchor="middle">2025</text>
+            <text x="8" y="64" font-family="Inter,sans-serif" font-size="4.5" font-weight="600" fill="#666">CONCENTRATION</text>
+            <rect x="8" y="68" width="52" height="8" rx="2" fill="#fff" stroke="#ddd" stroke-width="0.5"/>
+            <text x="13" y="74" font-family="Inter,sans-serif" font-size="4.5" fill="#888">All concentrations</text>
+            <text x="8" y="85" font-family="Inter,sans-serif" font-size="4.5" font-weight="600" fill="#666">TERM</text>
+            <rect x="8" y="89" width="16" height="8" rx="4" fill="#A51C30"/>
+            <text x="16" y="95" font-family="Inter,sans-serif" font-size="4" fill="#fff" text-anchor="middle">Fall</text>
+            <rect x="26" y="89" width="18" height="8" rx="4" fill="#A51C30"/>
+            <text x="35" y="95" font-family="Inter,sans-serif" font-size="4" fill="#fff" text-anchor="middle">Spring</text>
+            <!-- Card 1 -->
+            <rect x="74" y="6" width="200" height="56" rx="5" fill="#fff" stroke="#e8e2d8" stroke-width="0.8"/>
+            <rect x="74" y="6" width="3" height="56" rx="1.5" fill="#A51C30"/>
+            <text x="82" y="18" font-family="Inter,sans-serif" font-size="5.5" font-weight="700" fill="#A51C30">DPI-835-M-D:</text>
+            <text x="128" y="18" font-family="Inter,sans-serif" font-size="5.5" font-weight="600" fill="#2a1a0a"> Speechwriting</text>
+            <text x="82" y="27" font-family="Inter,sans-serif" font-size="4.5" fill="#666">Instructor: </text>
+            <text x="104" y="27" font-family="Inter,sans-serif" font-size="4.5" fill="#3a6ea8">Stephen Krupin</text>
+            <text x="82" y="35" font-family="Inter,sans-serif" font-size="4" fill="#aaa">Spring 2025  (N=15)  Last Bid: 979 pts</text>
+            <!-- ratings right -->
+            <text x="254" y="15" font-family="Inter,sans-serif" font-size="4" fill="#888" text-anchor="end">Instructor:</text>
+            <text x="270" y="15" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#2a9d4e" text-anchor="end">96%</text>
+            <text x="254" y="23" font-family="Inter,sans-serif" font-size="4" fill="#888" text-anchor="end">Course:</text>
+            <text x="270" y="23" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#2a9d4e" text-anchor="end">96%</text>
+            <text x="254" y="31" font-family="Inter,sans-serif" font-size="4" fill="#888" text-anchor="end">Workload:</text>
+            <text x="270" y="31" font-family="Inter,sans-serif" font-size="5" font-weight="600" fill="#888" text-anchor="end">76%</text>
+            <!-- buttons -->
+            <rect x="82" y="42" width="38" height="12" rx="6" fill="#A51C30"/>
+            <text x="101" y="50" font-family="Inter,sans-serif" font-size="4.5" fill="#fff" text-anchor="middle">View Details</text>
+            <rect x="124" y="42" width="28" height="12" rx="6" fill="none" stroke="#ccc" stroke-width="0.8"/>
+            <text x="138" y="50" font-family="Inter,sans-serif" font-size="4.5" fill="#666" text-anchor="middle">⇄ Compare</text>
+            <rect x="156" y="42" width="26" height="12" rx="6" fill="none" stroke="#ccc" stroke-width="0.8"/>
+            <text x="169" y="50" font-family="Inter,sans-serif" font-size="4.5" fill="#666" text-anchor="middle">☆ List</text>
+            <!-- Card 2 -->
+            <rect x="74" y="68" width="200" height="56" rx="5" fill="#fff" stroke="#e8e2d8" stroke-width="0.8"/>
+            <rect x="74" y="68" width="3" height="56" rx="1.5" fill="#C9A84C"/>
+            <rect x="80" y="72" width="24" height="8" rx="4" fill="#fdf5e0"/>
+            <text x="92" y="78" font-family="Inter,sans-serif" font-size="4" font-weight="700" fill="#C9A84C" text-anchor="middle">Bidding pressure</text>
+            <text x="82" y="88" font-family="Inter,sans-serif" font-size="5.5" font-weight="700" fill="#C9A84C">MLD-830:</text>
+            <text x="110" y="88" font-family="Inter,sans-serif" font-size="5.5" font-weight="600" fill="#2a1a0a"> Entrepreneurship &amp; Innovation</text>
+            <text x="82" y="97" font-family="Inter,sans-serif" font-size="4.5" fill="#666">Instructor: </text>
+            <text x="104" y="97" font-family="Inter,sans-serif" font-size="4.5" fill="#3a6ea8">Richard Cavanagh</text>
+            <!-- most competitive badge -->
+            <rect x="230" y="71" width="40" height="16" rx="4" fill="#fdf5e0" stroke="#C9A84C" stroke-width="0.5"/>
+            <text x="250" y="79" font-family="Inter,sans-serif" font-size="4" font-weight="700" fill="#C9A84C" text-anchor="middle">Most Competitive</text>
+            <text x="250" y="85" font-family="Inter,sans-serif" font-size="4" fill="#C9A84C" text-anchor="middle">798 pts</text>
+            <!-- Card 3 -->
+            <rect x="74" y="130" width="200" height="44" rx="5" fill="#fff" stroke="#e8e2d8" stroke-width="0.8"/>
+            <rect x="74" y="130" width="3" height="44" rx="1.5" fill="#A51C30"/>
+            <text x="82" y="143" font-family="Inter,sans-serif" font-size="5.5" font-weight="700" fill="#A51C30">IGA-211:</text>
+            <text x="108" y="143" font-family="Inter,sans-serif" font-size="5.5" font-weight="600" fill="#2a1a0a"> Central Challenges of Natl Security</text>
+            <text x="82" y="152" font-family="Inter,sans-serif" font-size="4.5" fill="#666">Instructor: </text>
+            <text x="104" y="152" font-family="Inter,sans-serif" font-size="4.5" fill="#3a6ea8">Graham Allison</text>
+            <text x="254" y="142" font-family="Inter,sans-serif" font-size="4" fill="#888" text-anchor="end">Instructor:</text>
+            <text x="270" y="142" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#2a9d4e" text-anchor="end">91%</text>
+            <text x="254" y="150" font-family="Inter,sans-serif" font-size="4" fill="#888" text-anchor="end">Course:</text>
+            <text x="270" y="150" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#2a9d4e" text-anchor="end">91%</text>
+            <rect x="82" y="159" width="38" height="10" rx="5" fill="#A51C30"/>
+            <text x="101" y="166" font-family="Inter,sans-serif" font-size="4.5" fill="#fff" text-anchor="middle">View Details</text>
+            <!-- result count -->
+            <text x="74" y="205" font-family="Inter,sans-serif" font-size="4.5" fill="#999">162 courses (149 with evals)</text>
+          </svg>
+        </div>
+        <div class="mock-label">Browse &amp; Rate</div>
+      </div>
+
+      <!-- Mockup 2: Compare -->
+      <div>
+        <div class="mock-frame">
+          <div class="mock-bar">
+            <div class="mock-dot" style="background:#ff5f57"></div>
+            <div class="mock-dot" style="background:#ffbd2e"></div>
+            <div class="mock-dot" style="background:#28c840"></div>
+            <div class="mock-url">…/compare</div>
+          </div>
+          <svg viewBox="0 0 280 210" xmlns="http://www.w3.org/2000/svg" width="100%" style="display:block">
+            <rect width="280" height="210" fill="#f9f7f4"/>
+            <text x="10" y="14" font-family="Inter,sans-serif" font-size="4.5" font-weight="700" fill="#A51C30" letter-spacing="0.5">SIDE-BY-SIDE ANALYSIS</text>
+            <text x="10" y="26" font-family="EB Garamond,Georgia,serif" font-size="14" font-weight="700" fill="#1a1208">Compare Courses</text>
+            <!-- tags -->
+            <rect x="10" y="33" width="38" height="9" rx="4" fill="#fee2e6"/>
+            <text x="29" y="39.5" font-family="Inter,sans-serif" font-size="4.5" font-weight="600" fill="#A51C30" text-anchor="middle">IGA-211 ×</text>
+            <rect x="52" y="33" width="42" height="9" rx="4" fill="#fee2e6"/>
+            <text x="73" y="39.5" font-family="Inter,sans-serif" font-size="4.5" font-weight="600" fill="#A51C30" text-anchor="middle">MLD-830 ×</text>
+            <!-- header row -->
+            <rect x="0" y="50" width="280" height="30" fill="#f2ede4"/>
+            <text x="82" y="60" font-family="Inter,sans-serif" font-size="4.5" font-weight="600" fill="#888">ATTRIBUTE</text>
+            <text x="155" y="57" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#A51C30" text-anchor="middle">IGA-211</text>
+            <text x="155" y="64" font-family="Inter,sans-serif" font-size="3.8" fill="#888" text-anchor="middle">Graham Allison · avg 2022–24</text>
+            <text x="235" y="57" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#A51C30" text-anchor="middle">MLD-830</text>
+            <text x="235" y="64" font-family="Inter,sans-serif" font-size="3.8" fill="#888" text-anchor="middle">R. Cavanagh · avg 2009–24</text>
+            <!-- section label -->
+            <rect x="0" y="80" width="280" height="12" fill="#fef2f4"/>
+            <text x="10" y="88.5" font-family="Inter,sans-serif" font-size="4.5" font-weight="700" fill="#A51C30" letter-spacing="0.3">KEY METRICS</text>
+            <!-- row 1 -->
+            <text x="10" y="102" font-family="Inter,sans-serif" font-size="5" font-weight="600" fill="#333">Instructor Rating</text>
+            <text x="10" y="109" font-family="Inter,sans-serif" font-size="3.8" fill="#aaa">higher is better</text>
+            <rect x="100" y="97" width="98" height="7" rx="3.5" fill="#e8f5ee"/>
+            <rect x="100" y="97" width="89" height="7" rx="3.5" fill="#2a9d4e"/>
+            <text x="203" y="103.5" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#2a9d4e">91%</text>
+            <text x="218" y="103.5" font-family="Inter,sans-serif" font-size="4" fill="#C9A84C">★best</text>
+            <rect x="100" y="107" width="98" height="7" rx="3.5" fill="#e8f5ee"/>
+            <rect x="100" y="107" width="79" height="7" rx="3.5" fill="#4aad70"/>
+            <text x="203" y="113.5" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#4aad70">81%</text>
+            <!-- row 2 -->
+            <line x1="0" y1="119" x2="280" y2="119" stroke="#ede8de" stroke-width="0.5"/>
+            <text x="10" y="131" font-family="Inter,sans-serif" font-size="5" font-weight="600" fill="#333">Course Rating</text>
+            <text x="10" y="138" font-family="Inter,sans-serif" font-size="3.8" fill="#aaa">higher is better</text>
+            <rect x="100" y="125" width="98" height="7" rx="3.5" fill="#e8f5ee"/>
+            <rect x="100" y="125" width="89" height="7" rx="3.5" fill="#2a9d4e"/>
+            <text x="203" y="131.5" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#2a9d4e">91%</text>
+            <text x="218" y="131.5" font-family="Inter,sans-serif" font-size="4" fill="#C9A84C">★best</text>
+            <rect x="100" y="135" width="98" height="7" rx="3.5" fill="#e8f5ee"/>
+            <rect x="100" y="135" width="77" height="7" rx="3.5" fill="#4aad70"/>
+            <text x="203" y="141.5" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#4aad70">79%</text>
+            <!-- row 3 -->
+            <line x1="0" y1="147" x2="280" y2="147" stroke="#ede8de" stroke-width="0.5"/>
+            <text x="10" y="159" font-family="Inter,sans-serif" font-size="5" font-weight="600" fill="#333">Workload</text>
+            <text x="10" y="166" font-family="Inter,sans-serif" font-size="3.8" fill="#aaa">lower is better</text>
+            <rect x="100" y="153" width="98" height="7" rx="3.5" fill="#eee"/>
+            <rect x="100" y="153" width="44" height="7" rx="3.5" fill="#aaa"/>
+            <text x="203" y="159.5" font-family="Inter,sans-serif" font-size="5" font-weight="600" fill="#888">45%</text>
+            <text x="218" y="159.5" font-family="Inter,sans-serif" font-size="4" fill="#C9A84C">★best</text>
+            <rect x="100" y="163" width="98" height="7" rx="3.5" fill="#eee"/>
+            <rect x="100" y="163" width="51" height="7" rx="3.5" fill="#aaa"/>
+            <text x="203" y="169.5" font-family="Inter,sans-serif" font-size="5" font-weight="600" fill="#888">52%</text>
+            <!-- row 4 -->
+            <line x1="0" y1="175" x2="280" y2="175" stroke="#ede8de" stroke-width="0.5"/>
+            <text x="10" y="187" font-family="Inter,sans-serif" font-size="5" font-weight="600" fill="#333">Diverse Perspectives</text>
+            <rect x="100" y="181" width="98" height="7" rx="3.5" fill="#e8f5ee"/>
+            <rect x="100" y="181" width="94" height="7" rx="3.5" fill="#2a9d4e"/>
+            <text x="203" y="187.5" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#2a9d4e">96%</text>
+            <text x="218" y="187.5" font-family="Inter,sans-serif" font-size="4" fill="#C9A84C">★best</text>
+            <rect x="100" y="191" width="98" height="7" rx="3.5" fill="#e8f5ee"/>
+            <rect x="100" y="191" width="71" height="7" rx="3.5" fill="#4aad70"/>
+            <text x="203" y="197.5" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#4aad70">73%</text>
+          </svg>
+        </div>
+        <div class="mock-label">Compare Courses</div>
+      </div>
+
+      <!-- Mockup 3: Schedule Builder -->
+      <div>
+        <div class="mock-frame">
+          <div class="mock-bar">
+            <div class="mock-dot" style="background:#ff5f57"></div>
+            <div class="mock-dot" style="background:#ffbd2e"></div>
+            <div class="mock-dot" style="background:#28c840"></div>
+            <div class="mock-url">…/schedule-builder</div>
+          </div>
+          <svg viewBox="0 0 280 210" xmlns="http://www.w3.org/2000/svg" width="100%" style="display:block">
+            <rect width="280" height="210" fill="#f9f7f4"/>
+            <!-- Header -->
+            <text x="8" y="13" font-family="EB Garamond,Georgia,serif" font-size="12" font-weight="700" fill="#1a1208">Schedule Builder</text>
+            <rect x="8" y="18" width="26" height="8" rx="4" fill="#A51C30"/>
+            <text x="21" y="24" font-family="Inter,sans-serif" font-size="4" fill="#fff" text-anchor="middle" font-weight="600">Plan A</text>
+            <rect x="38" y="18" width="22" height="8" rx="4" fill="none" stroke="#ccc" stroke-width="0.5"/>
+            <text x="49" y="24" font-family="Inter,sans-serif" font-size="4" fill="#aaa" text-anchor="middle">Plan B</text>
+            <!-- semester tabs -->
+            <rect x="170" y="17" width="28" height="9" rx="4.5" fill="#A51C30"/>
+            <text x="184" y="23.5" font-family="Inter,sans-serif" font-size="4.5" fill="#fff" text-anchor="middle" font-weight="600">Spring</text>
+            <rect x="202" y="17" width="20" height="9" rx="4.5" fill="none" stroke="#ccc" stroke-width="0.5"/>
+            <text x="212" y="23.5" font-family="Inter,sans-serif" font-size="4.5" fill="#aaa" text-anchor="middle">Fall</text>
+            <!-- grid header -->
+            <rect x="0" y="30" width="280" height="11" fill="#ede8de"/>
+            <text x="30" y="37.5" font-family="Inter,sans-serif" font-size="4.5" fill="#888" text-anchor="middle">TIME</text>
+            <text x="82" y="37.5" font-family="Inter,sans-serif" font-size="4.5" fill="#555" font-weight="600" text-anchor="middle">Mon</text>
+            <text x="127" y="37.5" font-family="Inter,sans-serif" font-size="4.5" fill="#555" font-weight="600" text-anchor="middle">Tue</text>
+            <text x="172" y="37.5" font-family="Inter,sans-serif" font-size="4.5" fill="#555" font-weight="600" text-anchor="middle">Wed</text>
+            <text x="217" y="37.5" font-family="Inter,sans-serif" font-size="4.5" fill="#555" font-weight="600" text-anchor="middle">Thu</text>
+            <text x="261" y="37.5" font-family="Inter,sans-serif" font-size="4.5" fill="#555" font-weight="600" text-anchor="middle">Fri</text>
+            <!-- grid lines + time labels -->
+            <line x1="55" y1="41" x2="55" y2="210" stroke="#e0d8cc" stroke-width="0.5"/>
+            <line x1="100" y1="41" x2="100" y2="210" stroke="#e0d8cc" stroke-width="0.5"/>
+            <line x1="145" y1="41" x2="145" y2="210" stroke="#e0d8cc" stroke-width="0.5"/>
+            <line x1="190" y1="41" x2="190" y2="210" stroke="#e0d8cc" stroke-width="0.5"/>
+            <line x1="236" y1="41" x2="236" y2="210" stroke="#e0d8cc" stroke-width="0.5"/>
+            <!-- time rows -->
+            <text x="4" y="54" font-family="Inter,sans-serif" font-size="4" fill="#bbb">9:00</text>
+            <line x1="0" y1="55" x2="280" y2="55" stroke="#eee" stroke-width="0.4"/>
+            <text x="4" y="68" font-family="Inter,sans-serif" font-size="4" fill="#bbb">10:00</text>
+            <line x1="0" y1="69" x2="280" y2="69" stroke="#eee" stroke-width="0.4"/>
+            <text x="4" y="82" font-family="Inter,sans-serif" font-size="4" fill="#bbb">11:00</text>
+            <line x1="0" y1="83" x2="280" y2="83" stroke="#eee" stroke-width="0.4"/>
+            <text x="4" y="96" font-family="Inter,sans-serif" font-size="4" fill="#bbb">12:00</text>
+            <line x1="0" y1="97" x2="280" y2="97" stroke="#eee" stroke-width="0.4"/>
+            <text x="4" y="110" font-family="Inter,sans-serif" font-size="4" fill="#bbb">1:00</text>
+            <line x1="0" y1="111" x2="280" y2="111" stroke="#eee" stroke-width="0.4"/>
+            <text x="4" y="124" font-family="Inter,sans-serif" font-size="4" fill="#bbb">2:00</text>
+            <line x1="0" y1="125" x2="280" y2="125" stroke="#eee" stroke-width="0.4"/>
+            <text x="4" y="138" font-family="Inter,sans-serif" font-size="4" fill="#bbb">3:00</text>
+            <line x1="0" y1="139" x2="280" y2="139" stroke="#eee" stroke-width="0.4"/>
+            <!-- Course blocks -->
+            <!-- IGA-211 Mon+Wed 9–10:30 -->
+            <rect x="57" y="42" width="41" height="25" rx="3" fill="#A51C30"/>
+            <text x="77.5" y="52" font-family="Inter,sans-serif" font-size="4" font-weight="700" fill="#fff" text-anchor="middle">IGA-211</text>
+            <text x="77.5" y="59" font-family="Inter,sans-serif" font-size="3.2" fill="rgba(255,255,255,0.8)" text-anchor="middle">Natl Security</text>
+            <text x="77.5" y="65" font-family="Inter,sans-serif" font-size="3" fill="rgba(255,255,255,0.65)" text-anchor="middle">9:00–10:30</text>
+            <rect x="147" y="42" width="41" height="25" rx="3" fill="#A51C30"/>
+            <text x="167.5" y="52" font-family="Inter,sans-serif" font-size="4" font-weight="700" fill="#fff" text-anchor="middle">IGA-211</text>
+            <text x="167.5" y="59" font-family="Inter,sans-serif" font-size="3.2" fill="rgba(255,255,255,0.8)" text-anchor="middle">Natl Security</text>
+            <!-- DPI-835 Tue+Thu 10:30–12 -->
+            <rect x="102" y="64" width="41" height="24" rx="3" fill="#c9553a"/>
+            <text x="122.5" y="74" font-family="Inter,sans-serif" font-size="4" font-weight="700" fill="#fff" text-anchor="middle">DPI-835</text>
+            <text x="122.5" y="81" font-family="Inter,sans-serif" font-size="3.2" fill="rgba(255,255,255,0.8)" text-anchor="middle">Speechwriting</text>
+            <text x="122.5" y="86.5" font-family="Inter,sans-serif" font-size="3" fill="rgba(255,255,255,0.65)" text-anchor="middle">10:30–12:00</text>
+            <rect x="192" y="64" width="41" height="24" rx="3" fill="#c9553a"/>
+            <text x="212.5" y="74" font-family="Inter,sans-serif" font-size="4" font-weight="700" fill="#fff" text-anchor="middle">DPI-835</text>
+            <text x="212.5" y="81" font-family="Inter,sans-serif" font-size="3.2" fill="rgba(255,255,255,0.8)" text-anchor="middle">Speechwriting</text>
+            <!-- MLD-830 Mon 1–2:30 -->
+            <rect x="57" y="102" width="41" height="24" rx="3" fill="#5a7abf"/>
+            <text x="77.5" y="112" font-family="Inter,sans-serif" font-size="4" font-weight="700" fill="#fff" text-anchor="middle">MLD-830</text>
+            <text x="77.5" y="119" font-family="Inter,sans-serif" font-size="3.2" fill="rgba(255,255,255,0.8)" text-anchor="middle">Entrepreneurship</text>
+            <rect x="147" y="102" width="41" height="24" rx="3" fill="#5a7abf"/>
+            <text x="167.5" y="112" font-family="Inter,sans-serif" font-size="4" font-weight="700" fill="#fff" text-anchor="middle">MLD-830</text>
+            <text x="167.5" y="119" font-family="Inter,sans-serif" font-size="3.2" fill="rgba(255,255,255,0.8)" text-anchor="middle">Entrepreneurship</text>
+            <!-- Export iCal button -->
+            <rect x="200" y="195" width="72" height="12" rx="6" fill="none" stroke="#A51C30" stroke-width="1"/>
+            <text x="236" y="203" font-family="Inter,sans-serif" font-size="4.5" fill="#A51C30" text-anchor="middle" font-weight="600">📅 Export iCal</text>
+          </svg>
+        </div>
+        <div class="mock-label">Build Your Schedule</div>
+      </div>
+
+    </div><!-- /mockups -->
+
+    <!-- VALUE PROPS -->
+    <div class="props">
+      <div class="prop">
+        <span class="prop-icon">⭐</span>
+        <div class="prop-title">Real Ratings</div>
+        <div class="prop-body">Instructor quality, course value &amp; workload from actual HKS evaluations — not hallway hearsay.</div>
+      </div>
+      <div class="prop">
+        <span class="prop-icon">💰</span>
+        <div class="prop-title">Bidding Intel</div>
+        <div class="prop-body">See exactly how many points a course cleared last year — stop losing bids on courses you could have won.</div>
+      </div>
+      <div class="prop">
+        <span class="prop-icon">📅</span>
+        <div class="prop-title">Plan &amp; Export</div>
+        <div class="prop-body">Build your semester grid, track concentration requirements, and export to Google Calendar in one click.</div>
+      </div>
+    </div>
+
+    <div class="rule"></div>
+
+    <!-- QUOTE -->
+    <div class="quote">I wish I had this in Year 1. Would have saved me from three courses I regret and one bidding disaster.</div>
+    <div class="quote-attr">— HKS MPA Student, Class of 2026</div>
+
+    <!-- QR + CTA -->
+    <div class="cta">
+      <div class="qr-box">
+        <img
+          src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https%3A%2F%2Fhks-course-explorer.pages.dev&format=png&ecc=H&color=7a1020&bgcolor=ffffff&margin=1"
+          alt="QR code"
+          width="400" height="400"
+        />
+      </div>
+      <div class="cta-text">
+        <div class="cta-eye">Scan to open instantly — no login, no app store</div>
+        <div class="cta-main">Works on any phone.<br>Free. Always.</div>
+        <div class="cta-url">hks-course-explorer.pages.dev</div>
+        <div class="cta-note">Also available as an Android app — download link inside the tool.</div>
+        <div class="share">
+          <span>→ Pass it on</span>
+          Send to your study group before bidding opens.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /body -->
+
+  <!-- BOTTOM -->
+  <div class="bottom">
+    <div class="bot-l">Built by Michael Gritzbach, MPA '26 · KSSG 2025–2026 · For future HKS generations</div>
+    <div class="bot-r">Not affiliated with Harvard University · Data from public HKS evaluations</div>
+  </div>
+
+</div>
+</body>
+</html>
