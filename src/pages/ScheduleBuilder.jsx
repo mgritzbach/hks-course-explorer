@@ -451,14 +451,20 @@ export default function ScheduleBuilder({ courses = [] }) {
       setSearchResults([])
       return undefined
     }
-    // SC-38b: Non-HKS browse — auto-populate with broad query so panel isn't blank
-    // Use 'a' as the effective query when Non-HKS is selected with no user query
+    // Non-HKS browse with no query: show stubs from Supabase, no API call needed
     const nonHksBrowse = searchSource === 'Non-HKS' && !query
-    const effectiveQuery = nonHksBrowse ? 'a' : query
+    const effectiveQuery = query  // no longer use 'a' as fake query
     if (!effectiveQuery && !hasFilters) {
       setSearching(false)
       setSearchResults([])
-      setApiMode('db') // ensure stubs & schedule-loaded hint appear in idle state
+      setApiMode('db')
+      return undefined
+    }
+    // Non-HKS with no query: stubs show from sectionMapStubs, nothing to search
+    if (nonHksBrowse) {
+      setSearching(false)
+      setSearchResults([])
+      setApiMode('db')
       return undefined
     }
     let cancelled = false
@@ -466,14 +472,8 @@ export default function ScheduleBuilder({ courses = [] }) {
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
-        // SC-39d/SC-42/SC-46: Non-HKS (browse, typed, and all-years) — skip Harvard API entirely.
-        // The API key is HKS-scoped and always returns empty for non-HKS schools.
-        // Cross-reg results come from sectionMapStubs (Supabase course_sections) which filter
-        // in the sectionMapStubs useMemo based on the typed query text.
-        if (nonHksBrowse || (searchSource === 'Non-HKS')) {
-          if (!cancelled) { setApiMode('db'); setSearchResults([]) }
-          return
-        }
+        // Non-HKS typed search: proxy now uses correct catalogSchool codes (HBSM, FAS, HLS etc.)
+        // so live API results work. Stubs from Supabase are merged in filteredSearchResults.
         // Use live API when: user typed a query for HKS or All sources
         if (effectiveQuery && !searchAllYears) {
           const semesterKey = semester === 'January' ? 'January' : semester
@@ -622,11 +622,12 @@ export default function ScheduleBuilder({ courses = [] }) {
     // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
     // Stubs: always included in db mode; in live/All mode, also append non-HKS stubs that
     // match the query text (stubs already deduplicate HKS courses vs API results via existingBaseIds)
-    // Stubs allowed when: db mode, OR live+All+typed query, OR Non-HKS (always — API never works there)
-    // For Non-HKS, allow stubs even in all-years mode (stubs are the only non-HKS data source)
-    const useStubs = sectionMapStubs.length > 0 && (
-      (searchSource === 'Non-HKS') ||
-      (!searchAllYears && (apiMode === 'db' || (apiMode === 'live' && searchSource === 'All' && searchQ.trim().length > 0)))
+    // Stubs supplement live results for any non-HKS or all-source search with a query,
+    // and always show in db/idle mode. Stubs deduplicate vs API results via existingBaseIds.
+    const hasTypedQuery = searchQ.trim().length > 0
+    const useStubs = sectionMapStubs.length > 0 && !searchAllYears && (
+      apiMode === 'db' ||
+      (apiMode === 'live' && (searchSource === 'All' || searchSource === 'Non-HKS') && hasTypedQuery)
     )
     const allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
     const results = allResults.filter((course) => {
@@ -1476,13 +1477,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--gold)' }}>📚 All-years mode — type a query to search Q-guide history</p>
               ) : filteredSearchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result{searchSource !== 'HKS' ? ' · Enter with code to manually add if not found' : ''}</p>
-              ) : apiMode === 'db' && !searchQ.trim() && searchSource === 'Non-HKS' ? (
+              ) : !searchQ.trim() && searchSource === 'Non-HKS' ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-                  {sectionTimesLoading
-                    ? 'Loading schedule times…'
-                    : filteredSearchResults.length > 0
-                      ? `${filteredSearchResults.length} cross-reg offering${filteredSearchResults.length !== 1 ? 's' : ''} for ${semester} · type to filter`
-                      : 'Cross-reg offerings at HBS, FAS, Law, MIT · type to filter'}
+                  Type to search HBS, FAS, Law, HGSE and other Harvard schools
                 </p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
@@ -1674,6 +1671,12 @@ export default function ScheduleBuilder({ courses = [] }) {
                         </div>
                       ))}
                     </div>
+                  </div>
+                ) : searchSource === 'Non-HKS' && !searchQ.trim() ? (
+                  <div className="flex flex-col items-center gap-3 py-10 text-center">
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Cross-registration search</p>
+                    <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>Type a course code or name to search HBS, FAS, Harvard Law, HGSE, and other Harvard schools.</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Example: <em>TDM 155</em>, <em>ECON 1010</em>, <em>BUSS 1000</em></p>
                   </div>
                 ) : searchSource === 'Non-HKS' && searchQ.trim() ? (
                   <div className="rounded-[20px] border p-4 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>

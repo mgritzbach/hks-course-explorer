@@ -2,16 +2,20 @@
 // Proxies Harvard ATS Course v2 API; hides API key; normalises & caches 5 min.
 // Env var required: HARVARD_API_KEY (set in Cloudflare Pages dashboard)
 //
-// school=Non-HKS  → fan-out to HBS, FAS, GSE, LAW, HSPH, GSD, SEAS in parallel,
-//                   merge & deduplicate by harvardId, cap at limit.
+// school=Non-HKS  → fan-out to all non-HKS schools in parallel using the correct
+//                   API catalogSchool codes, merge & deduplicate by harvardId.
+// Valid catalogSchool values per API docs:
+//   FAS, GSAS, GSD, HBSD, HBSM, HDS, HGSE, HKS, HLS, HMS, HSDM, HSPH, NONH
 
 import { corsHeaders, handleOptions } from '../_shared/cors.js'
 
 const UPSTREAM_BASE = 'https://go.apis.huit.harvard.edu/ats/course/v2/search'
 const MAX_LIMIT = 50
 
-// Schools to fan-out to when school=Non-HKS
-const NON_HKS_SCHOOLS = ['HBS', 'FAS', 'GSE', 'LAW', 'HSPH', 'GSD', 'SEAS']
+// Correct catalogSchool codes from the Harvard ATS API docs.
+// Previous codes (HBS, LAW, GSE, SEAS) were invalid → always returned empty.
+// NONH = Non-Harvard (includes MIT cross-registration)
+const NON_HKS_SCHOOLS = ['FAS', 'GSAS', 'GSD', 'HBSD', 'HBSM', 'HDS', 'HGSE', 'HLS', 'HMS', 'HSDM', 'HSPH', 'NONH']
 
 function jsonResp(obj, status = 200, req = null) {
   return new Response(JSON.stringify(obj), {
