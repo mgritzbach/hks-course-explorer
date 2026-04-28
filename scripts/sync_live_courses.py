@@ -1,8 +1,8 @@
 """
 sync_live_courses.py
 ====================
-Fetches the current semester's course offerings from the Harvard ATS API
-for ALL schools and upserts them into the Supabase `live_courses` table.
+Fetches current course offerings from the Harvard ATS API for ALL schools
+and upserts them into the Supabase `live_courses` table.
 
 Run manually:
     python scripts/sync_live_courses.py
@@ -12,19 +12,15 @@ Or via GitHub Actions (see .github/workflows/sync-live-courses.yml).
 Required env vars:
     HARVARD_API_KEY   – Harvard ATS API key
     SUPABASE_URL      – https://cbtroatixvydpwoviezf.supabase.co
-    SUPABASE_KEY      – service_role key (not anon)
-
-Optional:
-    TERM              – e.g. "2026Spring" (defaults to current/next semester)
+    SUPABASE_KEY      – service_role / secret key (not anon)
 """
 
 import os
 import sys
-import time
-import json
 import re
+import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -39,7 +35,6 @@ SUPABASE_URL     = os.environ["SUPABASE_URL"].rstrip("/")
 SUPABASE_KEY     = os.environ["SUPABASE_KEY"]
 HARVARD_API_KEY  = os.environ["HARVARD_API_KEY"]
 
-# All valid catalogSchool values per Harvard ATS API docs
 ALL_SCHOOLS = [
     "FAS", "GSAS", "GSD", "HBSD", "HBSM",
     "HDS", "HGSE", "HKS", "HLS", "HMS",
@@ -47,30 +42,18 @@ ALL_SCHOOLS = [
 ]
 HKS_SCHOOL = "HKS"
 
-# The proxy uses 'a' as a broad seed — we use common letters to get broad coverage
-SEED_QUERIES = ["a", "e", "i", "o", "the", "in", "pol", "eco"]
+# Seed queries — broad enough to cover most course titles/codes.
+# No term filter: we let the API return whatever is currently active,
+# then read the term field from each returned course.
+SEED_QUERIES = ["a", "e", "i", "o", "s", "the", "pol", "eco", "law", "med"]
 
+API_LIMIT    = 50    # Harvard ATS API max per request
 BATCH_SIZE   = 500   # Supabase upsert batch size
-API_LIMIT    = 50    # Harvard API max per request
-WORKERS      = 6     # parallel school fetches
+WORKERS      = 3     # Low parallelism to avoid 429s
+REQUEST_DELAY = 0.2  # seconds between requests per worker
 
 
-def current_term() -> str:
-    """Return the upcoming/current term string, e.g. '2026Spring'."""
-    if "TERM" in os.environ:
-        return os.environ["TERM"]
-    now = datetime.utcnow()
-    year = now.year
-    month = now.month
-    if month <= 5:
-        return f"{year}Spring"
-    elif month <= 8:
-        return f"{year}Fall"
-    else:
-        return f"{year + 1}Spring"
-
-
-# ── Harvard API helpers ────────────────────────────────────────────────────────
+# ── Harvard API helpers ───────────────────────────────────────────────────────
 
 DAY_MAP = {
     "M": "MON", "MON": "MON", "MONDAY": "MON",
@@ -103,7 +86,6 @@ def norm_time(t: str) -> str:
 
 
 def parse_meetings(raw):
-    """Return list of {day, start, end, location} from API meetings field."""
     if not raw or raw == "TBA":
         return []
     items = raw if isinstance(raw, list) else [raw]
@@ -129,21 +111,15 @@ def parse_meetings(raw):
     return result
 
 
-def normalise_course(c: dict, school: str, term: str) -> dict:
-    """Convert raw Harvard API course object → live_courses row."""
+def normalise_course(c: dict, school: str) -> dict:
     course_num = str(c.get("courseNumber") or c.get("catalog") or "").strip()
-    subject    = str(c.get("catalogSubject") or c.get("subject") or course_num.split()[0] if course_num.split() else "").strip()
-    catalog    = str(c.get("classCatalogNumber") or c.get("catalogNumber") or (course_num.split()[1] if len(course_num.split()) > 1 else "")).strip()
+    parts      = course_num.split() if course_num else []
+    subject    = str(c.get("catalogSubject") or c.get("subject") or (parts[0] if parts else "")).strip()
+    catalog    = str(c.get("classCatalogNumber") or c.get("catalogNumber") or (parts[1] if len(parts) > 1 else "")).strip()
 
-    if subject and catalog:
-        code_base = f"{subject}-{catalog}"
-        code_full = code_base
-    else:
-        code_base = course_num.replace(" ", "-")
-        code_full = code_base
-
-    meetings = parse_meetings(c.get("meetings") or c.get("sections") or c.get("classes"))
-    all_days = "/".join(dict.fromkeys(m["day"] for m in meetings))  # deduplicated, insertion-ordered
+    code_base = f"{subject}-{catalog}" if subject and catalog else course_num.replace(" ", "-")
+    meetings  = parse_meetings(c.get("meetings") or c.get("sections") or c.get("classes"))
+    all_days  = "/".join(dict.fromkeys(m["day"] for m in meetings))
 
     instructors = [
         str(i.get("instructorName") or i.get("displayName") or i.get("name") or
@@ -153,127 +129,137 @@ def normalise_course(c: dict, school: str, term: str) -> dict:
     instructors = [x for x in instructors if x]
 
     harvard_id = str(c.get("courseID") or c.get("id") or c.get("classNumber") or "")
+    term       = str(c.get("termDescription") or c.get("term") or "")
 
     return {
-        "id":              harvard_id or code_full,
-        "course_code":     code_full,
+        "id":               harvard_id or code_base,
+        "course_code":      code_base,
         "course_code_base": code_base,
-        "title":           str(c.get("courseTitle") or c.get("title") or ""),
-        "term":            str(c.get("termDescription") or c.get("term") or term),
-        "credits":         c.get("classMinUnits") or c.get("units"),
-        "instructors":     instructors,
-        "description":     str(c.get("courseDescription") or c.get("description") or ""),
-        "location":        meetings[0]["location"] if meetings else "",
-        "meeting_days":    all_days,
-        "time_start":      meetings[0]["start"] if meetings else "",
-        "time_end":        meetings[0]["end"]   if meetings else "",
-        "school":          school,
-        "is_hks":          school == HKS_SCHOOL,
+        "title":            str(c.get("courseTitle") or c.get("title") or ""),
+        "term":             term,
+        "credits":          c.get("classMinUnits") or c.get("units"),
+        "instructors":      instructors,
+        "description":      str(c.get("courseDescription") or c.get("description") or ""),
+        "location":         meetings[0]["location"] if meetings else "",
+        "meeting_days":     all_days,
+        "time_start":       meetings[0]["start"] if meetings else "",
+        "time_end":         meetings[0]["end"]   if meetings else "",
+        "school":           school,
+        "is_hks":           school == HKS_SCHOOL,
     }
 
 
-def fetch_school(school: str, query: str, term: str, session: requests.Session) -> list[dict]:
-    """Fetch all courses for one school + query from Harvard ATS API."""
+def fetch_school(school: str, query: str, session: requests.Session) -> list[dict]:
+    """Fetch courses for one school + seed query. No term filter — API returns active courses."""
+    time.sleep(REQUEST_DELAY)
     params = {
-        "q":            query,
+        "q":             query,
         "catalogSchool": school,
-        "term":         term,
-        "limit":        API_LIMIT,
+        "limit":         API_LIMIT,
     }
     try:
-        resp = session.get(HARVARD_API_BASE, params=params, timeout=20,
-                           headers={"x-api-key": HARVARD_API_KEY,
-                                    "Accept": "application/json",
-                                    "User-Agent": "HKS-Course-Explorer-Sync/1.0"})
+        resp = session.get(
+            HARVARD_API_BASE, params=params, timeout=25,
+            headers={
+                "x-api-key":  HARVARD_API_KEY,
+                "Accept":     "application/json",
+                "User-Agent": "HKS-Course-Explorer-Sync/1.0",
+            }
+        )
+        if resp.status_code == 429:
+            log.warning("  %s q=%-6s → 429 rate-limited, retrying after 5s", school, query)
+            time.sleep(5)
+            resp = session.get(HARVARD_API_BASE, params=params, timeout=25,
+                               headers={"x-api-key": HARVARD_API_KEY, "Accept": "application/json"})
         if not resp.ok:
-            log.warning("  %s q=%s → HTTP %s", school, query, resp.status_code)
+            log.warning("  %s q=%-6s → HTTP %s", school, query, resp.status_code)
             return []
-        raw = resp.json()
+        raw   = resp.json()
         items = raw.get("results") or raw.get("courses") or (raw if isinstance(raw, list) else [])
-        return [normalise_course(c, school, term) for c in items]
+        return [normalise_course(c, school) for c in items]
     except Exception as exc:
-        log.warning("  %s q=%s → %s", school, query, exc)
+        log.warning("  %s q=%-6s → %s", school, query, exc)
         return []
 
 
-# ── Supabase upsert ────────────────────────────────────────────────────────────
+# ── Supabase helpers ──────────────────────────────────────────────────────────
 
-def supabase_upsert(rows: list[dict]) -> None:
-    """Upsert rows into live_courses in batches."""
-    headers = {
+def _sb_headers():
+    return {
         "apikey":        SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type":  "application/json",
         "Prefer":        "resolution=merge-duplicates",
     }
+
+
+def supabase_upsert(rows: list[dict]) -> None:
     url = f"{SUPABASE_URL}/rest/v1/live_courses"
     for i in range(0, len(rows), BATCH_SIZE):
-        batch = rows[i:i + BATCH_SIZE]
-        resp = requests.post(url, headers=headers, json=batch, timeout=30)
+        batch = rows[i : i + BATCH_SIZE]
+        resp  = requests.post(url, headers=_sb_headers(), json=batch, timeout=30)
         if not resp.ok:
             log.error("Supabase upsert failed: %s %s", resp.status_code, resp.text[:400])
             sys.exit(1)
         log.info("  upserted rows %d–%d", i + 1, i + len(batch))
 
 
-def supabase_delete_stale(term: str, synced_before: str) -> None:
-    """Remove rows for this term that were NOT touched in this sync run."""
-    headers = {
-        "apikey":        SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type":  "application/json",
-    }
-    url = f"{SUPABASE_URL}/rest/v1/live_courses"
-    params = {
-        "term":       f"eq.{term}",
-        "synced_at":  f"lt.{synced_before}",
-    }
-    resp = requests.delete(url, headers=headers, params=params, timeout=30)
+def supabase_delete_stale(synced_before: str) -> None:
+    """Delete rows NOT updated in this run (dropped / expired courses)."""
+    headers = {**_sb_headers(), "Prefer": ""}
+    resp = requests.delete(
+        f"{SUPABASE_URL}/rest/v1/live_courses",
+        headers=headers,
+        params={"synced_at": f"lt.{synced_before}"},
+        timeout=30,
+    )
     if resp.ok:
-        log.info("Removed stale rows for term %s (synced before %s)", term, synced_before)
+        log.info("Removed stale rows (synced_at < %s)", synced_before)
     else:
-        log.warning("Stale-row cleanup failed: %s", resp.text[:200])
+        log.warning("Stale-row cleanup failed: %s %s", resp.status_code, resp.text[:200])
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    term = current_term()
-    log.info("Syncing term: %s", term)
+    sync_start = datetime.now(timezone.utc).isoformat()
+    log.info("Sync started at %s", sync_start)
     log.info("Schools: %s", ALL_SCHOOLS)
-    log.info("Seed queries: %s", SEED_QUERIES)
+    log.info("Seed queries: %s  Workers: %d", SEED_QUERIES, WORKERS)
 
-    sync_start = datetime.utcnow().isoformat() + "Z"
-
-    session = requests.Session()
-    all_rows: dict[str, dict] = {}   # id → row (deduplication)
+    session   = requests.Session()
+    all_rows: dict[str, dict] = {}  # id → row
 
     tasks = [(school, q) for school in ALL_SCHOOLS for q in SEED_QUERIES]
-    log.info("Total API calls: %d (%d schools × %d queries)", len(tasks), len(ALL_SCHOOLS), len(SEED_QUERIES))
+    log.info("Total API calls planned: %d", len(tasks))
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        futures = {pool.submit(fetch_school, school, q, term, session): (school, q)
-                   for school, q in tasks}
+        futures = {
+            pool.submit(fetch_school, school, q, session): (school, q)
+            for school, q in tasks
+        }
         for fut in as_completed(futures):
             school, q = futures[fut]
             rows = fut.result()
+            new = 0
             for row in rows:
                 if row["id"] not in all_rows:
                     all_rows[row["id"]] = row
-            log.info("  %s q=%-6s → %d courses (total unique: %d)", school, q, len(rows), len(all_rows))
+                    new += 1
+            log.info("  %-6s q=%-6s → %d returned, %d new (total unique: %d)",
+                     school, q, len(rows), new, len(all_rows))
 
     if not all_rows:
-        log.error("No courses fetched — aborting to avoid wiping the table")
+        log.error("No courses fetched from any school — aborting to protect existing data")
         sys.exit(1)
 
     rows_list = list(all_rows.values())
-    log.info("Upserting %d unique courses to Supabase…", len(rows_list))
+    terms = sorted({r["term"] for r in rows_list if r["term"]})
+    log.info("Upserting %d unique courses (terms: %s)…", len(rows_list), terms)
     supabase_upsert(rows_list)
 
-    # Clean up rows from this term that weren't refreshed (dropped courses)
-    supabase_delete_stale(term, sync_start)
-
-    log.info("Done. %d courses synced for %s.", len(rows_list), term)
+    supabase_delete_stale(sync_start)
+    log.info("Done. %d courses in live_courses.", len(rows_list))
 
 
 if __name__ == "__main__":
