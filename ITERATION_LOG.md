@@ -39,7 +39,27 @@ Status: COMPLETE ✅ — All categories ≥ 9/10 as of 2026-04-28
 ### SC-28 DONE: All-years mode promotes "✓ Mark done" to primary button (UX intent alignment)
 ### SC-29 DONE: role="list"/role="listitem" on search results for screen reader navigation
 
-### Commit range: 73c067a → 3d394c9
+## Critical fixes (SC-30 through SC-33 — 2026-04-28 continued)
+
+### SC-30 DONE: Non-HKS/All searches were hitting HKS-only API (critical bug fix)
+- Root cause: Harvard API proxy defaults school='HKS' when no school param passed
+- Frontend only sent school='HKS' for HKS mode; Non-HKS/All sent nothing → all HKS results
+- Fix: Always pass apiOptions.school based on searchSource (HKS / Non-HKS / All)
+
+### SC-31 DONE: 3-part course_code_base missed by histRatingsMap 2-part lookup (critical)
+- Root cause: courses.json stores course_code_base as 'DPI-802-M' (3 parts), not 'DPI-802'
+- 2-part slice(0,2) lookup missed rating data for most courses
+- Fix: Added slice(0,3) intermediate in all histRatingsMap lookup chains (planCoursesEnriched + both card sections)
+
+### SC-32 DONE: "Place on grid" button affordance for courses with no schedule
+- Courses without schedule data showed enabled "Place on grid" button but had no effect
+- Fix: Button shows "No schedule — can't place" with muted style and tooltip when noSchedule=true
+
+### SC-33 DONE: Misleading red "No time data" chip in withTime section
+- The withTime section edge case where courseHasSchedule()=false despite _hasLiveTimes showed alarming red chip
+- Fix: Changed to neutral muted "Schedule pending" chip (withTime cards are never truly missing data)
+
+### Commit range: 3d394c9 → 6ad1088
 
 ## Context for all agents
 - Project root: C:\Users\micgr\OneDrive\Desktop\Antigravity\Data_Science_Claude\hks-course-explorer
