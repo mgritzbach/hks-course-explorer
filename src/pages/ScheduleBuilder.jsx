@@ -449,14 +449,15 @@ export default function ScheduleBuilder({ courses = [] }) {
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
-        // SC-39d: Non-HKS auto-browse (no typed query) — skip API, go straight to stubs.
-        // The Harvard API key is HKS-scoped and always returns empty for non-HKS schools.
-        // Stubs are generated from course_sections in Supabase which has cross-reg data.
-        if (nonHksBrowse) {
+        // SC-39d/SC-42: Non-HKS (both auto-browse and typed queries) — skip Harvard API entirely.
+        // The API key is HKS-scoped and always returns empty for non-HKS schools.
+        // Cross-reg results come from sectionMapStubs (Supabase course_sections) which filter
+        // in the sectionMapStubs useMemo based on the typed query text.
+        if (nonHksBrowse || (effectiveQuery && !searchAllYears && searchSource === 'Non-HKS')) {
           if (!cancelled) { setApiMode('db'); setSearchResults([]) }
           return
         }
-        // Use live API when: user typed a query
+        // Use live API when: user typed a query for HKS or All sources
         if (effectiveQuery && !searchAllYears) {
           const semesterKey = semester === 'January' ? 'January' : semester
           const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
@@ -496,7 +497,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       } finally {
         if (!cancelled) setSearching(false)
       }
-    }, nonHksBrowse ? 100 : 400) // faster response for auto-browse
+    }, searchSource === 'Non-HKS' ? 100 : 400) // Non-HKS skips API → fast stub filter
     return () => {
       cancelled = true
       window.clearTimeout(timer)
