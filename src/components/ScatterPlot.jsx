@@ -408,6 +408,41 @@ export default function ScatterPlot({
     setZoomedY(null)
   }, [xMetric, yMetric])
 
+  useEffect(() => {
+    const el = chartWrapperRef.current
+    if (!el) return undefined
+
+    let lastDist = null
+
+    const onTouchMove = (e) => {
+      if (e.touches.length !== 2) return
+      e.preventDefault()
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.sqrt(dx * dx + dy * dy)
+
+      if (lastDist !== null && Math.abs(dist - lastDist) > 1) {
+        const factor = lastDist / dist
+        setZoomedX((current) => zoomNumericDomain(current, xMode.domain, factor))
+        setZoomedY((current) => zoomNumericDomain(current, yMode.domain, factor))
+      }
+
+      lastDist = dist
+    }
+
+    const onTouchEnd = () => {
+      lastDist = null
+    }
+
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+
+    return () => {
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [xMode.domain, yMode.domain])
+
   const handleZoomButton = (direction) => {
     const factor = direction === 'in' ? 0.72 : 1.38
     setZoomedX((current) => zoomNumericDomain(current, xMode.domain, factor))
@@ -669,7 +704,7 @@ export default function ScatterPlot({
   const plotConfig = useMemo(() => ({
     responsive: true,
     displaylogo: false,
-    scrollZoom: true,
+    scrollZoom: false,
     doubleClick: 'reset',
     modeBarButtonsToRemove: [
       'select2d',
