@@ -1401,7 +1401,7 @@ export default function ScheduleBuilder({ courses = [] }) {
               {searching ? (
                 <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Searching…</div>
               ) : filteredSearchResults.length > 0 ? (
-                <div className="space-y-3">
+                <div role="list" aria-label="Course search results" className="space-y-3">
                   {(() => {
                     const withTime = filteredSearchResults.filter((course) => courseHasSchedule(course) || course._hasLiveTimes)
                     const withoutTime = filteredSearchResults.filter((course) => !courseHasSchedule(course) && !course._hasLiveTimes)
@@ -1420,7 +1420,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                           const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(baseCode)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
-                            <div key={`with-${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
+                            <div key={`with-${course.courseCode}-${index}`} role="listitem" className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
@@ -1495,7 +1495,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                           const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(baseCode)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
-                            <div key={`without-${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
+                            <div key={`without-${course.courseCode}-${index}`} role="listitem" className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
