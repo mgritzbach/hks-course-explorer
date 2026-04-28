@@ -1477,7 +1477,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                 ) : sectionTimesLoading ? (
                                   <Chip tone="default">Times loading</Chip>
                                 ) : (
-                                  <Chip tone="danger">No time data</Chip>
+                                  <Chip tone="muted">Schedule pending</Chip>
                                 )}
                                 {instrPct != null && <Chip tone="gold">★ {Math.round(instrPct)}th instr</Chip>}
                                 {hks && (course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
