@@ -200,6 +200,23 @@ function isHksCourse(courseCode) {
   return HKS_PREFIXES.has(prefix)
 }
 
+// Infer the school abbreviation from a non-HKS course code prefix.
+const SCHOOL_BY_PREFIX = {
+  BUSS: 'HBS', HBS: 'HBS',
+  MIT: 'MIT',
+  ECON: 'FAS', STAT: 'FAS', MATH: 'FAS', APMTH: 'FAS', GOV: 'FAS', SOC: 'FAS',
+  LAW: 'Law', HLSC: 'Law',
+  HPM: 'HSPH', EPI: 'HSPH', BST: 'HSPH',
+  EDU: 'HGSE', PPE: 'HGSE',
+  GSD: 'GSD',
+}
+function inferSchool(courseCode) {
+  const prefix = String(courseCode || '').split('-')[0].toUpperCase().replace(/[0-9]/g, '')
+  // Handle MIT numerical sub-codes like "MIT-6.036" → prefix "MIT"
+  if (prefix === 'MIT' || String(courseCode || '').startsWith('MIT-')) return 'MIT'
+  return SCHOOL_BY_PREFIX[prefix] || null
+}
+
 // Normalise a course code to PREFIX-NUMBER for deduplication across code variants.
 // e.g. "DPI-802-M-D" → "DPI-802", "DPI-802M" → "DPI-802", "IGA-109" → "IGA-109"
 function getBaseCourseId(code) {
@@ -1504,7 +1521,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
-                                    {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
+                                    {!hks && (() => { const school = inferSchool(course.courseCode); return <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{school || 'Cross-reg'}</span> })()}
                                     {searchAllYears && course.year && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{course.year} {course.term}</span>}
                                     {histRating && <a href={`/courses?q=${encodeURIComponent(baseCode)}`} target="_blank" rel="noopener noreferrer" aria-label={`View ${baseCode} evaluations in Q-guide (opens in new tab)`} title="View evaluations in Q-guide" className="text-[10px] font-semibold hover:underline" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Q ↗</a>}
                                   </div>
@@ -1579,7 +1596,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
-                                    {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
+                                    {!hks && (() => { const school = inferSchool(course.courseCode); return <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{school || 'Cross-reg'}</span> })()}
                                     {searchAllYears && course.year && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{course.year} {course.term}</span>}
                                     {histRating && <a href={`/courses?q=${encodeURIComponent(baseCode)}`} target="_blank" rel="noopener noreferrer" aria-label={`View ${baseCode} evaluations in Q-guide (opens in new tab)`} title="View evaluations in Q-guide" className="text-[10px] font-semibold hover:underline" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Q ↗</a>}
                                   </div>
@@ -1902,7 +1919,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                             <button type="button" onClick={() => removeCourse(course.courseCode)} className="shrink-0 text-sm font-semibold" style={{ color: 'var(--danger)' }} aria-label={`Remove ${course.courseCode}`}>×</button>
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {!isHksCourse(course.courseCode) && <Chip tone="muted">Cross-reg</Chip>}
+                            {!isHksCourse(course.courseCode) && <Chip tone="muted">{inferSchool(course.courseCode) || 'Cross-reg'}</Chip>}
                             {course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
                             {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
                             {isHksCourse(course.courseCode) && !course.enrichment?.is_core && !course.enrichment?.is_stem && <Chip>Elective</Chip>}
