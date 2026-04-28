@@ -657,9 +657,11 @@ export default function ScheduleBuilder({ courses = [] }) {
     let enriched = course
     // 1. Inject historical ratings if current enrichment has no meaningful ratings
     if (!hasMeaningfulRatings(enriched.enrichment?.metrics_pct)) {
-      // Try exact code, then strip section suffix (e.g. IGA-412-M → IGA-412)
-      const baseCode = enriched.courseCode.split('-').slice(0, 2).join('-')
-      const hist = histRatingsMap.get(enriched.courseCode) || histRatingsMap.get(baseCode)
+      // Try exact code → 3-part base (DPI-802-M) → 2-part base (DPI-802)
+      const parts = enriched.courseCode.split('-')
+      const threeBase = parts.slice(0, 3).join('-') // e.g. DPI-802-M
+      const twoBase = parts.slice(0, 2).join('-')   // e.g. DPI-802
+      const hist = histRatingsMap.get(enriched.courseCode) || histRatingsMap.get(threeBase) || histRatingsMap.get(twoBase)
       if (hist) {
         enriched = { ...enriched, enrichment: { ...(enriched.enrichment || {}), metrics_pct: hist.metrics_pct, _ratingFromHistory: true } }
       }
@@ -1419,8 +1421,10 @@ export default function ScheduleBuilder({ courses = [] }) {
                           const added = addedCourseCodes.has(course.courseCode)
                           const done = completedCourseCodes.has(course.courseCode)
                           const hks = isHksCourse(course.courseCode)
-                          const baseCode = course.courseCode.split('-').slice(0, 2).join('-')
-                          const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(baseCode)
+                          const codeParts = course.courseCode.split('-')
+                          const baseCode = codeParts.slice(0, 2).join('-')
+                          const threeBase = codeParts.slice(0, 3).join('-')
+                          const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(threeBase) || histRatingsMap.get(baseCode)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
                             <div key={`with-${course.courseCode}-${index}`} role="listitem" className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
@@ -1494,8 +1498,10 @@ export default function ScheduleBuilder({ courses = [] }) {
                           const added = addedCourseCodes.has(course.courseCode)
                           const done = completedCourseCodes.has(course.courseCode)
                           const hks = isHksCourse(course.courseCode)
-                          const baseCode = course.courseCode.split('-').slice(0, 2).join('-')
-                          const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(baseCode)
+                          const codeParts = course.courseCode.split('-')
+                          const baseCode = codeParts.slice(0, 2).join('-')
+                          const threeBase = codeParts.slice(0, 3).join('-')
+                          const histRating = histRatingsMap.get(course.courseCode) || histRatingsMap.get(threeBase) || histRatingsMap.get(baseCode)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
                             <div key={`without-${course.courseCode}-${index}`} role="listitem" className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
