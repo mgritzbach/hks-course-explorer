@@ -12,11 +12,6 @@ const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 const WEEKEND_LABELS = ['Sat', 'Sun']
 const DAY_INDEX = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 }
 const TERM_OPTIONS = ['Q1', 'Q2', 'FULL']
-const SEMESTER_OPTIONS = [
-  { value: 'Spring', label: 'Spring' },
-  { value: 'Fall',   label: 'Fall'   },
-  { value: 'January', label: 'J-term' },
-]
 
 function fallbackSearch(q, allCourses, filters = {}) {
   const query = String(q || '').trim().toLowerCase()
@@ -431,7 +426,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   // Step 2 — apply day-of-week and time-slot filters on the enriched results.
   // Courses that still have no schedule data pass through (can't exclude the unknown).
   const filteredSearchResults = useMemo(() => {
-    return enrichedSearchResults.filter((course) => {
+    const results = enrichedSearchResults.filter((course) => {
       // --- Day filter ---
       if (searchDays.length > 0) {
         const days = extractDays(course.meeting_days || course.time_start)
@@ -457,6 +452,12 @@ export default function ScheduleBuilder({ courses = [] }) {
       }
 
       return true
+    })
+    return results.sort((a, b) => {
+      const aHasTime = courseHasSchedule(a) || a._hasLiveTimes
+      const bHasTime = courseHasSchedule(b) || b._hasLiveTimes
+      if (aHasTime === bHasTime) return 0
+      return aHasTime ? -1 : 1
     })
   }, [enrichedSearchResults, searchDays, searchTimes])
 
@@ -897,19 +898,17 @@ export default function ScheduleBuilder({ courses = [] }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Semester selector */}
-            <div className="inline-flex rounded-full border p-1" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
-              {SEMESTER_OPTIONS.map((opt) => {
-                const active = opt.value === semester
-                return (
-                  <button key={opt.value} type="button" onClick={() => setSemester(opt.value)}
-                    className="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-                    style={{ background: active ? 'var(--accent)' : 'transparent', color: active ? '#fff8f5' : 'var(--text-muted)' }}>
-                    {opt.label}
-                  </button>
-                )
-              })}
-            </div>
+            <select
+              value={semester}
+              onChange={(e) => setSemester(e.target.value)}
+              className="w-full rounded-xl border px-2 py-1.5 text-xs"
+              style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+              aria-label="Semester"
+            >
+              <option value="Spring">Spring 2026</option>
+              <option value="Fall">Fall 2025</option>
+              <option value="January">January 2025</option>
+            </select>
             <div className="inline-flex rounded-full border p-1" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
               {TERM_OPTIONS.map((option) => {
                 const active = option === term
@@ -1045,26 +1044,17 @@ export default function ScheduleBuilder({ courses = [] }) {
                     Core
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {SEMESTER_OPTIONS.map((opt) => {
-                    const active = semester === opt.value
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setSemester(opt.value)}
-                        className="rounded-xl border px-2 py-1.5 text-xs font-semibold transition-colors"
-                        style={{
-                          background: active ? 'var(--accent-soft)' : 'var(--panel-soft)',
-                          borderColor: active ? 'var(--accent)' : 'var(--line-strong)',
-                          color: active ? 'var(--text)' : 'var(--text-muted)',
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    )
-                  })}
-                </div>
+                <select
+                  value={semester}
+                  onChange={(e) => setSemester(e.target.value)}
+                  className="w-full rounded-xl border px-2 py-1.5 text-xs"
+                  style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)', color: 'var(--text)' }}
+                  aria-label="Semester"
+                >
+                  <option value="Spring">Spring 2026</option>
+                  <option value="Fall">Fall 2025</option>
+                  <option value="January">January 2025</option>
+                </select>
                 <div className="flex flex-wrap gap-1.5">
                   {['All', 'HKS', 'Non-HKS'].map((option) => {
                     const active = searchSource === option
@@ -1183,59 +1173,121 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Searching…</div>
               ) : filteredSearchResults.length > 0 ? (
                 <div className="space-y-3">
-                  <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                    {filteredSearchResults.length} course{filteredSearchResults.length !== 1 ? 's' : ''} found
-                    {searchDays.length > 0 ? ` · ${searchDays.map(d => d[0]+d.slice(1).toLowerCase()).join('/')}` : ''}
-                    {searchTimes.length > 0 ? ` · ${searchTimes.map(v => TIME_SLOTS.find(s=>s.value===v)?.label).join('/')}` : ''}
-                  </p>
-                  {filteredSearchResults.map((course, index) => {
-                    const added = addedCourseCodes.has(course.courseCode)
-                    const done = completedCourseCodes.has(course.courseCode)
-                    const hks = isHksCourse(course.courseCode)
+                  {(() => {
+                    const withTime = filteredSearchResults.filter((course) => courseHasSchedule(course) || course._hasLiveTimes)
+                    const withoutTime = filteredSearchResults.filter((course) => !courseHasSchedule(course) && !course._hasLiveTimes)
                     return (
-                      <div key={`${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
-                              {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
+                      <>
+                        <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                          {withTime.length} offered
+                          {withoutTime.length > 0 ? ` · ${withoutTime.length} not this semester` : ''}
+                          {searchDays.length > 0 ? ` · ${searchDays.map(d => d[0] + d.slice(1).toLowerCase()).join('/')}` : ''}
+                          {searchTimes.length > 0 ? ` · ${searchTimes.map(v => TIME_SLOTS.find(s => s.value === v)?.label).join('/')}` : ''}
+                        </p>
+                        {withTime.map((course, index) => {
+                          const added = addedCourseCodes.has(course.courseCode)
+                          const done = completedCourseCodes.has(course.courseCode)
+                          const hks = isHksCourse(course.courseCode)
+                          return (
+                            <div key={`with-${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
+                                    {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
+                                  </div>
+                                  <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
+                                </div>
+                                <div className="flex shrink-0 flex-col gap-1.5">
+                                  <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
+                                    {added ? 'Remove X' : 'Add'}
+                                  </button>
+                                  {hks && (
+                                    <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                                      {done ? '✓ Done' : '+ Done'}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="mt-2 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{course.instructors.length ? course.instructors.join(', ') : 'Instructor TBA'}</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {hks && course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
+                                {hks && course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
+                                {course.sections.length > 0 ? (
+                                  <Chip>{course.sections.length} section{course.sections.length > 1 ? 's' : ''}</Chip>
+                                ) : courseHasSchedule(course) ? (
+                                  (() => {
+                                    const DAY_ABBR = { MON: 'M', TUE: 'Tu', WED: 'W', THU: 'Th', FRI: 'F', SAT: 'Sa', SUN: 'Su' }
+                                    const days = extractDays(course.meeting_days).map((d) => DAY_ABBR[d] || d).join('/')
+                                    return <Chip tone="success">{days}{course.time_start ? ` ${course.time_start}` : ''}</Chip>
+                                  })()
+                                ) : (
+                                  <Chip tone="danger">No time data</Chip>
+                                )}
+                                {hks && (course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
+                                  <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
+                                )}
+                              </div>
                             </div>
-                            <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
+                          )
+                        })}
+                        {withoutTime.length > 0 && (
+                          <div style={{ borderTop: '1px solid var(--line)', margin: '8px 0 4px', paddingTop: 8 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--text-muted)' }}>
+                              Not offered this semester · {withoutTime.length}
+                            </p>
                           </div>
-                          <div className="flex shrink-0 flex-col gap-1.5">
-                            <button type="button" disabled={added || done} onClick={() => addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'var(--success)' : 'var(--accent-soft)', borderColor: added ? 'var(--success)' : 'var(--line-strong)', color: added ? 'var(--panel)' : 'var(--text)' }}>
-                              {added ? 'Added ✓' : 'Add'}
-                            </button>
-                            {hks && (
-                              <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
-                                {done ? '✓ Done' : '+ Done'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <p className="mt-2 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{course.instructors.length ? course.instructors.join(', ') : 'Instructor TBA'}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {hks && course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
-                          {hks && course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
-                          {course.sections.length > 0 ? (
-                            <Chip>{course.sections.length} section{course.sections.length > 1 ? 's' : ''}</Chip>
-                          ) : courseHasSchedule(course) ? (
-                            // enrichedSearchResults already merged sectionTimesMap onto the course object
-                            (() => {
-                              const DAY_ABBR = { MON: 'M', TUE: 'Tu', WED: 'W', THU: 'Th', FRI: 'F', SAT: 'Sa', SUN: 'Su' }
-                              const days = extractDays(course.meeting_days).map((d) => DAY_ABBR[d] || d).join('/')
-                              return <Chip tone="success">{days}{course.time_start ? ` ${course.time_start}` : ''}</Chip>
-                            })()
-                          ) : (
-                            <Chip tone="danger">No time data</Chip>
-                          )}
-                          {hks && (course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
-                            <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
-                          )}
-                        </div>
-                      </div>
+                        )}
+                        {withoutTime.map((course, index) => {
+                          const added = addedCourseCodes.has(course.courseCode)
+                          const done = completedCourseCodes.has(course.courseCode)
+                          const hks = isHksCourse(course.courseCode)
+                          return (
+                            <div key={`without-${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
+                                    {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
+                                  </div>
+                                  <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
+                                </div>
+                                <div className="flex shrink-0 flex-col gap-1.5">
+                                  <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
+                                    {added ? 'Remove X' : 'Add'}
+                                  </button>
+                                  {hks && (
+                                    <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                                      {done ? '✓ Done' : '+ Done'}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="mt-2 text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{course.instructors.length ? course.instructors.join(', ') : 'Instructor TBA'}</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {hks && course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
+                                {hks && course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
+                                {course.sections.length > 0 ? (
+                                  <Chip>{course.sections.length} section{course.sections.length > 1 ? 's' : ''}</Chip>
+                                ) : courseHasSchedule(course) ? (
+                                  (() => {
+                                    const DAY_ABBR = { MON: 'M', TUE: 'Tu', WED: 'W', THU: 'Th', FRI: 'F', SAT: 'Sa', SUN: 'Su' }
+                                    const days = extractDays(course.meeting_days).map((d) => DAY_ABBR[d] || d).join('/')
+                                    return <Chip tone="success">{days}{course.time_start ? ` ${course.time_start}` : ''}</Chip>
+                                  })()
+                                ) : (
+                                  <Chip tone="danger">No time data</Chip>
+                                )}
+                                {hks && (course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
+                                  <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </>
                     )
-                  })}
+                  })()}
                 </div>
               ) : (
                 /* No results — show shortlist if available, otherwise a browse prompt */
@@ -1625,3 +1677,5 @@ export default function ScheduleBuilder({ courses = [] }) {
     </div>
   )
 }
+
+
