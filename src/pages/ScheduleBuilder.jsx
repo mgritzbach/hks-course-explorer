@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { findConflicts } from '../lib/conflictDetector'
 import { loadPlan, savePlan, PLANS, DEFAULT_PLAN, loadCompleted, saveCompleted } from '../lib/scheduleStorage'
 import { computeProgress, getPrograms } from '../lib/requirementsEngine'
@@ -45,7 +45,7 @@ function fallbackSearch(q, allCourses, filters = {}) {
       courseCode: c.course_code_base || c.course_code,
       title: c.course_name,
       instructors: [c.professor_display || c.professor].filter(Boolean),
-      credits: 4,
+      credits: Number(c.credits_min ?? c.credits_max ?? c.credits ?? 4) || 4,
       sections: [],
       meeting_days: c.meeting_days || null,
       meeting_time: c.meeting_time || null,
@@ -311,6 +311,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [completedSearchQ, setCompletedSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [sectionTimesLoading, setSectionTimesLoading] = useState(false)
   const [apiMode, setApiMode] = useState('unknown') // 'live' | 'db' | 'unknown'
   const [expandedBlock, setExpandedBlock] = useState(null)
   const [reqProgram, setReqProgram] = useState(() => getPrograms()[0]?.id || '')
@@ -324,6 +325,12 @@ export default function ScheduleBuilder({ courses = [] }) {
   const importInputRef = useRef(null)
   const [saveLoadMsg, setSaveLoadMsg] = useState(null)
   const saveLoadTimeoutRef = useRef(null)
+  const announcerRef = useRef(null)
+  const announce = useCallback((msg) => {
+    if (!announcerRef.current) return
+    announcerRef.current.textContent = ''
+    setTimeout(() => { if (announcerRef.current) announcerRef.current.textContent = msg }, 50)
+  }, [])
   useEffect(() => {
     void savePlan(activePlan, planData)
   }, [activePlan, planData])
@@ -340,14 +347,19 @@ export default function ScheduleBuilder({ courses = [] }) {
     return () => {
       if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current)
       if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
+      if (saveLoadTimeoutRef.current) clearTimeout(saveLoadTimeoutRef.current)
     }
   }, [])
 
   // Fetch meeting times from Supabase course_sections
   useEffect(() => {
+    setSectionTimesLoading(true)
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseKey) return
+    if (!supabaseUrl || !supabaseKey) {
+      setSectionTimesLoading(false)
+      return
+    }
     // Map semester label to term string stored in course_sections
     const termStr = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
     fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStr}&select=course_code_base,meetings,title,instructors&limit=2000`, {
@@ -362,8 +374,11 @@ export default function ScheduleBuilder({ courses = [] }) {
           }
         })
         setSectionTimesMap(map)
+        setSectionTimesLoading(false)
       })
-      .catch(() => {})
+      .catch(() => {
+        setSectionTimesLoading(false)
+      })
   }, [semester])
 
   useEffect(() => {
@@ -631,6 +646,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (currentCourses.some((item) => normalizeCourse(item).courseCode === normalized.courseCode)) return current
       return { ...current, name: activePlan, courses: [...currentCourses, { ...normalized, isOnGrid: false }] }
     })
+    announce(`Added ${normalized.courseCode} to plan`)
     setGridMessages((current) => {
       if (!current[normalized.courseCode]) return current
       const next = { ...current }
@@ -644,6 +660,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       name: activePlan,
       courses: (Array.isArray(current?.courses) ? current.courses : []).filter((course) => normalizeCourse(course).courseCode !== courseCode),
     }))
+    announce(`Removed ${courseCode} from plan`)
     setExpandedBlock((current) => (current === courseCode ? null : current))
     setGridMessages((current) => {
       if (!current[courseCode]) return current
@@ -658,6 +675,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (prev.some((c) => normalizeCourse(c).courseCode === normalized.courseCode)) return prev
       return [...prev, { ...normalized, _isCompleted: true }]
     })
+    announce('Marked as completed')
   }
   const removeFromCompleted = (courseCode) => {
     setCompletedCourses((prev) => prev.filter((c) => normalizeCourse(c).courseCode !== courseCode))
@@ -665,14 +683,40 @@ export default function ScheduleBuilder({ courses = [] }) {
   const handleQuickAddCompleted = () => {
     const courseCode = completedInput.trim().toUpperCase()
     if (!courseCode) return
-    addToCompleted({
-      courseCode,
-      title: courseCode,
-      credits: 4,
-      sections: [],
-      instructors: [],
-      enrichment: {},
-    })
+    const found = (Array.isArray(courses) ? courses : [])
+      .filter((c) => !c?.is_average)
+      .find((c) => {
+        const code = String(c?.course_code_base || c?.course_code || '').toUpperCase()
+        return code === courseCode || code.startsWith(courseCode + '-') || courseCode.startsWith(code)
+      })
+    if (found) {
+      addToCompleted(normalizeCourse({
+        courseCode: found.course_code_base || found.course_code,
+        title: found.course_name || courseCode,
+        instructors: [found.professor_display || found.professor].filter(Boolean),
+        credits: Number(found.credits_min ?? found.credits_max ?? found.credits ?? 4) || 4,
+        sections: [],
+        is_stem: found.is_stem,
+        is_core: found.is_core,
+        metrics_pct: found.metrics_pct,
+        enrichment: {
+          is_stem: found.is_stem,
+          is_core: found.is_core,
+          metrics_pct: found.metrics_pct,
+          bid_clearing_price: found.bid_clearing_price,
+          last_bid_price: found.last_bid_price,
+        },
+      }))
+    } else {
+      addToCompleted({
+        courseCode,
+        title: courseCode,
+        credits: 4,
+        sections: [],
+        instructors: [],
+        enrichment: {},
+      })
+    }
     setCompletedInput('')
   }
   const toggleGrid = (courseCode) => {
@@ -750,6 +794,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     setTimeout(() => URL.revokeObjectURL(url), 100)
     if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current)
     setExportMsg({ text: `Downloaded ${exportable.length} event${exportable.length === 1 ? '' : 's'} ↓`, error: false })
+    announce(`Exported ${exportable.length} calendar events`)
     exportMsgTimeoutRef.current = setTimeout(() => setExportMsg(null), 3000)
   }
 
@@ -767,6 +812,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
       if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
       setCopyPlanMsg('Copied!')
+      announce('Plan copied to clipboard')
       copyPlanTimeoutRef.current = setTimeout(() => setCopyPlanMsg(null), 2500)
     }).catch(() => {
       if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
@@ -868,6 +914,12 @@ export default function ScheduleBuilder({ courses = [] }) {
 
   return (
     <div className="h-full overflow-hidden">
+      <div
+        ref={announcerRef}
+        aria-live="polite"
+        aria-atomic="true"
+        style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}
+      />
       {/* ── Mobile gate — Schedule Builder needs a wide screen ── */}
       <div className="flex h-full flex-col items-center justify-center gap-6 overflow-y-auto px-6 py-12 text-center md:hidden">
         <div
@@ -1247,6 +1299,8 @@ export default function ScheduleBuilder({ courses = [] }) {
                                     const days = extractDays(course.meeting_days).map((d) => DAY_ABBR[d] || d).join('/')
                                     return <Chip tone="success">{days}{course.time_start ? ` ${course.time_start}` : ''}</Chip>
                                   })()
+                                ) : sectionTimesLoading ? (
+                                  <Chip tone="default">Times loading</Chip>
                                 ) : (
                                   <Chip tone="danger">No time data</Chip>
                                 )}
@@ -1301,6 +1355,8 @@ export default function ScheduleBuilder({ courses = [] }) {
                                     const days = extractDays(course.meeting_days).map((d) => DAY_ABBR[d] || d).join('/')
                                     return <Chip tone="success">{days}{course.time_start ? ` ${course.time_start}` : ''}</Chip>
                                   })()
+                                ) : sectionTimesLoading ? (
+                                  <Chip tone="default">Times loading</Chip>
                                 ) : (
                                   <Chip tone="danger">No time data</Chip>
                                 )}
@@ -1396,9 +1452,12 @@ export default function ScheduleBuilder({ courses = [] }) {
                     const dayIndex = DAY_INDEX[day]
                     return (
                       <div key={key} className="absolute z-10 rounded-2xl border p-2" style={{ top: `${top + 2}px`, left: `calc(52px + ${dayIndex} * (100% - 52px) / ${numDays} + 2px)`, width: `calc((100% - 52px) / ${numDays} - 4px)`, height: `${Math.max(height - 4, 28)}px`, background: conflict ? 'var(--panel-soft)' : 'var(--accent-soft)', borderColor: conflict ? 'var(--danger)' : 'var(--accent)', color: 'var(--text)' }}>
-                        <button type="button" onClick={() => setExpandedBlock((current) => (current === course.courseCode ? null : course.courseCode))} className="block h-full w-full text-left">
+                        <button type="button" onClick={() => setExpandedBlock((current) => (current === course.courseCode ? null : course.courseCode))} className="block h-full w-full text-left" aria-label={course.courseCode + (conflict ? ' — time conflict' : '')}>
                           <p className="truncate pr-6 text-xs font-semibold">{course.courseCode}</p>
                           <p className="mt-1 text-[11px] leading-4" style={{ color: 'var(--text-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{course.title}</p>
+                          {conflict && (
+                            <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.08em]" style={{ color: 'var(--danger)' }}>Conflict</p>
+                          )}
                           {height > 72 && course.instructors?.length > 0 && (
                             <p className="mt-1 truncate text-[10px]" style={{ color: 'var(--text-muted)' }}>{course.instructors[0]}</p>
                           )}
@@ -1510,7 +1569,13 @@ export default function ScheduleBuilder({ courses = [] }) {
                             {course.enrichment?.is_core && <Chip tone="success">Core</Chip>}
                             {course.enrichment?.is_stem && <Chip tone="blue">STEM</Chip>}
                             {!course.enrichment?.is_core && !course.enrichment?.is_stem && <Chip>Elective</Chip>}
-                            {course._hasLiveTimes && <Chip tone="success">🕐 Live times</Chip>}
+                            {course._hasLiveTimes ? (
+                              <Chip tone="success">🕐 Live times</Chip>
+                            ) : sectionTimesLoading ? (
+                              <Chip tone="default">Times loading</Chip>
+                            ) : !courseHasSchedule(course) ? (
+                              <Chip tone="danger">No time data</Chip>
+                            ) : null}
                             {(course.enrichment?.last_bid_price ?? course.enrichment?.bid_clearing_price) != null && (
                               <Chip tone="gold">{course.enrichment.last_bid_price ?? course.enrichment.bid_clearing_price} bid pts</Chip>
                             )}

@@ -437,6 +437,18 @@ html[data-theme='light'] textarea:focus {
 .text-label  { color: var(--text-soft)  !important; }
 .text-accent { color: var(--accent-strong) !important; }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ─── Card & surface system ──────────────────────────────────────────────────── */
 
 .panel-shell {
