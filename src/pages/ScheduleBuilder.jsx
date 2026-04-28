@@ -1394,10 +1394,11 @@ export default function ScheduleBuilder({ courses = [] }) {
                             <div key={`with-${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
                                     {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
                                     {searchAllYears && course.year && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{course.year} {course.term}</span>}
+                                    {histRating && <a href={`/courses?q=${encodeURIComponent(baseCode)}`} target="_blank" rel="noopener noreferrer" title="View evaluations in Q-guide" className="text-[10px] font-semibold hover:underline" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Q ↗</a>}
                                   </div>
                                   <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                                 </div>
@@ -1455,10 +1456,11 @@ export default function ScheduleBuilder({ courses = [] }) {
                             <div key={`without-${course.courseCode}-${index}`} className="rounded-[24px] border p-4" style={{ background: hks ? 'var(--panel-soft)' : 'var(--panel)', borderColor: hks ? 'var(--line)' : 'var(--line)', opacity: hks ? 1 : 0.75 }}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-semibold" style={{ color: hks ? 'var(--text)' : 'var(--text-muted)' }}>{course.courseCode}</p>
                                     {!hks && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>Cross-reg</span>}
                                     {searchAllYears && course.year && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--panel-strong)', color: 'var(--text-muted)', border: '1px solid var(--line-strong)' }}>{course.year} {course.term}</span>}
+                                    {histRating && <a href={`/courses?q=${encodeURIComponent(baseCode)}`} target="_blank" rel="noopener noreferrer" title="View evaluations in Q-guide" className="text-[10px] font-semibold hover:underline" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Q ↗</a>}
                                   </div>
                                   <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                                 </div>

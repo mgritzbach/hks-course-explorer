@@ -611,4 +611,69 @@ Checklist:
 18. Re-score all 6 categories. If any <9, identify remaining gaps and add new SCs.
 19. Mark ITERATION_LOG Status: COMPLETE only when ALL categories ≥9.
 
-**Status**: PENDING
+**Status**: DONE — All 16 items verified 2026-04-28. Build clean. Scores confirmed ≥9 across all categories.
+
+---
+
+## SC-20 · Show historical instructor rating on search cards (UX + Data)
+**Priority**: HIGH
+**Category impact**: UX +0.3, Data integrity +0.3
+**Goal**: Current semester course cards in the search panel show Core/STEM/bid chips but NO rating, even when the same course has Q-guide evaluation data. Users can't gauge quality without visiting the Courses page. Use the existing `histRatingsMap` to show an instructor rating chip on search panel cards and sectionMapStubs.
+
+In `src/pages/ScheduleBuilder.jsx`:
+- `histRatingsMap` is already computed (courseCode → {metrics_pct, _isAvg, _year}).
+- In both `withTime` and `withoutTime` card chip sections, add after the bid chip:
+```jsx
+{(() => {
+  const base = course.courseCode.split('-').slice(0,2).join('-')
+  const hist = histRatingsMap.get(course.courseCode) || histRatingsMap.get(base)
+  const r = hist?.metrics_pct?.Instructor_Rating
+  return r != null ? <Chip tone="gold">★ {Math.round(r)}%ile instr</Chip> : null
+})()}
+```
+
+Also: for sectionMapStubs, enrichment.metrics_pct is already set from histMap. So stub cards benefit automatically when the card chip checks `course.enrichment?.metrics_pct?.Instructor_Rating`. Update the card chip to also check `course.enrichment?.metrics_pct?.Instructor_Rating` as a fallback when `histRatingsMap` has no match.
+
+Done when: search cards for courses with Q-guide data show a gold rating chip; build passes.
+**Status**: DONE ✅ — commit 73c067a. Both withTime and withoutTime card sections now compute `histRatingsMap.get(courseCode) || histRatingsMap.get(baseCode)` and render `<Chip tone="gold">★ XXth instr</Chip>` when a rating is available. Added `tone="muted"` to Chip component. Build clean.
+
+---
+
+## SC-21 · Non-HKS cross-reg search: helpful UX + manual add (UX)
+**Priority**: HIGH
+**Category impact**: UX +0.4, Core functionality +0.3
+**Goal**: When `searchSource='Non-HKS'` and `apiMode='db'` (no Harvard API key), the search panel shows nothing or very few results. Users have no way to add cross-reg courses to their plan. Fix:
+
+1. When `searchSource='Non-HKS'` and `apiMode='db'` and results are empty, show a help card:
+   "Cross-reg courses aren't in our database yet. Type any course code (e.g. GOV-1780) and press Enter to add it to your plan manually."
+
+2. Wire the `handleSearchKeyDown` Enter key handler: when searchSource='Non-HKS', apiMode='db', and no results BUT there's a query, create a stub course from the query string and add it to the shortlist.
+   - courseCode = searchQ.trim().toUpperCase() (normalize spaces to dashes)
+   - title = "Cross-reg: " + courseCode
+   - credits = 4 (default)
+   - meeting_days = '' (no schedule — user fills in or API updates later)
+
+3. Label the manual-add card clearly: "⚠️ Added as cross-reg stub — no schedule data. Harvard API key needed for times."
+
+Done when: Non-HKS search + Enter adds a stub cross-reg course; build passes.
+**Status**: DONE ✅ — commit 73c067a. When searchSource='Non-HKS' and search returns no results, shows a help card with "Cross-registration" heading and a "+ Add X manually" button. handleSearchKeyDown also creates the manual stub on Enter when no results found. normalizeCourse threads `_crossRegManual: true` through.
+
+---
+
+## SC-22 · Historical course search toggle for "Mark as Done" (UX + Core)
+**Priority**: HIGH
+**Category impact**: UX +0.3, Core functionality +0.2
+**Goal**: Users who took e.g. API-101 in Fall 2022 can't find it easily to mark as "Done" for requirements. The current semester filter hides it. Add a toggle in the search panel: "Include past semesters" (searchAllYears).
+
+In `src/pages/ScheduleBuilder.jsx`:
+1. Add state: `const [searchAllYears, setSearchAllYears] = useState(false)`
+2. Pass `allYears: searchAllYears` into `fallbackSearch` (already supported by the function)
+3. Add `searchAllYears` to the search useEffect dep array.
+4. When `searchAllYears=true`, require a non-empty query (return [] if no query) to avoid returning all 5,581 courses.
+5. In the search filter UI, add a toggle button: "📚 Past semesters" — when active, show all-year results.
+6. When `searchAllYears=true`, card headers show year/term badge: "Fall 2024" etc.
+7. In past-semester mode, suppress the sectionMapStubs (they're current only).
+8. In past-semester cards, the "Add to plan" button should add the course as historical (no schedule data expected).
+
+Done when: toggling past semesters + typing "API-101" shows Fall/Spring results across years; build passes.
+**Status**: DONE ✅ — commit 73c067a. "📚 All yrs" button added next to semester selector. When active, semester selector grays out, fallbackSearch runs with allYears:true (no term filter), year+term badge shows on cards, sectionMapStubs suppressed. fallbackSearch emits year+term fields; normalizeCourse threads them through. Hint text shows "All-years mode — type a query" when toggle is on and query is empty.
