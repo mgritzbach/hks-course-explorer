@@ -330,6 +330,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [sectionTimesMap, setSectionTimesMap] = useState(new Map()) // courseCodeBase (+ aliases) → meetings[]
   const [sectionCanonicalCodes, setSectionCanonicalCodes] = useState(new Set()) // original codes only (no aliases)
   const [sectionInfoMap, setSectionInfoMap] = useState(new Map()) // courseCodeBase → { title, instructors } from course_sections
+  const [liveCoursesData, setLiveCoursesData] = useState([])     // rows from live_courses table (all schools)
   const [term, setTerm] = useState('FULL')
   const [semester, setSemester] = useState('Spring')
   const [showWeekends, setShowWeekends] = useState(false)
@@ -389,12 +390,13 @@ export default function ScheduleBuilder({ courses = [] }) {
     }
   }, [])
 
-  // Fetch meeting times from Supabase course_sections
+  // Fetch meeting times from Supabase course_sections + live_courses (parallel)
   useEffect(() => {
     // Clear stale data immediately so stubs don't show wrong-semester courses during reload
     setSectionTimesMap(new Map())
     setSectionCanonicalCodes(new Set())
     setSectionInfoMap(new Map())
+    setLiveCoursesData([])
     setSectionTimesLoading(true)
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -402,23 +404,28 @@ export default function ScheduleBuilder({ courses = [] }) {
       setSectionTimesLoading(false)
       return
     }
-    // Map semester label to term string stored in course_sections
     const termStr = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
-    fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStr}&select=course_code_base,meetings,title,instructors,credits&limit=2000`, {
-      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
-    })
-      .then((r) => r.ok ? r.json() : [])
-      .then((rows) => {
+    const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+
+    Promise.all([
+      // course_sections: hand-curated HKS schedule data
+      fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStr}&select=course_code_base,meetings,title,instructors,credits&limit=2000`, { headers })
+        .then((r) => r.ok ? r.json() : []),
+      // live_courses: daily-synced full catalog (all schools)
+      fetch(`${supabaseUrl}/rest/v1/live_courses?term=eq.${termStr}&select=*&limit=5000`, { headers })
+        .then((r) => r.ok ? r.json() : []),
+    ])
+      .then(([sectionRows, liveRows]) => {
+        // ── Build sectionTimesMap from course_sections ──
         const map = new Map()
         const canonical = new Set()
         const infoMap = new Map()
-        ;(Array.isArray(rows) ? rows : []).forEach((row) => {
+        ;(Array.isArray(sectionRows) ? sectionRows : []).forEach((row) => {
           if (!row.course_code_base || !Array.isArray(row.meetings) || !row.meetings.length) return
           const meetings = row.meetings
           const code = row.course_code_base
           map.set(code, meetings)
-          canonical.add(code) // track originals only — aliases below are NOT added to canonical
-          // Store title, instructors, credits for stub display (important for non-HKS courses not in Q-guide DB)
+          canonical.add(code)
           if (row.title || row.instructors?.length || row.credits != null) {
             infoMap.set(code, {
               title: row.title || null,
@@ -426,16 +433,37 @@ export default function ScheduleBuilder({ courses = [] }) {
               credits: row.credits != null ? Number(row.credits) : null,
             })
           }
-          // "DPI-802M" → also store "DPI-802-M" so lookups for dash-form work
           const withDash = code.replace(/([0-9])([A-Z])/, '$1-$2')
           if (withDash !== code) map.set(withDash, meetings)
-          // Also store base prefix-number "DPI-802" as ultimate fallback
           const base = code.replace(/-?[A-Z]+$/, '')
           if (base !== code && !map.has(base)) map.set(base, meetings)
         })
+
+        // ── Also fold live_courses HKS rows into sectionTimesMap ──
+        // (fills gaps where course_sections doesn't have an entry)
+        ;(Array.isArray(liveRows) ? liveRows : []).filter((r) => r.is_hks && r.meeting_days && r.time_start).forEach((row) => {
+          const code = row.course_code_base || row.course_code
+          if (!code || map.has(code)) return // course_sections takes priority
+          const days = String(row.meeting_days).split('/').filter(Boolean)
+          const meetings = days.map((day) => ({ day, start: row.time_start, end: row.time_end || '', location: row.location || '' }))
+          if (meetings.length) {
+            map.set(code, meetings)
+            canonical.add(code)
+            if (row.title || row.instructors?.length || row.credits != null) {
+              infoMap.set(code, {
+                title: row.title || null,
+                instructors: Array.isArray(row.instructors) ? row.instructors : [],
+                credits: row.credits != null ? Number(row.credits) : null,
+              })
+            }
+          }
+        })
+
         setSectionTimesMap(map)
         setSectionCanonicalCodes(canonical)
         setSectionInfoMap(infoMap)
+        // Store the full live_courses array for Non-HKS browse
+        setLiveCoursesData(Array.isArray(liveRows) ? liveRows : [])
         setSectionTimesLoading(false)
       })
       .catch(() => {
@@ -453,17 +481,36 @@ export default function ScheduleBuilder({ courses = [] }) {
       setSearchResults([])
       return undefined
     }
-    // Non-HKS browse with no query: show stubs from Supabase, no API call needed
-    const nonHksBrowse = searchSource === 'Non-HKS' && !query
-    const effectiveQuery = query  // no longer use 'a' as fake query
-    if (!effectiveQuery && !hasFilters) {
-      setSearching(false)
-      setSearchResults([])
-      setApiMode('db')
-      return undefined
-    }
-    // Non-HKS with no query: stubs show from sectionMapStubs, nothing to search
+    // Non-HKS + Live mode with no query: serve from live_courses Supabase table (instant, no API call).
+    // Fall back to API seed query 'a' only if live_courses table is still empty (first deploy).
+    const nonHksBrowse = searchSource === 'Non-HKS' && !query && searchMode === 'live'
     if (nonHksBrowse) {
+      const nonHksRows = liveCoursesData.filter((r) => !r.is_hks)
+      if (nonHksRows.length > 0) {
+        // Serve directly from Supabase live_courses — no API call needed
+        const normalized = nonHksRows.map((r, i) => normalizeCourse({
+          courseCode:  r.course_code || r.course_code_base,
+          title:       r.title || '',
+          instructors: Array.isArray(r.instructors) ? r.instructors : [],
+          credits:     r.credits,
+          sections:    [],
+          meeting_days: r.meeting_days || null,
+          time_start:  r.time_start || null,
+          time_end:    r.time_end   || null,
+          location:    r.location   || null,
+          term:        r.term       || null,
+          _fromLiveDB: true,
+        }, i))
+        setApiMode('live')
+        setSearchResults(normalized)
+        setSearching(false)
+        return undefined
+      }
+      // Table empty → fall back to API seed (will self-resolve after first sync runs)
+    }
+    // effectiveQuery: use typed query, or 'a' as browse seed for Non-HKS live browse when table empty
+    const effectiveQuery = query || (nonHksBrowse ? 'a' : '')
+    if (!effectiveQuery && !hasFilters) {
       setSearching(false)
       setSearchResults([])
       setApiMode('db')
@@ -474,9 +521,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
-        // Non-HKS typed search: proxy now uses correct catalogSchool codes (HBSM, FAS, HLS etc.)
-        // so live API results work. Stubs from Supabase are merged in filteredSearchResults.
-        // Use live API when: user typed a query for HKS or All sources
+        // Use live API when mode=live and we have a query (typed or browse seed)
         if (effectiveQuery && searchMode === 'live') {
           const semesterKey = semester === 'January' ? 'January' : semester
           const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
@@ -500,9 +545,9 @@ export default function ScheduleBuilder({ courses = [] }) {
             setApiMode('live')
             setSearchResults(normalized)
           } else {
-            // API returned nothing — fall back to DB (for HKS) or show empty (Non-HKS)
+            // API returned nothing — fall back to DB for HKS; Non-HKS browse stays empty (not in DB)
             setApiMode('db')
-            setSearchResults(query ? fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)) : [])
+            setSearchResults(query && searchSource !== 'Non-HKS' ? fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)) : [])
           }
         } else {
           // History DB search (searchMode=history + query), or filter-only mode
@@ -523,7 +568,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [browseAll, courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating, searchMode])
+  }, [browseAll, courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating, searchMode, liveCoursesData])
 
   // TIME_SLOTS removed — replaced with From/To time inputs (searchTimeFrom / searchTimeTo)
 
@@ -1542,7 +1587,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                           {searchMode === 'history'
                             ? `Q-guide: ${filteredSearchResults.length} result${filteredSearchResults.length !== 1 ? 's' : ''} across all years`
                             : searchSource === 'Non-HKS' && !searchQ.trim()
-                              ? `${withTime.length} cross-reg offering${withTime.length !== 1 ? 's' : ''} · Spring 2026`
+                              ? `${filteredSearchResults.length} non-HKS offering${filteredSearchResults.length !== 1 ? 's' : ''} · browse · type to narrow`
                               : `${withTime.length} with schedule${withoutTime.length > 0 ? ` · ${withoutTime.length} historical` : ''}`}
                           {searchDays.length > 0 ? ` · ${searchDays.map(d => d[0] + d.slice(1).toLowerCase()).join('/')}` : ''}
                           {(searchTimeFrom || searchTimeTo) ? ` · ${searchTimeFrom || '–'}–${searchTimeTo || '–'}` : ''}
@@ -1713,11 +1758,10 @@ export default function ScheduleBuilder({ courses = [] }) {
                       ))}
                     </div>
                   </div>
-                ) : searchSource === 'Non-HKS' && !searchQ.trim() ? (
+                ) : searchSource === 'Non-HKS' && !searchQ.trim() && searchMode === 'history' ? (
                   <div className="flex flex-col items-center gap-3 py-10 text-center">
-                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Cross-registration search</p>
-                    <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>Type a course code or name to search HBS, FAS, Harvard Law, HGSE, and other Harvard schools.</p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Example: <em>TDM 155</em>, <em>ECON 1010</em>, <em>BUSS 1000</em></p>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>No cross-reg history</p>
+                    <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>Q-guide history only covers HKS courses. Switch to <strong>🔴 Live</strong> to browse non-HKS offerings, or type a specific code.</p>
                   </div>
                 ) : searchSource === 'Non-HKS' && searchQ.trim() ? (
                   <div className="rounded-[20px] border p-4 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
