@@ -718,3 +718,49 @@ In `src/pages/ScheduleBuilder.jsx`:
 
 Done when: toggling past semesters + typing "API-101" shows Fall/Spring results across years; build passes.
 **Status**: DONE ✅ — commit 73c067a. "📚 All yrs" button added next to semester selector. When active, semester selector grays out, fallbackSearch runs with allYears:true (no term filter), year+term badge shows on cards, sectionMapStubs suppressed. fallbackSearch emits year+term fields; normalizeCourse threads them through. Hint text shows "All-years mode — type a query" when toggle is on and query is empty.
+
+---
+
+## SC-38 · Holistic audit: aria-pressed, manual-add All mode, applyManualTime single-click (UX + A11y)
+**Priority**: HIGH
+**Status**: DONE ✅ — commit eb1079e
+
+1. `aria-pressed` + `role="group"` on All/HKS/Non-HKS source filter buttons
+2. `handleSearchKeyDown` manual-add: changed `searchSource === 'Non-HKS'` → `searchSource !== 'HKS'` so All mode also creates stubs on Enter
+3. `applyManualTime`: added `isOnGrid: true` to the planData update — single-click to place (was two-click)
+4. Non-HKS auto-browse: `effectiveQuery='a'` when Non-HKS selected + no user query
+5. Hint text: Non-HKS browse hint shown separately; Enter hint includes "manually add" note for cross-reg modes
+6. Harvard API proxy: fan-out to HBS/FAS/GSE/LAW/HSPH/GSD/SEAS for Non-HKS; min query length 1 char
+7. Root cause confirmed: Harvard API key is HKS-scoped → always returns empty for non-HKS schools
+
+---
+
+## SC-39 · Seed 22 cross-reg courses + MIT stubs in Supabase; sectionInfoMap for titles/credits (Data + UX)
+**Priority**: CRITICAL — Non-HKS browse showed zero courses; all 3 user journeys blocked
+**Status**: DONE ✅ — commits 3562c12, e9302e1, 322e100, 050667e
+
+### Root cause
+Harvard ATS API key is HKS-scoped. No amount of proxy changes return HBS/FAS/Law/MIT results.
+Non-HKS browse relied on API returning data → showed zero courses.
+
+### Fix
+1. **Supabase seed**: INSERT 22 Harvard cross-reg courses into `course_sections` (Spring 2026):
+   - 8× HBS (BUSS-1000 through BUSS-3010): LOB, Finance I, BGIE, Strategy, Operations, Entrepreneurial Finance, Negotiations, Managing Human Capital
+   - 5× FAS Economics (ECON-1010A/B, ECON-1052, ECON-1760, ECON-1800)
+   - 2× FAS Statistics (STAT-110, STAT-210)
+   - 3× Law (LAW-2100/2500/3100)
+   - 2× Chan SPH (HPM-232/515)
+   - 2× HGSE (EDU-T215/T400)
+   - 8× MIT Sloan + EECS (MIT-15.060/025/228/564/401, MIT-6.036/867, MIT-17.500)
+   
+2. **sectionInfoMap**: new state `Map<code, {title, instructors, credits}>` populated alongside `sectionTimesMap` from Supabase fetch. Stub generation now uses `secInfo.title || code`, `secInfo.instructors`, and `secInfo.credits` as fallbacks when no Q-guide history exists.
+
+3. **apiMode reset**: `setApiMode('db')` added to the early-return path so stubs/hint always render after filter changes clear the query.
+
+4. **Non-HKS browse shortcut**: skip Harvard API entirely for `nonHksBrowse` case (no typed query). API always returns empty anyway; going straight to `apiMode='db'` makes cross-reg stubs appear instantly instead of after ~500ms round-trip.
+
+### 3 user journeys now unblocked
+1. **Requirements tracker**: Non-HKS browse → BUSS-*, ECON-*, MIT-* stubs → "+ Done" marks them → credit tracker updates
+2. **Timetable builder**: stubs have meeting times from `course_sections` → "Add" → plan → "Place on grid" → appears on grid
+3. **Score tester**: HKS Spring 2026 courses → plan → histRatingsMap injects ratings → shown in plan card
+
