@@ -1432,13 +1432,26 @@ export default function ScheduleBuilder({ courses = [] }) {
                                   <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                                 </div>
                                 <div className="flex shrink-0 flex-col gap-1.5">
-                                  <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
-                                    {added ? 'Remove ✕' : 'Add'}
-                                  </button>
-                                  {hks && (
-                                    <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
-                                      {done ? '✓ Done' : '+ Done'}
-                                    </button>
+                                  {searchAllYears && hks ? (
+                                    <>
+                                      <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--success-soft)', borderColor: 'var(--success)', color: 'var(--success)' }} aria-label={done ? `Un-complete ${course.courseCode}` : `Mark ${course.courseCode} as completed`}>
+                                        {done ? '✓ Done' : '✓ Mark done'}
+                                      </button>
+                                      <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: 'transparent', borderColor: added ? '#c0392b' : 'var(--line)', color: added ? '#c0392b' : 'var(--text-muted)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
+                                        {added ? 'Remove ✕' : '+ Plan'}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
+                                        {added ? 'Remove ✕' : 'Add'}
+                                      </button>
+                                      {hks && (
+                                        <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                                          {done ? '✓ Done' : '+ Done'}
+                                        </button>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               </div>
@@ -1494,13 +1507,27 @@ export default function ScheduleBuilder({ courses = [] }) {
                                   <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                                 </div>
                                 <div className="flex shrink-0 flex-col gap-1.5">
-                                  <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
-                                    {added ? 'Remove ✕' : 'Add'}
-                                  </button>
-                                  {hks && (
-                                    <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
-                                      {done ? '✓ Done' : '+ Done'}
-                                    </button>
+                                  {/* In all-years mode: promote "Mark done" to primary, "Add" secondary */}
+                                  {searchAllYears && hks ? (
+                                    <>
+                                      <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'var(--success-soft)', borderColor: 'var(--success)', color: 'var(--success)' }} aria-label={done ? `Un-complete ${course.courseCode}` : `Mark ${course.courseCode} as completed`}>
+                                        {done ? '✓ Done' : '✓ Mark done'}
+                                      </button>
+                                      <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: 'transparent', borderColor: added ? '#c0392b' : 'var(--line)', color: added ? '#c0392b' : 'var(--text-muted)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
+                                        {added ? 'Remove ✕' : '+ Plan'}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
+                                        {added ? 'Remove ✕' : 'Add'}
+                                      </button>
+                                      {hks && (
+                                        <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                                          {done ? '✓ Done' : '+ Done'}
+                                        </button>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               </div>
