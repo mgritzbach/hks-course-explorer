@@ -920,17 +920,47 @@ export default function ScheduleBuilder({ courses = [] }) {
   // Step 2 — apply day-of-week and time-slot filters on the enriched results.
   // Courses that still have no schedule data pass through (can't exclude the unknown).
   const filteredSearchResults = useMemo(() => {
-    // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
-    // Stubs: always included in db mode; in live/All mode, also append non-HKS stubs that
-    // match the query text (stubs already deduplicate HKS courses vs API results via existingBaseIds)
-    // Stubs supplement live results for any non-HKS or all-source search with a query,
-    // and always show in db/idle mode. Stubs deduplicate vs API results via existingBaseIds.
     const hasTypedQuery = searchQ.trim().length > 0
-    const useStubs = sectionMapStubs.length > 0 && searchMode === 'live' && (
-      apiMode === 'db' ||
-      (apiMode === 'live' && (searchSource === 'All' || searchSource === 'Non-HKS') && hasTypedQuery)
-    )
-    const allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
+
+    // ── Browse mode: no typed query + live mode ─────────────────────────────
+    // Synchronously derive from liveCoursesData — avoids the race condition where
+    // the search effect fires before the Supabase fetch completes (liveCoursesData=[]).
+    // Map the semester selector to Harvard API term format (how live_courses stores it).
+    const apiTerm = semester === 'Spring' ? '2026 Spring' : semester === 'Fall' ? '2025 Fall' : '2025 January'
+    const isBrowseLiveNonHKS = !hasTypedQuery && searchMode === 'live' &&
+      (searchSource === 'Non-HKS' || searchSource === 'All') && liveCoursesData.length > 0
+
+    let allResults
+    if (isBrowseLiveNonHKS) {
+      const liveRows = liveCoursesData
+        .filter((r) => r.term === apiTerm)
+        .filter((r) => searchSource === 'Non-HKS' ? !r.is_hks : true)
+      allResults = liveRows.map((r, i) => {
+        const norm = normalizeCourse({
+          courseCode:   r.course_code || r.course_code_base,
+          title:        r.title || '',
+          instructors:  Array.isArray(r.instructors) ? r.instructors : [],
+          credits:      r.credits,
+          sections:     [],
+          meeting_days: r.meeting_days || null,
+          time_start:   r.time_start   || null,
+          time_end:     r.time_end     || null,
+          location:     r.location     || null,
+          term:         r.term         || null,
+        }, i)
+        // Mark as having live times if schedule data exists (drives sort + UI badge)
+        if (norm.meeting_days && norm.time_start) norm._hasLiveTimes = true
+        return norm
+      })
+    } else {
+      // Typed query, history mode, or HKS browse — use enrichedSearchResults + stubs
+      // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
+      const useStubs = sectionMapStubs.length > 0 && searchMode === 'live' && (
+        apiMode === 'db' ||
+        (apiMode === 'live' && (searchSource === 'All' || searchSource === 'Non-HKS') && hasTypedQuery)
+      )
+      allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
+    }
     const fromMinutes = searchTimeFrom ? minutesFromValue(searchTimeFrom) : null
     const toMinutes = searchTimeTo ? minutesFromValue(searchTimeTo) : null
     const results = allResults.filter((course) => {
@@ -966,7 +996,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (aHasTime === bHasTime) return 0
       return aHasTime ? -1 : 1
     })
-  }, [enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimeFrom, searchTimeTo, searchCredits, searchMode, searchSource, searchQ])
+  }, [liveCoursesData, enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimeFrom, searchTimeTo, searchCredits, searchMode, searchSource, searchQ, semester])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -1806,9 +1836,11 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--gold)' }}>📚 All-years mode — type a query to search Q-guide history</p>
               ) : filteredSearchResults.length > 0 && searchQ.trim() ? (
                 <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>↩ Enter to add first result{searchSource !== 'HKS' ? ' · Enter with code to manually add if not found' : ''}</p>
-              ) : !searchQ.trim() && searchSource === 'Non-HKS' ? (
+              ) : !searchQ.trim() && (searchSource === 'Non-HKS' || searchSource === 'All') && searchMode === 'live' ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-                  Type to search HBS, FAS, Law, HGSE and other Harvard schools
+                  {liveCoursesData.length > 0
+                    ? `Browsing ${semester} catalog — type to narrow`
+                    : 'Loading catalog…'}
                 </p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
