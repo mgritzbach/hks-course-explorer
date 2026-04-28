@@ -65,13 +65,6 @@ const LABEL_COLOR = { Outstanding: 'var(--success)', Excellent: 'var(--success)'
 const WORKLOAD_COLOR = { 'Very Light': 'var(--blue)', Light: 'var(--blue)', Moderate: 'var(--gold)', Heavy: 'var(--warning)', 'Very Heavy': 'var(--danger)' }
 const TERM_LABELS = { Fall: 'Fall', Spring: 'Spring', January: 'Jan' }
 const ALL_TERMS = ['Fall', 'Spring', 'January']
-const DAY_OPTIONS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-const TIME_OF_DAY_OPTIONS = [
-  { label: 'Morning', value: 'morning' },
-  { label: 'Afternoon', value: 'afternoon' },
-  { label: 'Evening', value: 'evening' },
-]
-
 function getConcentration(code) {
   const match = code?.match(/^([A-Z]+)/)
   return match ? match[1] : 'Other'
@@ -184,9 +177,6 @@ function activeFilterCount(filters) {
   if (filters.stemGroup !== 'all') count++
   if (filters.minInstructorPct !== 'any') count++
   if (filters.evalOnly) count++
-  if (filters.days?.length) count++
-  if (filters.timeOfDay?.length) count++
-  if (filters.hideNoSchedule) count++
   if (filters.year !== 'all' && (filters.terms.length !== ALL_TERMS.length || !ALL_TERMS.every((term) => filters.terms.includes(term)))) count++
   return count
 }
@@ -197,9 +187,6 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
   const reset = () => setFilters({
     year: 'all',
     terms: [...ALL_TERMS],
-    days: [],
-    timeOfDay: [],
-    hideNoSchedule: false,
     concentration: 'All',
     academicArea: 'All',
     coreFilter: 'all',
@@ -277,62 +264,6 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
                     : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
                 >
                   {TERM_LABELS[term]}
-                  {active && <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {filters.year !== 'all' && (
-        <div className="filter-section px-4 py-3">
-          <div className="mb-2 flex items-center justify-between">
-            <label className="filter-label">Days:</label>
-            <button onClick={() => update({ days: [] })} className="text-[10px] text-muted hover:text-label">All</button>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {DAY_OPTIONS.map((day) => {
-              const active = filters.days.includes(day)
-              return (
-                <button
-                  key={day}
-                  onClick={() => toggleArrayFilter('days', day)}
-                  aria-pressed={active}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors touch-manipulation min-h-[44px]"
-                  style={active
-                    ? { background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.95), rgba(132, 18, 36, 0.95))', color: '#fff' }
-                    : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
-                >
-                  {day}
-                  {active && <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {filters.year !== 'all' && (
-        <div className="filter-section px-4 py-3">
-          <div className="mb-2 flex items-center justify-between">
-            <label className="filter-label">Time of Day:</label>
-            <button onClick={() => update({ timeOfDay: [] })} className="text-[10px] text-muted hover:text-label">All</button>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {TIME_OF_DAY_OPTIONS.map((option) => {
-              const active = filters.timeOfDay.includes(option.value)
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => toggleArrayFilter('timeOfDay', option.value)}
-                  aria-pressed={active}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors touch-manipulation min-h-[44px]"
-                  style={active
-                    ? { background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.95), rgba(132, 18, 36, 0.95))', color: '#fff' }
-                    : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
-                >
-                  {option.label}
                   {active && <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
                 </button>
               )
@@ -610,9 +541,6 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
     return {
       year: rawYear && rawYear !== 'all' ? parseInt(rawYear, 10) : 'all',
       terms: [...ALL_TERMS],
-      days: [],
-      timeOfDay: [],
-      hideNoSchedule: false,
       concentration: searchParams.get('c') || 'All',
       academicArea: 'All',
       coreFilter: 'all',
@@ -697,18 +625,6 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
       if (deferredFilters.coreFilter === 'no-core' && course.is_core) return false
       if (deferredFilters.stemGroup === 'A' && course.stem_group !== 'A') return false
       if (deferredFilters.stemGroup === 'B' && course.stem_group !== 'B') return false
-      if (deferredFilters.days.length > 0) {
-        if (course.meeting_days?.length > 0) {
-          const match = deferredFilters.days.some((day) => course.meeting_days.includes(day))
-          if (!match) return false
-        }
-      }
-      if (deferredFilters.timeOfDay.length > 0 && course.meeting_time) {
-        const hour = parseInt(course.meeting_time.split(':')[0], 10)
-        const bucket = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
-        if (!deferredFilters.timeOfDay.includes(bucket)) return false
-      }
-      if (deferredFilters.hideNoSchedule && (!course.meeting_days || course.meeting_days.length === 0)) return false
       if (minPct !== null) {
         const rating = course.metrics_pct?.Instructor_Rating
         if (rating != null && rating < minPct) return false

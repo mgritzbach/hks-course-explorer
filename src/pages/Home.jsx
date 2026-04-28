@@ -56,9 +56,6 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
     concentration,
     coreFilter,
     terms,
-    days,
-    timeOfDay,
-    hideNoSchedule,
     stemGroup,
     year,
     minInstructorPct,
@@ -82,21 +79,6 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
     }
     // Always enforce term filter for non-avg mode (year pool includes all terms)
     if (!avgMode && !terms.includes(course.term)) return false
-
-    if (days && days.length > 0) {
-      if (course.meeting_days?.length > 0) {
-        const match = days.some((day) => course.meeting_days.includes(day))
-        if (!match) return false
-      }
-    }
-
-    if (timeOfDay && timeOfDay.length > 0 && course.meeting_time) {
-      const hour = parseInt(course.meeting_time.split(':')[0], 10)
-      const bucket = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
-      if (!timeOfDay.includes(bucket)) return false
-    }
-
-    if (hideNoSchedule && (!course.meeting_days || course.meeting_days.length === 0)) return false
 
     if (concentration !== 'All' && course.concentration !== concentration) return false
     if (coreFilter === 'core' && !course.is_core) return false
@@ -143,9 +125,6 @@ function countFilterBadges(filters) {
   if (filters.stemGroup !== 'all') count++
   if (filters.minInstructorPct !== 'any') count++
   if (filters.evalOnly) count++
-  if (filters.days?.length) count++
-  if (filters.timeOfDay?.length) count++
-  if (filters.hideNoSchedule) count++
   if (!isAverageYear(filters.year)) {
     if (filters.terms.length !== ALL_TERMS.length || !ALL_TERMS.every((term) => filters.terms.includes(term))) {
       count++
@@ -227,9 +206,6 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     concentration: initConc,
     coreFilter: searchParams.get('core') || 'all',
     terms: initTerms,
-    days: [],
-    timeOfDay: [],
-    hideNoSchedule: false,
     stemGroup: searchParams.get('stem') || 'all',
     year: initYear,
     minInstructorPct: searchParams.get('min_pct') || 'any',
@@ -506,9 +482,6 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
       concentration: 'All',
       coreFilter: 'all',
       terms: [...ALL_TERMS],
-      days: [],
-      timeOfDay: [],
-      hideNoSchedule: false,
       stemGroup: 'all',
       year: meta.default_year,
       minInstructorPct: 'any',

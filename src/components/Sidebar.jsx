@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
 const TERM_LABELS = { Fall: 'Fall', Spring: 'Spring', January: 'Jan' }
-const DAY_OPTIONS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-const TIME_OF_DAY_OPTIONS = [
-  { label: 'Morning', value: 'morning' },
-  { label: 'Afternoon', value: 'afternoon' },
-  { label: 'Evening', value: 'evening' },
-]
-
 
 function countActiveFilters(filters) {
   let count = 0
@@ -17,9 +10,6 @@ function countActiveFilters(filters) {
   if (filters.stemGroup !== 'all') count++
   if (filters.minInstructorPct !== 'any') count++
   if (filters.evalOnly) count++
-  if (filters.days?.length) count++
-  if (filters.timeOfDay?.length) count++
-  if (filters.hideNoSchedule) count++
   if (filters.year !== 0) {
     const allTerms = ['Fall', 'Spring', 'January']
     if (filters.terms.length !== allTerms.length || !allTerms.every((term) => filters.terms.includes(term))) {
@@ -136,9 +126,6 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       year: meta.default_year,
       minInstructorPct: 'any',
       evalOnly: false,
-      days: [],
-      timeOfDay: [],
-      hideNoSchedule: false,
     }))
   }
 
@@ -291,82 +278,6 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
               )
             })}
           </div>
-        </div>
-      )}
-
-      {filters.year !== 0 && (
-        <div className="filter-section px-4 py-3">
-          <div className="mb-2 flex items-center justify-between">
-            <label className="filter-label">Days</label>
-            <button
-              onClick={() => update({ days: [] })}
-              className="text-[10px] text-muted transition-colors hover:text-label"
-            >
-              All
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {DAY_OPTIONS.map((day) => {
-              const active = filters.days.includes(day)
-              return (
-                <button
-                  key={day}
-                  onClick={() => toggleArrayFilter('days', day)}
-                  aria-pressed={active}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all touch-manipulation min-h-[44px]"
-                  style={active
-                    ? { background: 'var(--accent)', color: '#fff8f5', border: '1px solid transparent' }
-                    : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
-                >
-                  {day}
-                  {active && <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {filters.year !== 0 && (
-        <div className="filter-section px-4 py-3">
-          <div className="mb-2 flex items-center justify-between">
-            <label className="filter-label">Time of Day</label>
-            <button
-              onClick={() => update({ timeOfDay: [] })}
-              className="text-[10px] text-muted transition-colors hover:text-label"
-            >
-              All
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {TIME_OF_DAY_OPTIONS.map((option) => {
-              const active = filters.timeOfDay.includes(option.value)
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => toggleArrayFilter('timeOfDay', option.value)}
-                  aria-pressed={active}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all touch-manipulation min-h-[44px]"
-                  style={active
-                    ? { background: 'var(--accent)', color: '#fff8f5', border: '1px solid transparent' }
-                    : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
-                >
-                  {option.label}
-                  {active && <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
-                </button>
-              )
-            })}
-          </div>
-          <label className="mt-3 flex cursor-pointer items-center gap-2.5">
-            <input
-              type="checkbox"
-              checked={filters.hideNoSchedule || false}
-              onChange={(e) => update({ hideNoSchedule: e.target.checked })}
-              className="h-3.5 w-3.5 cursor-pointer"
-              style={{ accentColor: 'var(--accent)' }}
-            />
-            <span className="text-xs text-label">Hide courses without schedule info</span>
-          </label>
         </div>
       )}
 
