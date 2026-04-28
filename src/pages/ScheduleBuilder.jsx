@@ -1384,8 +1384,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                     return (
                       <>
                         <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                          {withTime.length} with schedule
-                          {withoutTime.length > 0 ? ` · ${withoutTime.length} historical / no schedule yet` : ''}
+                          {searchAllYears ? `Q-guide: ${filteredSearchResults.length} result${filteredSearchResults.length !== 1 ? 's' : ''} across all years` : `${withTime.length} with schedule${withoutTime.length > 0 ? ` · ${withoutTime.length} historical` : ''}`}
                           {searchDays.length > 0 ? ` · ${searchDays.map(d => d[0] + d.slice(1).toLowerCase()).join('/')}` : ''}
                           {searchTimes.length > 0 ? ` · ${searchTimes.map(v => TIME_SLOTS.find(s => s.value === v)?.label).join('/')}` : ''}
                         </p>
@@ -1447,7 +1446,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                         {withoutTime.length > 0 && (
                           <div style={{ borderTop: '1px solid var(--line)', margin: '8px 0 4px', paddingTop: 8 }}>
                             <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--text-muted)' }}>
-                              Historical / no schedule data · {withoutTime.length}
+                              {searchAllYears ? `Past semesters · ${withoutTime.length}` : `Historical / no schedule · ${withoutTime.length}`}
                             </p>
                           </div>
                         )}
