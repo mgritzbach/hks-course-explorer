@@ -123,11 +123,25 @@ export async function onRequestGet({ request, env }) {
     return jsonResp({ results: [], total: 0, _note: 'API key not configured' }, 200, request)
   }
 
-  // Build upstream URL — use catalogSchool=HKS (not school=)
+  // Build upstream URL
   const upstream = new URL(UPSTREAM_BASE)
   if (q) upstream.searchParams.set('q', q)
-  upstream.searchParams.set('catalogSchool', 'HKS')
+  // School filter: HKS-only by default; Non-HKS or All searches all Harvard schools
+  const schoolParam = url.searchParams.get('school') ?? 'HKS'
+  if (schoolParam === 'HKS') {
+    upstream.searchParams.set('catalogSchool', 'HKS')
+  } else if (schoolParam !== 'Non-HKS' && schoolParam !== 'All' && schoolParam !== '') {
+    // Specific school code passed (e.g. 'FAS', 'GSE')
+    upstream.searchParams.set('catalogSchool', schoolParam)
+  }
+  // else: no catalogSchool filter → search all Harvard schools (for cross-reg)
   upstream.searchParams.set('limit', String(limit))
+  // Pass-through optional filter params from the frontend
+  const PASS_THROUGH = ['term', 'session', 'day', 'crossreg', 'instructionMode', 'unitsMin', 'unitsMax']
+  for (const key of PASS_THROUGH) {
+    const val = url.searchParams.get(key)
+    if (val != null && val !== '') upstream.searchParams.set(key, val)
+  }
 
   // Try edge cache first
   const cache = caches.default

@@ -40,7 +40,7 @@ const METRICS = [
 ]
 
 const STORAGE_VERSION = 'v2'
-const COURSES_CACHE_KEY = 'hks_courses_cache'
+const COURSES_CACHE_KEY = 'hks_courses_cache_v3'
 const COURSES_CACHE_TTL = 30 * 60 * 1000
 
 function median(values) {

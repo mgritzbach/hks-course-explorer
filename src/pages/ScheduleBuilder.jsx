@@ -48,8 +48,9 @@ function fallbackSearch(q, allCourses, filters = {}) {
       credits: Number(c.credits_min ?? c.credits_max ?? c.credits ?? 4) || 4,
       sections: [],
       meeting_days: c.meeting_days || null,
-      meeting_time: c.meeting_time || null,
-      meeting_time_end: c.meeting_time_end || null,
+      time_start: c.time_start || null,
+      time_end: c.time_end || null,
+      location: c.location || null,
       enrichment: {
         is_stem: c.is_stem,
         is_core: c.is_core,
@@ -369,9 +370,16 @@ export default function ScheduleBuilder({ courses = [] }) {
       .then((rows) => {
         const map = new Map()
         ;(Array.isArray(rows) ? rows : []).forEach((row) => {
-          if (row.course_code_base && Array.isArray(row.meetings) && row.meetings.length) {
-            map.set(row.course_code_base, row.meetings)
-          }
+          if (!row.course_code_base || !Array.isArray(row.meetings) || !row.meetings.length) return
+          const meetings = row.meetings
+          const code = row.course_code_base
+          map.set(code, meetings)
+          // "DPI-802M" → also store "DPI-802-M" so lookups for dash-form work
+          const withDash = code.replace(/([0-9])([A-Z])/, '$1-$2')
+          if (withDash !== code) map.set(withDash, meetings)
+          // Also store base prefix-number "DPI-802" as ultimate fallback
+          const base = code.replace(/-?[A-Z]+$/, '')
+          if (base !== code && !map.has(base)) map.set(base, meetings)
         })
         setSectionTimesMap(map)
         setSectionTimesLoading(false)
@@ -451,10 +459,12 @@ export default function ScheduleBuilder({ courses = [] }) {
   // This is why search cards showed "NO TIME DATA" — the map was never applied here.
   const enrichedSearchResults = useMemo(() => {
     return searchResults.map((course) => {
-      if (courseHasSchedule(course)) return course // already has time data (e.g. from Harvard API)
+      if (courseHasSchedule(course)) return course // already has time data (e.g. from Harvard API or DB)
+      const code = course.courseCode
       const meetings =
-        sectionTimesMap.get(course.courseCode) ||
-        sectionTimesMap.get(course.courseCode.split('-').slice(0, 2).join('-'))
+        sectionTimesMap.get(code) ||
+        sectionTimesMap.get(code.replace(/-[A-Z]$/, '')) ||    // strip trailing -D/-E: DPI-802-M-D → DPI-802-M
+        sectionTimesMap.get(code.split('-').slice(0, 2).join('-'))  // base: DPI-802
       if (!meetings?.length) return course // genuinely no data
       const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
       return {
@@ -468,13 +478,71 @@ export default function ScheduleBuilder({ courses = [] }) {
     })
   }, [searchResults, sectionTimesMap])
 
+  // Step 1b — generate stub courses from sectionTimesMap for courses not returned by DB search.
+  // These are currently-offered courses that exist in course_sections but not in the Q-guide.
+  // They always have time data (from sectionTimesMap) so they always appear in "offered" bucket.
+  const sectionMapStubs = useMemo(() => {
+    if (sectionTimesMap.size === 0) return []
+    const q = searchQ.trim().toLowerCase()
+    const existingCodes = new Set(searchResults.map((r) => r.courseCode))
+    const stubs = []
+    // Build a quick lookup for historical course data by normalized code
+    const histMap = new Map()
+    ;(Array.isArray(courses) ? courses : []).filter((c) => !c?.is_average).forEach((c) => {
+      const key = c.course_code_base || c.course_code
+      if (!key) return
+      const existing = histMap.get(key)
+      if (!existing || Number(c.year || 0) > Number(existing.year || 0)) histMap.set(key, c)
+    })
+    for (const [code, meetings] of sectionTimesMap.entries()) {
+      // Skip codes that are alias keys (contain digits immediately followed by a non-letter or are just prefix-number)
+      // We only want the canonical key (e.g. "IGA-109", "DPI-802M"), not aliases ("DPI-802-M", "DPI-802")
+      // Heuristic: skip entries where the code is already covered by another non-alias entry
+      if (existingCodes.has(code)) continue
+      const hks = isHksCourse(code)
+      if (searchSource === 'HKS' && !hks) continue
+      if (searchSource === 'Non-HKS' && hks) continue
+      // Text query filter — only by course code when in query mode
+      if (q && !code.toLowerCase().includes(q)) {
+        const hist = histMap.get(code)
+        if (!hist || !String(hist.course_name || '').toLowerCase().includes(q)) continue
+      }
+      const hist = histMap.get(code)
+      const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
+      stubs.push(normalizeCourse({
+        courseCode: code,
+        title: hist?.course_name || code,
+        instructors: [hist?.professor_display || hist?.professor].filter(Boolean),
+        credits: Number(hist?.credits_min ?? hist?.credits_max ?? hist?.credits ?? 4) || 4,
+        sections: [],
+        meeting_days: allDays,
+        time_start: meetings[0]?.start || '',
+        time_end: meetings[0]?.end || '',
+        location: meetings[0]?.location || '',
+        enrichment: {
+          is_stem: hist?.is_stem ?? false,
+          is_core: hist?.is_core ?? false,
+          metrics_pct: hist?.metrics_pct ?? null,
+          bid_clearing_price: hist?.bid_clearing_price ?? null,
+          last_bid_price: hist?.last_bid_price ?? null,
+        },
+        _fromSections: true,
+      }, 10000 + stubs.length))
+    }
+    return stubs
+  }, [sectionTimesMap, searchResults, searchQ, searchSource, courses])
+
   // Step 2 — apply day-of-week and time-slot filters on the enriched results.
   // Courses that still have no schedule data pass through (can't exclude the unknown).
   const filteredSearchResults = useMemo(() => {
-    const results = enrichedSearchResults.filter((course) => {
+    // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
+    // Only include stubs in browse/filter mode (browseAll or filter active, not raw text API results)
+    const useStubs = apiMode === 'db' && sectionMapStubs.length > 0
+    const allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
+    const results = allResults.filter((course) => {
       // --- Day filter ---
       if (searchDays.length > 0) {
-        const days = extractDays(course.meeting_days || course.time_start)
+        const days = extractDays(course.meeting_days)
         if (days.length > 0) {
           const upperDays = days.map((d) => String(d).toUpperCase().slice(0, 3))
           if (!searchDays.some((sd) => upperDays.includes(sd))) return false
@@ -484,7 +552,7 @@ export default function ScheduleBuilder({ courses = [] }) {
 
       // --- Time slot filter ---
       if (searchTimes.length > 0) {
-        const rawTime = course.time_start || course.meeting_time
+        const rawTime = course.time_start
         if (rawTime) {
           const hour = parseInt(String(rawTime).split(':')[0], 10)
           const matchesSlot = searchTimes.some((val) => {
@@ -498,13 +566,16 @@ export default function ScheduleBuilder({ courses = [] }) {
 
       return true
     })
-    return results.sort((a, b) => {
+    // Deduplicate by courseCode (stubs may overlap with enriched results)
+    const seen = new Set()
+    const deduped = results.filter((c) => { if (seen.has(c.courseCode)) return false; seen.add(c.courseCode); return true })
+    return deduped.sort((a, b) => {
       const aHasTime = courseHasSchedule(a) || a._hasLiveTimes
       const bHasTime = courseHasSchedule(b) || b._hasLiveTimes
       if (aHasTime === bHasTime) return 0
       return aHasTime ? -1 : 1
     })
-  }, [enrichedSearchResults, searchDays, searchTimes])
+  }, [enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimes])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -561,7 +632,11 @@ export default function ScheduleBuilder({ courses = [] }) {
     }
     // 2. Inject live section times if schedule not yet present
     if (courseHasSchedule(enriched)) return enriched
-    const meetings = sectionTimesMap.get(enriched.courseCode) || sectionTimesMap.get(enriched.courseCode.split('-').slice(0, 2).join('-'))
+    const eCode = enriched.courseCode
+    const meetings =
+      sectionTimesMap.get(eCode) ||
+      sectionTimesMap.get(eCode.replace(/-[A-Z]$/, '')) ||
+      sectionTimesMap.get(eCode.split('-').slice(0, 2).join('-'))
     if (!meetings?.length) return enriched
     const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
     return {
@@ -1250,8 +1325,8 @@ export default function ScheduleBuilder({ courses = [] }) {
                     return (
                       <>
                         <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                          {withTime.length} offered
-                          {withoutTime.length > 0 ? ` · ${withoutTime.length} not this semester` : ''}
+                          {withTime.length} with schedule
+                          {withoutTime.length > 0 ? ` · ${withoutTime.length} historical / no schedule yet` : ''}
                           {searchDays.length > 0 ? ` · ${searchDays.map(d => d[0] + d.slice(1).toLowerCase()).join('/')}` : ''}
                           {searchTimes.length > 0 ? ` · ${searchTimes.map(v => TIME_SLOTS.find(s => s.value === v)?.label).join('/')}` : ''}
                         </p>
@@ -1307,7 +1382,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                         {withoutTime.length > 0 && (
                           <div style={{ borderTop: '1px solid var(--line)', margin: '8px 0 4px', paddingTop: 8 }}>
                             <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--text-muted)' }}>
-                              Not offered this semester · {withoutTime.length}
+                              Historical / no schedule data · {withoutTime.length}
                             </p>
                           </div>
                         )}
