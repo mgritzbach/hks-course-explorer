@@ -1847,7 +1847,7 @@ export default function ScheduleBuilder({ courses = [] }) {
 
                 {/* Plan avg ratings — always visible, shows n of m courses rated per metric */}
                 <div className="mt-2 rounded-xl border px-3 py-2" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
-                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>Plan avg ratings</p>
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>Plan avg ratings <span className="normal-case font-normal" title="Based on Q-guide history for courses in this plan">(Q-guide history)</span></p>
                   <div className="flex flex-wrap gap-x-3 gap-y-1">
                     {[
                       { key: 'Instructor_Rating', label: 'Instr.' },
@@ -2135,6 +2135,8 @@ export default function ScheduleBuilder({ courses = [] }) {
                 <div className="mb-3 flex items-center gap-2">
                   <button type="button" onClick={() => toggleSection('requirements')} className="flex h-4 w-4 items-center justify-center text-[10px] transition-transform" style={{ color: 'var(--text-muted)', transform: collapsedSections.requirements ? 'rotate(-90deg)' : 'rotate(0deg)' }} aria-label="Toggle requirements">▾</button>
                   <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>Requirements</p>
+                  {progress && <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>· {programs.find(p => p.id === reqProgram)?.shortLabel || reqProgram}</span>}
+                  {progress && <span className="ml-auto text-[10px] font-semibold" style={{ color: progress.overallPercent >= 100 ? 'var(--success)' : 'var(--gold)' }}>{progress.overallAppliedCredits}/{progress.totalRequiredCredits} cr</span>}
                 </div>
                 {!collapsedSections.requirements && (
                   <>
