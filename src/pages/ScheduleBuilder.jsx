@@ -1445,7 +1445,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                   <p className="mt-1 overflow-hidden text-sm leading-5" style={{ color: hks ? 'var(--text-soft)' : 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{course.title}</p>
                                 </div>
                                 <div className="flex shrink-0 flex-col gap-1.5">
-                                  {searchAllYears && hks ? (
+                                  {searchAllYears ? (
                                     <>
                                       <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: 'var(--success-soft)', borderColor: 'var(--success)', color: 'var(--success)' }} aria-label={done ? `Un-complete ${course.courseCode}` : `Mark ${course.courseCode} as completed`}>
                                         {done ? '✓ Done' : '✓ Mark done'}
@@ -1459,11 +1459,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                                       <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
                                         {added ? 'Remove ✕' : 'Add'}
                                       </button>
-                                      {hks && (
-                                        <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
-                                          {done ? '✓ Done' : '+ Done'}
-                                        </button>
-                                      )}
+                                      <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                                        {done ? '✓ Done' : '+ Done'}
+                                      </button>
                                     </>
                                   )}
                                 </div>
@@ -1523,7 +1521,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                 </div>
                                 <div className="flex shrink-0 flex-col gap-1.5">
                                   {/* In all-years mode: promote "Mark done" to primary, "Add" secondary */}
-                                  {searchAllYears && hks ? (
+                                  {searchAllYears ? (
                                     <>
                                       <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'var(--success-soft)', borderColor: 'var(--success)', color: 'var(--success)' }} aria-label={done ? `Un-complete ${course.courseCode}` : `Mark ${course.courseCode} as completed`}>
                                         {done ? '✓ Done' : '✓ Mark done'}
@@ -1537,11 +1535,9 @@ export default function ScheduleBuilder({ courses = [] }) {
                                       <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
                                         {added ? 'Remove ✕' : 'Add'}
                                       </button>
-                                      {hks && (
-                                        <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
-                                          {done ? '✓ Done' : '+ Done'}
-                                        </button>
-                                      )}
+                                      <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                                        {done ? '✓ Done' : '+ Done'}
+                                      </button>
                                     </>
                                   )}
                                 </div>
@@ -1950,6 +1946,23 @@ export default function ScheduleBuilder({ courses = [] }) {
                               </button>
                             )
                           })}
+                        </div>
+                      )}
+                      {completedSearchQ.trim().length >= 2 && completedSearchResults.length === 0 && (
+                        <div className="mt-1.5 flex items-center justify-between rounded-xl border px-3 py-1.5 text-xs" style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Not in Q-guide history</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const code = completedSearchQ.trim().toUpperCase().replace(/\s+/g, '-')
+                              addToCompleted({ courseCode: code, title: code, credits: 4, sections: [], instructors: [], enrichment: {} })
+                              setCompletedSearchQ('')
+                            }}
+                            className="rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                            style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)', borderColor: 'color-mix(in srgb, var(--success) 35%, transparent)' }}
+                          >
+                            + Add {completedSearchQ.trim().toUpperCase().replace(/\s+/g, '-')} as done
+                          </button>
                         </div>
                       )}
                     </div>
