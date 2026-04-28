@@ -435,7 +435,10 @@ export default function ScheduleBuilder({ courses = [] }) {
           const semesterKey = semester === 'January' ? 'January' : semester
           const termYear = semester === 'Fall' || semester === 'January' ? 2025 : 2026
           const apiOptions = { term: `${termYear}${semesterKey}` }
+          // Pass school explicitly — proxy defaults to HKS if absent
           if (searchSource === 'HKS') apiOptions.school = 'HKS'
+          else if (searchSource === 'Non-HKS') apiOptions.school = 'Non-HKS'
+          else apiOptions.school = 'All'
           const remote = await searchHarvardCourses(query, apiOptions)
           if (cancelled) return
           let normalized = (Array.isArray(remote) ? remote : []).map((item, index) => normalizeCourse(item, index))
