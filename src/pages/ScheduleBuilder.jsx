@@ -212,14 +212,38 @@ function EmptyScheduleState() {
   )
 }
 
-// Term start dates: Fall 2025 = Sep 2, Spring 2026 = Jan 27
-const TERM_START = { Q1: '20250902', Q2: '20251027', FULL: '20250902', SPRING: '20260127' }
+const SEMESTER_STARTS = {
+  'Fall-Q1': '20250902',
+  'Fall-Q2': '20251027',
+  'Fall-FULL': '20250902',
+  'Spring-Q1': '20260127',
+  'Spring-Q2': '20260309',
+  'Spring-FULL': '20260127',
+  'January-FULL': '20260105',
+}
 
-function buildIcs(courses, term = 'FULL') {
+function buildIcs(courses, term = 'FULL', semester = 'Spring') {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//HKS Course Explorer//Schedule Builder//EN']
+  lines.push('BEGIN:VTIMEZONE')
+  lines.push('TZID:America/New_York')
+  lines.push('BEGIN:STANDARD')
+  lines.push('DTSTART:19671029T020000')
+  lines.push('RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=11')
+  lines.push('TZNAME:EST')
+  lines.push('TZOFFSETFROM:-0400')
+  lines.push('TZOFFSETTO:-0500')
+  lines.push('END:STANDARD')
+  lines.push('BEGIN:DAYLIGHT')
+  lines.push('DTSTART:19870405T020000')
+  lines.push('RRULE:FREQ=YEARLY;BYDAY=2SU;BYMONTH=3')
+  lines.push('TZNAME:EDT')
+  lines.push('TZOFFSETFROM:-0500')
+  lines.push('TZOFFSETTO:-0400')
+  lines.push('END:DAYLIGHT')
+  lines.push('END:VTIMEZONE')
   const dayMap = { MON: 'MO', TUE: 'TU', WED: 'WE', THU: 'TH', FRI: 'FR' }
-  const dateBase = TERM_START[term] || TERM_START.FULL
+  const dateBase = SEMESTER_STARTS[`${semester}-${term}`] || SEMESTER_STARTS['Spring-FULL']
   const weekCount = term === 'Q1' || term === 'Q2' ? 7 : 14
   courses.filter((c) => c.isOnGrid && courseHasSchedule(c)).forEach((course, index) => {
     const start = parseTimeParts(course.time_start)
@@ -230,8 +254,8 @@ function buildIcs(courses, term = 'FULL') {
     lines.push(`UID:${course.courseCode}-${index}@hks-course-explorer`)
     lines.push(`DTSTAMP:${stamp}`)
     lines.push(`SUMMARY:${String(course.courseCode).replace(/,/g, '\\,')} ${String(course.title).replace(/,/g, '\\,')}`)
-    lines.push(`DTSTART:${dateBase}T${String(start.hours).padStart(2, '0')}${String(start.minutes).padStart(2, '0')}00`)
-    lines.push(`DTEND:${dateBase}T${String(end.hours).padStart(2, '0')}${String(end.minutes).padStart(2, '0')}00`)
+    lines.push(`DTSTART;TZID=America/New_York:${dateBase}T${String(start.hours).padStart(2, '0')}${String(start.minutes).padStart(2, '0')}00`)
+    lines.push(`DTEND;TZID=America/New_York:${dateBase}T${String(end.hours).padStart(2, '0')}${String(end.minutes).padStart(2, '0')}00`)
     lines.push(`RRULE:FREQ=WEEKLY;BYDAY=${days.join(',')};COUNT=${weekCount}`)
     if (course.location) lines.push(`LOCATION:${String(course.location).replace(/,/g, '\\,')}`)
     lines.push('END:VEVENT')
@@ -281,6 +305,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searchCoreOnly, setSearchCoreOnly] = useState(false)
   const [searchSource, setSearchSource] = useState('HKS')
   const [searchMinRating, setSearchMinRating] = useState('')
+  const [browseAll, setBrowseAll] = useState(false)
   const [searchDays, setSearchDays] = useState([])
   const [searchTimes, setSearchTimes] = useState([])
   const [completedSearchQ, setCompletedSearchQ] = useState('')
@@ -325,7 +350,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     if (!supabaseUrl || !supabaseKey) return
     // Map semester label to term string stored in course_sections
     const termStr = semester === 'Spring' ? '2026Spring' : semester === 'Fall' ? '2025Fall' : '2025January'
-    fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStr}&select=course_code_base,meetings,title,instructors&limit=500`, {
+    fetch(`${supabaseUrl}/rest/v1/course_sections?term=eq.${termStr}&select=course_code_base,meetings,title,instructors&limit=2000`, {
       headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
     })
       .then((r) => r.ok ? r.json() : [])
@@ -344,13 +369,14 @@ export default function ScheduleBuilder({ courses = [] }) {
   useEffect(() => {
     const query = searchQ.trim()
     const searchFilters = { concentration: searchConcentration, stem: searchStem, coreOnly: searchCoreOnly, semester, searchSource, minRating: searchMinRating }
-    const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly || searchSource !== 'All' || searchMinRating
+    const hasFilters = (searchConcentration !== 'All') || (searchStem !== 'all') || searchCoreOnly || (searchSource === 'Non-HKS') || Boolean(searchMinRating) || browseAll
     if (!query && !hasFilters) {
       setSearching(false)
       setSearchResults([])
       return undefined
     }
     let cancelled = false
+    if (query && browseAll) setBrowseAll(false)
     const timer = window.setTimeout(async () => {
       setSearching(true)
       try {
@@ -390,7 +416,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating])
+  }, [browseAll, courses, searchQ, searchConcentration, searchStem, searchCoreOnly, searchSource, semester, searchMinRating])
 
   // TIME_SLOTS: label shown in UI → [startHour, endHour) range (24h)
   const TIME_SLOTS = [
@@ -712,7 +738,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       exportMsgTimeoutRef.current = setTimeout(() => setExportMsg(null), 3500)
       return
     }
-    const blob = buildIcs(normalizedPlanCourses, term)
+    const blob = buildIcs(normalizedPlanCourses, term, semester)
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
@@ -1200,7 +1226,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                 </div>
                                 <div className="flex shrink-0 flex-col gap-1.5">
                                   <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
-                                    {added ? 'Remove X' : 'Add'}
+                                    {added ? 'Remove ✕' : 'Add'}
                                   </button>
                                   {hks && (
                                     <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
@@ -1254,7 +1280,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                                 </div>
                                 <div className="flex shrink-0 flex-col gap-1.5">
                                   <button type="button" disabled={done} onClick={() => added ? removeCourse(course.courseCode) : addToShortlist(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default" style={{ background: added ? 'rgba(192,57,43,0.08)' : 'var(--accent-soft)', borderColor: added ? '#c0392b' : 'var(--line-strong)', color: added ? '#c0392b' : 'var(--text)' }} aria-label={added ? `Remove ${course.courseCode} from plan` : `Add ${course.courseCode} to plan`}>
-                                    {added ? 'Remove X' : 'Add'}
+                                    {added ? 'Remove ✕' : 'Add'}
                                   </button>
                                   {hks && (
                                     <button type="button" onClick={() => done ? removeFromCompleted(course.courseCode) : addToCompleted(course)} className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-[1px]" style={{ background: done ? 'var(--success-soft)' : 'transparent', borderColor: done ? 'var(--success)' : 'var(--line)', color: done ? 'var(--success)' : 'var(--text-muted)' }}>
@@ -1313,7 +1339,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                     <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Use the filters above to browse, or type to search.</p>
                     <button
                       type="button"
-                      onClick={() => setSearchSource('HKS')}
+                      onClick={() => { setSearchSource('HKS'); setBrowseAll(true) }}
                       className="rounded-full border px-4 py-2 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
                       style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--text)' }}
                     >
