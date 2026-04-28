@@ -441,6 +441,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     if (!effectiveQuery && !hasFilters) {
       setSearching(false)
       setSearchResults([])
+      setApiMode('db') // ensure stubs & schedule-loaded hint appear in idle state
       return undefined
     }
     let cancelled = false
