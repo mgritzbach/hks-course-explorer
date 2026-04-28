@@ -196,6 +196,15 @@ function isHksCourse(courseCode) {
   return HKS_PREFIXES.has(prefix)
 }
 
+// Normalise a course code to PREFIX-NUMBER for deduplication across code variants.
+// e.g. "DPI-802-M-D" → "DPI-802", "DPI-802M" → "DPI-802", "IGA-109" → "IGA-109"
+function getBaseCourseId(code) {
+  const parts = String(code || '').split('-')
+  if (parts.length < 2) return code
+  const numOnly = parts[1].replace(/[^0-9]/g, '') // strip letters: "802M" → "802"
+  return numOnly ? `${parts[0]}-${numOnly}` : code
+}
+
 const HIST_RATING_KEYS = ['Instructor_Rating', 'Course_Rating', 'Workload', 'Rigor']
 function hasMeaningfulRatings(pct) {
   return Boolean(pct && typeof pct === 'object' && HIST_RATING_KEYS.some((k) => pct[k] != null && Number(pct[k]) > 0))
@@ -487,7 +496,8 @@ export default function ScheduleBuilder({ courses = [] }) {
   const sectionMapStubs = useMemo(() => {
     if (sectionCanonicalCodes.size === 0) return []
     const q = searchQ.trim().toLowerCase()
-    const existingCodes = new Set(searchResults.map((r) => r.courseCode))
+    // Build base-ID set from DB results so DPI-802-M-D and DPI-802M both normalise to DPI-802
+    const existingBaseIds = new Set(searchResults.map((r) => getBaseCourseId(r.courseCode)))
     const stubs = []
     // Build a quick lookup for historical course data by normalized code
     const histMap = new Map()
@@ -498,7 +508,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (!existing || Number(c.year || 0) > Number(existing.year || 0)) histMap.set(key, c)
     })
     for (const code of sectionCanonicalCodes) {
-      if (existingCodes.has(code)) continue
+      if (existingBaseIds.has(getBaseCourseId(code))) continue  // already covered by DB result
       const hks = isHksCourse(code)
       if (searchSource === 'HKS' && !hks) continue
       if (searchSource === 'Non-HKS' && hks) continue
