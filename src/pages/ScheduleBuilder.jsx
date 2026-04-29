@@ -923,11 +923,12 @@ export default function ScheduleBuilder({ courses = [] }) {
       else if (searchSource === 'HBS') liveRows = liveRows.filter((r) => r.school === 'HBSD' || r.school === 'HBSM')
       else if (isSpecificSchool) liveRows = liveRows.filter((r) => r.school === searchSource)
       // else searchSource === 'All': show every school
-      // Cross-reg filter: use cross_reg_eligible field when available, else fall back to school check
+      // Cross-reg filter: API uses 'NOXREG'/'YESXREG'; empty means unknown (show by default)
       if (filterCrossRegOnly && searchSource !== 'NONH') {
         liveRows = liveRows.filter((r) => {
-          if (r.cross_reg_eligible) return r.cross_reg_eligible.toLowerCase() !== 'n'
-          return r.school !== 'NONH' // legacy fallback
+          if (r.cross_reg_eligible === 'NOXREG') return false   // explicitly not cross-reg eligible
+          if (r.school === 'NONH') return false                  // non-Harvard fallback
+          return true
         })
       }
       // Session filter (Full Term / Spring 1 / Spring 2 / January)
