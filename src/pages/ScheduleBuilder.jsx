@@ -960,7 +960,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         const days = extractDays(course.meeting_days)
         if (days.length > 0) {
           const upperDays = days.map((d) => String(d).toUpperCase().slice(0, 3))
-          if (!searchDays.some((sd) => upperDays.includes(sd))) return false
+          if (!upperDays.every((d) => searchDays.includes(d))) return false
         }
       }
       // --- Time from/to filter ---
