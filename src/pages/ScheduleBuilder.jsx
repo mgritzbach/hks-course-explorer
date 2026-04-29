@@ -285,7 +285,7 @@ function ManualCourseModal({ initial, onAdd, onClose }) {
       time_start: timeStart || null,
       time_end: timeEnd || null,
       location: location.trim() || null,
-      sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+      sessionDescription: '',
       enrichment: {
         is_stem: isStem,
         is_core: isCore,
@@ -1217,9 +1217,9 @@ export default function ScheduleBuilder({ courses = [] }) {
         is_stem: found.is_stem,
         is_core: found.is_core,
         metrics_pct: found.metrics_pct,
-        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
-      enrichment: {
-        is_stem: found.is_stem,
+        sessionDescription: '',
+        enrichment: {
+          is_stem: found.is_stem,
           is_core: found.is_core,
           metrics_pct: found.metrics_pct,
           bid_clearing_price: found.bid_clearing_price,
@@ -1233,8 +1233,8 @@ export default function ScheduleBuilder({ courses = [] }) {
         credits: 4,
         sections: [],
         instructors: [],
-        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
-      enrichment: {},
+        sessionDescription: '',
+        enrichment: {},
       })
     }
     setCompletedInput('')
