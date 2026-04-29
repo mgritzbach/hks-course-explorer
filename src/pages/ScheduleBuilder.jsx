@@ -37,6 +37,7 @@ function fallbackSearch(q, allCourses, filters = {}) {
       if (coreOnly && !c?.is_core) return false
       if (searchSource === 'HKS' && !hks) return false
       if (searchSource === 'Non-HKS' && hks) return false
+      if (searchSource !== 'HKS' && searchSource !== 'All' && searchSource !== 'Non-HKS' && searchSource) return false
       if (termFilter && (Number(c?.year) !== termFilter.year || c?.term !== termFilter.term)) return false
       if (minRating && (c?.metrics_pct?.Instructor_Rating == null || Number(c.metrics_pct.Instructor_Rating) < Number(minRating))) return false
       return true
@@ -801,7 +802,8 @@ export default function ScheduleBuilder({ courses = [] }) {
       } catch {
         if (!cancelled) {
           setApiMode('db')
-          setSearchResults(query ? fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)) : [])
+          const canFallbackToDb = searchSource === 'HKS' || searchSource === 'All'
+          setSearchResults(query && canFallbackToDb ? fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)) : [])
         }
       } finally {
         if (!cancelled) setSearching(false)
