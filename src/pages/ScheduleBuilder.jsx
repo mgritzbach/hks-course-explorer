@@ -55,7 +55,7 @@ function fallbackSearch(q, allCourses, filters = {}) {
       location: c.location || null,
       year: c.year || null,
       term: c.term || null,
-      sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+      sessionDescription: '',
       enrichment: {
         is_stem: c.is_stem,
         is_core: c.is_core,
@@ -893,7 +893,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         time_start: meetings[0]?.start || '',
         time_end: meetings[0]?.end || '',
         location: meetings[0]?.location || '',
-        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+        sessionDescription: '',
         enrichment: {
           is_stem: hist?.is_stem ?? false,
           is_core: hist?.is_core ?? false,
@@ -1139,7 +1139,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         instructors: [c.professor_display || c.professor].filter(Boolean),
         credits: 4,
         sections: [],
-        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+        sessionDescription: '',
         enrichment: {
           is_core: c.is_core,
           is_stem: c.is_stem,
