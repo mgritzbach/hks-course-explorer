@@ -960,7 +960,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       // Typed query, history mode, or HKS browse — use enrichedSearchResults + stubs
       // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
       const useStubs = sectionMapStubs.length > 0 && searchMode === 'live' && (
-        apiMode === 'db' ||
+        (apiMode === 'db' && (searchSource === 'HKS' || searchSource === 'All')) ||
         (apiMode === 'live' && (searchSource === 'All' || searchSource === 'Non-HKS') && hasTypedQuery)
       )
       allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
