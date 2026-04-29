@@ -43,16 +43,19 @@ function normalise(raw) {
       const catalog   = String(c.classCatalogNumber ?? c.catalogNumber ?? courseNum.split(' ')[1] ?? '').trim()
       const code = subject && catalog ? `${subject}-${catalog}` : courseNum.replace(/\s+/g, '-')
       return {
-        harvardId:   String(c.courseID ?? c.id ?? c.classNumber ?? ''),
-        courseCode:  code,
-        title:       String(c.courseTitle ?? c.title ?? ''),
-        term:        String(c.termDescription ?? c.term ?? ''),
-        credits:     c.classMinUnits ?? c.units ?? null,
-        instructors: (c.publishedInstructors ?? c.instructors ?? []).map(i =>
+        harvardId:          String(c.courseID ?? c.id ?? c.classNumber ?? ''),
+        courseCode:         code,
+        title:              String(c.courseTitle ?? c.title ?? ''),
+        term:               String(c.termDescription ?? c.term ?? ''),
+        credits:            c.classMinUnits ?? c.units ?? null,
+        instructors:        (c.publishedInstructors ?? c.instructors ?? []).map(i =>
           String(i.instructorName ?? i.displayName ?? i.name ?? `${i.firstName ?? ''} ${i.lastName ?? ''}`.trim())
         ).filter(Boolean),
-        description: String(c.courseDescription ?? c.description ?? ''),
-        location:    meetings[0]?.location ?? '',
+        description:        String(c.courseDescription ?? c.description ?? ''),
+        location:           meetings[0]?.location ?? '',
+        sessionCode:        String(c.sessionCode ?? ''),
+        sessionDescription: String(c.sessionDescription ?? ''),
+        crossRegEligible:   String(c.crossRegistrationEligibleAttribute ?? ''),
         sections: meetings.length ? [{
           sectionId: 'main',
           type: 'LEC',

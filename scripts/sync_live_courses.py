@@ -132,20 +132,23 @@ def normalise_course(c: dict, school: str) -> dict:
     term       = str(c.get("termDescription") or c.get("term") or "")
 
     return {
-        "id":               harvard_id or code_base,
-        "course_code":      code_base,
-        "course_code_base": code_base,
-        "title":            str(c.get("courseTitle") or c.get("title") or ""),
-        "term":             term,
-        "credits":          c.get("classMinUnits") or c.get("units"),
-        "instructors":      instructors,
-        "description":      str(c.get("courseDescription") or c.get("description") or ""),
-        "location":         meetings[0]["location"] if meetings else "",
-        "meeting_days":     all_days,
-        "time_start":       meetings[0]["start"] if meetings else "",
-        "time_end":         meetings[0]["end"]   if meetings else "",
-        "school":           school,
-        "is_hks":           school == HKS_SCHOOL,
+        "id":                  harvard_id or code_base,
+        "course_code":         code_base,
+        "course_code_base":    code_base,
+        "title":               str(c.get("courseTitle") or c.get("title") or ""),
+        "term":                term,
+        "credits":             c.get("classMinUnits") or c.get("units"),
+        "instructors":         instructors,
+        "description":         str(c.get("courseDescription") or c.get("description") or ""),
+        "location":            meetings[0]["location"] if meetings else "",
+        "meeting_days":        all_days,
+        "time_start":          meetings[0]["start"] if meetings else "",
+        "time_end":            meetings[0]["end"]   if meetings else "",
+        "school":              school,
+        "is_hks":              school == HKS_SCHOOL,
+        "session_code":        str(c.get("sessionCode") or ""),
+        "session_description": str(c.get("sessionDescription") or ""),
+        "cross_reg_eligible":  str(c.get("crossRegistrationEligibleAttribute") or ""),
     }
 
 

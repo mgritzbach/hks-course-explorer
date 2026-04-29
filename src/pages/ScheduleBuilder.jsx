@@ -601,6 +601,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [searchTimeTo, setSearchTimeTo] = useState('')     // HH:MM
   const [searchCredits, setSearchCredits] = useState('')   // '' | '2' | '3' | '4'
   const [filterCrossRegOnly, setFilterCrossRegOnly] = useState(true) // hide NONH courses by default
+  const [searchSession, setSearchSession] = useState('all') // 'all' | 'Full Term' | 'Spring 1' | 'Spring 2' | 'January'
   const [searchMode, setSearchMode] = useState('live')
   const [completedSearchQ, setCompletedSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -660,7 +661,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   useEffect(() => {
     supabase
       .from('live_courses')
-      .select('id,course_code,course_code_base,title,term,credits,instructors,meeting_days,time_start,time_end,school,is_hks')
+      .select('id,course_code,course_code_base,title,term,credits,instructors,meeting_days,time_start,time_end,school,is_hks,session_code,session_description,cross_reg_eligible')
       .order('term', { ascending: false })
       .limit(2000)
       .then(({ data }) => setLiveCoursesData(Array.isArray(data) ? data : []))
@@ -922,9 +923,16 @@ export default function ScheduleBuilder({ courses = [] }) {
       else if (searchSource === 'HBS') liveRows = liveRows.filter((r) => r.school === 'HBSD' || r.school === 'HBSM')
       else if (isSpecificSchool) liveRows = liveRows.filter((r) => r.school === searchSource)
       // else searchSource === 'All': show every school
-      // Cross-reg filter: hide NONH (non-Harvard) courses unless NONH is explicitly chosen
+      // Cross-reg filter: use cross_reg_eligible field when available, else fall back to school check
       if (filterCrossRegOnly && searchSource !== 'NONH') {
-        liveRows = liveRows.filter((r) => r.school !== 'NONH')
+        liveRows = liveRows.filter((r) => {
+          if (r.cross_reg_eligible) return r.cross_reg_eligible.toLowerCase() !== 'n'
+          return r.school !== 'NONH' // legacy fallback
+        })
+      }
+      // Session filter (Full Term / Spring 1 / Spring 2 / January)
+      if (searchSession !== 'all') {
+        liveRows = liveRows.filter((r) => r.session_description === searchSession)
       }
       allResults = liveRows.map((r, i) => {
         const norm = normalizeCourse({
@@ -1660,6 +1668,22 @@ export default function ScheduleBuilder({ courses = [] }) {
                     <option value="Summer">Summer</option>
                     <option value="January">J-Term</option>
                   </select>
+                  {/* Session filter — Full Term / Spring 1 / Spring 2 / J-Term */}
+                  {searchSource !== 'HKS' && (
+                    <select
+                      value={searchSession}
+                      onChange={(e) => setSearchSession(e.target.value)}
+                      className="rounded-xl border px-2 py-1.5 text-xs"
+                      style={{ background: 'var(--panel-soft)', borderColor: searchSession !== 'all' ? 'var(--accent)' : 'var(--line-strong)', color: 'var(--text)' }}
+                      aria-label="Session filter"
+                    >
+                      <option value="all">All sessions</option>
+                      <option value="Full Term">Full Term</option>
+                      <option value="Spring 1">Spring 1</option>
+                      <option value="Spring 2">Spring 2</option>
+                      <option value="January">January</option>
+                    </select>
+                  )}
                 </div>
                 {/* School dropdown — replaces All/HKS/Non-HKS buttons */}
                 <div className="flex gap-1.5">
@@ -1836,7 +1860,7 @@ export default function ScheduleBuilder({ courses = [] }) {
               </div>
               {/* Active filter summary + reset */}
               {(() => {
-                const hasActiveFilters = searchConcentration !== 'All' || searchStem !== 'all' || searchCoreOnly || searchSource !== 'HKS' || searchMinRating || searchDays.length > 0 || searchTimeFrom || searchTimeTo || searchCredits || searchMode !== 'live' || browseAll || semesterYear !== '2026' || semester !== 'Spring' || !filterCrossRegOnly
+                const hasActiveFilters = searchConcentration !== 'All' || searchStem !== 'all' || searchCoreOnly || searchSource !== 'HKS' || searchMinRating || searchDays.length > 0 || searchTimeFrom || searchTimeTo || searchCredits || searchMode !== 'live' || browseAll || semesterYear !== '2026' || semester !== 'Spring' || !filterCrossRegOnly || searchSession !== 'all'
                 return hasActiveFilters ? (
                   <button
                     type="button"
@@ -1855,6 +1879,7 @@ export default function ScheduleBuilder({ courses = [] }) {
                       setSemesterYear('2026')
                       setSemester('Spring')
                       setFilterCrossRegOnly(true)
+                      setSearchSession('all')
                     }}
                     className="mt-2 w-full rounded-xl border px-2 py-1 text-xs font-semibold transition-colors"
                     style={{ borderColor: 'var(--line-strong)', color: 'var(--text-muted)', background: 'var(--panel-soft)' }}
