@@ -55,7 +55,7 @@ function fallbackSearch(q, allCourses, filters = {}) {
       location: c.location || null,
       year: c.year || null,
       term: c.term || null,
-      enrichment: {
+      sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
         is_stem: c.is_stem,
         is_core: c.is_core,
         metrics_pct: c.metrics_pct,
@@ -178,6 +178,7 @@ function normalizeCourse(raw, index = 0) {
     isOnGrid: Boolean(raw?.isOnGrid),
     year: raw?.year ?? null,
     term: raw?.term ?? null,
+    sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
     enrichment: {
       is_core: Boolean(raw?.enrichment?.is_core ?? raw?.is_core),
       is_stem: Boolean(raw?.enrichment?.is_stem ?? raw?.is_stem),
@@ -283,7 +284,7 @@ function ManualCourseModal({ initial, onAdd, onClose }) {
       time_start: timeStart || null,
       time_end: timeEnd || null,
       location: location.trim() || null,
-      enrichment: {
+      sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
         is_stem: isStem,
         is_core: isCore,
         metrics_pct: null,
@@ -890,7 +891,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         time_start: meetings[0]?.start || '',
         time_end: meetings[0]?.end || '',
         location: meetings[0]?.location || '',
-        enrichment: {
+        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
           is_stem: hist?.is_stem ?? false,
           is_core: hist?.is_core ?? false,
           metrics_pct: hist?.metrics_pct ?? null,
@@ -917,13 +918,14 @@ export default function ScheduleBuilder({ courses = [] }) {
     const SPECIFIC_SCHOOLS = new Set(['HLS', 'HGSE', 'HMS', 'HSPH', 'FAS', 'GSD', 'HBS', 'HDS', 'NONH'])
     const isSpecificSchool = SPECIFIC_SCHOOLS.has(searchSource)
     const isBrowseLive = !hasTypedQuery && searchMode === 'live' &&
-      searchSource !== 'HKS' && liveCoursesData.length > 0
+      liveCoursesData.length > 0
 
     let allResults
     if (isBrowseLive) {
       let liveRows = liveCoursesData.filter((r) => r.term === apiTerm)
       // Apply school filter
-      if (searchSource === 'Non-HKS') liveRows = liveRows.filter((r) => !r.is_hks)
+      if (searchSource === 'HKS') liveRows = liveRows.filter((r) => r.is_hks)
+      else if (searchSource === 'Non-HKS') liveRows = liveRows.filter((r) => !r.is_hks)
       else if (searchSource === 'HBS') liveRows = liveRows.filter((r) => r.school === 'HBSD' || r.school === 'HBSM')
       else if (isSpecificSchool) liveRows = liveRows.filter((r) => r.school === searchSource)
       // else searchSource === 'All': show every school
@@ -964,6 +966,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         (apiMode === 'live' && (searchSource === 'All' || searchSource === 'Non-HKS') && hasTypedQuery)
       )
       allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
+      if (searchSession !== 'all') { allResults = allResults.filter((c) => c.sessionDescription === searchSession) }
     }
     const fromMinutes = searchTimeFrom ? minutesFromValue(searchTimeFrom) : null
     const toMinutes = searchTimeTo ? minutesFromValue(searchTimeTo) : null
@@ -1005,7 +1008,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (aHasTime === bHasTime) return 0
       return aHasTime ? -1 : 1
     })
-  }, [liveCoursesData, enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimeFrom, searchTimeTo, searchCredits, searchMode, searchSource, searchQ, semester, semesterYear, searchMinRating, filterCrossRegOnly])
+  }, [liveCoursesData, enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimeFrom, searchTimeTo, searchCredits, searchMode, searchSource, searchQ, semester, semesterYear, searchMinRating, searchSession, filterCrossRegOnly])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
@@ -1133,7 +1136,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         instructors: [c.professor_display || c.professor].filter(Boolean),
         credits: 4,
         sections: [],
-        enrichment: {
+        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
           is_core: c.is_core,
           is_stem: c.is_stem,
           metrics_pct: c.metrics_pct,
@@ -1210,7 +1213,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         is_stem: found.is_stem,
         is_core: found.is_core,
         metrics_pct: found.metrics_pct,
-        enrichment: {
+        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
           is_stem: found.is_stem,
           is_core: found.is_core,
           metrics_pct: found.metrics_pct,
@@ -1225,7 +1228,7 @@ export default function ScheduleBuilder({ courses = [] }) {
         credits: 4,
         sections: [],
         instructors: [],
-        enrichment: {},
+        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {},
       })
     }
     setCompletedInput('')
@@ -1678,22 +1681,21 @@ export default function ScheduleBuilder({ courses = [] }) {
                     <option value="Summer">Summer</option>
                     <option value="January">J-Term</option>
                   </select>
-                  {/* Session filter — Full Term / Spring 1 / Spring 2 / J-Term */}
-                  {searchSource !== 'HKS' && (
-                    <select
-                      value={searchSession}
-                      onChange={(e) => setSearchSession(e.target.value)}
-                      className="rounded-xl border px-2 py-1.5 text-xs"
-                      style={{ background: 'var(--panel-soft)', borderColor: searchSession !== 'all' ? 'var(--accent)' : 'var(--line-strong)', color: 'var(--text)' }}
-                      aria-label="Session filter"
-                    >
-                      <option value="all">All sessions</option>
-                      <option value="Full Term">Full Term</option>
-                      <option value="Spring 1">Spring 1</option>
-                      <option value="Spring 2">Spring 2</option>
-                      <option value="January">January</option>
-                    </select>
-                  )}
+                  <select
+                    value={searchSession}
+                    onChange={(e) => setSearchSession(e.target.value)}
+                    className="rounded-xl border px-2 py-1.5 text-xs"
+                    style={{ background: 'var(--panel-soft)', borderColor: searchSession !== 'all' ? 'var(--accent)' : 'var(--line-strong)', color: 'var(--text)' }}
+                    aria-label="Session filter"
+                  >
+                    <option value="all">All sessions</option>
+                    <option value="Full Term">Full Term</option>
+                    <option value="Spring 1">Spring 1</option>
+                    <option value="Spring 2">Spring 2</option>
+                    <option value="Fall 1">Fall 1</option>
+                    <option value="Fall 2">Fall 2</option>
+                    <option value="January">January</option>
+                  </select>
                 </div>
                 {/* School dropdown — replaces All/HKS/Non-HKS buttons */}
                 <div className="flex gap-1.5">
