@@ -766,11 +766,12 @@ export default function ScheduleBuilder({ courses = [] }) {
         if (effectiveQuery && searchMode === 'live') {
           const semesterKey = semester === 'January' ? 'January' : semester
           const apiOptions = { term: `${semesterYear}${semesterKey}` }
-          // Pass school to proxy — specific school selections use 'Non-HKS' + client-side filter
+          // Pass school to proxy — NONH/HLS/etc. pass directly; HBS needs fan-out (HBSD+HBSM)
           if (searchSource === 'HKS') apiOptions.school = 'HKS'
           else if (searchSource === 'Non-HKS') apiOptions.school = 'Non-HKS'
           else if (searchSource === 'All') apiOptions.school = 'All'
-          else apiOptions.school = 'Non-HKS' // specific school: fetch Non-HKS, filter client-side
+          else if (searchSource === 'HBS') apiOptions.school = 'Non-HKS' // HBS = HBSD+HBSM fan-out
+          else apiOptions.school = searchSource // NONH, HLS, HGSE, HMS, HSPH, FAS, GSD, HDS
           const remote = await searchHarvardCourses(effectiveQuery, apiOptions)
           if (cancelled) return
           // Proxy returns { results: [...], total: N } — extract .results array
@@ -786,9 +787,10 @@ export default function ScheduleBuilder({ courses = [] }) {
             setApiMode('live')
             setSearchResults(normalized)
           } else {
-            // API returned nothing — fall back to DB for HKS; Non-HKS browse stays empty (not in DB)
+            // API returned nothing — fall back to HKS Q-guide DB only for HKS/All; never for Non-HKS or specific schools
             setApiMode('db')
-            setSearchResults(query && searchSource !== 'Non-HKS' ? fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)) : [])
+            const canFallbackToDb = searchSource === 'HKS' || searchSource === 'All'
+            setSearchResults(query && canFallbackToDb ? fallbackSearch(query, courses, searchFilters).map((item, index) => normalizeCourse(item, index)) : [])
           }
         } else {
           // History DB search (searchMode=history + query), or filter-only mode
