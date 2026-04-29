@@ -55,7 +55,8 @@ function fallbackSearch(q, allCourses, filters = {}) {
       location: c.location || null,
       year: c.year || null,
       term: c.term || null,
-      sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
+      sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+      enrichment: {
         is_stem: c.is_stem,
         is_core: c.is_core,
         metrics_pct: c.metrics_pct,
@@ -284,7 +285,8 @@ function ManualCourseModal({ initial, onAdd, onClose }) {
       time_start: timeStart || null,
       time_end: timeEnd || null,
       location: location.trim() || null,
-      sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
+      sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+      enrichment: {
         is_stem: isStem,
         is_core: isCore,
         metrics_pct: null,
@@ -891,7 +893,8 @@ export default function ScheduleBuilder({ courses = [] }) {
         time_start: meetings[0]?.start || '',
         time_end: meetings[0]?.end || '',
         location: meetings[0]?.location || '',
-        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
+        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+        enrichment: {
           is_stem: hist?.is_stem ?? false,
           is_core: hist?.is_core ?? false,
           metrics_pct: hist?.metrics_pct ?? null,
@@ -1136,7 +1139,8 @@ export default function ScheduleBuilder({ courses = [] }) {
         instructors: [c.professor_display || c.professor].filter(Boolean),
         credits: 4,
         sections: [],
-        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
+        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+        enrichment: {
           is_core: c.is_core,
           is_stem: c.is_stem,
           metrics_pct: c.metrics_pct,
@@ -1213,8 +1217,9 @@ export default function ScheduleBuilder({ courses = [] }) {
         is_stem: found.is_stem,
         is_core: found.is_core,
         metrics_pct: found.metrics_pct,
-        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {
-          is_stem: found.is_stem,
+        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+      enrichment: {
+        is_stem: found.is_stem,
           is_core: found.is_core,
           metrics_pct: found.metrics_pct,
           bid_clearing_price: found.bid_clearing_price,
@@ -1228,7 +1233,8 @@ export default function ScheduleBuilder({ courses = [] }) {
         credits: 4,
         sections: [],
         instructors: [],
-        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? ',`r`n    enrichment: {},
+        sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+      enrichment: {},
       })
     }
     setCompletedInput('')
