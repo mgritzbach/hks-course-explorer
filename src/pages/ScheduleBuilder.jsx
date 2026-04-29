@@ -37,7 +37,7 @@ function fallbackSearch(q, allCourses, filters = {}) {
       if (coreOnly && !c?.is_core) return false
       if (searchSource === 'HKS' && !hks) return false
       if (searchSource === 'Non-HKS' && hks) return false
-      if (searchSource !== 'HKS' && searchSource !== 'All' && searchSource !== 'Non-HKS' && searchSource) return false
+  if (!allYears && searchSource !== 'HKS' && searchSource !== 'All' && searchSource !== 'Non-HKS' && searchSource) return false
       if (termFilter && (Number(c?.year) !== termFilter.year || c?.term !== termFilter.term)) return false
       if (minRating && (c?.metrics_pct?.Instructor_Rating == null || Number(c.metrics_pct.Instructor_Rating) < Number(minRating))) return false
       return true
@@ -989,6 +989,11 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (searchCredits && course.credits != null) {
         if (Number(course.credits) !== Number(searchCredits)) return false
       }
+      // --- Instructor rating percentile filter ---
+      if (searchMinRating) {
+        const pct = course.enrichment?.metrics_pct?.Instructor_Rating
+        if (pct == null || Number(pct) < Number(searchMinRating)) return false
+      }
       return true
     })
     // Deduplicate by courseCode (stubs may overlap with enriched results)
@@ -1000,7 +1005,7 @@ export default function ScheduleBuilder({ courses = [] }) {
       if (aHasTime === bHasTime) return 0
       return aHasTime ? -1 : 1
     })
-  }, [liveCoursesData, enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimeFrom, searchTimeTo, searchCredits, searchMode, searchSource, searchQ, semester, semesterYear, filterCrossRegOnly])
+  }, [liveCoursesData, enrichedSearchResults, sectionMapStubs, apiMode, searchDays, searchTimeFrom, searchTimeTo, searchCredits, searchMode, searchSource, searchQ, semester, semesterYear, searchMinRating, filterCrossRegOnly])
 
   const concentrationOptions = useMemo(() => {
     const seen = new Set()
