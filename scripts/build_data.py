@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -9,6 +10,7 @@ import math
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_CSV = ROOT / "data" / "canonical_courses_enriched.csv"
 OUTPUT_JSON = ROOT / "public" / "courses.json"
+SIM_HASH_FILE = ROOT / "public" / ".sim_coords_hash"
 
 # Core course codes — backfill is_core=True for any year where the CSV column
 # is missing (data source didn't tag 2024+ rows).
@@ -565,42 +567,50 @@ def main():
         if not course.get("meeting_time_end") and override.get("meeting_time_end"):
             course["meeting_time_end"] = override["meeting_time_end"]
 
-    # Compute similarity map coordinates (3 variants)
-    print("Computing similarity map coordinates (combined / ratings / text)...")
-    sim_coords = compute_all_similarity_coords(courses)
+    # --- Similarity map: only recompute when source data changes ---
+    SIM_JSON = ROOT / "public" / "sim_coords.json"
+    SIM_SRC  = ROOT / "src" / "data" / "sim_coords.json"
+
+    csv_hash = hashlib.md5(SOURCE_CSV.read_bytes()).hexdigest()
+    cached_hash = SIM_HASH_FILE.read_text(encoding="utf-8").strip() if SIM_HASH_FILE.exists() else ""
+    sim_coords_cached = SIM_JSON.exists() and csv_hash == cached_hash
+
+    if sim_coords_cached:
+        print("Similarity coords up-to-date (source unchanged) — loading from cache")
+        existing = json.loads(SIM_JSON.read_text(encoding="utf-8"))
+        sim_coords = {entry["id"]: {"x": entry["sim_x"], "y": entry["sim_y"]} for entry in existing}
+    else:
+        print("Computing similarity map coordinates (combined / ratings / text)...")
+        sim_coords = compute_all_similarity_coords(courses)
+        sim_slim = [
+            {
+                "id":            course["id"],
+                "course_code":   course.get("course_code"),
+                "course_name":   course.get("course_name"),
+                "professor_display": course.get("professor_display"),
+                "concentration": course.get("concentration"),
+                "is_stem":       course.get("is_stem", False),
+                "sim_x":         c["x"],
+                "sim_y":         c["y"],
+                "sim_x_ratings": c["x_ratings"],
+                "sim_y_ratings": c["y_ratings"],
+                "sim_x_text":    c["x_text"],
+                "sim_y_text":    c["y_text"],
+            }
+            for course in courses
+            if (c := sim_coords.get(course["id"]))
+        ]
+        sim_json_str = json.dumps(sim_slim, ensure_ascii=False, separators=(",", ":"))
+        SIM_JSON.write_text(sim_json_str, encoding="utf-8")
+        SIM_SRC.parent.mkdir(parents=True, exist_ok=True)
+        SIM_SRC.write_text(sim_json_str, encoding="utf-8")
+        SIM_HASH_FILE.write_text(csv_hash, encoding="utf-8")
+        print(f"Wrote {len(sim_slim)} sim coords to {SIM_JSON} and {SIM_SRC}")
+
     for course in courses:
         c = sim_coords.get(course["id"])
-        course["sim_x"] = c["x"]          if c else None
-        course["sim_y"] = c["y"]          if c else None
-    print(f"Similarity coords computed for {len(sim_coords)} courses")
-
-    # Write slim sim_coords.json for the CourseMap component
-    sim_slim = [
-        {
-            "id":           course["id"],
-            "course_code":  course.get("course_code"),
-            "course_name":  course.get("course_name"),
-            "professor_display": course.get("professor_display"),
-            "concentration": course.get("concentration"),
-            "is_stem":      course.get("is_stem", False),
-            "sim_x":        c["x"],
-            "sim_y":        c["y"],
-            "sim_x_ratings": c["x_ratings"],
-            "sim_y_ratings": c["y_ratings"],
-            "sim_x_text":   c["x_text"],
-            "sim_y_text":   c["y_text"],
-        }
-        for course in courses
-        if (c := sim_coords.get(course["id"]))
-    ]
-    sim_json_str = json.dumps(sim_slim, ensure_ascii=False, separators=(",", ":"))
-    SIM_JSON = ROOT / "public" / "sim_coords.json"
-    SIM_JSON.write_text(sim_json_str, encoding="utf-8")
-    # Also write to src/data/ so CourseMap can import it statically (no fetch required)
-    SIM_SRC = ROOT / "src" / "data" / "sim_coords.json"
-    SIM_SRC.parent.mkdir(parents=True, exist_ok=True)
-    SIM_SRC.write_text(sim_json_str, encoding="utf-8")
-    print(f"Wrote {len(sim_slim)} sim coords to {SIM_JSON} and {SIM_SRC}")
+        course["sim_x"] = c["x"] if c else None
+        course["sim_y"] = c["y"] if c else None
 
     payload = {"courses": courses, "meta": meta_from_courses(courses)}
     OUTPUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

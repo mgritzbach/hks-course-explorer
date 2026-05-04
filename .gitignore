@@ -13,3 +13,6 @@ data/*.bak*
 scripts/supabase_rows.json
 data/duplicate_analysis.py
 data/duplicate_report.txt
+
+# Similarity map build cache
+public/.sim_coords_hash
