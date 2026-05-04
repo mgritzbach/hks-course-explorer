@@ -4,7 +4,7 @@ import { loadPlan, savePlan, PLANS, DEFAULT_PLAN, loadCompleted, saveCompleted }
 import { computeProgress, getPrograms } from '../lib/requirementsEngine'
 import { searchHarvardCourses } from '../lib/harvardApi'
 import { useFavorites } from '../useFavorites'
-import { supabase } from '../lib/supabase.js'
+import { useScheduleData } from '../hooks/useScheduleData.js'
 
 const GRID_START = 480
 const GRID_END = 1170
@@ -83,7 +83,7 @@ function normalizeDayToken(token) {
 
 function extractDays(value) {
   if (!value) return []
-  const parts = String(value).trim().replace(/&/g, '/').replace(/,/g, '/').split(/[\/\s]+/).filter(Boolean)
+  const parts = String(value).trim().replace(/&/g, '/').replace(/,/g, '/').split(/[/\s]+/).filter(Boolean)
   const days = new Set()
   parts.forEach((part) => {
     const direct = normalizeDayToken(part)
@@ -585,13 +585,13 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [planData, setPlanData] = useState(() => loadPlan(DEFAULT_PLAN))
   const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
   const [completedInput, setCompletedInput] = useState('')
-  const [sectionTimesMap, setSectionTimesMap] = useState(new Map()) // courseCodeBase (+ aliases) → meetings[]
-  const [sectionCanonicalCodes, setSectionCanonicalCodes] = useState(new Set()) // original codes only (no aliases)
-  const [sectionInfoMap, setSectionInfoMap] = useState(new Map()) // courseCodeBase → { title, instructors } from course_sections
-  const [liveCoursesData, setLiveCoursesData] = useState([])     // rows from live_courses table (all schools)
   const [term, setTerm] = useState('FULL')
   const [semesterYear, setSemesterYear] = useState('2026')
   const [semester, setSemester] = useState('Spring') // Spring | Fall | Summer | January
+
+  // All Supabase fetching is handled by this hook (see src/hooks/useScheduleData.js)
+  const { liveCoursesData, sectionTimesMap, sectionCanonicalCodes, sectionInfoMap, sectionTimesLoading } =
+    useScheduleData(semesterYear, semester)
   const [showWeekends, setShowWeekends] = useState(false)
   const [searchQ, setSearchQ] = useState('')
   const [searchConcentration, setSearchConcentration] = useState('All')
@@ -610,7 +610,7 @@ export default function ScheduleBuilder({ courses = [] }) {
   const [completedSearchQ, setCompletedSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
-  const [sectionTimesLoading, setSectionTimesLoading] = useState(false)
+  // sectionTimesLoading comes from useScheduleData hook above
   const [apiMode, setApiMode] = useState('unknown') // 'live' | 'db' | 'unknown'
   const [expandedBlock, setExpandedBlock] = useState(null)
   const [reqProgram, setReqProgram] = useState(() => getPrograms()[0]?.id || '')
@@ -657,65 +657,7 @@ export default function ScheduleBuilder({ courses = [] }) {
     }
   }, [])
 
-  // ── (a) Fetch live_courses ONCE on mount (all terms, semester-independent) ──
-  // Uses hardcoded-credential supabase client so it always works in Cloudflare Pages.
-  // We fetch ALL terms up-front; term filtering happens client-side in filteredSearchResults.
-  // Keeping this separate from course_sections prevents liveCoursesData from flashing
-  // empty when the user changes semester (which was causing Non-HKS browse to disappear).
-  useEffect(() => {
-    supabase
-      .from('live_courses')
-      .select('id,course_code,course_code_base,title,term,credits,instructors,meeting_days,time_start,time_end,school,is_hks,session_code,session_description,cross_reg_eligible')
-      .order('term', { ascending: false })
-      .limit(2000)
-      .then(({ data }) => setLiveCoursesData(Array.isArray(data) ? data : []))
-      .catch(() => {})
-  }, []) // run once — all terms are fetched; client-side filter picks the right semester
-
-  // ── (b) Fetch course_sections on semester/year change ──
-  // course_sections holds HKS schedule data (meeting times) for a specific semester.
-  // Uses our internal term format without space: '2026Spring', '2025Fall', etc.
-  useEffect(() => {
-    setSectionTimesMap(new Map())
-    setSectionCanonicalCodes(new Set())
-    setSectionInfoMap(new Map())
-    setSectionTimesLoading(true)
-    const termStrInternal = `${semesterYear}${semester === 'January' ? 'January' : semester}`
-    supabase
-      .from('course_sections')
-      .select('course_code_base,meetings,title,instructors,credits')
-      .eq('term', termStrInternal)
-      .limit(2000)
-      .then(({ data }) => {
-        const sectionRows = data || []
-        const map = new Map()
-        const canonical = new Set()
-        const infoMap = new Map()
-        ;(Array.isArray(sectionRows) ? sectionRows : []).forEach((row) => {
-          if (!row.course_code_base || !Array.isArray(row.meetings) || !row.meetings.length) return
-          const meetings = row.meetings
-          const code = row.course_code_base
-          map.set(code, meetings)
-          canonical.add(code)
-          if (row.title || row.instructors?.length || row.credits != null) {
-            infoMap.set(code, {
-              title: row.title || null,
-              instructors: Array.isArray(row.instructors) ? row.instructors : [],
-              credits: row.credits != null ? Number(row.credits) : null,
-            })
-          }
-          const withDash = code.replace(/([0-9])([A-Z])/, '$1-$2')
-          if (withDash !== code) map.set(withDash, meetings)
-          const base = code.replace(/-?[A-Z]+$/, '')
-          if (base !== code && !map.has(base)) map.set(base, meetings)
-        })
-        setSectionTimesMap(map)
-        setSectionCanonicalCodes(canonical)
-        setSectionInfoMap(infoMap)
-        setSectionTimesLoading(false)
-      })
-      .catch(() => setSectionTimesLoading(false))
-  }, [semesterYear, semester])
+  // live_courses and course_sections are fetched by useScheduleData (imported above)
 
   useEffect(() => {
     const query = searchQ.trim()
