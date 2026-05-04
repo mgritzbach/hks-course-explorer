@@ -519,12 +519,77 @@ def build_course(row, latest_bid_lookup):
     }
 
 
+def validate_rows(rows):
+    """
+    Sanity-check raw CSV rows before processing.
+    Raises ValueError with a clear message if anything looks wrong.
+    Prints a warning summary for recoverable issues (missing optional fields).
+    """
+    errors = []
+    warnings = []
+    VALID_TERMS = {"Fall", "Spring", "January", "Average", ""}
+    REQUIRED_FIELDS = ["course_code", "course_name", "professor", "year", "term"]
+
+    for i, row in enumerate(rows, start=2):  # row 1 is the header
+        code = row.get("course_code", "").strip()
+        label = f"Row {i} ({code or 'no code'})"
+
+        # Required fields must not be blank
+        for field in REQUIRED_FIELDS:
+            if not row.get(field, "").strip():
+                # course_name and professor are soft warnings (averaged rows can lack them)
+                if field in ("course_name", "professor"):
+                    warnings.append(f"{label}: missing '{field}'")
+                else:
+                    errors.append(f"{label}: required field '{field}' is blank")
+
+        # Year must parse to a 4-digit integer if present (CSV may store as float e.g. "2023.0")
+        # Average/aggregate rows intentionally have year=0 — skip range check for those
+        year_str = row.get("year", "").strip()
+        is_avg = row.get("is_average", "").strip().lower() in ("true", "1", "yes")
+        if year_str and not is_avg:
+            try:
+                year_int = int(float(year_str))
+                if year_int != 0 and not (1900 <= year_int <= 2100):
+                    errors.append(f"{label}: year {year_int} out of expected range [1900, 2100]")
+            except ValueError:
+                errors.append(f"{label}: invalid year '{year_str}' (cannot parse as number)")
+
+        # Term must be a known value if present
+        term = row.get("term", "").strip()
+        if term and term not in VALID_TERMS:
+            warnings.append(f"{label}: unexpected term '{term}'")
+
+        # Ratings must be 1–5 if present
+        for rating_key in ("Instructor_Rating", "Course_Rating", "Workload"):
+            val_str = row.get(rating_key, "").strip()
+            if val_str:
+                try:
+                    val = float(val_str)
+                    if not (0.0 <= val <= 5.0):
+                        errors.append(f"{label}: {rating_key}={val} out of range [0, 5]")
+                except ValueError:
+                    errors.append(f"{label}: {rating_key}='{val_str}' is not a number")
+
+    if warnings:
+        print(f"  Validation: {len(warnings)} warnings (e.g. {warnings[0]})")
+    if errors:
+        error_list = "\n  ".join(errors[:20])
+        raise ValueError(
+            f"Data validation failed with {len(errors)} error(s):\n  {error_list}"
+            + ("\n  (+ more)" if len(errors) > 20 else "")
+        )
+
+
 def main():
     if not SOURCE_CSV.exists():
         raise FileNotFoundError(f"Canonical CSV not found: {SOURCE_CSV}")
 
     with SOURCE_CSV.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle, delimiter=";"))
+
+    print(f"Validating {len(rows)} rows...")
+    validate_rows(rows)
 
     fill_average_bid_fields(rows)
 
