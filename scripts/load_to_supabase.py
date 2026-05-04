@@ -115,20 +115,54 @@ def main():
     if not courses:
         sys.exit("ERROR: No courses found in courses.json")
 
+    # Sanity check: warn if course count looks unexpectedly low
+    EXPECTED_MIN = 5000
+    if len(courses) < EXPECTED_MIN:
+        print(f"WARNING: Only {len(courses)} courses loaded — expected at least {EXPECTED_MIN}.")
+        print("         Verify courses.json is up-to-date before continuing.")
+        answer = input("Continue anyway? [y/N] ").strip().lower()
+        if answer != "y":
+            sys.exit("Aborted.")
+
     print(f"Loaded {len(courses)} courses from {COURSES_JSON}")
     print(f"Upserting to Supabase ({SUPABASE_URL}) in batches of {BATCH_SIZE}…")
 
     rows = [prepare_row(c) for c in courses]
-
     total_upserted = 0
+    failed_batches = []
+
     for start in range(0, len(rows), BATCH_SIZE):
         batch = rows[start : start + BATCH_SIZE]
-        result = client.table("courses").upsert(batch, on_conflict="id").execute()
-        total_upserted += len(batch)
-        pct = int(total_upserted / len(rows) * 100)
-        print(f"  {total_upserted}/{len(rows)} ({pct}%)", end="\r", flush=True)
+        batch_num = start // BATCH_SIZE + 1
+        try:
+            client.table("courses").upsert(batch, on_conflict="id").execute()
+            total_upserted += len(batch)
+            pct = int(total_upserted / len(rows) * 100)
+            print(f"  {total_upserted}/{len(rows)} ({pct}%)", end="\r", flush=True)
+        except Exception as exc:
+            failed_batches.append((batch_num, start, str(exc)))
+            print(f"\n  ERROR in batch {batch_num} (rows {start}–{start + len(batch)}): {exc}")
 
-    print(f"\nDone. {total_upserted} rows upserted successfully.")
+    print(f"\nDone. {total_upserted}/{len(rows)} rows upserted.")
+
+    if failed_batches:
+        print(f"\n⚠ {len(failed_batches)} batch(es) failed:")
+        for num, start_row, err in failed_batches:
+            print(f"  Batch {num} (starting row {start_row}): {err}")
+        sys.exit(f"ERROR: {len(failed_batches)} batch(es) failed — check errors above.")
+
+    # Verify final count in Supabase matches what we sent
+    try:
+        result = client.table("courses").select("id", count="exact").execute()
+        db_count = result.count
+        if db_count is not None and abs(db_count - len(rows)) > 10:
+            print(f"WARNING: Supabase reports {db_count} rows but we upserted {len(rows)}.")
+            print("         There may be stale rows from a previous dataset version.")
+        else:
+            print(f"Verified: {db_count} rows in Supabase.")
+    except Exception as exc:
+        print(f"Could not verify row count: {exc}")
+
     print(f"Supabase project: {SUPABASE_URL}")
 
 
