@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import { fmtShort, modeSubLabel, modeUnit } from '../utils/formatMetric.js'
+import config from '../school.config.js'
 
 const FACULTY_TOUR_STEPS = [
   {
@@ -185,7 +186,7 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
   const drawerTouchStartRef = useRef(null)
 
   useEffect(() => { const professor = searchParams.get('prof'); if (professor) setSelectedProf(professor) }, [searchParams])
-  useEffect(() => { document.title = 'HKS Faculty Explorer' }, [])
+  useEffect(() => { document.title = config.schoolCode + ' Faculty Explorer' }, [])
 
   // "/" shortcut to focus faculty search
   const facultySearchRef = useRef(null)
@@ -409,7 +410,7 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
 
       <main data-tour="faculty-detail" className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-8 md:py-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-          <div><p className="kicker mb-2">Teaching lens</p><h2 className="serif-display text-3xl font-semibold md:text-[2.4rem]" style={{ color: 'var(--text)' }}>Faculty Explorer</h2><p className="mt-2 text-xs text-muted md:text-sm">Browse teaching history and weighted rating averages for HKS instructors.</p></div>
+          <div><p className="kicker mb-2">Teaching lens</p><h2 className="serif-display text-3xl font-semibold md:text-[2.4rem]" style={{ color: 'var(--text)' }}>Faculty Explorer</h2><p className="mt-2 text-xs text-muted md:text-sm">Browse teaching history and weighted rating averages for {config.schoolCode} instructors.</p></div>
           <button onClick={() => setSidebarOpen(true)} className="rounded-full border px-3 py-2 text-xs font-medium text-label md:hidden" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', minHeight: 44 }}>Browse Faculty{activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear }) > 0 ? ` (${activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })})` : ''}</button>
         </div>
 
@@ -485,7 +486,7 @@ export default function Faculty({ courses, meta, metricMode = 'score', setMetric
             </div>
           </div>
 
-          <div className="app-footer mt-8">HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach<span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span></a> VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}</div>
+          <div className="app-footer mt-8">{config.appTitle} by <a href={config.creatorUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach<span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span></a> {config.creatorDegrees} · {new Date().getFullYear()}</div>
         </>}
       </main>
     </div>

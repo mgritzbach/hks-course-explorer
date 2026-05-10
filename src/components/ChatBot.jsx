@@ -1,8 +1,7 @@
 import posthog from 'posthog-js'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-
-const WELCOME = "Hi! I'm your HKS course advisor. Tell me what you're looking for — topic, workload, instructor, bidding pressure — and I'll find the best matches from the course catalog."
+import config from '../school.config.js'
 
 function dedupeCourseSummaries(items, limit = 30) {
   const seen = new Set()
@@ -85,12 +84,12 @@ export default function ChatBot({ courses, favs, isLight = false }) {
   useEffect(() => {
     if (isHidden || !open) return
     if (messages.length === 0) {
-      setMessages([{ role: 'assistant', content: WELCOME }])
+      setMessages([{ role: 'assistant', content: config.chatWelcome }])
       posthog.capture('chatbot_opened')
     }
     const timer = setTimeout(() => inputRef.current?.focus(), 120)
     return () => clearTimeout(timer)
-  }, [open, isHidden]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, isHidden])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -167,7 +166,9 @@ export default function ChatBot({ courses, favs, isLight = false }) {
                 return updated
               })
             }
-          } catch {}
+          } catch {
+            // Ignore stream parsing errors
+          }
         }
       }
 
@@ -226,7 +227,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
             <span style={{ fontSize: 16, color: 'var(--accent)' }}>✦</span>
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Course Advisor</p>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>AI · HKS course data · free</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{config.chatFootnote}</p>
             </div>
             <button
               onClick={() => setOpen(false)}

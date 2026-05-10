@@ -17,6 +17,7 @@ import {
   SCHEDULE_TOUR,
   TOUR_NAMES,
 } from '../lib/tourIds.js'
+import config from '../school.config.js'
 
 const TOUR_STORAGE_PREFIX = 'hks-tour-seen-'
 const SPOTLIGHT_PADDING = 8
@@ -103,7 +104,7 @@ const TOURS = {
     {
       id: SCHEDULE_TOUR.SEARCH_PANEL,
       title: 'Search and add candidate courses',
-      body: 'HKS courses are shown by default. Toggle the source filter to include cross-registration courses from other Harvard schools.',
+      body: config.tutorialSourceHint,
     },
     {
       id: SCHEDULE_TOUR.GRID,

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useDeferredValue, useMemo, useRef, useState } f
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 import OnboardingTour from '../components/OnboardingTour.jsx'
-import { formatMetric, fmtShort, modeUnit } from '../utils/formatMetric.js'
+import { fmtShort, modeUnit } from '../utils/formatMetric.js'
 import { DEFAULT_PLAN, loadPlan, savePlan } from '../lib/scheduleStorage.js'
+import config from '../school.config.js'
 
 const COURSES_TOUR_STEPS = [
   {
@@ -201,7 +202,7 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
     if (next.length > 0) update({ terms: next })
   }
 
-  const toggleArrayFilter = (key, value) => {
+  const _toggleArrayFilter = (key, value) => {
     const currentValues = filters[key] || []
     const nextValues = currentValues.includes(value)
       ? currentValues.filter((item) => item !== value)
@@ -560,7 +561,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
       else next.delete('c')
       return next
     }, { replace: true })
-  }, [filters.year, filters.concentration]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters.year, filters.concentration])
 
   // Sync search query to URL (debounce-style: only write non-empty values)
   useEffect(() => {
@@ -570,7 +571,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
       else next.delete('q')
       return next
     }, { replace: true })
-  }, [query]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [query])
 
   useEffect(() => {
     const id = searchParams.get('id')
@@ -597,7 +598,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
   }, [selected])
 
   useEffect(() => {
-    document.title = 'HKS Course Explorer'
+    document.title = config.appTitle
   }, [])
 
   const allOptions = useMemo(() => {
@@ -1278,7 +1279,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'score', set
           </div>
         )}
 
-        <div className="app-footer mt-8">HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach<span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span></a> VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}</div>
+        <div className="app-footer mt-8">{config.appTitle} by <a href={config.creatorUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach<span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span></a> {config.creatorDegrees} · {new Date().getFullYear()}</div>
       </main>
     </div>
   )

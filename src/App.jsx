@@ -1,6 +1,7 @@
 import posthog from 'posthog-js'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { NavLink, Route, Routes } from 'react-router-dom'
+import config from './school.config.js'
 
 // Hidden routes — not linked from nav, accessible by direct URL only
 const ScheduleBuilder = lazy(() => import('./pages/ScheduleBuilder.jsx'))
@@ -83,11 +84,15 @@ async function fetchAllCoursesWithCache(onProgress) {
         return cached.data
       }
     }
-  } catch (e) {}
+  } catch (_e) {
+    // Ignore cache read errors
+  }
   const courses = await fetchAllCourses(onProgress)
   try {
     localStorage.setItem(COURSES_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: courses }))
-  } catch (e) {}
+  } catch (_e) {
+    // Ignore cache write errors
+  }
   return courses
 }
 
@@ -149,7 +154,7 @@ function NavResourcesSection() {
         onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
       >
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)' }}>
-          🔗 HKS Resources
+          🔗 {config.schoolCode} Resources
         </span>
         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
       </button>
@@ -248,7 +253,9 @@ export default function App() {
           savedAt: new Date().toISOString(),
           plans: backup,
         }))
-      } catch {}
+      } catch {
+        // Ignore backup save errors
+      }
     }
 
     window.localStorage.removeItem('hks_plan_A')
@@ -343,7 +350,7 @@ export default function App() {
           <div className="mb-4 flex items-center gap-3">
             <div className="spinner" />
             <div>
-              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Loading HKS Course Explorer</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Loading {config.appTitle}</p>
               <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                 {loadCount > 0 ? `${loadCount.toLocaleString()} courses loaded…` : 'Connecting to database…'}
               </p>
@@ -420,7 +427,9 @@ export default function App() {
       setShareCopied(true)
       if (shareToastTimeoutRef.current) clearTimeout(shareToastTimeoutRef.current)
       shareToastTimeoutRef.current = setTimeout(() => setShareCopied(false), 1800)
-    } catch {}
+    } catch {
+      // Ignore clipboard errors
+    }
   }
 
   const handleExportShortlist = () => {
@@ -552,7 +561,7 @@ export default function App() {
             <span style={{ color: '#fff', fontSize: 13, fontWeight: 800, fontFamily: 'Georgia, serif' }}>H</span>
           </div>
           <div>
-            <p className="text-sm font-bold leading-none" style={{ color: 'var(--text)', fontFamily: 'Georgia, serif' }}>HKS Course Explorer</p>
+            <p className="text-sm font-bold leading-none" style={{ color: 'var(--text)', fontFamily: 'Georgia, serif' }}>{config.appTitle}</p>
             <p className="mt-0.5 text-[10px] leading-none" style={{ color: 'var(--text-muted)' }}>Independent student tool</p>
           </div>
         </div>
@@ -730,8 +739,8 @@ export default function App() {
         {/* Brand block */}
         <div className="mb-4 rounded-[22px] border px-4 pb-4 pt-5" style={{ borderColor: 'var(--line)', background: 'linear-gradient(180deg, rgba(165, 28, 48, 0.14), var(--panel-subtle))' }}>
           <p className="kicker">Harvard-inspired</p>
-          <p className="serif-display mt-2 text-2xl font-semibold" style={{ color: 'var(--text)' }}>HKS</p>
-          <p className="text-xs" style={{ color: 'var(--text-soft)' }}>Course Explorer</p>
+          <p className="serif-display mt-2 text-2xl font-semibold" style={{ color: 'var(--text)' }}>{config.schoolCode}</p>
+          <p className="text-xs" style={{ color: 'var(--text-soft)' }}>{config.appTitle.replace(`${config.schoolCode} `, '')}</p>
           <p className="mt-3 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
             Crafted independently for Harvard Kennedy School students.
           </p>

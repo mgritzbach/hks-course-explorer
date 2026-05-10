@@ -12,60 +12,18 @@ SOURCE_CSV = ROOT / "data" / "canonical_courses_enriched.csv"
 OUTPUT_JSON = ROOT / "public" / "courses.json"
 SIM_HASH_FILE = ROOT / "public" / ".sim_coords_hash"
 
-# Core course codes — backfill is_core=True for any year where the CSV column
-# is missing (data source didn't tag 2024+ rows).
-CORE_COURSE_CODES = {
-    "API-101", "API-102", "API-201", "API-202", "API-202-M",
-    "API-501", "API-502",
-    "DPI-200", "DPI-201", "DPI-202", "DPI-202-M",
-    "DPI-385-M", "DPI-386-M",
-    "MLD-220-M", "MLD-221", "MLD-222-M",
-}
+# Load school-specific config from data/school_config.json
+# Forks replace that file — no changes to this script needed.
+_school_cfg_path = ROOT / "data" / "school_config.json"
+if not _school_cfg_path.exists():
+    raise FileNotFoundError(f"school_config.json not found at {_school_cfg_path}. See FORK.md.")
+with _school_cfg_path.open(encoding="utf-8") as _f:
+    _school_cfg = json.load(_f)
 
-# Maps old course_code_base values to their current canonical equivalent.
-# Rows with an old code get historical_code=<old> and canonical_code_base=<new>.
+CORE_COURSE_CODES  = set(_school_cfg.get("core_course_codes", []))
 HISTORICAL_CODE_MAP = {
-    # PED → DEV (Development dept renamed ~2017)
-    "PED-250":    "DEV-250",
-    "PED-130":    "DEV-130",
-    "PED-210":    "DEV-210",
-    "PED-309":    "DEV-309",
-    "PED-308":    "DEV-308",
-    "PED-150":    "DEV-150",
-    "PED-502":    "DEV-502",
-    "PED-501-M":  "DEV-501-M",
-    "PED-312":    "DPI-450",
-    # PAL / MLD-717 family → DPI-802-M (Arts of Communication)
-    "PAL-117":    "DPI-802-M",
-    "PAL-117-M":  "DPI-802-M",
-    "MLD-717":    "DPI-802-M",
-    "MLD-717-M":  "DPI-802-M",
-    "DPI-801":    "DPI-802-M",
-    # Other PAL → DPI/MLD migrations
-    "PAL-110":    "DPI-101",
-    "PAL-115":    "DPI-115",
-    "PAL-210":    "DPI-120",
-    "PAL-230":    "DPI-330",
-    "PAL-142":    "MLD-342",
-    "DPI-890":    "DPI-330",
-    # STM → MLD (Strategic Management moved)
-    "STM-221":    "MLD-221",
-    "STM-101":    "MLD-101",
-    "STM-102":    "MLD-102",
-    "STM-110":    "MLD-110",
-    "STM-301":    "MLD-601",
-    "STM-401-M":  "MLD-401-M",
-    "STM-117-M":  "MLD-617-M",
-    # HUT / HCP → SUP
-    "HUT-268":    "SUP-668",
-    "HUT-201":    "SUP-601",
-    "HCP-272":    "SUP-572",
-    # ISP → IGA
-    "ISP-103":    "IGA-103",
-    # Sequential renumbers
-    "IGA-306":    "IGA-220",
-    "DPI-810-M":  "MLD-718-M",
-    "DPI-811-M":  "MLD-719-M",
+    k: v for k, v in _school_cfg.get("historical_code_map", {}).items()
+    if not k.startswith("_")  # skip _comment keys
 }
 
 METRICS = [

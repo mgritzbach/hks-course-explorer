@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import config from '../school.config.js'
 
 // Allowed domain hint shown to users
 const ALLOWED_HINT = 'harvard.edu or hks.harvard.edu'
@@ -316,7 +317,7 @@ export default function AuthGate({ onAuthSuccess }) {
         {/* Footer */}
         <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--line)' }}>
           <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5, textAlign: 'center' }}>
-            Built independently for HKS students by{' '}
+            Built independently for {config.schoolCode} students by{' '}
             <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold)' }}>
               Michael Gritzbach
             </a>

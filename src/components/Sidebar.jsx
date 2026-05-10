@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import config from '../school.config.js'
 
 const TERM_LABELS = { Fall: 'Fall', Spring: 'Spring', January: 'Jan' }
 
@@ -105,7 +106,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
     if (nextTerms.length > 0) update({ terms: nextTerms })
   }
 
-  const toggleArrayFilter = (key, value) => {
+  const _toggleArrayFilter = (key, value) => {
     const currentValues = filters[key] || []
     const nextValues = currentValues.includes(value)
       ? currentValues.filter((item) => item !== value)
@@ -218,7 +219,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
           </p>
         )}
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
-          Data: HKS evals through {meta.default_year} · Bidding {meta.default_year - 1}–{String(meta.default_year).slice(-2)}
+          Data: {config.schoolCode} evals through {meta.default_year} · Bidding {meta.default_year - 1}–{String(meta.default_year).slice(-2)}
         </div>
       </div>
 
@@ -402,7 +403,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         >
           <div>Built by Michael Gritzbach</div>
           <div>MPA '26 · KSSG 2025 & 2026</div>
-          <div>For future HKS generations</div>
+          <div>For future {config.schoolCode} generations</div>
         </div>
         <a
           href="mailto:mgritzbach@hks.harvard.edu"

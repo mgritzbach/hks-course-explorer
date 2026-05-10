@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import BiddingPlanner from '../components/BiddingPlanner.jsx'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import { fmtShort } from '../utils/formatMetric.js'
+import config from '../school.config.js'
 
 const COMPARE_TOUR_STEPS = [
   {
@@ -150,7 +151,7 @@ function CourseChip({ course, onRemove }) {
   )
 }
 
-export default function Compare({ courses, meta, favs, metricMode = 'score', setMetricMode = null }) {
+export default function Compare({ courses, _meta, favs, metricMode = 'score', setMetricMode = null }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selected, setSelected] = useState([]) // array of course ids
@@ -217,7 +218,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
       return found ? [found.id] : []
     })
     if (ids.length) setSelected(ids.slice(0, MAX_COURSES))
-  }, [candidatePool]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [candidatePool])
 
   // Sync selected courses to URL as ?ids=CODE1,CODE2
   useEffect(() => {
@@ -231,7 +232,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
       else next.delete('ids')
       return next
     }, { replace: true })
-  }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selected])
 
   const copyShareLink = () => {
     navigator.clipboard.writeText(window.location.href).then(() => {
@@ -672,7 +673,7 @@ export default function Compare({ courses, meta, favs, metricMode = 'score', set
       )}
 
       <div className="app-footer mt-8">
-        <span>HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> MPA&apos;26 · Data from HKS QReports · {new Date().getFullYear()}</span>
+        <span>{config.appTitle} by <a href={config.creatorUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> {config.creatorDegrees} · Data from {config.dataSource} · {new Date().getFullYear()}</span>
       </div>
     </div>
   )

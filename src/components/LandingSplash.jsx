@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import config from '../school.config.js'
 
 const STORAGE_KEY = 'hks-splash-shown'
 
@@ -76,7 +77,7 @@ export default function LandingSplash({ onStart, onSkip }) {
           Course Explorer
         </h1>
         <p className="text-sm" style={{ color: 'var(--text-soft)', marginBottom: 6, lineHeight: 1.6 }}>
-          Browse HKS courses, compare evaluation data, and build your shortlist — all in one place.
+          {config.appTagline}
         </p>
         <p className="text-xs" style={{ color: 'var(--text-muted)', marginBottom: 32 }}>
           Student-built · Independent · Real evaluation data
