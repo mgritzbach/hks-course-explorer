@@ -874,35 +874,46 @@ export default function ScheduleBuilder({ courses = [] }) {
       else if (searchSource === 'HBS') liveRows = liveRows.filter((r) => r.school === 'HBSD' || r.school === 'HBSM')
       else if (isSpecificSchool) liveRows = liveRows.filter((r) => r.school === searchSource)
       // else searchSource === 'All': show every school
-      // Cross-reg filter: API uses 'NOXREG'/'YESXREG'; empty means unknown (show by default)
-      if (filterCrossRegOnly && searchSource !== 'NONH') {
-        liveRows = liveRows.filter((r) => {
-          if (r.cross_reg_eligible === 'NOXREG') return false   // explicitly not cross-reg eligible
-          if (r.school === 'NONH') return false                  // non-Harvard fallback
-          return true
+
+      // If live_courses has no HKS data (e.g. sync script hasn't run for HKS),
+      // fall through to the enrichedSearchResults + stubs path so the page
+      // isn't empty — better to show Q-guide history than nothing.
+      if (searchSource === 'HKS' && liveRows.length === 0) {
+        const useStubs = sectionMapStubs.length > 0 && searchMode === 'live' &&
+          (apiMode === 'db' && (searchSource === 'HKS' || searchSource === 'All'))
+        allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
+        if (searchSession !== 'all') { allResults = allResults.filter((c) => c.sessionDescription === searchSession) }
+      } else {
+        // Cross-reg filter: API uses 'NOXREG'/'YESXREG'; empty means unknown (show by default)
+        if (filterCrossRegOnly && searchSource !== 'NONH') {
+          liveRows = liveRows.filter((r) => {
+            if (r.cross_reg_eligible === 'NOXREG') return false   // explicitly not cross-reg eligible
+            if (r.school === 'NONH') return false                  // non-Harvard fallback
+            return true
+          })
+        }
+        // Session filter (Full Term / Spring 1 / Spring 2 / January)
+        if (searchSession !== 'all') {
+          liveRows = liveRows.filter((r) => r.session_description === searchSession)
+        }
+        allResults = liveRows.map((r, i) => {
+          const norm = normalizeCourse({
+            courseCode:   r.course_code || r.course_code_base,
+            title:        r.title || '',
+            instructors:  Array.isArray(r.instructors) ? r.instructors : [],
+            credits:      r.credits,
+            sections:     [],
+            meeting_days: r.meeting_days || null,
+            time_start:   r.time_start   || null,
+            time_end:     r.time_end     || null,
+            location:     r.location     || null,
+            term:         r.term         || null,
+          }, i)
+          // Mark as having live times if schedule data exists (drives sort + UI badge)
+          if (norm.meeting_days && norm.time_start) norm._hasLiveTimes = true
+          return norm
         })
       }
-      // Session filter (Full Term / Spring 1 / Spring 2 / January)
-      if (searchSession !== 'all') {
-        liveRows = liveRows.filter((r) => r.session_description === searchSession)
-      }
-      allResults = liveRows.map((r, i) => {
-        const norm = normalizeCourse({
-          courseCode:   r.course_code || r.course_code_base,
-          title:        r.title || '',
-          instructors:  Array.isArray(r.instructors) ? r.instructors : [],
-          credits:      r.credits,
-          sections:     [],
-          meeting_days: r.meeting_days || null,
-          time_start:   r.time_start   || null,
-          time_end:     r.time_end     || null,
-          location:     r.location     || null,
-          term:         r.term         || null,
-        }, i)
-        // Mark as having live times if schedule data exists (drives sort + UI badge)
-        if (norm.meeting_days && norm.time_start) norm._hasLiveTimes = true
-        return norm
-      })
     } else {
       // Typed query, history mode, or HKS browse — use enrichedSearchResults + stubs
       // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
