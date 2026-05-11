@@ -406,7 +406,7 @@ export default function App() {
     { to: '/faculty',          label: 'Faculty',          mobileLabel: 'Faculty',   icon: '👤' },
     { to: '/compare',          label: 'Compare',          mobileLabel: 'Compare',   icon: '⚖' },
     { to: '/schedule-builder', label: 'Schedule Builder', mobileLabel: 'Schedule',  icon: '🗓',  desktopOnly: true },
-    { to: '/requirements',     label: 'Requirements',     mobileLabel: 'Req.',      icon: '✅',  desktopOnly: true },
+    { to: '/requirements',     label: 'My Degree',        mobileLabel: 'Degree',    icon: '✅',  desktopOnly: true },
     { to: '/resources',        label: 'Resources',        mobileLabel: 'Resources', icon: '🔗',  mobileOnly: true },
   ]
 

@@ -183,6 +183,11 @@ export default function Requirements({ courses = [] }) {
     )
   }, [courses, progress, scheduledCourses, selectedProgram, preferredPacArea])
 
+  const completedSetForDisplay = useMemo(
+    () => new Set(completedCourses.map(getCourseCode).filter(Boolean)),
+    [completedCourses]
+  )
+
   if (!progress) {
     return (
       <div className="h-full overflow-y-auto px-6 py-10 md:px-10">
@@ -194,6 +199,97 @@ export default function Requirements({ courses = [] }) {
   return (
     <div className="h-full overflow-y-auto px-6 py-8 md:px-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        {/* ── My Courses ── */}
+        <div
+          className="rounded-[28px] p-6"
+          style={{ background: 'var(--panel)', border: '1px solid var(--line)' }}
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <div>
+              <p className="kicker">My Courses</p>
+              <h2 className="mt-1 text-2xl font-semibold" style={{ color: 'var(--text)' }}>
+                What I've taken &amp; planned
+              </h2>
+            </div>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span style={{ color: 'var(--success)' }}>
+                ✓ {completedCourses.length} completed
+              </span>
+              <span style={{ color: 'var(--blue)' }}>
+                📋 {scheduledCourses.filter(c => !completedSetForDisplay.has(getCourseCode(c))).length} in {activePlan}
+              </span>
+            </div>
+          </div>
+
+          {completedCourses.length === 0 && scheduledCourses.length === 0 && (
+            <p className="mt-4 text-sm" style={{ color: 'var(--text-muted)' }}>
+              No courses yet. Mark courses as done in the{' '}
+              <a href="/schedule-builder" style={{ color: 'var(--accent)', fontWeight: 600 }}>Schedule Builder</a>
+              {' '}or add them to a plan.
+            </p>
+          )}
+
+          {completedCourses.length > 0 && (
+            <div className="mt-5">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--success)' }}>
+                ✓ Completed
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {completedCourses.map((c, i) => {
+                  const code = getCourseCode(c) || '?'
+                  const name = c.title || c.course_name || ''
+                  return (
+                    <span
+                      key={`done-${code}-${i}`}
+                      className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold"
+                      style={{
+                        background: 'var(--success-soft)',
+                        border: '1px solid var(--success)',
+                        color: 'var(--success)',
+                      }}
+                      title={name}
+                    >
+                      {code}
+                      {name ? <span style={{ opacity: 0.75, fontWeight: 400 }}> · {name.length > 28 ? name.slice(0, 28) + '…' : name}</span> : null}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {scheduledCourses.filter(c => !completedSetForDisplay.has(getCourseCode(c))).length > 0 && (
+            <div className="mt-5">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--blue)' }}>
+                📋 {activePlan}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {scheduledCourses
+                  .filter(c => !completedSetForDisplay.has(getCourseCode(c)))
+                  .map((c, i) => {
+                    const code = getCourseCode(c) || '?'
+                    const name = c.title || c.course_name || ''
+                    return (
+                      <span
+                        key={`plan-${code}-${i}`}
+                        className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold"
+                        style={{
+                          background: 'var(--accent-soft)',
+                          border: '1px solid var(--line-strong)',
+                          color: 'var(--text)',
+                        }}
+                        title={name}
+                      >
+                        {code}
+                        {name ? <span style={{ opacity: 0.6, fontWeight: 400 }}> · {name.length > 28 ? name.slice(0, 28) + '…' : name}</span> : null}
+                      </span>
+                    )
+                  })}
+              </div>
+            </div>
+          )}
+        </div>
+
         <div
           className="rounded-[28px] p-6"
           style={{ background: 'var(--panel)', border: '1px solid var(--line)' }}

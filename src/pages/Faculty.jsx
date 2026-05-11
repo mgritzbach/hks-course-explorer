@@ -35,7 +35,7 @@ const FACULTY_DETAIL_TOUR_STEPS = [
   },
 ]
 
-function MetricBar({ label, value, higherBetter = true, neutral = false, metricMode = 'score' }) {
+function MetricBar({ label, value, higherBetter = true, neutral = false, metricMode = 'percentile' }) {
   if (value == null) return null
   const rounded = Math.round(value)
   let color
@@ -73,7 +73,7 @@ function activeFilterCount({ concentration, minRating, minCourses, taughtSinceYe
 function FacultySidebar({
   meta, displayedProfs, allProfessors, selectedProf, query, setQuery, concentration, setConcentration,
   minRating, setMinRating, minCourses, setMinCourses, taughtSinceYear, setTaughtSinceYear, sortBy, setSortBy, resetFilters, handleSelectProf,
-  metricMode = 'score', setMetricMode = null, mobile = false, onClose = null, onReplayTour = null, searchInputRef = null,
+  metricMode = 'percentile', setMetricMode = null, mobile = false, onClose = null, onReplayTour = null, searchInputRef = null,
 }) {
   const filters = activeFilterCount({ concentration, minRating, minCourses, taughtSinceYear })
 
@@ -172,7 +172,7 @@ function FacultySidebar({
   )
 }
 
-export default function Faculty({ courses, meta, metricMode = 'score', setMetricMode = null }) {
+export default function Faculty({ courses, meta, metricMode = 'percentile', setMetricMode = null }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')

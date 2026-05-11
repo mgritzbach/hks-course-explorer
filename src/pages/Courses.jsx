@@ -71,7 +71,7 @@ function getConcentration(code) {
   return match ? match[1] : 'Other'
 }
 
-function MetricRow({ label, value, higherBetter = true, neutral = false, metricMode = 'score' }) {
+function MetricRow({ label, value, higherBetter = true, neutral = false, metricMode = 'percentile' }) {
   if (value == null) return null
   const rounded = Math.round(value)
   let color
@@ -99,7 +99,7 @@ function ratingColor(val) {
   return 'var(--danger)'
 }
 
-function HistoryTable({ history, metricMode = 'score' }) {
+function HistoryTable({ history, metricMode = 'percentile' }) {
   if (!history.length) {
     return (
       <div className="surface-card rounded-[22px] py-8 text-center">
@@ -182,7 +182,7 @@ function activeFilterCount(filters) {
   return count
 }
 
-function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = null, metricMode = 'score', setMetricMode = null, onReplayTour = null }) {
+function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = null, metricMode = 'percentile', setMetricMode = null, onReplayTour = null }) {
   const [tourPending, setTourPending] = useState(false)
   const update = (patch) => setFilters((current) => ({ ...current, ...patch }))
   const reset = () => setFilters({
@@ -485,7 +485,7 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
   )
 }
 
-export default function Courses({ courses, meta, favs, metricMode = 'score', setMetricMode, simIndex = null, notes = {}, setNote = null }) {
+export default function Courses({ courses, meta, favs, metricMode = 'percentile', setMetricMode, simIndex = null, notes = {}, setNote = null }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState(() => searchParams.get('q') || '')
