@@ -127,7 +127,7 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
     const available = category.nonExclusive
       ? normalizedCourses
       : normalizedCourses.filter((course) => !usedIndices.has(course._index))
-    let matchedCourses = []
+    let matchedCourses
     let chosenArea = null
 
     if (category.id === 'pac') {

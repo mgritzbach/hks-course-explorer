@@ -15,7 +15,9 @@ function load() {
             .filter(Boolean)
         )
       }
-    } catch {}
+    } catch {
+      // no-op — Ignore if URL parsing fails
+    }
   }
 
   if (typeof window === 'undefined') return new Set()

@@ -68,7 +68,7 @@ function zoomNumericDomain(currentDomain, baseDomain, factor, anchorValue = null
   return clampDomain([nextStart, nextStart + nextSpan], baseDomain)
 }
 
-function panNumericDomain(currentDomain, baseDomain, deltaValue) {
+function _panNumericDomain(currentDomain, baseDomain, deltaValue) {
   const activeDomain = currentDomain || baseDomain
   return clampDomain([activeDomain[0] + deltaValue, activeDomain[1] + deltaValue], baseDomain)
 }
@@ -195,7 +195,7 @@ function formatMetricValue(datum, valueKey, rawKey, rawModeKey, metricMode = 'sc
   return `${Math.round(value)}${suffix}`
 }
 
-function CustomTooltip({ active, payload }) {
+function _CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
   const datum = payload[0]?.payload
   if (!datum || datum._noHover) return null

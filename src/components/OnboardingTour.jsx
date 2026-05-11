@@ -17,6 +17,17 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   const [fading, setFading] = useState(false)
   const [tick, setTick] = useState(-1)
 
+  // This must be declared before any useEffect that uses it
+  const dismiss = () => {
+    setFading(true)
+    setTimeout(() => {
+      localStorage.setItem(storageKey, '1')
+      setVisible(false)
+      setFading(false)
+      onDone?.()
+    }, 200)
+  }
+
   useEffect(() => {
     const alreadySeen = localStorage.getItem(storageKey)
     if (autoStart || !alreadySeen) {
@@ -42,7 +53,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
     const delay = window.innerWidth < 768 ? 360 : 0
     const t = setTimeout(() => setTick(0), delay)
     return () => clearTimeout(t)
-  }, [index, visible]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [index, visible])
 
   const step = steps[index]
   const rect = step
@@ -97,17 +108,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
         dismiss()
       }
     }
-  }, [visible, tick]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const dismiss = () => {
-    setFading(true)
-    setTimeout(() => {
-      localStorage.setItem(storageKey, '1')
-      setVisible(false)
-      setFading(false)
-      onDone?.()
-    }, 200)
-  }
+  }, [visible, tick])
 
   const next = () => {
     if (index + 1 >= steps.length) {

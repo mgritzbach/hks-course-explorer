@@ -240,7 +240,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     else setSidebarOpen(false)
   }
 
-  const scrollToVisualization = () => {
+  const _scrollToVisualization = () => {
     if (!mainRef.current || !visualizationRef.current) return
 
     const offsetTop = Math.max(0, visualizationRef.current.offsetTop - 12)

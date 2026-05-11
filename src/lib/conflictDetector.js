@@ -36,7 +36,7 @@ function parseMeetingDays(value) {
   const pieces = compact
     .replace(/&/g, '/')
     .replace(/,/g, '/')
-    .split(/[\/\s]+/)
+    .split(/[/\s]+/)
     .filter(Boolean)
 
   const normalized = new Set()
