@@ -24,11 +24,16 @@ export default [
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
       'no-undef': 'error',
+      'react/jsx-uses-react': 'error',
+      'react/jsx-uses-vars': 'error',
       'react/prop-types': 'off',
       'react/react-in-jsx-scope': 'off',
       'react/display-name': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/static-components': 'off',
     },
     settings: {
       react: { version: 'detect' }
