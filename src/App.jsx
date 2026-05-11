@@ -57,26 +57,35 @@ async function fetchAllCourses(onProgress) {
    * - meeting_days: text[] of short day codes such as ['Mon', 'Wed']
    * - meeting_time: start time in 24h HH:MM format
    * - meeting_time_end: end time in 24h HH:MM format
+   *
+   * Perf note: all pages are fetched in parallel (not sequentially) to avoid
+   * 6× round-trip latency. MAX_PAGES gives headroom if the table grows.
    */
   const PAGE = 1000
-  let all = [], from = 0, done = false
-  while (!done) {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*')
-      .range(from, from + PAGE - 1)
+  const MAX_PAGES = 10 // covers up to 10,000 rows; extra empty pages are harmless
+
+  const results = await Promise.all(
+    Array.from({ length: MAX_PAGES }, (_, i) =>
+      supabase.from('courses').select('*').range(i * PAGE, (i + 1) * PAGE - 1)
+    )
+  )
+
+  const all = []
+  for (const { data, error } of results) {
     if (error) throw error
-    all = all.concat(data)
-    done = data.length < PAGE
-    from += PAGE
-    if (onProgress) onProgress(all.length)
+    if (data && data.length > 0) all.push(...data)
   }
+
+  if (onProgress) onProgress(all.length)
   return all
 }
 
 async function fetchAllCoursesWithCache(onProgress) {
+  // Use sessionStorage: same-tab cache that survives navigation but not a new tab.
+  // localStorage hits the ~5 MB browser limit on the full 14 MB payload and silently
+  // fails every time, making the cache a no-op. sessionStorage is more lenient.
   try {
-    const raw = localStorage.getItem(COURSES_CACHE_KEY)
+    const raw = sessionStorage.getItem(COURSES_CACHE_KEY)
     if (raw) {
       const cached = JSON.parse(raw)
       if (cached && cached.ts && (Date.now() - cached.ts) < COURSES_CACHE_TTL && Array.isArray(cached.data) && cached.data.length > 1000) {
@@ -89,9 +98,9 @@ async function fetchAllCoursesWithCache(onProgress) {
   }
   const courses = await fetchAllCourses(onProgress)
   try {
-    localStorage.setItem(COURSES_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: courses }))
+    sessionStorage.setItem(COURSES_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: courses }))
   } catch (_e) {
-    // Ignore cache write errors
+    // Ignore cache write errors (quota exceeded etc.)
   }
   return courses
 }
