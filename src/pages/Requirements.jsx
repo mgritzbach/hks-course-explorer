@@ -262,7 +262,7 @@ export default function Requirements({ courses = [] }) {
               placeholder="Search by code or name…"
               className="w-full rounded-[14px] border px-4 py-2.5 text-sm outline-none transition-colors"
               style={{
-                background: 'var(--input-bg, var(--panel-strong))',
+                background: 'var(--track-bg)',
                 borderColor: searchFocused ? 'var(--accent)' : 'var(--line-strong)',
                 color: 'var(--text)',
               }}
