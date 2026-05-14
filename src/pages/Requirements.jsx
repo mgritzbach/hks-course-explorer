@@ -276,7 +276,6 @@ export default function Requirements({ courses = [] }) {
                   const code = getCourseCode(course) || ''
                   const name = course.course_name || ''
                   const isDone = completedSetForDisplay.has(code)
-                  const isPlanned = addedToPlan.has(code)
                   return (
                     <div
                       key={`search-result-${code}-${i}`}
@@ -287,34 +286,19 @@ export default function Requirements({ courses = [] }) {
                         <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{code}</p>
                         <p className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>{name}</p>
                       </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button
-                          type="button"
-                          disabled={isDone}
-                          onMouseDown={() => addCourseToCompleted(course)}
-                          className="rounded-full border px-3 py-1 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:opacity-50"
-                          style={{
-                            background: isDone ? 'var(--success-soft)' : 'transparent',
-                            borderColor: isDone ? 'var(--success)' : 'var(--line-strong)',
-                            color: isDone ? 'var(--success)' : 'var(--text-muted)',
-                          }}
-                        >
-                          {isDone ? '✓ Done' : '+ Done'}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isPlanned}
-                          onMouseDown={() => addCourseToPlan(course)}
-                          className="rounded-full border px-3 py-1 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:opacity-50"
-                          style={{
-                            background: isPlanned ? 'var(--accent-soft)' : 'transparent',
-                            borderColor: isPlanned ? 'var(--accent)' : 'var(--line-strong)',
-                            color: isPlanned ? 'var(--accent)' : 'var(--text-muted)',
-                          }}
-                        >
-                          {isPlanned ? '✓ Plan' : `+ ${activePlan}`}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        disabled={isDone}
+                        onMouseDown={() => addCourseToCompleted(course)}
+                        className="shrink-0 rounded-full border px-3 py-1 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:opacity-50"
+                        style={{
+                          background: isDone ? 'var(--success-soft)' : 'transparent',
+                          borderColor: isDone ? 'var(--success)' : 'var(--line-strong)',
+                          color: isDone ? 'var(--success)' : 'var(--text-muted)',
+                        }}
+                      >
+                        {isDone ? '✓ Added' : 'Already taken'}
+                      </button>
                     </div>
                   )
                 })}
