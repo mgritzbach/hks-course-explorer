@@ -5,6 +5,7 @@ import { computeProgress, getPrograms } from '../lib/requirementsEngine'
 import { searchHarvardCourses } from '../lib/harvardApi'
 import { useFavorites } from '../useFavorites'
 import { useScheduleData } from '../hooks/useScheduleData.js'
+import Requirements from './Requirements.jsx'
 
 const GRID_START = 480
 const GRID_END = 1170
@@ -578,7 +579,7 @@ function ProgressBar({ value, tone = 'var(--accent)', label }) {
   )
 }
 
-export default function ScheduleBuilder({ courses = [] }) {
+export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) {
   const programs = useMemo(() => getPrograms(), [])
   const { favorites } = useFavorites()
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
@@ -2135,8 +2136,14 @@ export default function ScheduleBuilder({ courses = [] }) {
             </div>
           </aside>
 
-          <main data-tour="schedule-grid" className="min-w-0 flex-1 overflow-x-auto overflow-y-auto" style={{ background: 'var(--panel-strong)' }}>
-            <div className="min-w-[720px] p-6">
+          {myDegreeMode ? (
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+              <Requirements courses={courses} />
+            </div>
+          ) : (
+            <>
+              <main data-tour="schedule-grid" className="min-w-0 flex-1 overflow-x-auto overflow-y-auto" style={{ background: 'var(--panel-strong)' }}>
+                <div className="min-w-[720px] p-6">
               {conflicts.length > 0 && (
                 <div className="mb-4 rounded-[20px] border px-4 py-3 text-sm" style={{ background: 'var(--panel-soft)', borderColor: 'var(--danger)', color: 'var(--danger)' }}>
                   <div className="flex items-center gap-3 font-semibold">
@@ -2231,10 +2238,10 @@ export default function ScheduleBuilder({ courses = [] }) {
                   })}
                 </div>
               </div>
-            </div>
-          </main>
+                </div>
+              </main>
 
-          <aside data-tour="plan-shortlist" className="flex h-full w-[280px] shrink-0 flex-col border-l" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
+              <aside data-tour="plan-shortlist" className="flex h-full w-[280px] shrink-0 flex-col border-l" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
             <div className="flex-1 overflow-y-auto">
 
               {/* ── SECTION 1: SHORTLIST ── */}
@@ -2615,8 +2622,10 @@ export default function ScheduleBuilder({ courses = [] }) {
                 )}
               </div>
 
-            </div>
-          </aside>
+              </div>
+            </aside>
+            </>
+          )}
         </div>
         {manualCourseModal !== null && (
           <ManualCourseModal

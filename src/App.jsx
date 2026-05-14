@@ -5,7 +5,6 @@ import config from './school.config.js'
 
 // Hidden routes — not linked from nav, accessible by direct URL only
 const ScheduleBuilder = lazy(() => import('./pages/ScheduleBuilder.jsx'))
-const Requirements    = lazy(() => import('./pages/Requirements.jsx'))
 const Admin           = lazy(() => import('./pages/Admin.jsx'))
 import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
@@ -496,7 +495,7 @@ export default function App() {
           <Route path="/compare" element={<Compare courses={data.courses} meta={data.meta} favs={favs} metricMode={metricMode} setMetricMode={setMetricMode} />} />
           <Route path="/resources" element={<Resources />} />
           <Route path="/schedule-builder" element={<ScheduleBuilder courses={data?.courses || []} meta={data?.meta} />} />
-          <Route path="/requirements"     element={<Requirements courses={data?.courses || []} />} />
+          <Route path="/requirements"     element={<ScheduleBuilder myDegreeMode courses={data?.courses || []} />} />
           <Route path="/admin"            element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
