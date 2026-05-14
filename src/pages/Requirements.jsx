@@ -205,12 +205,30 @@ export default function Requirements({ courses = [] }) {
   const courseSearchResults = useMemo(() => {
     const q = courseSearch.trim().toLowerCase()
     if (q.length < 2) return []
-    return (courses || [])
-      .filter(c => !c.is_average)
-      .filter(c => {
-        const code = (c.course_code_base || c.course_code || '').toLowerCase()
-        const name = (c.course_name || '').toLowerCase()
-        return code.includes(q) || name.includes(q)
+    // Deduplicate by course_code_base, keeping most recent year
+    const seen = new Map()
+    for (const c of (courses || [])) {
+      if (c.is_average) continue
+      const code = (c.course_code_base || c.course_code || '').toLowerCase()
+      const name = (c.course_name || '').toLowerCase()
+      // Code: substring match. Name: word-start match only (avoids "agi" hitting "mANAGIng")
+      const codeMatch = code.includes(q)
+      const nameMatch = name.split(/\s+/).some(w => w.startsWith(q))
+      if (!codeMatch && !nameMatch) continue
+      const key = c.course_code_base || c.course_code
+      if (!key) continue
+      const prev = seen.get(key)
+      if (!prev || (c.year || 0) > (prev.year || 0)) seen.set(key, c)
+    }
+    // Code matches first, then alphabetical
+    return [...seen.values()]
+      .sort((a, b) => {
+        const ac = (a.course_code_base || a.course_code || '').toLowerCase()
+        const bc = (b.course_code_base || b.course_code || '').toLowerCase()
+        const aCode = ac.includes(q), bCode = bc.includes(q)
+        if (aCode && !bCode) return -1
+        if (!aCode && bCode) return 1
+        return ac.localeCompare(bc)
       })
       .slice(0, 8)
   }, [courseSearch, courses])
