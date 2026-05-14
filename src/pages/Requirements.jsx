@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_PLAN, PLANS, loadCompleted, loadPlan, savePlan } from '../lib/scheduleStorage.js'
+import { DEFAULT_PLAN, PLANS, loadCompleted, loadPlan, savePlan, saveCompleted } from '../lib/scheduleStorage.js'
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
 
 const PROGRAM_STORAGE_KEY = 'hks_req_program'
@@ -63,6 +63,8 @@ export default function Requirements({ courses = [] }) {
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
   const [scheduledCourses, setScheduledCourses] = useState(() => getPlanCourses(DEFAULT_PLAN))
   const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
+  const [courseSearch, setCourseSearch] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
   const [preferredPacArea, setPreferredPacArea] = useState(() => {
     if (typeof window === 'undefined') return null
     return window.localStorage.getItem(PAC_AREA_STORAGE_KEY) || null
@@ -111,6 +113,16 @@ export default function Requirements({ courses = [] }) {
     savePlan(activePlan, { ...plan, courses: nextCourses })
     setScheduledCourses(nextCourses)
     setAddedToPlan((prev) => { const s = new Set(prev); s.delete(courseCode); return s })
+  }
+
+  const addCourseToCompleted = (course) => {
+    const code = getCourseCode(course)
+    if (!code) return
+    if (completedSetForDisplay.has(code)) return
+    const next = [...completedCourses, course]
+    setCompletedCourses(next)
+    saveCompleted(next)
+    setCourseSearch('')
   }
 
   useEffect(() => {
@@ -184,9 +196,24 @@ export default function Requirements({ courses = [] }) {
   }, [courses, progress, scheduledCourses, selectedProgram, preferredPacArea])
 
   const completedSetForDisplay = useMemo(
-    () => new Set(completedCourses.map(getCourseCode).filter(Boolean)),
-    [completedCourses]
+    () => {
+      return new Set(completedCourses.map(getCourseCode).filter(Boolean))
+    },
+    [completedCourses, getCourseCode]
   )
+
+  const courseSearchResults = useMemo(() => {
+    const q = courseSearch.trim().toLowerCase()
+    if (q.length < 2) return []
+    return (courses || [])
+      .filter(c => !c.is_average)
+      .filter(c => {
+        const code = (c.course_code_base || c.course_code || '').toLowerCase()
+        const name = (c.course_name || '').toLowerCase()
+        return code.includes(q) || name.includes(q)
+      })
+      .slice(0, 8)
+  }, [courseSearch, courses])
 
   if (!progress) {
     return (
@@ -219,6 +246,80 @@ export default function Requirements({ courses = [] }) {
                 📋 {scheduledCourses.filter(c => !completedSetForDisplay.has(getCourseCode(c))).length} in {activePlan}
               </span>
             </div>
+          </div>
+
+          {/* Course search */}
+          <div className="relative mt-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
+              Add courses
+            </p>
+            <input
+              type="text"
+              value={courseSearch}
+              onChange={e => setCourseSearch(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+              placeholder="Search by code or name…"
+              className="w-full rounded-[14px] border px-4 py-2.5 text-sm outline-none transition-colors"
+              style={{
+                background: 'var(--input-bg, var(--panel-strong))',
+                borderColor: searchFocused ? 'var(--accent)' : 'var(--line-strong)',
+                color: 'var(--text)',
+              }}
+            />
+            {courseSearchResults.length > 0 && searchFocused && (
+              <div
+                className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-[16px] shadow-lg"
+                style={{ background: 'var(--panel)', border: '1px solid var(--line-strong)' }}
+              >
+                {courseSearchResults.map((course, i) => {
+                  const code = getCourseCode(course) || ''
+                  const name = course.course_name || ''
+                  const isDone = completedSetForDisplay.has(code)
+                  const isPlanned = addedToPlan.has(code)
+                  return (
+                    <div
+                      key={`search-result-${code}-${i}`}
+                      className="flex items-center justify-between gap-3 px-4 py-3"
+                      style={{ borderBottom: i < courseSearchResults.length - 1 ? '1px solid var(--line)' : 'none' }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{code}</p>
+                        <p className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>{name}</p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          disabled={isDone}
+                          onMouseDown={() => addCourseToCompleted(course)}
+                          className="rounded-full border px-3 py-1 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:opacity-50"
+                          style={{
+                            background: isDone ? 'var(--success-soft)' : 'transparent',
+                            borderColor: isDone ? 'var(--success)' : 'var(--line-strong)',
+                            color: isDone ? 'var(--success)' : 'var(--text-muted)',
+                          }}
+                        >
+                          {isDone ? '✓ Done' : '+ Done'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isPlanned}
+                          onMouseDown={() => addCourseToPlan(course)}
+                          className="rounded-full border px-3 py-1 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:opacity-50"
+                          style={{
+                            background: isPlanned ? 'var(--accent-soft)' : 'transparent',
+                            borderColor: isPlanned ? 'var(--accent)' : 'var(--line-strong)',
+                            color: isPlanned ? 'var(--accent)' : 'var(--text-muted)',
+                          }}
+                        >
+                          {isPlanned ? '✓ Plan' : `+ ${activePlan}`}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {completedCourses.length === 0 && scheduledCourses.length === 0 && (
