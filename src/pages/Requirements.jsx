@@ -64,7 +64,6 @@ export default function Requirements({ courses = [] }) {
   const [scheduledCourses, setScheduledCourses] = useState(() => getPlanCourses(DEFAULT_PLAN))
   const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
   const [courseSearch, setCourseSearch] = useState('')
-  const [searchFocused, setSearchFocused] = useState(false)
   const [preferredPacArea, setPreferredPacArea] = useState(() => {
     if (typeof window === 'undefined') return null
     return window.localStorage.getItem(PAC_AREA_STORAGE_KEY) || null
@@ -202,35 +201,20 @@ export default function Requirements({ courses = [] }) {
     [completedCourses, getCourseCode]
   )
 
+  // Same logic as ScheduleBuilder's completedSearchResults
   const courseSearchResults = useMemo(() => {
     const q = courseSearch.trim().toLowerCase()
-    if (q.length < 2) return []
-    // Deduplicate by course_code_base, keeping most recent year
-    const seen = new Map()
-    for (const c of (courses || [])) {
-      if (c.is_average) continue
-      const code = (c.course_code_base || c.course_code || '').toLowerCase()
-      const name = (c.course_name || '').toLowerCase()
-      // Code: substring match. Name: word-start match only (avoids "agi" hitting "mANAGIng")
-      const codeMatch = code.includes(q)
-      const nameMatch = name.split(/\s+/).some(w => w.startsWith(q))
-      if (!codeMatch && !nameMatch) continue
-      const key = c.course_code_base || c.course_code
-      if (!key) continue
-      const prev = seen.get(key)
-      if (!prev || (c.year || 0) > (prev.year || 0)) seen.set(key, c)
-    }
-    // Code matches first, then alphabetical
-    return [...seen.values()]
-      .sort((a, b) => {
-        const ac = (a.course_code_base || a.course_code || '').toLowerCase()
-        const bc = (b.course_code_base || b.course_code || '').toLowerCase()
-        const aCode = ac.includes(q), bCode = bc.includes(q)
-        if (aCode && !bCode) return -1
-        if (!aCode && bCode) return 1
-        return ac.localeCompare(bc)
-      })
-      .slice(0, 8)
+    if (!q) return []
+    return (Array.isArray(courses) ? courses : [])
+      .filter((c) => !c?.is_average)
+      .filter((c) => [c?.course_code, c?.course_name, c?.professor, c?.professor_display].filter(Boolean).join(' ').toLowerCase().includes(q))
+      .sort((a, b) => Number(b?.year || 0) - Number(a?.year || 0))
+      .reduce((acc, c) => {
+        const key = c.course_code_base || c.course_code
+        if (!acc.seen.has(key)) { acc.seen.add(key); acc.list.push(c) }
+        return acc
+      }, { seen: new Set(), list: [] }).list
+      .slice(0, 20)
   }, [courseSearch, courses])
 
   if (!progress) {
@@ -266,58 +250,42 @@ export default function Requirements({ courses = [] }) {
             </div>
           </div>
 
-          {/* Course search */}
+          {/* Course search — same component as Schedule Builder completed search */}
           <div className="relative mt-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
-              Add courses
-            </p>
             <input
               type="text"
               value={courseSearch}
               onChange={e => setCourseSearch(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-              placeholder="Search by code or name…"
-              className="w-full rounded-[14px] border px-4 py-2.5 text-sm outline-none transition-colors"
-              style={{
-                background: 'var(--track-bg)',
-                borderColor: searchFocused ? 'var(--accent)' : 'var(--line-strong)',
-                color: 'var(--text)',
-              }}
+              placeholder="🔍  Search courses you've taken…"
+              className="w-full rounded-xl border px-3 py-2.5 text-xs outline-none transition-colors"
+              style={{ background: 'var(--panel-soft)', borderColor: courseSearch ? 'var(--success)' : 'var(--line-strong)', color: 'var(--text)' }}
+              aria-label="Search courses already taken"
             />
-            {courseSearchResults.length > 0 && searchFocused && (
-              <div
-                className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-[16px] shadow-lg"
-                style={{ background: 'var(--panel)', border: '1px solid var(--line-strong)' }}
-              >
-                {courseSearchResults.map((course, i) => {
-                  const code = getCourseCode(course) || ''
-                  const name = course.course_name || ''
-                  const isDone = completedSetForDisplay.has(code)
+            {courseSearchResults.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-xl border shadow-lg" style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)' }}>
+                {courseSearchResults.map((c) => {
+                  const code = c.course_code_base || c.course_code
+                  const alreadyDone = completedSetForDisplay.has(code)
                   return (
-                    <div
-                      key={`search-result-${code}-${i}`}
-                      className="flex items-center justify-between gap-3 px-4 py-3"
-                      style={{ borderBottom: i < courseSearchResults.length - 1 ? '1px solid var(--line)' : 'none' }}
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => {
+                        if (!alreadyDone) addCourseToCompleted(c)
+                        setCourseSearch('')
+                      }}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--panel-soft)]"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{code}</p>
-                        <p className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>{name}</p>
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <span className="font-semibold" style={{ color: 'var(--text)' }}>{code}</span>
+                        <span className="ml-2" style={{ color: 'var(--text-muted)' }}>{c.course_name}</span>
                       </div>
-                      <button
-                        type="button"
-                        disabled={isDone}
-                        onMouseDown={() => addCourseToCompleted(course)}
-                        className="shrink-0 rounded-full border px-3 py-1 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:opacity-50"
-                        style={{
-                          background: isDone ? 'var(--success-soft)' : 'transparent',
-                          borderColor: isDone ? 'var(--success)' : 'var(--line-strong)',
-                          color: isDone ? 'var(--success)' : 'var(--text-muted)',
-                        }}
-                      >
-                        {isDone ? '✓ Added' : 'Already taken'}
-                      </button>
-                    </div>
+                      {alreadyDone ? (
+                        <span className="shrink-0 text-xs font-semibold" style={{ color: 'var(--success)' }}>✓ Added</span>
+                      ) : (
+                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)' }}>✓ Mark done</span>
+                      )}
+                    </button>
                   )
                 })}
               </div>
