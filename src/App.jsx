@@ -217,8 +217,9 @@ export default function App() {
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
   const [hubTheme, setHubTheme] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem('hks-theme') === 'hub'
+    if (typeof window === 'undefined') return true
+    const stored = window.localStorage.getItem('hks-theme')
+    return stored === null ? true : stored === 'hub'
   })
   const [metricMode, setMetricModeState] = useState(() => {
     if (typeof window === 'undefined') return 'score'
