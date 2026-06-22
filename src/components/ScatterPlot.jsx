@@ -621,7 +621,7 @@ export default function ScatterPlot({
     return {
       autosize: true,
       uirevision: `${xMetric}-${yMetric}-${metricMode}`,
-      margin: { t: 12, r: 18, b: 44, l: 54 },
+      margin: { t: 44, r: 18, b: 44, l: 54 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       dragmode: 'pan',
