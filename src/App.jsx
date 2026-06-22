@@ -523,6 +523,9 @@ export default function App() {
           <button type="button" onClick={handleExportShortlist} className="theme-toggle" style={{ minHeight: 44 }}>
             ⬇ CSV
           </button>
+          <button type="button" onClick={() => favs.clearAll()} className="theme-toggle" style={{ minHeight: 44 }}>
+            ✕ Clear
+          </button>
         </div>
       )}
       <div className="mx-auto flex max-w-md gap-1 rounded-[24px] border p-1.5 shadow-[0_-12px_28px_rgba(0,0,0,0.28)]" style={{ borderColor: 'var(--line)', background: 'var(--nav-shell-strong)' }}>
@@ -676,6 +679,13 @@ export default function App() {
                 >
                   ⬇ CSV
                 </button>
+                <button
+                  type="button"
+                  onClick={() => favs.clearAll()}
+                  className="hub-action-btn"
+                >
+                  ✕ Clear
+                </button>
                 <div className="hub-action-divider" />
               </>
             )}
@@ -809,6 +819,9 @@ export default function App() {
               </button>
               <button type="button" onClick={handleExportShortlist} className="theme-toggle" style={{ width: '100%' }}>
                 ⬇ Export CSV
+              </button>
+              <button type="button" onClick={() => favs.clearAll()} className="theme-toggle" style={{ width: '100%' }}>
+                ✕ Clear Shortlist
               </button>
             </>
           )}

@@ -65,5 +65,10 @@ export function useFavorites() {
 
   const isFavorite = useCallback((courseCodeBase) => favorites?.has(courseCodeBase) || false, [favorites])
 
-  return { favorites, toggle, isFavorite, count: favorites?.size || 0 }
+  const clearAll = useCallback(() => {
+    posthog.capture('shortlist_cleared', { shortlist_size: favorites?.size || 0 })
+    setFavorites(new Set())
+  }, [favorites])
+
+  return { favorites, toggle, isFavorite, count: favorites?.size || 0, clearAll }
 }
