@@ -537,6 +537,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'percentile'
     else setFilterOpen(false)
   }
 
+  const [displayCount, setDisplayCount] = useState(100)
   const [filters, setFilters] = useState(() => {
     const rawYear = searchParams.get('y')
     return {
@@ -641,7 +642,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'percentile'
       return (a.course_name || a.course_code || '').localeCompare(b.course_name || b.course_code || '')
     })
 
-    if (!query) return list.slice(0, 100)
+    if (!query) return list
     const normalized = query.toLowerCase()
     return list.filter((course) =>
       (course.course_name || '').toLowerCase().includes(normalized) ||
@@ -649,8 +650,10 @@ export default function Courses({ courses, meta, favs, metricMode = 'percentile'
       (course.professor_display || '').toLowerCase().includes(normalized) ||
       (course.description || '').toLowerCase().includes(normalized) ||
       (course.academic_area || '').toLowerCase().includes(normalized)
-    ).slice(0, 100)
+    )
   }, [allOptions, courses, deferredFilters, query])
+
+  useEffect(() => { setDisplayCount(100) }, [filteredOptions])
 
   const topByBidding = useMemo(() => filteredOptions.filter((course) => course.last_bid_price != null).slice(0, 5), [filteredOptions])
   const history = useMemo(() => selected ? courses.filter((course) => course.course_code_base === selected.course_code_base && course.has_eval).sort((a, b) => (b.year || 0) - (a.year || 0) || (a.term || '').localeCompare(b.term || '')) : [], [courses, selected])
@@ -816,7 +819,7 @@ export default function Courses({ courses, meta, favs, metricMode = 'percentile'
                   All {filteredOptions.length} Matching Course{filteredOptions.length !== 1 ? 's' : ''}
                 </p>
                 <div className="flex flex-col gap-2">
-                  {filteredOptions.map((course) => (
+                  {filteredOptions.slice(0, displayCount).map((course) => (
                     <button
                       key={course.id}
                       onClick={() => { setSelectedId(course.id); setSearchParams({ id: course.id }) }}
@@ -835,9 +838,19 @@ export default function Courses({ courses, meta, favs, metricMode = 'percentile'
                           {course.last_bid_price} pts
                         </span>
                       )}
+
                     </button>
                   ))}
                 </div>
+                {filteredOptions.length > displayCount && (
+                  <button
+                    onClick={() => setDisplayCount(c => c + 100)}
+                    className="mt-3 w-full rounded-[14px] py-2 text-xs font-semibold transition-colors hover:bg-[rgba(165,28,48,0.05)]"
+                    style={{ color: 'var(--accent-strong)', border: '1px solid var(--line)' }}
+                  >
+                    Show more ({filteredOptions.length - displayCount} remaining)
+                  </button>
+                )}
               </div>
             )}
           </div>
