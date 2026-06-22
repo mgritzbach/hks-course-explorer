@@ -60,6 +60,7 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
     year,
     minInstructorPct,
     evalOnly,
+    biddingOnly,
   } = filters
 
   const avgMode = isAverageYear(year)
@@ -93,6 +94,7 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
     }
 
     if (evalOnly && !course.has_eval) return false
+    if (biddingOnly && !course.has_bidding) return false
 
     if (searchTerms.length > 0) {
       const haystack = [
@@ -125,6 +127,7 @@ function countFilterBadges(filters) {
   if (filters.stemGroup !== 'all') count++
   if (filters.minInstructorPct !== 'any') count++
   if (filters.evalOnly) count++
+  if (filters.biddingOnly) count++
   if (!isAverageYear(filters.year)) {
     if (filters.terms.length !== ALL_TERMS.length || !ALL_TERMS.every((term) => filters.terms.includes(term))) {
       count++
@@ -210,6 +213,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     year: initYear,
     minInstructorPct: searchParams.get('min_pct') || 'any',
     evalOnly: searchParams.get('eval') === '1',
+    biddingOnly: searchParams.get('bid') === '1',
   })
   const [xMetric, setXMetric] = useState(searchParams.get('x') || DEFAULT_X)
   const [yMetric, setYMetric] = useState(searchParams.get('y') || DEFAULT_Y)
@@ -276,6 +280,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     if (filters.stemGroup !== 'all') params.stem = filters.stemGroup
     if (filters.minInstructorPct !== 'any') params.min_pct = filters.minInstructorPct
     if (filters.evalOnly) params.eval = '1'
+    if (filters.biddingOnly) params.bid = '1'
     if (sortBy !== 'bid_price_desc') params.sort = sortBy
     if (xMetric !== DEFAULT_X) params.x = xMetric
     if (yMetric !== DEFAULT_Y) params.y = yMetric
@@ -295,7 +300,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const isStale = filtersWithDebouncedSearch !== deferredFilters
 
   const avgMode = isAverageYear(filters.year)
-  const biddingYearNum = meta.default_year + 1
+  const biddingYearNum = meta.default_year
   const bidYear = filters.year === biddingYearNum
   const PRESETS = useMemo(() => buildPresets(biddingYearNum), [biddingYearNum])
   const activeFilterCount = countFilterBadges(filters)
@@ -486,6 +491,7 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
       year: meta.default_year,
       minInstructorPct: 'any',
       evalOnly: false,
+      biddingOnly: false,
     })
     setShowShortlistOnly(false)
   }

@@ -239,7 +239,7 @@ function FilterSidebar({ filters, setFilters, meta, mobile = false, onClose = nu
           <select value={filters.year} onChange={(event) => update({ year: event.target.value === 'all' ? 'all' : parseInt(event.target.value, 10) })}>
             <option value="all">All Years</option>
             {[...meta.years].reverse().map((year) => (
-              <option key={year} value={year}>{year === 2026 ? `${year} - Bidding` : year}</option>
+              <option key={year} value={year}>{year}</option>
             ))}
           </select>
         </div>

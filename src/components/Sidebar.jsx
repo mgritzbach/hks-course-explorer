@@ -11,6 +11,7 @@ function countActiveFilters(filters) {
   if (filters.stemGroup !== 'all') count++
   if (filters.minInstructorPct !== 'any') count++
   if (filters.evalOnly) count++
+  if (filters.biddingOnly) count++
   if (filters.year !== 0) {
     const allTerms = ['Fall', 'Spring', 'January']
     if (filters.terms.length !== allTerms.length || !allTerms.every((term) => filters.terms.includes(term))) {
@@ -127,6 +128,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       year: meta.default_year,
       minInstructorPct: 'any',
       evalOnly: false,
+      biddingOnly: false,
     }))
   }
 
@@ -208,7 +210,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
             <option value={0}>⊕ All Years Average</option>
             {[...meta.years].reverse().map((year) => (
               <option key={year} value={year}>
-                {year === 2026 ? `${year} — Bidding` : year}
+                {year}
               </option>
             ))}
           </select>
@@ -319,6 +321,16 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
             style={{ accentColor: 'var(--accent)' }}
           />
           <span className="text-xs text-label">Only courses with evals</span>
+        </label>
+        <label className="flex cursor-pointer items-center gap-2.5">
+          <input
+            type="checkbox"
+            checked={filters.biddingOnly}
+            onChange={(event) => update({ biddingOnly: event.target.checked })}
+            className="h-3.5 w-3.5 cursor-pointer"
+            style={{ accentColor: 'var(--accent)' }}
+          />
+          <span className="text-xs text-label">Bidding only</span>
         </label>
       </div>
 
