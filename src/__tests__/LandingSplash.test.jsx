@@ -21,12 +21,17 @@ describe("LandingSplash", () => {
         name: "Welcome to the HKS Course Explorer",
       }),
     ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "This is a student-built initiative to help HKS students get the course experience they desire.",
+      ),
+    ).toBeTruthy();
     expect(screen.getByText("Disclaimer")).toBeTruthy();
     expect(screen.getByText("Attention")).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Continue directly without the tutorial",
+        name: "Continue directly and skip all tutorial boxes",
       }),
     );
     act(() => vi.advanceTimersByTime(280));
@@ -48,18 +53,13 @@ describe("LandingSplash", () => {
     expect(onTutorial).toHaveBeenCalledOnce();
   });
 
-  it("keeps reverse keyboard navigation inside the welcome dialog", () => {
+  it("focuses the full welcome page when it first appears", () => {
     render(<LandingSplash onDirect={vi.fn()} onTutorial={vi.fn()} />);
 
-    const dialog = screen.getByRole("dialog", {
-      name: "Welcome to the HKS Course Explorer",
-    });
-    const tutorial = screen.getByRole("button", {
-      name: "Continue with the guided tutorial",
-    });
-    dialog.focus();
-    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
-
-    expect(document.activeElement).toBe(tutorial);
+    expect(document.activeElement).toBe(
+      screen.getByRole("main", {
+        name: "Welcome to the HKS Course Explorer",
+      }),
+    );
   });
 });
