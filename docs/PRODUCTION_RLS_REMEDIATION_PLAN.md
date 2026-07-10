@@ -1,8 +1,8 @@
 # Production RLS remediation plan
 
-Status: proposed only. Do not execute this plan against production until the
-platform owner approves a staging exercise or explicitly authorizes a scoped
-production migration.
+Status: applied to production on 2026-07-10 as
+`20260710230627_restrict_course_explorer_browser_writes`. This document is the
+release record and rollback reference for that scoped migration.
 
 ## Scope and evidence
 
@@ -37,12 +37,11 @@ there is no supported remote plan-read path to preserve.
    Builder, save/reload a local plan, and cannot call either target table's
    write endpoint with a browser publishable key.
 
-## Proposed database policy change
+## Applied database policy change
 
-The migration was generated with the Supabase CLI and is versioned as
-`20260710215439_restrict_course_explorer_browser_writes.sql`. Do not apply it
-to production until the preflight and release approval are complete. It makes
-only these changes:
+The managed migration tool recorded version
+`20260710230627_restrict_course_explorer_browser_writes`; the committed source
+file uses that exact version. It made only these changes:
 
 ```sql
 -- Preserve existing public read policy for the catalogue.
@@ -56,6 +55,22 @@ drop policy if exists "schedules_anon_all" on public.schedules;
 
 Do not add a replacement write policy until plan ownership is backed by a
 server-verified authenticated identity and has dedicated integration tests.
+
+### Production acceptance record
+
+The application release was deployed and browser-smoked before this migration.
+Immediately before application, both target tables had RLS enabled; the
+expected public `SELECT` policy remained on `live_courses`; and the two
+unrestricted `ALL` policies matched the definitions documented above. The
+database contained 1,555 live-course rows and 63 legacy schedule rows.
+
+Immediately after application:
+
+- `live_courses` retained the public `SELECT` policy and all 1,555 rows;
+- `schedules` retained all 63 rows but has no browser-access policy;
+- no `ALL` policy remains on either scoped table; and
+- an `anon`-role verification can read 1,555 live-course rows and zero
+  schedule rows.
 
 ## Staging acceptance
 

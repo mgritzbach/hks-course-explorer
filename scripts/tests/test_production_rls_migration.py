@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MIGRATION = ROOT / "supabase" / "migrations" / "20260710215439_restrict_course_explorer_browser_writes.sql"
+MIGRATION = ROOT / "supabase" / "migrations" / "20260710230627_restrict_course_explorer_browser_writes.sql"
 
 
 class ProductionRlsMigrationTests(unittest.TestCase):
