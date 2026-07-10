@@ -16,6 +16,7 @@ import {
   TALLY_FORM_ID,
 } from './lib/appConstants.js'
 import { buildCourseMeta } from './lib/courseMeta.js'
+import { fetchAllCourses } from './lib/courseDataLoader.js'
 import { capture } from './lib/analytics.js'
 import { isSupabaseConfigured, supabase } from './lib/supabase.js'
 import {
@@ -32,43 +33,9 @@ const Courses = lazy(() => import('./pages/Courses.jsx'))
 const Faculty = lazy(() => import('./pages/Faculty.jsx'))
 const Resources = lazy(() => import('./pages/Resources.jsx'))
 
-async function fetchAllCourses(onProgress) {
-  if (!isSupabaseConfigured) {
-    throw new Error(
-      'Course data is not configured. Ask the site administrator to set the Supabase browser environment variables.',
-    )
-  }
-  /*
-   * Nullable schedule fields added 2026-04-26:
-   * - meeting_days: text[] of short day codes such as ['Mon', 'Wed']
-   * - meeting_time: start time in 24h HH:MM format
-   * - meeting_time_end: end time in 24h HH:MM format
-   *
-   * Perf note: all pages are fetched in parallel (not sequentially) to avoid
-   * 6× round-trip latency. MAX_PAGES gives headroom if the table grows.
-   */
-  const PAGE = 1000
-  const MAX_PAGES = 10 // covers up to 10,000 rows; extra empty pages are harmless
-
-  const results = await Promise.all(
-    Array.from({ length: MAX_PAGES }, (_, i) =>
-      supabase
-        .from('courses')
-        .select('*')
-        .range(i * PAGE, (i + 1) * PAGE - 1),
-    ),
-  )
-
-  const all = []
-  for (const { data, error } of results) {
-    if (error) throw error
-    if (data && data.length > 0) all.push(...data)
-  }
-
-  if (onProgress) onProgress(all.length)
-  return all
-}
-
+/* Legacy loader behavior removed in favor of courseDataLoader.js:
+ * 6× round-trip latency. MAX_PAGES gives headroom if the table grows.
+ */
 async function fetchAllCoursesWithCache(onProgress) {
   // Use sessionStorage: same-tab cache that survives navigation but not a new tab.
   // localStorage hits the ~5 MB browser limit on the full 14 MB payload and silently
@@ -91,7 +58,12 @@ async function fetchAllCoursesWithCache(onProgress) {
   } catch (_e) {
     // Ignore cache read errors
   }
-  const courses = await fetchAllCourses(onProgress)
+  if (!isSupabaseConfigured) {
+    throw new Error(
+      'Course data is not configured. Ask the site administrator to set the Supabase browser environment variables.',
+    )
+  }
+  const courses = await fetchAllCourses(supabase, onProgress)
   try {
     sessionStorage.setItem(COURSES_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: courses }))
   } catch (_e) {
