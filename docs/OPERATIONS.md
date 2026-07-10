@@ -47,6 +47,20 @@ component-by-component remediation is completed; they must not be treated as
 resolved or as production accessibility certification. Select controls are now
 included in the gate.
 
+## Response security headers
+
+`public/_headers` protects Cloudflare Pages static responses, while
+`functions/_shared/cors.js` applies the matching baseline to Function
+responses. The policy includes `nosniff`, a strict referrer policy, disabled
+unused browser permissions, same-origin framing, and HTTPS transport
+enforcement. `scripts/tests/security_headers.test.js` prevents static and
+Function headers from drifting apart.
+
+Content Security Policy is intentionally not enabled by this baseline. It must
+be introduced only after an owner inventories and tests every current browser
+integration (including observability and analytics endpoints), because an
+untested CSP can break a working release.
+
 ## Bundle budgets
 
 `npm run check:bundle-budget` reads Vite's generated
