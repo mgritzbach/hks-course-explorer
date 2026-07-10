@@ -37,6 +37,11 @@ describe('Pages Function CORS policy', () => {
   it('does not add unnecessary CORS permission headers without Origin', () => {
     const headers = corsHeaders(request(''))
 
-    expect(headers).toEqual({ Vary: 'Origin' })
+    expect(headers).toMatchObject({
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'X-Frame-Options': 'SAMEORIGIN',
+      Vary: 'Origin',
+    })
   })
 })
