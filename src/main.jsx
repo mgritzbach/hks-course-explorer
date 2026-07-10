@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import App from './App.jsx'
 import { TourProvider } from './components/TutorialOverlay.jsx'
+import { WelcomeEntryProvider } from './components/WelcomeEntryProvider.jsx'
 import { initializeAnalytics } from './lib/analytics.js'
 import './index.css'
 
@@ -36,9 +37,11 @@ if (POSTHOG_KEY) {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <TourProvider>
-        <App />
-      </TourProvider>
+      <WelcomeEntryProvider>
+        <TourProvider>
+          <App />
+        </TourProvider>
+      </WelcomeEntryProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )

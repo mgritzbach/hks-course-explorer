@@ -211,6 +211,9 @@ export default function Home({
   notes,
   setNote,
   isLight = false,
+  deferOnboarding = false,
+  welcomeTourRequest = null,
+  onWelcomeTourRequestHandled,
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const mainRef = useRef(null)
@@ -256,6 +259,16 @@ export default function Home({
   )
   // Mobile: scatter plot is hidden by default to show course list immediately
   const [showPlotMobile, setShowPlotMobile] = useState(false)
+
+  // The welcome page hands off an explicit tutorial request only once. Keeping
+  // the active state here lets the tour continue after App consumes the
+  // request, while Direct visitors retain the normal "already seen" state.
+  useEffect(() => {
+    if (welcomeTourRequest !== 'tutorial') return
+    localStorage.removeItem('hks-tour-home')
+    setReplayTour(true)
+    onWelcomeTourRequestHandled?.()
+  }, [onWelcomeTourRequestHandled, welcomeTourRequest])
 
   // Auto-clear shortlist filter if all favorites are removed while it's active
   useEffect(() => {
@@ -563,16 +576,18 @@ export default function Home({
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      <OnboardingTour
-        steps={HOME_TOUR_STEPS}
-        storageKey="hks-tour-home"
-        autoStart={replayTour}
-        onDone={() => {
-          setReplayTour(false)
-          setSidebarOpen(false)
-        }}
-        onStepChange={handleTourStepChange}
-      />
+      {!deferOnboarding && (
+        <OnboardingTour
+          steps={HOME_TOUR_STEPS}
+          storageKey="hks-tour-home"
+          autoStart={replayTour}
+          onDone={() => {
+            setReplayTour(false)
+            setSidebarOpen(false)
+          }}
+          onStepChange={handleTourStepChange}
+        />
+      )}
       <div
         className={`mobile-drawer-backdrop md:hidden ${sidebarOpen ? 'open' : ''}`}
         onClick={() => setSidebarOpen(false)}

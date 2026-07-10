@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import config from '../school.config.js'
 
 const STORAGE_KEY = 'hks-splash-shown'
 
-export default function LandingSplash({ onStart, onSkip }) {
+/**
+ * First-visit entry page. It deliberately requires a choice: Direct opens
+ * Home without onboarding, while Tutorial hands Home an explicit tour start.
+ */
+export default function LandingSplash({ onDirect, onTutorial }) {
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light'
   const dismissTimerRef = useRef(null)
+  const dialogRef = useRef(null)
 
   useEffect(() => {
     if (!localStorage.getItem(STORAGE_KEY)) setVisible(true)
@@ -17,135 +20,252 @@ export default function LandingSplash({ onStart, onSkip }) {
     }
   }, [])
 
-  const dismiss = (cb) => {
+  useEffect(() => {
+    // Focusing the first button scrolls a compact mobile dialog past its HKS
+    // header. Focus the modal instead; Tab still reaches Direct first.
+    if (visible) dialogRef.current?.focus()
+  }, [visible])
+
+  const dismiss = (next) => {
     setFading(true)
     dismissTimerRef.current = setTimeout(() => {
       localStorage.setItem(STORAGE_KEY, '1')
       setVisible(false)
-      cb?.()
+      next?.()
     }, 280)
+  }
+
+  const trapFocus = (event) => {
+    if (event.key !== 'Tab') return
+    const controls = dialogRef.current?.querySelectorAll('button:not([disabled])')
+    if (!controls?.length) return
+    const first = controls[0]
+    const last = controls[controls.length - 1]
+
+    if (
+      event.shiftKey &&
+      (document.activeElement === dialogRef.current || document.activeElement === first)
+    ) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
   }
 
   if (!visible) return null
 
   return createPortal(
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="splash-heading"
+      aria-labelledby="welcome-heading"
+      aria-describedby="welcome-description welcome-disclaimer"
+      onKeyDown={trapFocus}
+      tabIndex={-1}
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 9100,
-        backdropFilter: 'blur(28px)',
-        background: isLight ? 'rgba(180, 160, 148, 0.72)' : 'rgba(8, 8, 16, 0.84)',
+        overflowY: 'auto',
+        background:
+          'linear-gradient(135deg, rgba(33, 11, 16, 0.96), rgba(91, 19, 33, 0.96) 55%, rgba(36, 10, 14, 0.98))',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '1rem',
-        transition: 'opacity 0.28s ease',
+        // On compact screens the card can be taller than the viewport. Start
+        // at the top there; on larger screens the viewport-based padding
+        // retains the intended centered presentation.
+        padding: 'max(24px, calc((100vh - 800px) / 2)) 16px',
         opacity: fading ? 0 : 1,
+        transition: 'opacity 0.28s ease',
       }}
     >
-      <div
+      <section
         style={{
-          maxWidth: 460,
-          width: '100%',
-          background: 'var(--panel-strong)',
-          borderRadius: 28,
-          border: '1px solid var(--line-strong)',
-          padding: '40px 36px 32px',
-          textAlign: 'center',
-          boxShadow: isLight
-            ? '0 32px 80px rgba(80,40,40,0.18), 0 2px 0 rgba(255,255,255,0.9) inset'
-            : '0 48px 96px rgba(0,0,0,0.56)',
+          width: 'min(100%, 760px)',
+          overflow: 'hidden',
+          border: '1px solid rgba(224, 195, 145, 0.5)',
+          borderRadius: 12,
+          background: '#fffdf9',
+          boxShadow: '0 30px 90px rgba(0, 0, 0, 0.48)',
         }}
       >
-        <p className="kicker mb-4">Harvard Kennedy School</p>
-
         <div
           style={{
-            width: 64,
-            height: 64,
-            borderRadius: 18,
-            background: 'linear-gradient(135deg, rgba(165,28,48,0.28), rgba(212,168,106,0.14))',
-            border: '1px solid rgba(212,168,106,0.22)',
-            margin: '0 auto 20px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 28,
+            gap: 14,
+            padding: '18px 24px',
+            background: '#a51c30',
+            color: '#fff',
           }}
         >
-          📚
-        </div>
-
-        <h1
-          id="splash-heading"
-          className="serif-display text-3xl font-semibold"
-          style={{ color: 'var(--text)', marginBottom: 10 }}
-        >
-          Course Explorer
-        </h1>
-        <p
-          className="text-sm"
-          style={{ color: 'var(--text-soft)', marginBottom: 6, lineHeight: 1.6 }}
-        >
-          {config.appTagline}
-        </p>
-        <p className="text-xs" style={{ color: 'var(--text-muted)', marginBottom: 32 }}>
-          Student-built · Independent · Real evaluation data
-        </p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            onClick={() => dismiss(onStart)}
+          <div
+            aria-hidden="true"
             style={{
-              width: '100%',
-              borderRadius: 999,
-              padding: '12px 24px',
-              fontSize: 14,
-              fontWeight: 600,
-              background: 'linear-gradient(180deg, rgba(165,28,48,0.9), rgba(140,20,38,0.95))',
-              color: '#fff8f5',
-              border: '1px solid rgba(212,168,106,0.28)',
-              cursor: 'pointer',
-              boxShadow: '0 8px 24px rgba(165,28,48,0.32)',
-              transition: 'transform 0.12s ease, box-shadow 0.12s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-1px)'
-              e.currentTarget.style.boxShadow = '0 12px 28px rgba(165,28,48,0.4)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = ''
-              e.currentTarget.style.boxShadow = '0 8px 24px rgba(165,28,48,0.32)'
+              display: 'grid',
+              width: 42,
+              height: 42,
+              placeItems: 'center',
+              border: '1px solid rgba(255, 255, 255, 0.68)',
+              borderRadius: 2,
+              fontFamily: 'Georgia, serif',
+              fontSize: 25,
+              fontWeight: 700,
             }}
           >
-            Start Exploring →
-          </button>
-          <button
-            onClick={() => dismiss(onSkip)}
+            H
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.12em' }}>
+              HARVARD KENNEDY SCHOOL
+            </p>
+            <p style={{ margin: '3px 0 0', fontFamily: 'Georgia, serif', fontSize: 18 }}>
+              HKS Course Explorer
+            </p>
+          </div>
+        </div>
+
+        <div style={{ padding: '32px 24px 28px' }}>
+          <p
             style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
+              margin: '0 0 12px',
+              color: '#a51c30',
               fontSize: 12,
-              color: 'var(--text-muted)',
-              padding: '6px 0',
-              transition: 'color 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--text-soft)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-muted)'
+              fontWeight: 800,
+              letterSpacing: '0.1em',
             }}
           >
-            Skip intro
-          </button>
+            STUDENT-BUILT INITIATIVE
+          </p>
+          <h1
+            id="welcome-heading"
+            style={{
+              margin: 0,
+              color: '#1f1a17',
+              fontFamily: 'Georgia, serif',
+              fontSize: 'clamp(30px, 5vw, 46px)',
+              fontWeight: 600,
+              letterSpacing: '-0.035em',
+              lineHeight: 1.08,
+            }}
+          >
+            Welcome to the HKS Course Explorer
+          </h1>
+          <p
+            id="welcome-description"
+            style={{
+              maxWidth: 610,
+              margin: '18px 0 0',
+              color: '#4d4540',
+              fontSize: 17,
+              lineHeight: 1.6,
+            }}
+          >
+            This student-built initiative helps HKS students find the course experience they desire.
+          </p>
+          <p style={{ margin: '14px 0 0', color: '#655b54', fontSize: 14, lineHeight: 1.55 }}>
+            Code and maintenance are provided by Michael Gritzbach, MPA&apos;26, KSSG 2025/26.
+          </p>
+
+          <div
+            id="welcome-disclaimer"
+            style={{
+              marginTop: 26,
+              borderLeft: '4px solid #a51c30',
+              background: '#f6f0ea',
+              padding: '15px 17px',
+            }}
+          >
+            <p style={{ margin: 0, color: '#42131b', fontSize: 13, fontWeight: 800 }}>Disclaimer</p>
+            <p style={{ margin: '5px 0 0', color: '#514641', fontSize: 13, lineHeight: 1.55 }}>
+              This is not an official University website. Use of this tool and interpretation of its
+              data are at your own discretion. Confirm schedules, requirements, enrollment, and
+              other decisions with official HKS sources.
+            </p>
+          </div>
+
+          <div
+            role="note"
+            style={{
+              marginTop: 12,
+              border: '1px solid #ddc78e',
+              background: '#fff8df',
+              padding: '14px 16px',
+            }}
+          >
+            <p style={{ margin: 0, color: '#5b4212', fontSize: 13, fontWeight: 800 }}>Attention</p>
+            <p style={{ margin: '5px 0 0', color: '#5b4a29', fontSize: 13, lineHeight: 1.55 }}>
+              Due to new coding models, the repository is currently under review. We apologize for
+              potential disruptions or errors while the codebase is optimized and rewritten.
+            </p>
+          </div>
+
+          <div style={{ marginTop: 28, borderTop: '1px solid #dfd6ce', paddingTop: 22 }}>
+            <p
+              style={{
+                margin: '0 0 14px',
+                color: '#2f2925',
+                fontFamily: 'Georgia, serif',
+                fontSize: 19,
+              }}
+            >
+              Would you like to continue?
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 10,
+              }}
+            >
+              <button
+                type="button"
+                aria-label="Continue directly without the tutorial"
+                onClick={() => dismiss(onDirect)}
+                style={{
+                  minWidth: 154,
+                  border: '1px solid #a51c30',
+                  borderRadius: 3,
+                  padding: '12px 18px',
+                  background: '#a51c30',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: 15,
+                  fontWeight: 700,
+                }}
+              >
+                Direct
+              </button>
+              <button
+                type="button"
+                aria-label="Continue with the guided tutorial"
+                onClick={() => dismiss(onTutorial)}
+                style={{
+                  minWidth: 154,
+                  border: '1px solid #7d171f',
+                  borderRadius: 3,
+                  padding: '12px 18px',
+                  background: '#fffdf9',
+                  color: '#7d171f',
+                  cursor: 'pointer',
+                  fontSize: 15,
+                  fontWeight: 700,
+                }}
+              >
+                Tutorial
+              </button>
+            </div>
+            <p style={{ margin: '10px 0 0', color: '#746a63', fontSize: 12, lineHeight: 1.45 }}>
+              Direct opens Course Explorer immediately. Tutorial starts a short guided tour of the
+              first page.
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
     </div>,
     document.body,
   )

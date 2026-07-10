@@ -7,8 +7,14 @@ const ScheduleBuilder = lazy(() => import('./pages/ScheduleBuilder.jsx'))
 const Admin = lazy(() => import('./pages/Admin.jsx'))
 import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
-import LandingSplash from './components/LandingSplash.jsx'
 import SkeletonCard from './components/SkeletonCard.jsx'
+import WelcomeHome from './components/WelcomeHome.jsx'
+import {
+  COURSES_CACHE_KEY,
+  COURSES_CACHE_TTL,
+  STORAGE_VERSION,
+  TALLY_FORM_ID,
+} from './lib/appConstants.js'
 import { buildCourseMeta } from './lib/courseMeta.js'
 import { capture } from './lib/analytics.js'
 import { isSupabaseConfigured, supabase } from './lib/supabase.js'
@@ -24,13 +30,7 @@ import { useNotes } from './useNotes.js'
 const Compare = lazy(() => import('./pages/Compare.jsx'))
 const Courses = lazy(() => import('./pages/Courses.jsx'))
 const Faculty = lazy(() => import('./pages/Faculty.jsx'))
-const Home = lazy(() => import('./pages/Home.jsx'))
 const Resources = lazy(() => import('./pages/Resources.jsx'))
-
-// Static metric definitions — never change
-const STORAGE_VERSION = 'v2'
-const COURSES_CACHE_KEY = 'hks_courses_cache_v3'
-const COURSES_CACHE_TTL = 30 * 60 * 1000
 
 async function fetchAllCourses(onProgress) {
   if (!isSupabaseConfigured) {
@@ -216,8 +216,6 @@ function NavResourcesSection() {
     </div>
   )
 }
-
-const TALLY_FORM_ID = 'LZYAQv'
 
 export default function App() {
   const location = useLocation()
@@ -554,7 +552,7 @@ export default function App() {
           <Route
             path="/"
             element={
-              <Home
+              <WelcomeHome
                 courses={data.courses}
                 meta={data.meta}
                 favs={favs}
@@ -840,7 +838,6 @@ export default function App() {
   if (hubTheme) {
     return (
       <div className="flex h-screen flex-col" style={{ background: 'var(--bg)' }}>
-        <LandingSplash />
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-black"
@@ -1023,7 +1020,6 @@ export default function App() {
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className="flex min-h-screen md:h-screen" style={{ background: 'transparent' }}>
-      <LandingSplash />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-black"
