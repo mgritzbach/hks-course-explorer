@@ -1,22 +1,23 @@
 # Corporate Release Goal Status
 
 Status convention: `0` = incomplete or unverified; `1` = proven by the listed
-acceptance evidence. A goal remains `0` when production access is required but
-not available. No release proceeds while any P0 goal is `0`.
+acceptance evidence. The progress percentage records independently verified
+evidence toward the goal; it does not override the binary release status. No
+release proceeds while any P0 goal is `0`.
 
-| ID | Priority | Goal | Status | Evidence required to mark 1 |
-|---|---|---|---:|---|
-| G01 | P0 | Live Harvard search is reliable and reports typed degraded/unavailable states. | 0 | Contract/failure tests; preview and production synthetic HKS, Non-HKS, and empty-result checks; Cloudflare logs. |
-| G02 | P0 | Scheduled sync cannot corrupt or erase a known-good live catalogue. | 0 | Partial-failure simulation preserves prior data; validated staged promotion and rollback in Supabase. |
-| G03 | P0 | Database schema, RLS, indexes, seeds, and restore procedure are reproducible. | 0 | Empty-project migration and query/RLS integration suite; backup/restore proof. |
-| G04 | P0 | Critical UX and data flows are deterministic, accessible, and regression-tested. | 0 | Green seeded E2E covering routes, assets, links, filters including zero state, scheduling, auth, and errors. |
-| G05 | P0 | Deployments are protected by exact-commit quality gates and tested rollback. | 0 | CI, preview, canary/smoke, release identifier, and rollback evidence. |
-| G06 | P0 | Configuration, secrets, auth, domain/CORS policy, and operational health checks are safe. | 0 | Validated environment contract, rate-limit/audit tests, secret rotation and health-check runbooks. |
-| G07 | P1 | No untriaged critical/high production dependency or input-security risk remains. | 1 | Audited upgrade matrix, green complete test suite, documented residual risk. |
-| G08 | P1 | Performance budgets are measured and enforced. | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
-| G09 | P1 | Navigation is mobile/keyboard accessible; all links and static assets remain healthy. | 0 | Automated crawl/a11y checks plus manual critical-flow acceptance evidence. |
-| G10 | P1 | The codebase has clear bounded modules, typed contracts/configuration, and enforceable quality rules. | 1 | Independently manager-reviewed decomposition, behavior-preserving unit/browser tests, and format/import/architecture/complexity gates. |
-| G11 | P1 | IT handover documentation supports a clean setup and safe operations. | 0 | Architecture/API/data docs, data dictionary, setup, deploy/sync/on-call/rollback/restore runbooks verified by a fresh setup. |
+| ID | Priority | Canonical goal | Verified progress | Status | Evidence required to mark 1 |
+|---|---|---|---:|---:|---|
+| G01 | P0 | Foundations / governance | 75% | 0 | Protected release ownership, CI controls, fresh setup/review evidence, and final governance sign-off. |
+| G02 | P0 | Data integrity | 75% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
+| G03 | P0 | Supabase reliability | 70% | 0 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
+| G04 | P0 | Security | 85% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
+| G05 | P1 | Navigation / usability | 60% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
+| G06 | P1 | Accessibility | 60% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
+| G07 | P1 | Dependency security | 100% | 1 | Audited upgrade matrix, green complete suite, and documented residual risk. |
+| G08 | P1 | Performance | 75% | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
+| G09 | P1 | Regression safety | 85% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
+| G10 | P1 | Maintainable architecture | 99% | 0 | Final independent manager review of bounded modules, contracts, and quality gates. |
+| G11 | P1 | Operations / deployment | 75% | 0 | Fresh setup, production deployment/smoke, rollback exercise, and on-call handover evidence. |
 
 ## Required engineering loop
 
