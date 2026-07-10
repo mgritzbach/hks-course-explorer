@@ -1,7 +1,7 @@
-import posthog from 'posthog-js'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import config from '../school.config.js'
+import { capture } from '../lib/analytics.js'
 
 function dedupeCourseSummaries(items, limit = 30) {
   const seen = new Set()
@@ -42,16 +42,24 @@ function rankCourse(course) {
 
 function condenseCourses(courses, query, shortlistedCodes = []) {
   if (!courses?.length) return []
-  const keywords = query.toLowerCase().split(/\W+/).filter((w) => w.length > 2)
+  const keywords = query
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((w) => w.length > 2)
   const shortlistedSet = new Set(shortlistedCodes)
 
   // Use the most recent year with eval data for keyword matching
-  const recentYear = Math.max(...courses.filter((c) => !c.is_average && c.has_eval && c.year).map((c) => c.year), 0)
+  const recentYear = Math.max(
+    ...courses.filter((c) => !c.is_average && c.has_eval && c.year).map((c) => c.year),
+    0,
+  )
 
   const keywordMatches = courses
     .filter((c) => !c.is_average && c.year === recentYear)
     .map((c) => {
-      const haystack = [c.course_name, c.course_code, c.professor_display, c.concentration].join(' ').toLowerCase()
+      const haystack = [c.course_name, c.course_code, c.professor_display, c.concentration]
+        .join(' ')
+        .toLowerCase()
       const score = keywords.reduce((s, kw) => s + (haystack.includes(kw) ? 1 : 0), 0)
       return { c, score }
     })
@@ -78,14 +86,16 @@ export default function ChatBot({ courses, favs, isLight = false }) {
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const welcomeShownRef = useRef(false)
 
   const isHidden = HIDDEN_ROUTES.some((route) => location.pathname.startsWith(route))
 
   useEffect(() => {
     if (isHidden || !open) return
-    if (messages.length === 0) {
+    if (!welcomeShownRef.current) {
+      welcomeShownRef.current = true
       setMessages([{ role: 'assistant', content: config.chatWelcome }])
-      posthog.capture('chatbot_opened')
+      capture('chatbot_opened')
     }
     const timer = setTimeout(() => inputRef.current?.focus(), 120)
     return () => clearTimeout(timer)
@@ -99,7 +109,10 @@ export default function ChatBot({ courses, favs, isLight = false }) {
     if (!input.trim() || loading) return
     const userMsg = input.trim()
     setInput('')
-    posthog.capture('chatbot_message_sent', { message_length: userMsg.length, turn: messages.filter(m => m.role === 'user').length + 1 })
+    capture('chatbot_message_sent', {
+      message_length: userMsg.length,
+      turn: messages.filter((m) => m.role === 'user').length + 1,
+    })
     const next = [...messages, { role: 'user', content: userMsg }]
     setMessages(next)
     setLoading(true)
@@ -107,7 +120,11 @@ export default function ChatBot({ courses, favs, isLight = false }) {
     try {
       const shortlistedCodes = Array.from(favs?.favorites || [])
       const shortlistedNames = shortlistedCodes
-        .map((code) => courses.find((course) => (course.course_code_base || course.course_code) === code)?.course_name)
+        .map(
+          (code) =>
+            courses.find((course) => (course.course_code_base || course.course_code) === code)
+              ?.course_name,
+        )
         .filter(Boolean)
 
       const res = await fetch('/api/chat', {
@@ -123,7 +140,10 @@ export default function ChatBot({ courses, favs, isLight = false }) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${data.error || res.status}` }])
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `Error: ${data.error || res.status}` },
+        ])
         return
       }
 
@@ -133,7 +153,10 @@ export default function ChatBot({ courses, favs, isLight = false }) {
       if (!isStream) {
         // Fallback: plain JSON response
         const data = await res.json().catch(() => ({}))
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply || `Error: ${data.error || 'No response'}` }])
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: data.reply || `Error: ${data.error || 'No response'}` },
+        ])
         return
       }
 
@@ -157,7 +180,10 @@ export default function ChatBot({ courses, favs, isLight = false }) {
           if (payload === '[DONE]') break
           try {
             const { token, error } = JSON.parse(payload)
-            if (error) { reply = `Error: ${error}`; break }
+            if (error) {
+              reply = `Error: ${error}`
+              break
+            }
             if (token) {
               reply += token
               setMessages((prev) => {
@@ -176,12 +202,18 @@ export default function ChatBot({ courses, favs, isLight = false }) {
       if (!reply) {
         setMessages((prev) => {
           const updated = [...prev]
-          updated[updated.length - 1] = { role: 'assistant', content: 'No response received. Please try again.' }
+          updated[updated.length - 1] = {
+            role: 'assistant',
+            content: 'No response received. Please try again.',
+          }
           return updated
         })
       }
     } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }])
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: 'Connection error. Please try again.' },
+      ])
     } finally {
       setLoading(false)
     }
@@ -223,7 +255,15 @@ export default function ChatBot({ courses, favs, isLight = false }) {
           }}
         >
           {/* Header */}
-          <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              padding: '14px 18px 12px',
+              borderBottom: '1px solid var(--line)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
             <span style={{ fontSize: 16, color: 'var(--accent)' }}>✦</span>
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Course Advisor</p>
@@ -233,31 +273,63 @@ export default function ChatBot({ courses, favs, isLight = false }) {
               onClick={() => setOpen(false)}
               aria-label="Close Course Advisor"
               title="Close"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18, padding: '0 2px', lineHeight: 1 }}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+                fontSize: 18,
+                padding: '0 2px',
+                lineHeight: 1,
+              }}
             >
               ×
             </button>
           </div>
 
           {/* Disclaimer */}
-          <div style={{ padding: '7px 14px', borderBottom: '1px solid var(--line)', background: 'rgba(165,28,48,0.04)' }}>
+          <div
+            style={{
+              padding: '7px 14px',
+              borderBottom: '1px solid var(--line)',
+              background: 'rgba(165,28,48,0.04)',
+            }}
+          >
             <p style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
               ⚠️ Based on free AI models — use as orientation only, not a reliable source of truth.
             </p>
           </div>
 
           {/* Messages */}
-          <div aria-live="polite" aria-atomic="false" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div
+            aria-live="polite"
+            aria-atomic="false"
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '14px 14px 8px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
             {messages.map((msg, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                }}
+              >
                 <div
                   style={{
                     maxWidth: '86%',
                     padding: '10px 14px',
                     borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                    background: msg.role === 'user'
-                      ? 'linear-gradient(160deg, rgba(165,28,48,0.30), rgba(165,28,48,0.14))'
-                      : 'var(--panel-subtle)',
+                    background:
+                      msg.role === 'user'
+                        ? 'linear-gradient(160deg, rgba(165,28,48,0.30), rgba(165,28,48,0.14))'
+                        : 'var(--panel-subtle)',
                     border: '1px solid var(--line)',
                     fontSize: 13,
                     lineHeight: 1.65,
@@ -271,7 +343,16 @@ export default function ChatBot({ courses, favs, isLight = false }) {
             ))}
             {loading && (
               <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                <div style={{ padding: '10px 16px', borderRadius: '18px 18px 18px 4px', background: 'var(--panel-subtle)', border: '1px solid var(--line)', fontSize: 13, color: 'var(--text-muted)' }}>
+                <div
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: '18px 18px 18px 4px',
+                    background: 'var(--panel-subtle)',
+                    border: '1px solid var(--line)',
+                    fontSize: 13,
+                    color: 'var(--text-muted)',
+                  }}
+                >
                   thinking…
                 </div>
               </div>
@@ -280,12 +361,24 @@ export default function ChatBot({ courses, favs, isLight = false }) {
           </div>
 
           {/* Input */}
-          <div style={{ padding: '8px 12px calc(env(safe-area-inset-bottom, 0px) + 12px)', borderTop: '1px solid var(--line)', display: 'flex', gap: 8 }}>
+          <div
+            style={{
+              padding: '8px 12px calc(env(safe-area-inset-bottom, 0px) + 12px)',
+              borderTop: '1px solid var(--line)',
+              display: 'flex',
+              gap: 8,
+            }}
+          >
             <input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  send()
+                }
+              }}
               placeholder="light workload, climate policy, good ratings…"
               style={{
                 flex: 1,

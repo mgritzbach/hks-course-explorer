@@ -87,7 +87,7 @@ const TOURS = {
     {
       id: FACULTY_TOUR.QUICK_STATS,
       title: 'Review the quick stats',
-      body: 'These headline numbers provide immediate context on volume, consistency, and the shape of the instructor\'s course portfolio.',
+      body: "These headline numbers provide immediate context on volume, consistency, and the shape of the instructor's course portfolio.",
     },
     {
       id: FACULTY_TOUR.COURSES_TABLE,
@@ -202,14 +202,17 @@ export function TourProvider({ children }) {
     startTour(currentTour)
   }, [startTour])
 
-  const value = useMemo(() => ({
-    activeTour,
-    stepIndex,
-    setStepIndex,
-    startTour,
-    closeTour,
-    markSeen,
-  }), [activeTour, closeTour, markSeen, startTour, stepIndex])
+  const value = useMemo(
+    () => ({
+      activeTour,
+      stepIndex,
+      setStepIndex,
+      startTour,
+      closeTour,
+      markSeen,
+    }),
+    [activeTour, closeTour, markSeen, startTour, stepIndex],
+  )
 
   return <TourContext.Provider value={value}>{children}</TourContext.Provider>
 }
@@ -363,47 +366,53 @@ export default function TutorialOverlay({ tourName }) {
     setTargetRect(null)
   }, [closeTour, markSeen, tourName])
 
-  const goToStep = useCallback((nextIndex) => {
-    if (nextIndex >= steps.length) {
-      finishTour()
-      return
-    }
+  const goToStep = useCallback(
+    (nextIndex) => {
+      if (nextIndex >= steps.length) {
+        finishTour()
+        return
+      }
 
-    setStepIndex(nextIndex)
-  }, [finishTour, setStepIndex, steps.length])
+      setStepIndex(nextIndex)
+    },
+    [finishTour, setStepIndex, steps.length],
+  )
 
-  const syncToStep = useCallback((options = {}) => {
-    if (!isActive || !step || typeof document === 'undefined') return
+  const syncToStep = useCallback(
+    (options = {}) => {
+      if (!isActive || !step || typeof document === 'undefined') return
 
-    const { allowScroll = false } = options
-    const target = document.querySelector(`[data-tour="${step.id}"]`)
+      const { allowScroll = false } = options
+      const target = document.querySelector(`[data-tour="${step.id}"]`)
 
-    if (!target) {
-      goToStep(stepIndex + 1)
-      return
-    }
-
-    if (allowScroll && typeof target.scrollIntoView === 'function') {
-      target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
-    }
-
-    cancelAnimationFrame(rafRef.current)
-    rafRef.current = requestAnimationFrame(() => {
-      const bounds = target.getBoundingClientRect()
-
-      if (bounds.width <= 0 || bounds.height <= 0) {
+      if (!target) {
         goToStep(stepIndex + 1)
         return
       }
 
-      setTargetRect({
-        top: bounds.top - SPOTLIGHT_PADDING,
-        left: bounds.left - SPOTLIGHT_PADDING,
-        width: bounds.width + SPOTLIGHT_PADDING * 2,
-        height: bounds.height + SPOTLIGHT_PADDING * 2,
+      if (allowScroll && typeof target.scrollIntoView === 'function') {
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      }
+
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        const bounds = target.getBoundingClientRect()
+
+        if (bounds.width <= 0 || bounds.height <= 0) {
+          goToStep(stepIndex + 1)
+          return
+        }
+
+        setTargetRect({
+          top: bounds.top - SPOTLIGHT_PADDING,
+          left: bounds.left - SPOTLIGHT_PADDING,
+          width: bounds.width + SPOTLIGHT_PADDING * 2,
+          height: bounds.height + SPOTLIGHT_PADDING * 2,
+        })
       })
-    })
-  }, [goToStep, isActive, step, stepIndex])
+    },
+    [goToStep, isActive, step, stepIndex],
+  )
 
   useEffect(() => {
     if (!isActive) {
@@ -494,6 +503,6 @@ export default function TutorialOverlay({ tourName }) {
         </div>
       </div>
     </>,
-    document.body
+    document.body,
   )
 }

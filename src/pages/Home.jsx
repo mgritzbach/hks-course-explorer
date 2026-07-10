@@ -1,4 +1,13 @@
-import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useSearchParams } from 'react-router-dom'
 import CourseCard from '../components/CourseCard.jsx'
 import ErrorBoundary from '../components/ErrorBoundary.jsx'
@@ -13,7 +22,7 @@ const HOME_TOUR_STEPS = [
   {
     target: 'year-filter',
     title: 'Start with the Year',
-    body: 'Pick the academic year you\'re planning for. 2025 has the most complete evaluations; 2026 shows the active bidding season.',
+    body: "Pick the academic year you're planning for. 2025 has the most complete evaluations; 2026 shows the active bidding season.",
   },
   {
     target: 'scatter-plot',
@@ -65,7 +74,10 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
 
   const avgMode = isAverageYear(year)
   const searchTerms = searchText
-    ? searchText.split(',').map((term) => term.trim().toLowerCase()).filter(Boolean)
+    ? searchText
+        .split(',')
+        .map((term) => term.trim().toLowerCase())
+        .filter(Boolean)
     : []
   const minPct = minInstructorPct !== 'any' ? parseFloat(minInstructorPct) : null
 
@@ -104,7 +116,9 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
         course.professor,
         course.description,
         course.concentration,
-      ].join(' ').toLowerCase()
+      ]
+        .join(' ')
+        .toLowerCase()
 
       if (!searchTerms.some((term) => haystack.includes(term))) return false
     }
@@ -115,7 +129,8 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
 
 function pageTitle(filters) {
   if (isAverageYear(filters.year)) return 'HKS Course Search - All Years Average'
-  const termLabel = filters.terms.length === ALL_TERMS.length ? 'All Terms' : filters.terms.join(' + ')
+  const termLabel =
+    filters.terms.length === ALL_TERMS.length ? 'All Terms' : filters.terms.join(' + ')
   return `HKS Course Search - ${termLabel} ${filters.year}`
 }
 
@@ -129,7 +144,10 @@ function countFilterBadges(filters) {
   if (filters.evalOnly) count++
   if (filters.biddingOnly) count++
   if (!isAverageYear(filters.year)) {
-    if (filters.terms.length !== ALL_TERMS.length || !ALL_TERMS.every((term) => filters.terms.includes(term))) {
+    if (
+      filters.terms.length !== ALL_TERMS.length ||
+      !ALL_TERMS.every((term) => filters.terms.includes(term))
+    ) {
       count++
     }
   }
@@ -182,7 +200,18 @@ function buildPresets(biddingYear) {
   return [...STATIC_PRESETS.slice(0, 4), biddingPreset, ...STATIC_PRESETS.slice(4)]
 }
 
-export default function Home({ courses, meta, favs, metricMode = 'score', setMetricMode, colorblindMode = false, setColorblindMode, notes, setNote, isLight = false }) {
+export default function Home({
+  courses,
+  meta,
+  favs,
+  metricMode = 'score',
+  setMetricMode,
+  colorblindMode = false,
+  setColorblindMode,
+  notes,
+  setNote,
+  isLight = false,
+}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const mainRef = useRef(null)
   const visualizationRef = useRef(null)
@@ -222,13 +251,15 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const [showShortlistOnly, setShowShortlistOnly] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
   const [pageLimit, setPageLimit] = useState(50)
-  const [compactView, setCompactView] = useState(() => localStorage.getItem('hks_card_view') === 'compact')
+  const [compactView, setCompactView] = useState(
+    () => localStorage.getItem('hks_card_view') === 'compact',
+  )
   // Mobile: scatter plot is hidden by default to show course list immediately
   const [showPlotMobile, setShowPlotMobile] = useState(false)
 
   // Auto-clear shortlist filter if all favorites are removed while it's active
   useEffect(() => {
-    if (showShortlistOnly && (!favs || favs.count === 0)) {
+    if (showShortlistOnly && !favs?.count) {
       setShowShortlistOnly(false)
     }
   }, [favs?.count, showShortlistOnly])
@@ -238,11 +269,11 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     setReplayTour(true)
   }
 
-  const handleTourStepChange = (stepIndex) => {
+  const handleTourStepChange = useCallback((stepIndex) => {
     // Step 0 targets 'year-filter' which lives in the sidebar drawer
     if (stepIndex === 0) setSidebarOpen(true)
     else setSidebarOpen(false)
-  }
+  }, [])
 
   const _scrollToVisualization = () => {
     if (!mainRef.current || !visualizationRef.current) return
@@ -285,14 +316,28 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     if (xMetric !== DEFAULT_X) params.x = xMetric
     if (yMetric !== DEFAULT_Y) params.y = yMetric
     setSearchParams(params, { replace: true })
-  }, [filters.year, filters.terms, filters.concentration, filters.coreFilter, filters.stemGroup, filters.minInstructorPct, filters.evalOnly, sortBy, xMetric, yMetric, meta.default_year, setSearchParams])
+  }, [
+    filters.year,
+    filters.terms,
+    filters.concentration,
+    filters.coreFilter,
+    filters.stemGroup,
+    filters.minInstructorPct,
+    filters.evalOnly,
+    filters.biddingOnly,
+    sortBy,
+    xMetric,
+    yMetric,
+    meta.default_year,
+    setSearchParams,
+  ])
 
   // Debounce text search — only triggers a re-filter after user pauses typing (150ms)
   const debouncedSearch = useDebounce(filters.searchText, 150)
   // Merge debounced search back into filters before deferring
   const filtersWithDebouncedSearch = useMemo(
     () => ({ ...filters, searchText: debouncedSearch }),
-    [filters, debouncedSearch]
+    [filters, debouncedSearch],
   )
 
   // Defer heavy filter computation so the UI stays responsive while the chart/list re-render
@@ -310,7 +355,9 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     const evalYears = courses.filter((c) => c.has_eval && !c.is_average && c.year && c.term)
     if (!evalYears.length) return 'Spring 2025'
     const maxYear = Math.max(...evalYears.map((c) => c.year))
-    const termsInMaxYear = [...new Set(evalYears.filter((c) => c.year === maxYear).map((c) => c.term))]
+    const termsInMaxYear = [
+      ...new Set(evalYears.filter((c) => c.year === maxYear).map((c) => c.term)),
+    ]
     const termOrder = { Spring: 2, Fall: 1, January: 0 }
     const latestTerm = termsInMaxYear.sort((a, b) => (termOrder[b] ?? -1) - (termOrder[a] ?? -1))[0]
     return latestTerm ? `${latestTerm} ${maxYear}` : `${maxYear}`
@@ -341,7 +388,10 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
       const isMobile = window.matchMedia('(max-width: 767px)').matches
       if (isMobile) {
         setSidebarOpen(true)
-        setTimeout(() => { sidebarSearchRef.current?.focus(); sidebarSearchRef.current?.select() }, 150)
+        setTimeout(() => {
+          sidebarSearchRef.current?.focus()
+          sidebarSearchRef.current?.select()
+        }, 150)
       } else {
         sidebarSearchRef.current?.focus()
         sidebarSearchRef.current?.select()
@@ -373,7 +423,10 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
     const averages = new Map()
     for (const [base, bids] of grouped.entries()) {
-      averages.set(base, Math.round((bids.reduce((sum, value) => sum + value, 0) / bids.length) * 10) / 10)
+      averages.set(
+        base,
+        Math.round((bids.reduce((sum, value) => sum + value, 0) / bids.length) * 10) / 10,
+      )
     }
     return averages
   }, [courses])
@@ -382,29 +435,29 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
   const dAvgMode = isAverageYear(deferredFilters.year)
 
   // Pre-filtered to just the current year — reduces filter work from 5500 → ~300 items
-  const yearPool = useMemo(() => (
-    coursesByYear.get(deferredFilters.year) ?? []
-  ), [coursesByYear, deferredFilters.year])
+  const yearPool = useMemo(
+    () => coursesByYear.get(deferredFilters.year) ?? [],
+    [coursesByYear, deferredFilters.year],
+  )
 
-  const yearEvalCourses = useMemo(() => (
-    yearPool.filter((course) => course.has_eval)
-  ), [yearPool])
+  const yearEvalCourses = useMemo(() => yearPool.filter((course) => course.has_eval), [yearPool])
 
   const biddingOnlyCourses = useMemo(() => {
     if (dAvgMode || deferredFilters.evalOnly) return []
-    return yearPool.filter((course) =>
-      !course.has_eval &&
-      course.has_bidding &&
-      deferredFilters.terms.includes(course.term)
+    return yearPool.filter(
+      (course) =>
+        !course.has_eval && course.has_bidding && deferredFilters.terms.includes(course.term),
     )
   }, [dAvgMode, yearPool, deferredFilters.evalOnly, deferredFilters.terms])
 
-  const filtered = useMemo(() => (
-    applyFilters(yearPool, deferredFilters, true).map((course) => ({
-      ...course,
-      avg_bid_price: avgBidByBase.get(course.course_code_base) ?? null,
-    }))
-  ), [avgBidByBase, yearPool, deferredFilters])
+  const filtered = useMemo(
+    () =>
+      applyFilters(yearPool, deferredFilters, true).map((course) => ({
+        ...course,
+        avg_bid_price: avgBidByBase.get(course.course_code_base) ?? null,
+      })),
+    [avgBidByBase, yearPool, deferredFilters],
+  )
   const filteredEval = useMemo(() => filtered.filter((course) => course.has_eval), [filtered])
 
   const sorted = useMemo(() => {
@@ -430,15 +483,23 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
     switch (sortBy) {
       case 'instructor_desc':
-        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.Instructor_Rating))
+        return result.sort((a, b) =>
+          compareValues(a, b, (course) => course.metrics_pct?.Instructor_Rating),
+        )
       case 'workload_asc':
-        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.Workload, 'asc'))
+        return result.sort((a, b) =>
+          compareValues(a, b, (course) => course.metrics_pct?.Workload, 'asc'),
+        )
       case 'course_rating_desc':
-        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.Course_Rating))
+        return result.sort((a, b) =>
+          compareValues(a, b, (course) => course.metrics_pct?.Course_Rating),
+        )
       case 'rigor_desc':
         return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.Rigor))
       case 'diverse_desc':
-        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.['Diverse Perspectives']))
+        return result.sort((a, b) =>
+          compareValues(a, b, (course) => course.metrics_pct?.['Diverse Perspectives']),
+        )
       case 'bid_price_desc':
         return result.sort((a, b) => {
           const av = a.last_bid_price
@@ -455,18 +516,22 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
     }
   }, [filtered, sortBy])
 
-  const visibleCourses = useMemo(() => (
-    showShortlistOnly && favs
-      ? sorted.filter((course) => favs.isFavorite(course.course_code_base))
-      : sorted
-  ), [favs, showShortlistOnly, sorted])
+  const visibleCourses = useMemo(
+    () =>
+      showShortlistOnly && favs
+        ? sorted.filter((course) => favs.isFavorite(course.course_code_base))
+        : sorted,
+    [favs, showShortlistOnly, sorted],
+  )
 
   const resultText = filters.searchText.trim()
     ? `Search complete. Scroll down to view ${filtered.length} result${filtered.length !== 1 ? 's' : ''}.`
     : null
 
   // Reset page limit whenever filters or sort changes so the list starts fresh
-  useEffect(() => { setPageLimit(50) }, [deferredFilters, sortBy, showShortlistOnly])
+  useEffect(() => {
+    setPageLimit(50)
+  }, [deferredFilters, sortBy, showShortlistOnly])
 
   const handlePreset = (preset) => {
     if (preset.sortKey) setSortBy(preset.sortKey)
@@ -498,7 +563,16 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      <OnboardingTour steps={HOME_TOUR_STEPS} storageKey="hks-tour-home" autoStart={replayTour} onDone={() => { setReplayTour(false); setSidebarOpen(false) }} onStepChange={handleTourStepChange} />
+      <OnboardingTour
+        steps={HOME_TOUR_STEPS}
+        storageKey="hks-tour-home"
+        autoStart={replayTour}
+        onDone={() => {
+          setReplayTour(false)
+          setSidebarOpen(false)
+        }}
+        onStepChange={handleTourStepChange}
+      />
       <div
         className={`mobile-drawer-backdrop md:hidden ${sidebarOpen ? 'open' : ''}`}
         onClick={() => setSidebarOpen(false)}
@@ -527,20 +601,45 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
       </div>
 
       <div className="hidden md:block">
-        <Sidebar filters={filters} setFilters={setFilters} meta={meta} title="Search Courses" metricMode={metricMode} setMetricMode={setMetricMode} colorblindMode={colorblindMode} setColorblindMode={setColorblindMode} onReplayTour={handleReplayTour} searchRef={sidebarSearchRef} />
+        <Sidebar
+          filters={filters}
+          setFilters={setFilters}
+          meta={meta}
+          title="Search Courses"
+          metricMode={metricMode}
+          setMetricMode={setMetricMode}
+          colorblindMode={colorblindMode}
+          setColorblindMode={setColorblindMode}
+          onReplayTour={handleReplayTour}
+          searchRef={sidebarSearchRef}
+        />
       </div>
 
-      <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
+      <main
+        ref={mainRef}
+        className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6"
+      >
         <section className="panel-shell mb-5 overflow-hidden">
           <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-5 md:px-7 md:py-7">
             <div className="min-w-0 flex-1">
               <p className="kicker mb-2">Independent HKS student tool</p>
-              <h1 className="serif-display text-3xl font-semibold md:text-[2.5rem]" style={{ color: 'var(--text)' }}>
+              <h1
+                className="serif-display text-3xl font-semibold md:text-[2.5rem]"
+                style={{ color: 'var(--text)' }}
+              >
                 {pageTitle(filters)}
               </h1>
-              <p className="mt-3 max-w-3xl text-sm md:text-[15px]" style={{ color: 'var(--text-soft)' }}>
-                <span className="hidden sm:inline">Cut through the HKS course selection chaos. Compare ratings, workload, and bidding history across every offering — so you can actually make an informed choice.</span>
-                <span className="sm:hidden">Compare ratings, workload &amp; bidding across every HKS course.</span>
+              <p
+                className="mt-3 max-w-3xl text-sm md:text-[15px]"
+                style={{ color: 'var(--text-soft)' }}
+              >
+                <span className="hidden sm:inline">
+                  Cut through the HKS course selection chaos. Compare ratings, workload, and bidding
+                  history across every offering — so you can actually make an informed choice.
+                </span>
+                <span className="sm:hidden">
+                  Compare ratings, workload &amp; bidding across every HKS course.
+                </span>
               </p>
             </div>
 
@@ -548,32 +647,64 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
               type="button"
               onClick={() => setSidebarOpen(true)}
               className="md:hidden rounded-full border px-4 py-2.5 text-xs font-semibold text-label shadow-sm touch-manipulation"
-              style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', minHeight: 44 }}
+              style={{
+                borderColor: 'var(--line)',
+                background: 'var(--panel-subtle)',
+                minHeight: 44,
+              }}
             >
               ⚙ Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 border-t px-5 py-4 md:flex md:flex-wrap md:gap-3 md:px-7" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
-            <div className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+          <div
+            className="grid grid-cols-2 gap-2 border-t px-5 py-4 md:flex md:flex-wrap md:gap-3 md:px-7"
+            style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
+          >
+            <div
+              className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+            >
               <span style={{ color: 'var(--text-muted)' }}>View</span>
-              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>{avgMode ? 'All-years avg' : bidYear ? 'Active bidding' : 'Current courses'}</p>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                {avgMode ? 'All-years avg' : bidYear ? 'Active bidding' : 'Current courses'}
+              </p>
             </div>
-            <div className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+            <div
+              className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+            >
               <span style={{ color: 'var(--text-muted)' }}>Matching</span>
-              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>{filtered.length} course{filtered.length !== 1 ? 's' : ''}</p>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                {filtered.length} course{filtered.length !== 1 ? 's' : ''}
+              </p>
             </div>
-            <div className="hidden rounded-2xl border px-4 py-3 text-sm md:block" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+            <div
+              className="hidden rounded-2xl border px-4 py-3 text-sm md:block"
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+            >
               <span style={{ color: 'var(--text-muted)' }}>Built for</span>
-              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>Harvard Kennedy School students</p>
+              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>
+                Harvard Kennedy School students
+              </p>
             </div>
-            <div className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+            <div
+              className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+            >
               <span style={{ color: 'var(--text-muted)' }}>Updated</span>
-              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>{lastUpdatedLabel}</p>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                {lastUpdatedLabel}
+              </p>
             </div>
-            <div className="rounded-2xl border px-3 py-2.5 text-xs md:hidden" style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}>
+            <div
+              className="rounded-2xl border px-3 py-2.5 text-xs md:hidden"
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+            >
               <span style={{ color: 'var(--text-muted)' }}>Built for</span>
-              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>HKS students</p>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                HKS students
+              </p>
             </div>
           </div>
         </section>
@@ -581,25 +712,39 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
         {avgMode && (
           <div
             className="mb-4 rounded-2xl px-4 py-3 text-xs md:text-sm"
-            style={{ background: 'var(--blue-soft)', border: '1px solid rgba(157, 194, 219, 0.18)', color: 'var(--blue)' }}
+            style={{
+              background: 'var(--blue-soft)',
+              border: '1px solid rgba(157, 194, 219, 0.18)',
+              color: 'var(--blue)',
+            }}
           >
-            Showing weighted averages across all years for each course and instructor pairing. Courses with more years and respondents carry more weight.
+            Showing weighted averages across all years for each course and instructor pairing.
+            Courses with more years and respondents carry more weight.
           </div>
         )}
 
         {bidYear && (
           <div
             className="mb-4 rounded-2xl px-4 py-3 text-xs md:text-sm"
-            style={{ background: 'var(--gold-soft)', border: '1px solid var(--gold-soft)', color: 'var(--gold)' }}
+            style={{
+              background: 'var(--gold-soft)',
+              border: '1px solid var(--gold-soft)',
+              color: 'var(--gold)',
+            }}
           >
-            Bidding Season {biddingYearNum} is active. Courses without evaluation data still appear, and amber diamonds are spread by competitiveness rank.
+            Bidding Season {biddingYearNum} is active. Courses without evaluation data still appear,
+            and amber diamonds are spread by competitiveness rank.
           </div>
         )}
 
         {resultText && (
           <div
             className="mb-4 rounded-2xl px-4 py-3 text-sm"
-            style={{ background: 'var(--success-soft)', border: '1px solid var(--success)', color: 'var(--success)' }}
+            style={{
+              background: 'var(--success-soft)',
+              border: '1px solid var(--success)',
+              color: 'var(--success)',
+            }}
           >
             {resultText}
           </div>
@@ -609,14 +754,21 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
         <div ref={visualizationRef} className="mb-4 flex items-center justify-between gap-3">
           <div>
             <p className="kicker mb-1">Visual explorer</p>
-            <h2 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>Course Comparisons</h2>
+            <h2 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>
+              Course Comparisons
+            </h2>
           </div>
           {/* Mobile toggle for scatter plot */}
           <button
             type="button"
             onClick={() => setShowPlotMobile((v) => !v)}
             className="md:hidden rounded-full border px-3 py-2 text-xs font-semibold transition-all"
-            style={{ borderColor: 'var(--line)', background: showPlotMobile ? 'var(--accent-soft)' : 'var(--panel-subtle)', color: showPlotMobile ? 'var(--text)' : 'var(--text-muted)', minHeight: 36 }}
+            style={{
+              borderColor: 'var(--line)',
+              background: showPlotMobile ? 'var(--accent-soft)' : 'var(--panel-subtle)',
+              color: showPlotMobile ? 'var(--text)' : 'var(--text-muted)',
+              minHeight: 36,
+            }}
             aria-expanded={showPlotMobile}
           >
             {showPlotMobile ? 'Hide chart ▲' : 'Show chart ▼'}
@@ -625,19 +777,44 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
         {/* Scatter plot: always visible on desktop, toggle-controlled on mobile */}
         <div className={showPlotMobile ? '' : 'hidden md:block'}>
-          <Suspense fallback={
-              <div style={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+          <Suspense
+            fallback={
+              <div
+                style={{
+                  height: 420,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--text-muted)',
+                  fontSize: 13,
+                }}
+              >
                 Loading chart…
               </div>
-            }>
+            }
+          >
             <div data-tour="scatter-plot" style={{ position: 'relative' }}>
-              {isStale && <div style={{ position: 'absolute', top: 8, right: 52, zIndex: 10, fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>updating…</div>}
+              {isStale && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 52,
+                    zIndex: 10,
+                    fontSize: 10,
+                    color: 'var(--text-muted)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  updating…
+                </div>
+              )}
               <ErrorBoundary
-                fallback={(
+                fallback={
                   <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>
                     Chart unavailable - use the filters to browse courses below.
                   </div>
-                )}
+                }
               >
                 <ScatterPlot
                   allCourses={yearEvalCourses}
@@ -676,7 +853,9 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
               <button
                 onClick={() => setShowShortlistOnly((v) => !v)}
                 className={`preset-pill touch-manipulation min-h-[44px] ${showShortlistOnly ? 'active' : ''}`}
-                style={showShortlistOnly ? { borderColor: 'var(--gold)', color: 'var(--gold)' } : {}}
+                style={
+                  showShortlistOnly ? { borderColor: 'var(--gold)', color: 'var(--gold)' } : {}
+                }
               >
                 ★ Shortlist ({favs.count})
               </button>
@@ -685,7 +864,8 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
 
           <div className="sort-bar mb-3 flex flex-col gap-3 rounded-[22px] px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted" aria-live="polite" aria-atomic="true">
-              <span className="font-medium text-label">{visibleCourses.length}</span> course{visibleCourses.length !== 1 ? 's' : ''}
+              <span className="font-medium text-label">{visibleCourses.length}</span> course
+              {visibleCourses.length !== 1 ? 's' : ''}
               <span className="text-muted"> ({filteredEval.length} with evals)</span>
             </p>
 
@@ -694,13 +874,18 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
                 type="button"
                 onClick={toggleCompactView}
                 className="rounded-full border px-2.5 py-1 text-xs transition-colors hover:text-label"
-                style={{ borderColor: 'var(--line)', color: 'var(--text-muted)', background: 'var(--panel-subtle)' }}
+                style={{
+                  borderColor: 'var(--line)',
+                  color: 'var(--text-muted)',
+                  background: 'var(--panel-subtle)',
+                }}
               >
                 {compactView ? 'Full' : 'Compact'}
               </button>
               <span className="text-xs text-muted">Sort:</span>
               <div className="select-wrap w-full sm:w-[220px]">
                 <select
+                  aria-label="Sort courses"
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value)}
                   style={{ padding: '4px 28px 4px 8px', fontSize: 12 }}
@@ -718,54 +903,71 @@ export default function Home({ courses, meta, favs, metricMode = 'score', setMet
           </div>
 
           <div data-tour="course-list">
-          {visibleCourses.length === 0 ? (
-            <div className="surface-card rounded-2xl px-6 py-12 text-center">
-              <p className="mb-2 font-medium text-label">No courses match your filters</p>
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="rounded-full border px-5 py-2 text-sm font-semibold transition-colors hover:text-label"
-                style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
-              >
-                Clear all filters
-              </button>
-            </div>
-          ) : (
-            <>
-              {visibleCourses.slice(0, pageLimit).map((course) => (
-                <CourseCard
-                  key={course.id}
-                  course={course}
-                  favs={favs}
-                  compact={compactView}
-                  metricMode={metricMode}
-                  notes={notes}
-                  setNote={setNote}
-                  yearMedianInstructor={
-                    course.is_average
-                      ? meta.overall_median_instructor ?? null
-                      : meta.year_medians_instructor?.[String(course.year)] ?? null
-                  }
-                />
-              ))}
-              {visibleCourses.length > pageLimit && (
-                <div className="py-6 text-center">
-                  <button
-                    onClick={() => setPageLimit((prev) => prev + 50)}
-                    className="rounded-full border px-6 py-3 text-sm font-semibold transition-all hover:opacity-80"
-                    style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', color: 'var(--text)' }}
-                  >
-                    Show more ({visibleCourses.length - pageLimit} remaining)
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+            {visibleCourses.length === 0 ? (
+              <div className="surface-card rounded-2xl px-6 py-12 text-center">
+                <p className="mb-2 font-medium text-label">No courses match your filters</p>
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="rounded-full border px-5 py-2 text-sm font-semibold transition-colors hover:text-label"
+                  style={{
+                    borderColor: 'var(--line)',
+                    background: 'var(--panel-subtle)',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  Clear all filters
+                </button>
+              </div>
+            ) : (
+              <>
+                {visibleCourses.slice(0, pageLimit).map((course) => (
+                  <CourseCard
+                    key={course.id}
+                    course={course}
+                    favs={favs}
+                    compact={compactView}
+                    metricMode={metricMode}
+                    notes={notes}
+                    setNote={setNote}
+                    yearMedianInstructor={
+                      course.is_average
+                        ? (meta.overall_median_instructor ?? null)
+                        : (meta.year_medians_instructor?.[String(course.year)] ?? null)
+                    }
+                  />
+                ))}
+                {visibleCourses.length > pageLimit && (
+                  <div className="py-6 text-center">
+                    <button
+                      onClick={() => setPageLimit((prev) => prev + 50)}
+                      className="rounded-full border px-6 py-3 text-sm font-semibold transition-all hover:opacity-80"
+                      style={{
+                        borderColor: 'var(--line)',
+                        background: 'var(--panel-subtle)',
+                        color: 'var(--text)',
+                      }}
+                    >
+                      Show more ({visibleCourses.length - pageLimit} remaining)
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
         <div className="app-footer mt-8">
-          HKS Course Explorer by <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}
+          HKS Course Explorer by{' '}
+          <a
+            href="https://www.linkedin.com/in/michael-gritzbach/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'inherit' }}
+          >
+            Michael Gritzbach
+          </a>{' '}
+          VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}
         </div>
       </main>
     </div>

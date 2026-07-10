@@ -12,7 +12,9 @@ export default function LandingSplash({ onStart, onSkip }) {
 
   useEffect(() => {
     if (!localStorage.getItem(STORAGE_KEY)) setVisible(true)
-    return () => { if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current) }
+    return () => {
+      if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current)
+    }
   }, [])
 
   const dismiss = (cb) => {
@@ -32,10 +34,14 @@ export default function LandingSplash({ onStart, onSkip }) {
       aria-modal="true"
       aria-labelledby="splash-heading"
       style={{
-        position: 'fixed', inset: 0, zIndex: 9100,
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9100,
         backdropFilter: 'blur(28px)',
         background: isLight ? 'rgba(180, 160, 148, 0.72)' : 'rgba(8, 8, 16, 0.84)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         padding: '1rem',
         transition: 'opacity 0.28s ease',
         opacity: fading ? 0 : 1,
@@ -43,7 +49,8 @@ export default function LandingSplash({ onStart, onSkip }) {
     >
       <div
         style={{
-          maxWidth: 460, width: '100%',
+          maxWidth: 460,
+          width: '100%',
           background: 'var(--panel-strong)',
           borderRadius: 28,
           border: '1px solid var(--line-strong)',
@@ -58,11 +65,15 @@ export default function LandingSplash({ onStart, onSkip }) {
 
         <div
           style={{
-            width: 64, height: 64, borderRadius: 18,
+            width: 64,
+            height: 64,
+            borderRadius: 18,
             background: 'linear-gradient(135deg, rgba(165,28,48,0.28), rgba(212,168,106,0.14))',
             border: '1px solid rgba(212,168,106,0.22)',
             margin: '0 auto 20px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             fontSize: 28,
           }}
         >
@@ -76,7 +87,10 @@ export default function LandingSplash({ onStart, onSkip }) {
         >
           Course Explorer
         </h1>
-        <p className="text-sm" style={{ color: 'var(--text-soft)', marginBottom: 6, lineHeight: 1.6 }}>
+        <p
+          className="text-sm"
+          style={{ color: 'var(--text-soft)', marginBottom: 6, lineHeight: 1.6 }}
+        >
           {config.appTagline}
         </p>
         <p className="text-xs" style={{ color: 'var(--text-muted)', marginBottom: 32 }}>
@@ -87,9 +101,11 @@ export default function LandingSplash({ onStart, onSkip }) {
           <button
             onClick={() => dismiss(onStart)}
             style={{
-              width: '100%', borderRadius: 999,
+              width: '100%',
+              borderRadius: 999,
               padding: '12px 24px',
-              fontSize: 14, fontWeight: 600,
+              fontSize: 14,
+              fontWeight: 600,
               background: 'linear-gradient(180deg, rgba(165,28,48,0.9), rgba(140,20,38,0.95))',
               color: '#fff8f5',
               border: '1px solid rgba(212,168,106,0.28)',
@@ -97,27 +113,40 @@ export default function LandingSplash({ onStart, onSkip }) {
               boxShadow: '0 8px 24px rgba(165,28,48,0.32)',
               transition: 'transform 0.12s ease, box-shadow 0.12s ease',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(165,28,48,0.4)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 8px 24px rgba(165,28,48,0.32)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)'
+              e.currentTarget.style.boxShadow = '0 12px 28px rgba(165,28,48,0.4)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = ''
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(165,28,48,0.32)'
+            }}
           >
             Start Exploring →
           </button>
           <button
             onClick={() => dismiss(onSkip)}
             style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 12, color: 'var(--text-muted)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 12,
+              color: 'var(--text-muted)',
               padding: '6px 0',
               transition: 'color 0.15s',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-soft)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--text-soft)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--text-muted)'
+            }}
           >
             Skip intro
           </button>
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   )
 }

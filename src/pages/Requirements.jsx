@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_PLAN, PLANS, loadCompleted, loadPlan, savePlan, saveCompleted } from '../lib/scheduleStorage.js'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  DEFAULT_PLAN,
+  PLANS,
+  loadCompleted,
+  loadPlan,
+  savePlan,
+  saveCompleted,
+} from '../lib/scheduleStorage.js'
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
 
 const PROGRAM_STORAGE_KEY = 'hks_req_program'
@@ -46,11 +53,12 @@ function getPlanCourses(planName = DEFAULT_PLAN) {
   return Array.isArray(plan?.courses) ? plan.courses : []
 }
 
-function getCourseCode(c) {
-  return c?.course_code_base || c?.course_code || c?.courseCode || c?.code || null
-}
-
 export default function Requirements({ courses = [] }) {
+  const getCourseCode = useCallback(
+    (course) =>
+      course?.course_code_base || course?.course_code || course?.courseCode || course?.code || null,
+    [],
+  )
   const programs = useMemo(() => getPrograms(), [])
   const [selectedProgram, setSelectedProgram] = useState(() => {
     if (typeof window === 'undefined') return programs[0]?.id || ''
@@ -92,7 +100,7 @@ export default function Requirements({ courses = [] }) {
     const freshCourses = getPlanCourses(activePlan)
     setScheduledCourses(freshCourses)
     setAddedToPlan(new Set(freshCourses.map(getCourseCode).filter(Boolean)))
-  }, [activePlan])
+  }, [activePlan, getCourseCode])
 
   const addCourseToPlan = (course) => {
     const plan = loadPlan(activePlan)
@@ -111,7 +119,11 @@ export default function Requirements({ courses = [] }) {
     const nextCourses = plan.courses.filter((c) => getCourseCode(c) !== courseCode)
     savePlan(activePlan, { ...plan, courses: nextCourses })
     setScheduledCourses(nextCourses)
-    setAddedToPlan((prev) => { const s = new Set(prev); s.delete(courseCode); return s })
+    setAddedToPlan((prev) => {
+      const s = new Set(prev)
+      s.delete(courseCode)
+      return s
+    })
   }
 
   const addCourseToCompleted = (course) => {
@@ -125,21 +137,26 @@ export default function Requirements({ courses = [] }) {
   }
 
   useEffect(() => {
-    return () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+    }
   }, [])
 
   const copyShareLink = () => {
     const url = new URL(window.location.href)
     url.searchParams.set('p', selectedProgram)
-    navigator.clipboard.writeText(url.toString()).then(() => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
-      setCopyMsg('Copied!')
-      copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2500)
-    }).catch(() => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
-      setCopyMsg('Copy failed')
-      copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2500)
-    })
+    navigator.clipboard
+      .writeText(url.toString())
+      .then(() => {
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+        setCopyMsg('Copied!')
+        copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2500)
+      })
+      .catch(() => {
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+        setCopyMsg('Copy failed')
+        copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2500)
+      })
   }
 
   useEffect(() => {
@@ -176,11 +193,12 @@ export default function Requirements({ courses = [] }) {
       document.removeEventListener('visibilitychange', syncPlanCourses)
       window.removeEventListener('storage', handleStorage)
     }
-  }, [selectedProgram, activePlan])
+  }, [selectedProgram, activePlan, getCourseCode])
 
   const progress = useMemo(
-    () => computeProgress(selectedProgram, scheduledCourses, completedCourses, { preferredPacArea }),
-    [scheduledCourses, selectedProgram, completedCourses, preferredPacArea]
+    () =>
+      computeProgress(selectedProgram, scheduledCourses, completedCourses, { preferredPacArea }),
+    [scheduledCourses, selectedProgram, completedCourses, preferredPacArea],
   )
 
   const suggestionMap = useMemo(() => {
@@ -189,16 +207,24 @@ export default function Requirements({ courses = [] }) {
     return Object.fromEntries(
       progress.categories.map((category) => [
         category.id,
-        findCompletingCourses(selectedProgram, scheduledCourses, courses, category.id, { preferredPacArea }),
-      ])
+        findCompletingCourses(selectedProgram, scheduledCourses, courses, category.id, {
+          preferredPacArea,
+        }),
+      ]),
     )
   }, [courses, progress, scheduledCourses, selectedProgram, preferredPacArea])
 
-  const completedSetForDisplay = useMemo(
-    () => {
-      return new Set(completedCourses.map(getCourseCode).filter(Boolean))
-    },
-    [completedCourses, getCourseCode]
+  const completedSetForDisplay = new Set(
+    completedCourses
+      .map(
+        (course) =>
+          course?.course_code_base ||
+          course?.course_code ||
+          course?.courseCode ||
+          course?.code ||
+          null,
+      )
+      .filter(Boolean),
   )
 
   // Same logic as ScheduleBuilder's completedSearchResults
@@ -207,14 +233,26 @@ export default function Requirements({ courses = [] }) {
     if (!q) return []
     return (Array.isArray(courses) ? courses : [])
       .filter((c) => !c?.is_average)
-      .filter((c) => [c?.course_code, c?.course_name, c?.professor, c?.professor_display].filter(Boolean).join(' ').toLowerCase().includes(q))
+      .filter((c) =>
+        [c?.course_code, c?.course_name, c?.professor, c?.professor_display]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(q),
+      )
       .sort((a, b) => Number(b?.year || 0) - Number(a?.year || 0))
-      .reduce((acc, c) => {
-        const key = c.course_code_base || c.course_code
-        if (!acc.seen.has(key)) { acc.seen.add(key); acc.list.push(c) }
-        return acc
-      }, { seen: new Set(), list: [] }).list
-      .slice(0, 20)
+      .reduce(
+        (acc, c) => {
+          const key = c.course_code_base || c.course_code
+          if (!acc.seen.has(key)) {
+            acc.seen.add(key)
+            acc.list.push(c)
+          }
+          return acc
+        },
+        { seen: new Set(), list: [] },
+      )
+      .list.slice(0, 20)
   }, [courseSearch, courses])
 
   if (!progress) {
@@ -241,11 +279,14 @@ export default function Requirements({ courses = [] }) {
               </h2>
             </div>
             <div className="flex flex-wrap gap-4 text-sm">
-              <span style={{ color: 'var(--success)' }}>
-                ✓ {completedCourses.length} completed
-              </span>
+              <span style={{ color: 'var(--success)' }}>✓ {completedCourses.length} completed</span>
               <span style={{ color: 'var(--blue)' }}>
-                📋 {scheduledCourses.filter(c => !completedSetForDisplay.has(getCourseCode(c))).length} in {activePlan}
+                📋{' '}
+                {
+                  scheduledCourses.filter((c) => !completedSetForDisplay.has(getCourseCode(c)))
+                    .length
+                }{' '}
+                in {activePlan}
               </span>
             </div>
           </div>
@@ -255,14 +296,21 @@ export default function Requirements({ courses = [] }) {
             <input
               type="text"
               value={courseSearch}
-              onChange={e => setCourseSearch(e.target.value)}
+              onChange={(e) => setCourseSearch(e.target.value)}
               placeholder="🔍  Search courses you've taken…"
               className="w-full rounded-xl border px-3 py-2.5 text-xs outline-none transition-colors"
-              style={{ background: 'var(--panel-soft)', borderColor: courseSearch ? 'var(--success)' : 'var(--line-strong)', color: 'var(--text)' }}
+              style={{
+                background: 'var(--panel-soft)',
+                borderColor: courseSearch ? 'var(--success)' : 'var(--line-strong)',
+                color: 'var(--text)',
+              }}
               aria-label="Search courses already taken"
             />
             {courseSearchResults.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-xl border shadow-lg" style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)' }}>
+              <div
+                className="absolute left-0 right-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-xl border shadow-lg"
+                style={{ background: 'var(--panel)', borderColor: 'var(--line-strong)' }}
+              >
                 {courseSearchResults.map((c) => {
                   const code = c.course_code_base || c.course_code
                   const alreadyDone = completedSetForDisplay.has(code)
@@ -277,13 +325,31 @@ export default function Requirements({ courses = [] }) {
                       className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--panel-soft)]"
                     >
                       <div className="min-w-0 flex-1 overflow-hidden">
-                        <span className="font-semibold" style={{ color: 'var(--text)' }}>{code}</span>
-                        <span className="ml-2" style={{ color: 'var(--text-muted)' }}>{c.course_name}</span>
+                        <span className="font-semibold" style={{ color: 'var(--text)' }}>
+                          {code}
+                        </span>
+                        <span className="ml-2" style={{ color: 'var(--text-muted)' }}>
+                          {c.course_name}
+                        </span>
                       </div>
                       {alreadyDone ? (
-                        <span className="shrink-0 text-xs font-semibold" style={{ color: 'var(--success)' }}>✓ Added</span>
+                        <span
+                          className="shrink-0 text-xs font-semibold"
+                          style={{ color: 'var(--success)' }}
+                        >
+                          ✓ Added
+                        </span>
                       ) : (
-                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)' }}>✓ Mark done</span>
+                        <span
+                          className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                          style={{
+                            background: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                            color: 'var(--success)',
+                            border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)',
+                          }}
+                        >
+                          ✓ Mark done
+                        </span>
                       )}
                     </button>
                   )
@@ -295,14 +361,19 @@ export default function Requirements({ courses = [] }) {
           {completedCourses.length === 0 && scheduledCourses.length === 0 && (
             <p className="mt-4 text-sm" style={{ color: 'var(--text-muted)' }}>
               No courses yet. Mark courses as done in the{' '}
-              <a href="/schedule-builder" style={{ color: 'var(--accent)', fontWeight: 600 }}>Schedule Builder</a>
-              {' '}or add them to a plan.
+              <a href="/schedule-builder" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                Schedule Builder
+              </a>{' '}
+              or add them to a plan.
             </p>
           )}
 
           {completedCourses.length > 0 && (
             <div className="mt-5">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--success)' }}>
+              <p
+                className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]"
+                style={{ color: 'var(--success)' }}
+              >
                 ✓ Completed
               </p>
               <div className="flex flex-wrap gap-2">
@@ -321,7 +392,12 @@ export default function Requirements({ courses = [] }) {
                       title={name}
                     >
                       {code}
-                      {name ? <span style={{ opacity: 0.75, fontWeight: 400 }}> · {name.length > 28 ? name.slice(0, 28) + '…' : name}</span> : null}
+                      {name ? (
+                        <span style={{ opacity: 0.75, fontWeight: 400 }}>
+                          {' '}
+                          · {name.length > 28 ? name.slice(0, 28) + '…' : name}
+                        </span>
+                      ) : null}
                     </span>
                   )
                 })}
@@ -329,14 +405,18 @@ export default function Requirements({ courses = [] }) {
             </div>
           )}
 
-          {scheduledCourses.filter(c => !completedSetForDisplay.has(getCourseCode(c))).length > 0 && (
+          {scheduledCourses.filter((c) => !completedSetForDisplay.has(getCourseCode(c))).length >
+            0 && (
             <div className="mt-5">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--blue)' }}>
+              <p
+                className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]"
+                style={{ color: 'var(--blue)' }}
+              >
                 📋 {activePlan}
               </p>
               <div className="flex flex-wrap gap-2">
                 {scheduledCourses
-                  .filter(c => !completedSetForDisplay.has(getCourseCode(c)))
+                  .filter((c) => !completedSetForDisplay.has(getCourseCode(c)))
                   .map((c, i) => {
                     const code = getCourseCode(c) || '?'
                     const name = c.title || c.course_name || ''
@@ -352,7 +432,12 @@ export default function Requirements({ courses = [] }) {
                         title={name}
                       >
                         {code}
-                        {name ? <span style={{ opacity: 0.6, fontWeight: 400 }}> · {name.length > 28 ? name.slice(0, 28) + '…' : name}</span> : null}
+                        {name ? (
+                          <span style={{ opacity: 0.6, fontWeight: 400 }}>
+                            {' '}
+                            · {name.length > 28 ? name.slice(0, 28) + '…' : name}
+                          </span>
+                        ) : null}
                       </span>
                     )
                   })}
@@ -368,13 +453,21 @@ export default function Requirements({ courses = [] }) {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="kicker">Degree Planning</p>
-              <h1 className="serif-display mt-2 text-4xl font-semibold" style={{ color: 'var(--text)' }}>
+              <h1
+                className="serif-display mt-2 text-4xl font-semibold"
+                style={{ color: 'var(--text)' }}
+              >
                 Requirements Tracker
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
+              <p
+                className="mt-3 max-w-2xl text-sm leading-6"
+                style={{ color: 'var(--text-muted)' }}
+              >
                 Progress is calculated from courses saved in your plan. Switch plans below or{' '}
-                <a href="/schedule-builder" style={{ color: 'var(--accent)', fontWeight: 600 }}>open the Schedule Builder</a>
-                {' '}to add courses.
+                <a href="/schedule-builder" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                  open the Schedule Builder
+                </a>{' '}
+                to add courses.
               </p>
               {/* Plan A/B/C/D selector */}
               <div data-tour="req-plans" className="mt-4 flex gap-1">
@@ -400,12 +493,20 @@ export default function Requirements({ courses = [] }) {
             </div>
 
             <div data-tour="req-program" className="w-full max-w-sm">
-              <label htmlFor="req-program-select" className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
+              <label
+                htmlFor="req-program-select"
+                className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em]"
+                style={{ color: 'var(--text-muted)' }}
+              >
                 Program
               </label>
               <div className="flex gap-2">
                 <div className="select-wrap flex-1">
-                  <select id="req-program-select" value={selectedProgram} onChange={(event) => setSelectedProgram(event.target.value)}>
+                  <select
+                    id="req-program-select"
+                    value={selectedProgram}
+                    onChange={(event) => setSelectedProgram(event.target.value)}
+                  >
                     {programs.map((program) => (
                       <option key={program.id} value={program.id}>
                         {program.label}
@@ -419,7 +520,8 @@ export default function Requirements({ courses = [] }) {
                   title="Copy shareable link to this program view"
                   className="shrink-0 rounded-[14px] border px-3 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
                   style={{
-                    background: copyMsg === 'Copied!' ? 'var(--success-soft)' : 'var(--panel-strong)',
+                    background:
+                      copyMsg === 'Copied!' ? 'var(--success-soft)' : 'var(--panel-strong)',
                     borderColor: copyMsg === 'Copied!' ? 'var(--success)' : 'var(--line-strong)',
                     color: copyMsg === 'Copied!' ? 'var(--success)' : 'var(--text-muted)',
                     minWidth: 44,
@@ -434,21 +536,26 @@ export default function Requirements({ courses = [] }) {
           <div className="mt-6 grid gap-4 md:grid-cols-[1.4fr,0.8fr]">
             <div>
               <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                <span style={{ color: 'var(--text-soft)' }}>
-                  Overall credit progress
-                </span>
+                <span style={{ color: 'var(--text-soft)' }}>Overall credit progress</span>
                 <span style={{ color: 'var(--text)' }}>
                   {progress.overallAppliedCredits} / {progress.totalRequiredCredits} credits
                 </span>
               </div>
-              <ProgressBar value={progress.overallPercent} color="var(--gold)" label={`Overall: ${progress.overallAppliedCredits} of ${progress.totalRequiredCredits} credits`} />
+              <ProgressBar
+                value={progress.overallPercent}
+                color="var(--gold)"
+                label={`Overall: ${progress.overallAppliedCredits} of ${progress.totalRequiredCredits} credits`}
+              />
             </div>
 
             <div
               className="rounded-[22px] p-4"
               style={{ background: 'var(--track-bg)', border: '1px solid var(--line-strong)' }}
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
+              <p
+                className="text-xs font-semibold uppercase tracking-[0.12em]"
+                style={{ color: 'var(--text-muted)' }}
+              >
                 Plan Snapshot
               </p>
               <p className="mt-3 text-2xl font-semibold" style={{ color: 'var(--text)' }}>
@@ -459,7 +566,8 @@ export default function Requirements({ courses = [] }) {
               </p>
               {completedCourses.length > 0 && (
                 <p className="mt-2 text-sm" style={{ color: 'var(--success)' }}>
-                  + {completedCourses.length} completed course{completedCourses.length === 1 ? '' : 's'}
+                  + {completedCourses.length} completed course
+                  {completedCourses.length === 1 ? '' : 's'}
                 </p>
               )}
               {scheduledCourses.length === 0 && completedCourses.length === 0 && (
@@ -495,7 +603,10 @@ export default function Requirements({ courses = [] }) {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: accentColor }}>
+                    <p
+                      className="text-xs font-semibold uppercase tracking-[0.12em]"
+                      style={{ color: accentColor }}
+                    >
                       {category.sublabel}
                     </p>
                     <h2 className="mt-2 text-xl font-semibold" style={{ color: 'var(--text)' }}>
@@ -505,11 +616,14 @@ export default function Requirements({ courses = [] }) {
                   <div
                     className="rounded-full px-3 py-1 text-xs font-semibold"
                     style={{
-                      background: category.isComplete ? 'var(--success-soft)' : 'var(--accent-soft)',
+                      background: category.isComplete
+                        ? 'var(--success-soft)'
+                        : 'var(--accent-soft)',
                       color: category.isComplete ? 'var(--success)' : 'var(--text)',
                     }}
                   >
-                    {category.isComplete ? '✓ ' : ''}{category.appliedCredits} / {category.requiredCredits} cr
+                    {category.isComplete ? '✓ ' : ''}
+                    {category.appliedCredits} / {category.requiredCredits} cr
                   </div>
                 </div>
 
@@ -517,13 +631,20 @@ export default function Requirements({ courses = [] }) {
                   {category.note}
                 </p>
                 {category.chosenArea && (
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-soft)' }}>
+                  <p
+                    className="mt-2 text-xs font-semibold uppercase tracking-[0.12em]"
+                    style={{ color: 'var(--text-soft)' }}
+                  >
                     PAC area currently tracking: {category.chosenArea}
                   </p>
                 )}
 
                 <div className="mt-4">
-                  <ProgressBar value={category.percent} color={category.isComplete ? 'var(--success)' : accentColor} label={`${category.label}: ${category.appliedCredits} of ${category.requiredCredits} credits`} />
+                  <ProgressBar
+                    value={category.percent}
+                    color={category.isComplete ? 'var(--success)' : accentColor}
+                    label={`${category.label}: ${category.appliedCredits} of ${category.requiredCredits} credits`}
+                  />
                 </div>
                 {category.id === 'pac' && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -564,7 +685,8 @@ export default function Requirements({ courses = [] }) {
                 )}
                 {category.id === 'stem' && category.overlapExceeded && (
                   <p style={{ fontSize: 11, color: 'var(--gold)', marginTop: 4 }}>
-                    ⚠ Only 8 STEM credits may count toward other requirements — {category.overlapCredits} credits currently overlap.
+                    ⚠ Only 8 STEM credits may count toward other requirements —{' '}
+                    {category.overlapCredits} credits currently overlap.
                   </p>
                 )}
 
@@ -574,7 +696,11 @@ export default function Requirements({ courses = [] }) {
                       <span
                         key={`${category.id}-${course._index}`}
                         className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
-                        style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)', color: 'var(--text-soft)' }}
+                        style={{
+                          background: 'var(--panel-strong)',
+                          border: '1px solid var(--line)',
+                          color: 'var(--text-soft)',
+                        }}
                       >
                         {course._courseCode}
                         <button
@@ -582,7 +708,16 @@ export default function Requirements({ courses = [] }) {
                           onClick={() => removeFromPlan(course._courseCode)}
                           aria-label={`Remove ${course._courseCode} from ${activePlan}`}
                           className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70"
-                          style={{ background: 'var(--line-strong)', color: 'var(--text-muted)', fontSize: 9, fontWeight: 700, lineHeight: 1, border: 'none', cursor: 'pointer', paddingBottom: 1 }}
+                          style={{
+                            background: 'var(--line-strong)',
+                            color: 'var(--text-muted)',
+                            fontSize: 9,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            border: 'none',
+                            cursor: 'pointer',
+                            paddingBottom: 1,
+                          }}
                         >
                           ×
                         </button>
@@ -607,44 +742,81 @@ export default function Requirements({ courses = [] }) {
                       }))
                     }}
                     className="rounded-full px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
-                    style={{ background: 'var(--gold-soft)', color: 'var(--text)', border: '1px solid var(--line)' }}
+                    style={{
+                      background: 'var(--gold-soft)',
+                      color: 'var(--text)',
+                      border: '1px solid var(--line)',
+                    }}
                   >
                     {showSuggestions ? 'Hide suggestions' : 'Find completing courses'}
                   </button>
                   <a
                     href="/schedule-builder"
                     className="rounded-full px-4 py-2 text-sm font-semibold transition-transform hover:-translate-y-[1px]"
-                    style={{ background: 'var(--panel-strong)', color: 'var(--text-soft)', border: '1px solid var(--line)' }}
+                    style={{
+                      background: 'var(--panel-strong)',
+                      color: 'var(--text-soft)',
+                      border: '1px solid var(--line)',
+                    }}
                   >
                     Open in Schedule Builder →
                   </a>
-                  <span className="text-xs uppercase tracking-[0.12em]" style={{ color: category.isComplete ? 'var(--success)' : 'var(--warning)' }}>
-                    {category.isComplete ? '✓ Complete' : `${category.remainingCredits} cr remaining`}
+                  <span
+                    className="text-xs uppercase tracking-[0.12em]"
+                    style={{ color: category.isComplete ? 'var(--success)' : 'var(--warning)' }}
+                  >
+                    {category.isComplete
+                      ? '✓ Complete'
+                      : `${category.remainingCredits} cr remaining`}
                   </span>
                 </div>
 
                 {showSuggestions && (
-                  <div id={`suggestions-${category.id}`} className="mt-4 rounded-[20px] p-4" style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
+                  <div
+                    id={`suggestions-${category.id}`}
+                    className="mt-4 rounded-[20px] p-4"
+                    style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}
+                  >
+                    <p
+                      className="text-xs font-semibold uppercase tracking-[0.12em]"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
                       Suggested matches
                     </p>
                     <div className="mt-3 space-y-3">
                       {suggestions.length > 0 ? (
                         suggestions.map(({ course }, index) => {
-                          const courseCode = course?.course_code_base || course?.course_code || course?.code
+                          const courseCode =
+                            course?.course_code_base || course?.course_code || course?.code
                           const isAdded = addedToPlan.has(courseCode)
                           return (
-                            <div key={`${category.id}-suggestion-${index}`} className="rounded-[16px] p-3" style={{ background: 'var(--panel)', border: '1px solid var(--line)' }}>
+                            <div
+                              key={`${category.id}-suggestion-${index}`}
+                              className="rounded-[16px] p-3"
+                              style={{
+                                background: 'var(--panel)',
+                                border: '1px solid var(--line)',
+                              }}
+                            >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                                  <p
+                                    className="text-sm font-semibold"
+                                    style={{ color: 'var(--text)' }}
+                                  >
                                     {courseCode}
                                   </p>
                                   <p className="mt-1 text-sm" style={{ color: 'var(--text-soft)' }}>
                                     {course.course_name || course.title || 'Untitled course'}
                                   </p>
-                                  <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                                    {course.term} {course.year}{course.professor_display ? ` · ${course.professor_display}` : ''}
+                                  <p
+                                    className="mt-1 text-xs"
+                                    style={{ color: 'var(--text-muted)' }}
+                                  >
+                                    {course.term} {course.year}
+                                    {course.professor_display
+                                      ? ` · ${course.professor_display}`
+                                      : ''}
                                   </p>
                                 </div>
                                 <button
@@ -653,7 +825,9 @@ export default function Requirements({ courses = [] }) {
                                   onClick={() => addCourseToPlan(course)}
                                   className="shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                   style={{
-                                    background: isAdded ? 'var(--success-soft)' : 'var(--accent-soft)',
+                                    background: isAdded
+                                      ? 'var(--success-soft)'
+                                      : 'var(--accent-soft)',
                                     borderColor: isAdded ? 'var(--success)' : 'var(--line-strong)',
                                     color: isAdded ? 'var(--success)' : 'var(--text)',
                                   }}

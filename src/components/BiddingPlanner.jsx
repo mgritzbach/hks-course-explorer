@@ -26,7 +26,11 @@ function getTermRank(term) {
 
 function getTrend(course, courses) {
   const history = (courses || [])
-    .filter((item) => (item.course_code_base || item.course_code) === (course.course_code_base || course.course_code))
+    .filter(
+      (item) =>
+        (item.course_code_base || item.course_code) ===
+        (course.course_code_base || course.course_code),
+    )
     .filter((item) => item.last_bid_price != null && item.last_bid_price > 0)
     .sort((a, b) => {
       if ((a.year || 0) !== (b.year || 0)) return (a.year || 0) - (b.year || 0)
@@ -91,12 +95,16 @@ export default function BiddingPlanner({ courses, favs }) {
       })
   }, [courses, favs])
 
-  const suggestedTotal = shortlistedCourses.reduce((sum, course) => sum + course.suggested.target, 0)
-  const statusColor = suggestedTotal <= budget
-    ? 'var(--success)'
-    : suggestedTotal <= budget * 1.1
-      ? 'var(--gold)'
-      : 'var(--danger)'
+  const suggestedTotal = shortlistedCourses.reduce(
+    (sum, course) => sum + course.suggested.target,
+    0,
+  )
+  const statusColor =
+    suggestedTotal <= budget
+      ? 'var(--success)'
+      : suggestedTotal <= budget * 1.1
+        ? 'var(--gold)'
+        : 'var(--danger)'
 
   if (shortlistedCourses.length === 0) {
     return (
@@ -176,19 +184,75 @@ export default function BiddingPlanner({ courses, favs }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--line)' }}>
-              <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Course name</th>
-              <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Last clearing price</th>
-              <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Trend</th>
-              <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Suggested bid</th>
+              <th
+                style={{
+                  textAlign: 'left',
+                  padding: '8px 6px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                Course name
+              </th>
+              <th
+                style={{
+                  textAlign: 'left',
+                  padding: '8px 6px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                Last clearing price
+              </th>
+              <th
+                style={{
+                  textAlign: 'left',
+                  padding: '8px 6px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                Trend
+              </th>
+              <th
+                style={{
+                  textAlign: 'left',
+                  padding: '8px 6px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                Suggested bid
+              </th>
             </tr>
           </thead>
           <tbody>
             {(shortlistedCourses || []).map((course) => (
               <tr key={course.key} style={{ borderBottom: '1px solid var(--line)' }}>
-                <td style={{ padding: '8px 6px', fontSize: 13, color: 'var(--text)' }}>{course.name}</td>
-                <td style={{ padding: '8px 6px', fontSize: 13, color: 'var(--text)' }}>{course.lastBidPrice}</td>
-                <td style={{ padding: '8px 6px', fontSize: 13, color: 'var(--text)' }}>{course.trend}</td>
-                <td style={{ padding: '8px 6px', fontSize: 13, color: 'var(--gold)' }}>{course.suggested.label}</td>
+                <td style={{ padding: '8px 6px', fontSize: 13, color: 'var(--text)' }}>
+                  {course.name}
+                </td>
+                <td style={{ padding: '8px 6px', fontSize: 13, color: 'var(--text)' }}>
+                  {course.lastBidPrice}
+                </td>
+                <td style={{ padding: '8px 6px', fontSize: 13, color: 'var(--text)' }}>
+                  {course.trend}
+                </td>
+                <td style={{ padding: '8px 6px', fontSize: 13, color: 'var(--gold)' }}>
+                  {course.suggested.label}
+                </td>
               </tr>
             ))}
           </tbody>

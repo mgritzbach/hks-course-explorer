@@ -31,7 +31,7 @@ Data covers **5,581 HKS Q-guide evaluation records** across multiple years, plus
 | Frontend | React 18 + Vite, deployed on Cloudflare Pages |
 | Database | Supabase (PostgreSQL) |
 | Live data | Harvard ATS API (`go.apis.huit.harvard.edu`) |
-| CI/CD | GitHub Actions (lint + build gate) + Cloudflare Pages (auto-deploy) |
+| CI/CD | GitHub Actions quality gate and exact-commit Wrangler deployment to Cloudflare Pages |
 | Monitoring | Sentry (error tracking, optional) |
 
 ---
@@ -71,7 +71,7 @@ pip install requests supabase pandas numpy scikit-learn
 
 # 4. Set environment variables (copy .env.example to .env)
 cp .env.example .env
-# Fill in: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, SUPABASE_KEY, HARVARD_API_KEY
+# See docs/CONFIGURATION.md for browser, script, and Cloudflare Function settings.
 
 # 5. Edit the two config files for your school:
 #    src/school.config.js    <- branding (name, code, creator credit)
@@ -83,7 +83,9 @@ python scripts/sync_live_courses.py
 # 7. Run locally
 npm run dev
 
-# 8. Deploy: push to master -> Cloudflare Pages auto-builds
+# 8. Deploy: configure DEPLOY_VITE_SUPABASE_URL (GitHub variable) and
+#    DEPLOY_VITE_SUPABASE_ANON_KEY (GitHub secret), then push to master.
+#    The GitHub workflow validates configuration and deploys the exact tested artifact.
 ```
 
 See [FORK.md](FORK.md) for the complete guide including the Supabase schema, CSV format for evaluation data, and deployment checklist.
@@ -114,7 +116,7 @@ data/canonical_courses_enriched.csv   <- ground truth
        |  python scripts/build_data.py
        v
 public/courses.json  +  public/sim_coords.json
-       |  git push -> Cloudflare Pages
+       |  GitHub CI -> validated Wrangler deployment
        v
 Static files served from CDN globally
 
@@ -136,12 +138,14 @@ Full pipeline documentation: [docs/data-pipeline-overview.txt](docs/data-pipelin
 npm install
 npm run dev          # start dev server on localhost:5173
 npm test             # run unit tests (Vitest)
-npm run test:e2e     # run E2E tests (Playwright, targets live site)
+npm run test:e2e:build # build, then run deterministic Playwright E2E tests locally
 npm run lint         # ESLint (0 warnings enforced)
 npm run build        # production build (also runs build_data.py)
 ```
 
-The pre-commit hook runs `npm run lint` automatically. The full build gate runs on GitHub Actions CI on every push.
+The pre-commit hook runs `npm run lint` automatically. GitHub Actions runs lint,
+unit tests, sync-safety tests, a production build, and deterministic local E2E
+tests before the downstream deployment workflow is eligible to run.
 
 ### Environment variables
 
@@ -181,7 +185,7 @@ hks-course-explorer/
 ├── data/
 │   ├── school_config.json      <- fork here: course codes & core requirements
 │   └── canonical_courses_enriched.csv
-├── docs/decisions/             <- Architecture Decision Records (ADR-001-005)
+├── docs/decisions/             <- Architecture Decision Records (ADR-001-006)
 ├── tests/e2e/                  <- Playwright E2E tests
 ├── .github/workflows/ci.yml   <- lint + build CI on every push
 └── FORK.md                     <- complete forking guide
@@ -195,11 +199,15 @@ Key decisions that are easy to get wrong — documented so forks don't repeat th
 
 | ADR | Decision |
 |-----|---------|
-| [001](docs/decisions/ADR-001-no-import-meta-env-in-schedule-builder.md) | Supabase client uses hardcoded fallback, not env vars alone |
+| [001](docs/decisions/ADR-001-no-import-meta-env-in-schedule-builder.md) | Supabase browser configuration is centralized, target-specific, and has no project fallback |
 | [002](docs/decisions/ADR-002-live-courses-isolated-useeffect.md) | `live_courses` fetched in isolated `useEffect([])` — never inside semester effect |
 | [003](docs/decisions/ADR-003-filteredsearchresults-usememo-source-of-truth.md) | `filteredSearchResults` useMemo is single source of truth for browse mode |
 | [004](docs/decisions/ADR-004-term-format-difference.md) | `live_courses` uses `"2026 Spring"` (space); `course_sections` uses `"2026Spring"` (no space) |
 | [005](docs/decisions/ADR-005-build-must-pass-before-commit.md) | Lint enforced locally; full build gate enforced by GitHub Actions CI |
+| [006](docs/decisions/ADR-006-formatter-normalized-architecture-ratchet.md) | Prettier is canonical; architecture limits ratchet from the reviewed formatted baseline |
+
+For handover and operations, see [architecture](docs/ARCHITECTURE.md),
+[configuration](docs/CONFIGURATION.md), and the [operations runbook](docs/OPERATIONS.md).
 
 ---
 

@@ -20,47 +20,70 @@ const ATTRIBUTE_GROUPS = [
   {
     label: 'Evaluation Metrics',
     attrs: [
-      { key: 'Instructor_Rating',    label: 'Instructor Rating',    type: 'pct', higherBetter: true },
-      { key: 'Course_Rating',        label: 'Course Rating',        type: 'pct', higherBetter: true },
-      { key: 'Workload',             label: 'Workload',             type: 'pct', higherBetter: false },
-      { key: 'Rigor',                label: 'Rigor',                type: 'pct', higherBetter: true },
-      { key: 'Diverse Perspectives', label: 'Diverse Perspectives', type: 'pct', higherBetter: true },
-      { key: 'Feedback',             label: 'Feedback Quality',     type: 'pct', higherBetter: true },
-      { key: 'Insights',             label: 'Insights',             type: 'pct', higherBetter: true },
-      { key: 'Availability',         label: 'Availability',         type: 'pct', higherBetter: true },
-      { key: 'Discussions',          label: 'Class Discussions',    type: 'pct', higherBetter: true },
-      { key: 'Discussion Diversity', label: 'Discussion Diversity', type: 'pct', higherBetter: true },
-      { key: 'Readings',             label: 'Readings',             type: 'pct', higherBetter: false },
-      { key: 'Assignments',          label: 'Assignment Value',     type: 'pct', higherBetter: true },
+      { key: 'Instructor_Rating', label: 'Instructor Rating', type: 'pct', higherBetter: true },
+      { key: 'Course_Rating', label: 'Course Rating', type: 'pct', higherBetter: true },
+      { key: 'Workload', label: 'Workload', type: 'pct', higherBetter: false },
+      { key: 'Rigor', label: 'Rigor', type: 'pct', higherBetter: true },
+      {
+        key: 'Diverse Perspectives',
+        label: 'Diverse Perspectives',
+        type: 'pct',
+        higherBetter: true,
+      },
+      { key: 'Feedback', label: 'Feedback Quality', type: 'pct', higherBetter: true },
+      { key: 'Insights', label: 'Insights', type: 'pct', higherBetter: true },
+      { key: 'Availability', label: 'Availability', type: 'pct', higherBetter: true },
+      { key: 'Discussions', label: 'Class Discussions', type: 'pct', higherBetter: true },
+      {
+        key: 'Discussion Diversity',
+        label: 'Discussion Diversity',
+        type: 'pct',
+        higherBetter: true,
+      },
+      { key: 'Readings', label: 'Readings', type: 'pct', higherBetter: false },
+      { key: 'Assignments', label: 'Assignment Value', type: 'pct', higherBetter: true },
     ],
   },
   {
     label: 'Course Info',
     attrs: [
-      { key: 'concentration', label: 'Concentration',  type: 'text' },
-      { key: 'is_core',       label: 'Core Course',    type: 'bool' },
-      { key: 'is_stem',       label: 'STEM',           type: 'stem' },
-      { key: 'n_respondents', label: 'N Respondents',  type: 'num' },
+      { key: 'concentration', label: 'Concentration', type: 'text' },
+      { key: 'is_core', label: 'Core Course', type: 'bool' },
+      { key: 'is_stem', label: 'STEM', type: 'stem' },
+      { key: 'n_respondents', label: 'N Respondents', type: 'num' },
     ],
   },
   {
     label: 'Bidding',
     attrs: [
-      { key: 'ever_bidding',    label: 'Has Bidding History', type: 'bool' },
-      { key: 'last_bid_price',  label: 'Last Clearing Price', type: 'bid' },
+      { key: 'ever_bidding', label: 'Has Bidding History', type: 'bool' },
+      { key: 'last_bid_price', label: 'Last Clearing Price', type: 'bid' },
     ],
   },
 ]
 
 const DEFAULT_SELECTED = new Set([
-  'Instructor_Rating', 'Course_Rating', 'Workload', 'Rigor',
-  'Diverse Perspectives', 'concentration', 'is_core', 'ever_bidding', 'last_bid_price',
+  'Instructor_Rating',
+  'Course_Rating',
+  'Workload',
+  'Rigor',
+  'Diverse Perspectives',
+  'concentration',
+  'is_core',
+  'ever_bidding',
+  'last_bid_price',
 ])
 
 // Keys that belong to the "Key Metrics" group — everything else goes in "Detailed Evaluation"
 const KEY_METRIC_KEYS = new Set([
-  'Instructor_Rating', 'Course_Rating', 'Workload', 'Rigor',
-  'concentration', 'is_core', 'ever_bidding', 'last_bid_price',
+  'Instructor_Rating',
+  'Course_Rating',
+  'Workload',
+  'Rigor',
+  'concentration',
+  'is_core',
+  'ever_bidding',
+  'last_bid_price',
 ])
 
 function pct(value) {
@@ -71,12 +94,13 @@ function pct(value) {
 function getCellValue(course, attr, metricMode = 'score') {
   if (attr.type === 'pct') {
     return metricMode === 'score'
-      ? course.metrics_score?.[attr.key] ?? null
-      : course.metrics_pct?.[attr.key] ?? null
+      ? (course.metrics_score?.[attr.key] ?? null)
+      : (course.metrics_pct?.[attr.key] ?? null)
   }
   if (attr.type === 'text') return course[attr.key] ?? null
   if (attr.type === 'bool') return course[attr.key]
-  if (attr.type === 'stem') return course.is_stem ? (course.stem_group ? `STEM ${course.stem_group}` : 'STEM') : null
+  if (attr.type === 'stem')
+    return course.is_stem ? (course.stem_group ? `STEM ${course.stem_group}` : 'STEM') : null
   if (attr.type === 'num') return course[attr.key] ?? null
   if (attr.type === 'bid') return course.last_bid_price ?? null
   return null
@@ -97,23 +121,53 @@ function MetricBar({ value, best, higherBetter, metricMode = 'score' }) {
   if (value == null) return <span className="text-muted">—</span>
   const rounded = Math.round(value)
   const barColor = higherBetter
-    ? (rounded >= 75 ? 'var(--success)' : rounded >= 50 ? 'var(--gold)' : 'var(--danger)')
-    : (rounded <= 25 ? 'var(--success)' : rounded <= 50 ? 'var(--gold)' : 'var(--danger)')
+    ? rounded >= 75
+      ? 'var(--success)'
+      : rounded >= 50
+        ? 'var(--gold)'
+        : 'var(--danger)'
+    : rounded <= 25
+      ? 'var(--success)'
+      : rounded <= 50
+        ? 'var(--gold)'
+        : 'var(--danger)'
   // Text label for colorblind accessibility
   const label = higherBetter
-    ? (rounded >= 75 ? 'Strong' : rounded >= 50 ? 'Avg' : 'Weak')
-    : (rounded <= 25 ? 'Light' : rounded <= 50 ? 'Moderate' : 'Heavy')
+    ? rounded >= 75
+      ? 'Strong'
+      : rounded >= 50
+        ? 'Avg'
+        : 'Weak'
+    : rounded <= 25
+      ? 'Light'
+      : rounded <= 50
+        ? 'Moderate'
+        : 'Heavy'
 
   return (
     <div>
       <div className="flex items-center gap-2">
-        <div className="relative h-1.5 flex-1 rounded-full" style={{ background: 'var(--track-bg)' }}>
+        <div
+          className="relative h-1.5 flex-1 rounded-full"
+          style={{ background: 'var(--track-bg)' }}
+        >
           <div
             className="absolute left-0 top-0 h-full rounded-full transition-all"
             style={{ width: `${value}%`, background: barColor, opacity: best ? 0.9 : 0.45 }}
           />
           {/* Average reference tick */}
-          <div style={{ position: 'absolute', top: -2, left: '50%', width: 1, height: 7, background: 'var(--line-strong)', transform: 'translateX(-50%)' }} title="50th pct = average" />
+          <div
+            style={{
+              position: 'absolute',
+              top: -2,
+              left: '50%',
+              width: 1,
+              height: 7,
+              background: 'var(--line-strong)',
+              transform: 'translateX(-50%)',
+            }}
+            title="50th pct = average"
+          />
         </div>
         <span
           className="w-12 shrink-0 text-right text-xs font-semibold"
@@ -124,7 +178,13 @@ function MetricBar({ value, best, higherBetter, metricMode = 'score' }) {
       </div>
       <div className="flex items-center justify-between" style={{ marginTop: 2 }}>
         <span style={{ fontSize: 10, color: barColor, opacity: best ? 0.85 : 0.5 }}>{label}</span>
-        {best && <span style={{ fontSize: 9, color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.04em' }}>★ best</span>}
+        {best && (
+          <span
+            style={{ fontSize: 9, color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.04em' }}
+          >
+            ★ best
+          </span>
+        )}
       </div>
     </div>
   )
@@ -136,7 +196,9 @@ function CourseChip({ course, onRemove }) {
       className="flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs"
       style={{ background: 'var(--panel-subtle)', borderColor: 'var(--line)' }}
     >
-      <span className="font-bold" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</span>
+      <span className="font-bold" style={{ color: 'var(--accent-strong)' }}>
+        {course.course_code}
+      </span>
       <span className="max-w-[120px] truncate text-muted">{course.course_name}</span>
       <button
         onClick={() => onRemove(course.id)}
@@ -151,7 +213,13 @@ function CourseChip({ course, onRemove }) {
   )
 }
 
-export default function Compare({ courses, _meta, favs, metricMode = 'score', setMetricMode = null }) {
+export default function Compare({
+  courses,
+  _meta,
+  favs,
+  metricMode = 'score',
+  setMetricMode = null,
+}) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selected, setSelected] = useState([]) // array of course ids
@@ -166,7 +234,12 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
   const copyTimeoutRef = useRef(null)
 
   // Cleanup copy timeout on unmount
-  useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
+  useEffect(
+    () => () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+    },
+    [],
+  )
 
   const toggleGroup = (label) => {
     setCollapsedGroups((prev) => {
@@ -194,7 +267,10 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
     const result = []
     for (const group of byBase.values()) {
       const avg = group.find((c) => c.is_average)
-      if (avg) { result.push(avg); continue }
+      if (avg) {
+        result.push(avg)
+        continue
+      }
       const latest = group.reduce((best, c) => (c.year > (best.year || 0) ? c : best), group[0])
       result.push(latest)
     }
@@ -203,47 +279,63 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
 
   const selectedCourses = useMemo(
     () => selected.map((id) => candidatePool.find((c) => c.id === id)).filter(Boolean),
-    [selected, candidatePool]
+    [selected, candidatePool],
   )
 
   // Initialize selected from ?ids= URL param (runs once after candidatePool is ready)
   useEffect(() => {
     if (initializedFromUrl.current || !candidatePool.length) return
     const idsParam = searchParams.get('ids')
-    if (!idsParam) { initializedFromUrl.current = true; return }
+    if (!idsParam) {
+      initializedFromUrl.current = true
+      return
+    }
     initializedFromUrl.current = true
-    const codes = idsParam.split(',').map((s) => s.trim()).filter(Boolean)
+    const codes = idsParam
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
     const ids = codes.flatMap((code) => {
-      const found = candidatePool.find((c) => (c.course_code_base || c.course_code) === code || c.id === code)
+      const found = candidatePool.find(
+        (c) => (c.course_code_base || c.course_code) === code || c.id === code,
+      )
       return found ? [found.id] : []
     })
     if (ids.length) setSelected(ids.slice(0, MAX_COURSES))
-  }, [candidatePool])
+  }, [candidatePool, searchParams])
 
   // Sync selected courses to URL as ?ids=CODE1,CODE2
   useEffect(() => {
-    const codes = selected.map((id) => {
-      const course = candidatePool.find((c) => c.id === id)
-      return course ? (course.course_code_base || course.course_code) : null
-    }).filter(Boolean)
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      if (codes.length) next.set('ids', codes.join(','))
-      else next.delete('ids')
-      return next
-    }, { replace: true })
-  }, [selected])
+    const codes = selected
+      .map((id) => {
+        const course = candidatePool.find((c) => c.id === id)
+        return course ? course.course_code_base || course.course_code : null
+      })
+      .filter(Boolean)
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (codes.length) next.set('ids', codes.join(','))
+        else next.delete('ids')
+        return next
+      },
+      { replace: true },
+    )
+  }, [candidatePool, selected, setSearchParams])
 
   const copyShareLink = () => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
-      setCopyMsg('Copied!')
-      copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2000)
-    }).catch(() => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
-      setCopyMsg('Copy failed')
-      copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2000)
-    })
+    navigator.clipboard
+      .writeText(window.location.href)
+      .then(() => {
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+        setCopyMsg('Copied!')
+        copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2000)
+      })
+      .catch(() => {
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+        setCopyMsg('Copy failed')
+        copyTimeoutRef.current = setTimeout(() => setCopyMsg(null), 2000)
+      })
   }
 
   const shortlistCourses = useMemo(() => {
@@ -253,11 +345,17 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
 
   const searchResults = useMemo(() => {
     if (!searchText.trim()) return []
-    const terms = searchText.toLowerCase().split(',').map((t) => t.trim()).filter(Boolean)
+    const terms = searchText
+      .toLowerCase()
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
     return candidatePool
       .filter((c) => !selected.includes(c.id))
       .filter((c) => {
-        const haystack = [c.course_name, c.course_code, c.professor_display, c.concentration].join(' ').toLowerCase()
+        const haystack = [c.course_name, c.course_code, c.professor_display, c.concentration]
+          .join(' ')
+          .toLowerCase()
         return terms.some((t) => haystack.includes(t))
       })
       .slice(0, 8)
@@ -284,30 +382,43 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
 
   // Group attrs for collapsible table sections
   const tableGroups = [
-    { label: 'Key Metrics',        attrs: allAttrs.filter((a) =>  KEY_METRIC_KEYS.has(a.key)) },
+    { label: 'Key Metrics', attrs: allAttrs.filter((a) => KEY_METRIC_KEYS.has(a.key)) },
     { label: 'Detailed Evaluation', attrs: allAttrs.filter((a) => !KEY_METRIC_KEYS.has(a.key)) },
   ].filter((g) => g.attrs.length > 0)
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6">
-      <OnboardingTour steps={COMPARE_TOUR_STEPS} storageKey="hks-tour-compare" autoStart={replayTour} onDone={() => setReplayTour(false)} />
+      <OnboardingTour
+        steps={COMPARE_TOUR_STEPS}
+        storageKey="hks-tour-compare"
+        autoStart={replayTour}
+        onDone={() => setReplayTour(false)}
+      />
       {/* Header */}
       <div className="panel-shell mb-5 overflow-hidden">
         <div className="px-5 py-5 md:px-7 md:py-6">
           <p className="kicker mb-2">Side-by-side analysis</p>
-          <h1 className="serif-display text-3xl font-semibold md:text-[2.5rem]" style={{ color: 'var(--text)' }}>
+          <h1
+            className="serif-display text-3xl font-semibold md:text-[2.5rem]"
+            style={{ color: 'var(--text)' }}
+          >
             Compare Courses
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <p className="text-sm" style={{ color: 'var(--text-soft)' }}>
-              Select up to {MAX_COURSES} courses and choose which attributes to compare side by side.
+              Select up to {MAX_COURSES} courses and choose which attributes to compare side by
+              side.
             </p>
             {selected.length > 0 && (
               <button
                 type="button"
                 onClick={copyShareLink}
                 className="rounded-full border px-3 py-1 text-xs font-semibold transition-transform hover:-translate-y-[1px]"
-                style={{ background: copyMsg ? 'var(--success-soft)' : 'var(--panel-soft)', borderColor: copyMsg ? 'var(--success)' : 'var(--line-strong)', color: copyMsg ? 'var(--success)' : 'var(--text-soft)' }}
+                style={{
+                  background: copyMsg ? 'var(--success-soft)' : 'var(--panel-soft)',
+                  borderColor: copyMsg ? 'var(--success)' : 'var(--line-strong)',
+                  color: copyMsg ? 'var(--success)' : 'var(--text-soft)',
+                }}
               >
                 {copyMsg ? `✓ ${copyMsg}` : '🔗 Share'}
               </button>
@@ -316,31 +427,46 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
               type="button"
               onClick={handleReplayTour}
               className="rounded-full border px-3 py-1 text-xs transition-colors hover:text-label"
-              style={{ background: 'var(--panel-soft)', borderColor: 'var(--line)', color: 'var(--text-muted)' }}
+              style={{
+                background: 'var(--panel-soft)',
+                borderColor: 'var(--line)',
+                color: 'var(--text-muted)',
+              }}
             >
               ↺ Replay tour
             </button>
           </div>
           {setMetricMode && (
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <div className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+              <div
+                className="flex gap-1 rounded-full border p-0.5"
+                style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
+              >
                 <button
                   onClick={() => setMetricMode('score')}
                   className="rounded-full px-4 py-1.5 text-[11px] font-medium transition-colors"
-                  style={{ background: metricMode === 'score' ? 'var(--accent)' : 'transparent', color: metricMode === 'score' ? '#fff' : 'var(--text-muted)' }}
+                  style={{
+                    background: metricMode === 'score' ? 'var(--accent)' : 'transparent',
+                    color: metricMode === 'score' ? '#fff' : 'var(--text-muted)',
+                  }}
                 >
                   Score
                 </button>
                 <button
                   onClick={() => setMetricMode('percentile')}
                   className="rounded-full px-4 py-1.5 text-[11px] font-medium transition-colors"
-                  style={{ background: metricMode === 'percentile' ? 'var(--blue)' : 'transparent', color: metricMode === 'percentile' ? '#fff' : 'var(--text-muted)' }}
+                  style={{
+                    background: metricMode === 'percentile' ? 'var(--blue)' : 'transparent',
+                    color: metricMode === 'percentile' ? '#fff' : 'var(--text-muted)',
+                  }}
                 >
                   Percentile
                 </button>
               </div>
               <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                {metricMode === 'score' ? 'Avg ÷ 5 × 100% (absolute)' : 'Rank vs. all courses in dataset'}
+                {metricMode === 'score'
+                  ? 'Avg ÷ 5 × 100% (absolute)'
+                  : 'Rank vs. all courses in dataset'}
               </span>
             </div>
           )}
@@ -352,7 +478,9 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
         <div className="space-y-4">
           {/* Search & shortlist */}
           <div data-tour="compare-add" className="surface-card rounded-[22px] p-5">
-            <p className="filter-label mb-3">Add Courses ({selected.length}/{MAX_COURSES})</p>
+            <p className="filter-label mb-3">
+              Add Courses ({selected.length}/{MAX_COURSES})
+            </p>
 
             {/* Selected chips */}
             {selectedCourses.length > 0 && (
@@ -378,28 +506,44 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
                     onClick={() => setSearchText('')}
                     className="search-clear-btn"
                     aria-label="Clear"
-                  >×</button>
+                  >
+                    ×
+                  </button>
                 )}
                 {searchResults.length > 0 && (
                   <div
                     className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-[18px] shadow-xl"
-                    style={{ background: 'var(--panel-strong)', border: '1px solid var(--line-strong)' }}
+                    style={{
+                      background: 'var(--panel-strong)',
+                      border: '1px solid var(--line-strong)',
+                    }}
                   >
                     {searchResults.map((course) => (
                       <button
                         key={course.id}
                         onClick={() => addCourse(course.id)}
                         className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors"
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--panel-subtle)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'var(--panel-subtle)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = ''
+                        }}
                         style={{ borderBottom: '1px solid var(--line)' }}
                       >
-                        <span className="mt-0.5 shrink-0 text-xs font-bold" style={{ color: 'var(--accent-strong)' }}>
+                        <span
+                          className="mt-0.5 shrink-0 text-xs font-bold"
+                          style={{ color: 'var(--accent-strong)' }}
+                        >
                           {course.course_code}
                         </span>
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-label">{course.course_name}</p>
-                          <p className="truncate text-[11px] text-muted">{course.professor_display}</p>
+                          <p className="truncate text-xs font-medium text-label">
+                            {course.course_name}
+                          </p>
+                          <p className="truncate text-[11px] text-muted">
+                            {course.professor_display}
+                          </p>
                         </div>
                         <span className="ml-auto shrink-0 text-[11px] text-muted">
                           {course.is_average ? `avg` : `${course.year}`}
@@ -425,11 +569,24 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
                         disabled={alreadyAdded || selected.length >= MAX_COURSES}
                         title={course.course_name}
                         className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all"
-                        style={alreadyAdded
-                          ? { background: 'var(--accent-soft)', border: '1px solid var(--accent)', color: 'var(--accent-strong)', opacity: 0.6 }
-                          : { background: 'var(--panel-subtle)', border: '1px solid var(--line)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        style={
+                          alreadyAdded
+                            ? {
+                                background: 'var(--accent-soft)',
+                                border: '1px solid var(--accent)',
+                                color: 'var(--accent-strong)',
+                                opacity: 0.6,
+                              }
+                            : {
+                                background: 'var(--panel-subtle)',
+                                border: '1px solid var(--line)',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                              }
+                        }
                       >
-                        {alreadyAdded ? '✓ ' : '+ '}{course.course_code}
+                        {alreadyAdded ? '✓ ' : '+ '}
+                        {course.course_code}
                       </button>
                     )
                   })}
@@ -446,7 +603,9 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
               aria-controls="compare-attr-panel"
               className="flex w-full items-center justify-between"
             >
-              <span className="filter-label">Attributes to Compare ({selectedAttrs.size} selected)</span>
+              <span className="filter-label">
+                Attributes to Compare ({selectedAttrs.size} selected)
+              </span>
               <span className="text-xs text-muted">{attrPanelOpen ? '▲ Hide' : '▼ Show'}</span>
             </button>
             {attrPanelOpen && (
@@ -462,9 +621,19 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
                             key={attr.key}
                             onClick={() => toggleAttr(attr.key)}
                             className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all"
-                            style={on
-                              ? { background: 'var(--accent-soft)', border: '1px solid var(--accent)', color: 'var(--accent-strong)' }
-                              : { background: 'var(--panel-subtle)', border: '1px solid var(--line)', color: 'var(--text-muted)' }}
+                            style={
+                              on
+                                ? {
+                                    background: 'var(--accent-soft)',
+                                    border: '1px solid var(--accent)',
+                                    color: 'var(--accent-strong)',
+                                  }
+                                : {
+                                    background: 'var(--panel-subtle)',
+                                    border: '1px solid var(--line)',
+                                    color: 'var(--text-muted)',
+                                  }
+                            }
                           >
                             {attr.label}
                           </button>
@@ -482,11 +651,17 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
         {selectedCourses.length === 0 && (
           <div
             className="hidden rounded-[22px] px-6 py-8 text-center lg:flex lg:flex-col lg:items-center lg:justify-center"
-            style={{ minWidth: 220, background: 'var(--panel-subtle)', border: '1px solid var(--line)' }}
+            style={{
+              minWidth: 220,
+              background: 'var(--panel-subtle)',
+              border: '1px solid var(--line)',
+            }}
           >
             <p className="mb-2 text-3xl">⇄</p>
             <p className="mb-1 font-medium text-label">No courses selected</p>
-            <p className="max-w-[160px] text-[11px] text-muted">Search above or pick from your shortlist to start comparing.</p>
+            <p className="max-w-[160px] text-[11px] text-muted">
+              Search above or pick from your shortlist to start comparing.
+            </p>
           </div>
         )}
       </div>
@@ -512,8 +687,10 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
           </div>
 
           <div className="overflow-x-auto">
-            <div className="surface-card mt-5 overflow-hidden rounded-[22px]" style={{ minWidth: `${200 + selectedCourses.length * 160}px` }}>
-
+            <div
+              className="surface-card mt-5 overflow-hidden rounded-[22px]"
+              style={{ minWidth: `${200 + selectedCourses.length * 160}px` }}
+            >
               {/* Sticky course headers */}
               <div
                 className="grid border-b"
@@ -541,11 +718,19 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
                       onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}
                       className="block text-left transition-opacity hover:opacity-80"
                     >
-                      <p className="text-xs font-bold" style={{ color: 'var(--accent-strong)' }}>{course.course_code}</p>
-                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-label">{course.course_name}</p>
-                      <p className="mt-1 truncate text-[10px] text-muted">{course.professor_display}</p>
+                      <p className="text-xs font-bold" style={{ color: 'var(--accent-strong)' }}>
+                        {course.course_code}
+                      </p>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-label">
+                        {course.course_name}
+                      </p>
+                      <p className="mt-1 truncate text-[10px] text-muted">
+                        {course.professor_display}
+                      </p>
                       <p className="text-[10px] text-muted">
-                        {course.is_average ? `avg ${course.year_range}` : `${course.term} ${course.year}`}
+                        {course.is_average
+                          ? `avg ${course.year_range}`
+                          : `${course.term} ${course.year}`}
                       </p>
                     </button>
                     <button
@@ -572,7 +757,8 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
                       style={{
                         gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
                         borderColor: 'var(--line)',
-                        background: 'linear-gradient(90deg, rgba(165,28,48,0.07), rgba(165,28,48,0.02))',
+                        background:
+                          'linear-gradient(90deg, rgba(165,28,48,0.07), rgba(165,28,48,0.02))',
                       }}
                     >
                       <div
@@ -590,74 +776,103 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
                         >
                           {group.label}
                         </span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                        <span
+                          style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}
+                        >
                           {isCollapsed ? `▶ Show ${group.attrs.length}` : `▼ Hide`}
                         </span>
                       </div>
                     </button>
 
                     {/* Rows (hidden when collapsed) */}
-                    {!isCollapsed && group.attrs.map((attr, attrIdx) => {
-                      const bestIndex = getBestIndex(selectedCourses, attr, metricMode)
-                      return (
-                        <div
-                          key={attr.key}
-                          className="grid border-b last:border-b-0"
-                          style={{
-                            gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
-                            borderColor: 'var(--line)',
-                            background: attrIdx % 2 === 0 ? 'transparent' : 'var(--panel-subtle)',
-                          }}
-                        >
-                          {/* Attr label */}
+                    {!isCollapsed &&
+                      group.attrs.map((attr, attrIdx) => {
+                        const bestIndex = getBestIndex(selectedCourses, attr, metricMode)
+                        return (
                           <div
-                            className="border-r px-4 py-3"
-                            style={{ borderColor: 'var(--line)', display: 'flex', alignItems: 'center' }}
+                            key={attr.key}
+                            className="grid border-b last:border-b-0"
+                            style={{
+                              gridTemplateColumns: `200px repeat(${selectedCourses.length}, minmax(160px, 1fr))`,
+                              borderColor: 'var(--line)',
+                              background: attrIdx % 2 === 0 ? 'transparent' : 'var(--panel-subtle)',
+                            }}
                           >
-                            <div>
-                              <p className="text-[11px] font-semibold text-label">{attr.label}</p>
-                              {attr.type === 'pct' && (
-                                <p className="text-[10px] text-muted">
-                                  {attr.higherBetter ? 'higher better' : 'lower better'}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Course cells */}
-                          {selectedCourses.map((course, courseIdx) => {
-                            const value = getCellValue(course, attr, metricMode)
-                            const isBest = courseIdx === bestIndex
-                            return (
-                              <div
-                                key={course.id}
-                                className="border-r px-3 py-3 last:border-r-0"
-                                style={{
-                                  borderColor: 'var(--line)',
-                                  background: isBest ? (attr.higherBetter ? 'var(--success-soft)' : 'var(--accent-soft)') : 'transparent',
-                                }}
-                              >
-                                {attr.type === 'pct' ? (
-                                  <MetricBar value={pct(value)} best={isBest} higherBetter={attr.higherBetter} metricMode={metricMode} />
-                                ) : attr.type === 'bool' ? (
-                                  <span className="text-xs font-semibold" style={{ color: value ? 'var(--success)' : 'var(--text-muted)' }}>
-                                    {value ? 'Yes' : 'No'}
-                                  </span>
-                                ) : attr.type === 'bid' ? (
-                                  <span className="text-xs font-semibold" style={{ color: value ? 'var(--gold)' : 'var(--text-muted)' }}>
-                                    {value != null ? `${value} pts` : '—'}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs" style={{ color: value ? 'var(--text-soft)' : 'var(--text-muted)' }}>
-                                    {value ?? '—'}
-                                  </span>
+                            {/* Attr label */}
+                            <div
+                              className="border-r px-4 py-3"
+                              style={{
+                                borderColor: 'var(--line)',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <div>
+                                <p className="text-[11px] font-semibold text-label">{attr.label}</p>
+                                {attr.type === 'pct' && (
+                                  <p className="text-[10px] text-muted">
+                                    {attr.higherBetter ? 'higher better' : 'lower better'}
+                                  </p>
                                 )}
                               </div>
-                            )
-                          })}
-                        </div>
-                      )
-                    })}
+                            </div>
+
+                            {/* Course cells */}
+                            {selectedCourses.map((course, courseIdx) => {
+                              const value = getCellValue(course, attr, metricMode)
+                              const isBest = courseIdx === bestIndex
+                              return (
+                                <div
+                                  key={course.id}
+                                  className="border-r px-3 py-3 last:border-r-0"
+                                  style={{
+                                    borderColor: 'var(--line)',
+                                    background: isBest
+                                      ? attr.higherBetter
+                                        ? 'var(--success-soft)'
+                                        : 'var(--accent-soft)'
+                                      : 'transparent',
+                                  }}
+                                >
+                                  {attr.type === 'pct' ? (
+                                    <MetricBar
+                                      value={pct(value)}
+                                      best={isBest}
+                                      higherBetter={attr.higherBetter}
+                                      metricMode={metricMode}
+                                    />
+                                  ) : attr.type === 'bool' ? (
+                                    <span
+                                      className="text-xs font-semibold"
+                                      style={{
+                                        color: value ? 'var(--success)' : 'var(--text-muted)',
+                                      }}
+                                    >
+                                      {value ? 'Yes' : 'No'}
+                                    </span>
+                                  ) : attr.type === 'bid' ? (
+                                    <span
+                                      className="text-xs font-semibold"
+                                      style={{ color: value ? 'var(--gold)' : 'var(--text-muted)' }}
+                                    >
+                                      {value != null ? `${value} pts` : '—'}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="text-xs"
+                                      style={{
+                                        color: value ? 'var(--text-soft)' : 'var(--text-muted)',
+                                      }}
+                                    >
+                                      {value ?? '—'}
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })}
                   </div>
                 )
               })}
@@ -667,13 +882,27 @@ export default function Compare({ courses, _meta, favs, metricMode = 'score', se
       )}
 
       {selectedCourses.length === 1 && (
-        <div className="mt-4 rounded-[18px] px-4 py-3 text-center text-sm text-muted" style={{ background: 'var(--panel-subtle)', border: '1px solid var(--line)' }}>
+        <div
+          className="mt-4 rounded-[18px] px-4 py-3 text-center text-sm text-muted"
+          style={{ background: 'var(--panel-subtle)', border: '1px solid var(--line)' }}
+        >
           Add at least one more course to see the comparison.
         </div>
       )}
 
       <div className="app-footer mt-8">
-        <span>{config.appTitle} by <a href={config.creatorUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Michael Gritzbach</a> {config.creatorDegrees} · Data from {config.dataSource} · {new Date().getFullYear()}</span>
+        <span>
+          {config.appTitle} by{' '}
+          <a
+            href={config.creatorUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'inherit' }}
+          >
+            Michael Gritzbach
+          </a>{' '}
+          {config.creatorDegrees} · Data from {config.dataSource} · {new Date().getFullYear()}
+        </span>
       </div>
     </div>
   )
