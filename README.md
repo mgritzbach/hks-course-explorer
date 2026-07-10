@@ -66,11 +66,14 @@ git clone https://github.com/YOUR-USERNAME/hks-course-explorer
 cd hks-course-explorer
 
 # 3. Install dependencies
-npm install
-pip install requests supabase pandas numpy scikit-learn
+npm ci --legacy-peer-deps
+python -m pip install requests supabase pandas numpy scikit-learn
 
 # 4. Set environment variables (copy .env.example to .env)
+# macOS / Linux
 cp .env.example .env
+# Windows PowerShell
+Copy-Item .env.example .env
 # See docs/CONFIGURATION.md for browser, script, and Cloudflare Function settings.
 
 # 5. Edit the two config files for your school:

@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Complexity ratchet for the four largest UI roots. The values are measured
  * with ESLint's core `complexity` rule and intentionally allow reductions.

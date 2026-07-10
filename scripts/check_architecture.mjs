@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Prevents further growth of the legacy modules that are scheduled for
  * incremental extraction. This is intentionally a ratchet: a maintainer may
