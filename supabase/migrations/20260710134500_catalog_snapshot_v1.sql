@@ -105,5 +105,19 @@ $$;
 revoke all on function public.promote_catalogue_snapshot(uuid) from public;
 grant execute on function public.promote_catalogue_snapshot(uuid) to service_role;
 
+-- The browser is not granted access to this view. The future Pages Function
+-- uses the server-only service role and returns this promoted snapshot only.
+create or replace view public.catalogue_current_v1
+with (security_invoker = true)
+as
+select
+  snapshot.*,
+  runs.source_snapshot_at,
+  runs.promoted_at,
+  runs.alias_registry_version
+from public.catalogue_snapshot_v1 as snapshot
+join public.catalogue_sync_runs as runs on runs.id = snapshot.sync_run_id
+where runs.status = 'promoted';
+
 comment on table public.catalogue_snapshot_v1 is
   'Versioned, private read model for current offerings plus verified historical evaluation context.';

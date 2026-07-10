@@ -22,6 +22,7 @@ class CatalogueSnapshotMigrationTests(unittest.TestCase):
         self.assertIn("alter table public.catalogue_sync_runs enable row level security", self.sql)
         self.assertIn("alter table public.catalogue_snapshot_v1 enable row level security", self.sql)
         self.assertNotIn("create policy", self.sql)
+        self.assertIn("create or replace view public.catalogue_current_v1", self.sql)
 
     def test_promotion_rejects_partial_snapshots(self):
         self.assertIn("mismatched source and snapshot counts", self.sql)
