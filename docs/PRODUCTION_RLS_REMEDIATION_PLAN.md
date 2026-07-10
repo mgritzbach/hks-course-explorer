@@ -11,7 +11,7 @@ Read-only inspection on 2026-07-10 found:
 - `public.live_courses` has a public `ALL` policy with `USING (true)` and
   `WITH CHECK (true)`. The Course Explorer browser needs only public `SELECT`.
 - `public.schedules` has a public `ALL` policy with `USING (true)` and
-  `WITH CHECK (true)`. There are 58 existing records over 52 old
+  `WITH CHECK (true)`. There are 63 existing records over 52 old
   browser-generated identifiers.
 - The project is shared with other applications. This plan must not touch any
   table, function, grant, or policy outside the two Course Explorer tables.
@@ -39,9 +39,10 @@ there is no supported remote plan-read path to preserve.
 
 ## Proposed database policy change
 
-Generate a new migration with the Supabase CLI after preflight; do not invent
-or apply a migration timestamp manually. The migration should make only these
-changes:
+The migration was generated with the Supabase CLI and is versioned as
+`20260710215439_restrict_course_explorer_browser_writes.sql`. Do not apply it
+to production until the preflight and release approval are complete. It makes
+only these changes:
 
 ```sql
 -- Preserve existing public read policy for the catalogue.
@@ -70,6 +71,22 @@ The platform owner must capture all of the following before promotion:
    checks pass against the staged environment.
 5. Security advisors no longer report permissive `ALL` policies for these two
    Course Explorer tables.
+
+### Completed isolated staging exercise
+
+The exact migration ran on the separate free `hks-course-explorer-staging`
+project using replicas of the current two table shapes and policies. After the
+migration:
+
+- an anonymous user could read the retained live-course record;
+- anonymous live-course insert was rejected;
+- the retained legacy schedule row was invisible to anonymous users;
+- anonymous schedule insert was rejected;
+- both rows remained present; and
+- no `ALL` policy remained on either table.
+
+This is a staging proof only. The shared production project has not been
+modified.
 
 ## Rollback and retention
 
