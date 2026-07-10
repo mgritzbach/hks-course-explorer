@@ -7,7 +7,7 @@ release proceeds while any P0 goal is `0`.
 
 | ID | Priority | Canonical goal | Verified progress | Status | Evidence required to mark 1 |
 |---|---|---|---:|---:|---|
-| G01 | P0 | Foundations / governance | 75% | 0 | Protected release ownership, CI controls, fresh setup/review evidence, and final governance sign-off. |
+| G01 | P0 | Foundations / governance | 80% | 0 | Protected release ownership, CI controls, fresh setup/review evidence, and final governance sign-off. |
 | G02 | P0 | Data integrity | 75% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
 | G03 | P0 | Supabase reliability | 70% | 0 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
 | G04 | P0 | Security | 85% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
@@ -81,3 +81,4 @@ Production certification needs authorized access to Cloudflare Pages/Functions l
 | L44 | Home and Schedule Builder have a full serious/critical Axe WCAG A/AA gate without excluded contrast or scrollable-region rules, on desktop and a 390px mobile viewport. | 1 | Built-artifact audit passed after shared Hub contrast-token correction, Course Card metadata contrast repair, and keyboard-focusable schedule-grid landmark; full browser regression remains required before release. |
 | L45 | The Home route has a reproducible local production-build performance baseline. | 1 | Chrome DevTools cold trace: 409 ms LCP, 0.00 CLS, and 8 ms local TTFB; no measurable render-blocking savings. Production mobile and RUM evidence remains required for G08. |
 | L46 | The first-visit landing page is a true focus-contained modal rather than a competing second main landmark. | 1 | Unit and built-browser checks prove a labelled modal, inert/hidden background, Tab containment, and unchanged Direct/Tutorial handoffs. |
+| L47 | The default branch has enforced, non-bypassable release governance. | 1 | GitHub ruleset `Production master protection` requires a pull request, resolved review threads, current `Quality gate`, and blocks deletion/non-fast-forward updates; zero approvals is intentional for the sole maintainer. |
