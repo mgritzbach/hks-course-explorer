@@ -10,6 +10,9 @@ jobs:
   quality-gate:
     name: Quality gate
     runs-on: ubuntu-latest
+    # A bounded gate fails safely and leaves a diagnostic instead of consuming
+    # a hosted runner indefinitely if a subprocess becomes unresponsive.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout

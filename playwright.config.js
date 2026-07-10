@@ -9,6 +9,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
+  // A browser process can occasionally fail to exit even after individual
+  // tests have timed out. Fail closed instead of leaving a release gate
+  // running indefinitely; normal CI runs complete in well under one minute.
+  globalTimeout: process.env.CI ? 180_000 : undefined,
+  // Keep the hosted runner below resource saturation while retaining parallel
+  // coverage. Local runs preserve Playwright's normal worker selection.
+  workers: process.env.CI ? 4 : undefined,
   timeout: 30000,
   use: {
     // E2E always exercises the static build produced by this revision, never
