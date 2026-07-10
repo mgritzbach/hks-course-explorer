@@ -64,5 +64,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: 54cdc2ac5fbe86216672ccf2589cf9cb
         run: wrangler pages deploy dist --project-name=hks-course-explorer --branch=master
 
+      - name: Smoke-test deployed Pages entrypoint
+        run: node scripts/smoke_deployed_site.mjs
+
       - name: Record deployed commit
         run: echo "Deployed verified commit ${{ github.event.workflow_run.head_sha }}"
