@@ -55,7 +55,9 @@ was complete.
 | `HARVARD_API_KEY` | `/api/harvard-courses` | Server-side Harvard API proxy. |
 | `HKS_KV` binding | Auth and `/api/courses` | One-time passwords and protected catalogue payloads. |
 | `JWT_SECRET` | Auth and protected catalogue | HMAC signing/verification. Rotate on a defined schedule. |
-| `BREVO_API_KEY` | Auth request | One-time-password delivery. |
+| `RESEND_API_KEY` | Auth request | Preferred one-time-password delivery provider. |
+| `BREVO_API_KEY` | Auth request | Legacy one-time-password delivery fallback. |
+| `AUTH_FROM_EMAIL` | Auth request | Optional verified sender address; defaults to the current HKS Course Explorer sender. |
 | `OPENROUTER_API_KEY` | Chat endpoint | Course-advisor provider access. |
 | `ADMIN_PASSWORD` | `/api/admin-verify` | Verifies the Admin UI password. Never expose it to the browser. |
 | `ADMIN_SESSION_SECRET` | Admin endpoints | Distinct, randomly generated HMAC secret (at least 32 characters) for 15-minute admin data sessions. Rotate it to invalidate all outstanding Admin sessions. |

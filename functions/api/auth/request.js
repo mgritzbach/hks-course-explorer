@@ -1,6 +1,7 @@
 // POST /api/auth/request
 // Body: { email: "user@harvard.edu" }
-// Validates domain, generates 6-digit OTP, stores in KV, sends via Brevo
+// Validates domain, generates a six-digit OTP, stores it in KV, and sends it
+// through the configured transactional email provider.
 
 import { corsHeaders, handleOptions } from '../../_shared/cors.js'
 
@@ -19,95 +20,107 @@ const ALLOWED_DOMAINS = [
   'extension.harvard.edu',
 ]
 
-// Personal whitelist — add any non-Harvard addresses here
 const WHITELIST = ['mic.gritzbach@gmail.com']
+const DEFAULT_FROM = 'HKS Course Explorer <mgritzbach@hks.harvard.edu>'
+
+function json(request, status, body) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+  })
+}
 
 function isAllowed(email) {
   if (!email || !email.includes('@')) return false
-  email = email.toLowerCase().trim()
-  if (WHITELIST.includes(email)) return true
-  const domain = email.split('@')[1]
-  // Allow exact match OR any subdomain of harvard.edu
-  if (ALLOWED_DOMAINS.includes(domain)) return true
-  if (domain.endsWith('.harvard.edu')) return true
-  return false
+  const normalized = email.toLowerCase().trim()
+  if (WHITELIST.includes(normalized)) return true
+  const domain = normalized.split('@')[1]
+  return ALLOWED_DOMAINS.includes(domain) || domain.endsWith('.harvard.edu')
 }
 
 function generateOTP() {
-  const arr = new Uint32Array(1)
-  crypto.getRandomValues(arr)
-  return String(arr[0] % 1000000).padStart(6, '0')
+  const values = new Uint32Array(1)
+  crypto.getRandomValues(values)
+  return String(values[0] % 1000000).padStart(6, '0')
+}
+
+function emailProvider(env) {
+  if (typeof env?.RESEND_API_KEY === 'string' && env.RESEND_API_KEY.trim()) return 'resend'
+  if (typeof env?.BREVO_API_KEY === 'string' && env.BREVO_API_KEY.trim()) return 'brevo'
+  return null
+}
+
+function messageHtml(otp) {
+  return `<div style="font-family:Georgia,serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d14;color:#e8e0d8;border-radius:12px">
+    <h1 style="font-size:22px;margin:0 0 20px;color:#fff">Course Explorer</h1>
+    <p>Your one-time login code is:</p>
+    <p style="font-family:monospace;font-size:40px;letter-spacing:.18em;color:#d4a86a">${otp}</p>
+    <p style="font-size:12px">This code expires in 10 minutes. If you did not request it, you can safely ignore this email.</p>
+  </div>`
+}
+
+export async function sendOtpEmail({ env, email, otp, fetchImpl = fetch }) {
+  const provider = emailProvider(env)
+  if (!provider) return { configured: false, ok: false }
+
+  const from =
+    typeof env?.AUTH_FROM_EMAIL === 'string' && env.AUTH_FROM_EMAIL.trim()
+      ? env.AUTH_FROM_EMAIL.trim()
+      : DEFAULT_FROM
+  const subject = 'Your HKS Course Explorer login code'
+  const html = messageHtml(otp)
+  const response =
+    provider === 'resend'
+      ? await fetchImpl('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${env.RESEND_API_KEY}`,
+          },
+          body: JSON.stringify({ from, to: [email], subject, html }),
+        })
+      : await fetchImpl('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'api-key': env.BREVO_API_KEY },
+          body: JSON.stringify({
+            sender: { name: 'HKS Course Explorer', email: from.match(/<(.+)>/)?.[1] || from },
+            to: [{ email }],
+            subject,
+            htmlContent: html,
+          }),
+        })
+
+  return { configured: true, ok: response.ok, provider }
 }
 
 export async function onRequestPost({ request, env }) {
-  if (request.method === 'OPTIONS') return handleOptions(request)
-
   try {
     const { email } = await request.json()
-
     if (!isAllowed(email)) {
-      return new Response(
-        JSON.stringify({
-          error: 'Only Harvard email addresses (or whitelisted emails) are allowed.',
-        }),
-        { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-      )
-    }
-
-    const otp = generateOTP()
-    const expires = Date.now() + 10 * 60 * 1000 // 10 minutes
-
-    // Store OTP in KV with 11-minute TTL (slightly longer than expires check)
-    await env.HKS_KV.put(`otp:${email.toLowerCase().trim()}`, JSON.stringify({ otp, expires }), {
-      expirationTtl: 660,
-    })
-
-    // Send email via Brevo (no domain verification required — just a verified sender address)
-    const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': env.BREVO_API_KEY,
-      },
-      body: JSON.stringify({
-        sender: { name: 'HKS Course Explorer', email: 'mgritzbach@hks.harvard.edu' },
-        to: [{ email }],
-        subject: 'Your HKS Course Explorer login code',
-        htmlContent: `
-          <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #0d0d14; color: #e8e0d8; border-radius: 12px;">
-            <p style="color: #a51c30; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 8px;">Harvard Kennedy School</p>
-            <h1 style="font-size: 22px; font-weight: 600; margin: 0 0 20px; color: #fff;">Course Explorer</h1>
-            <p style="color: #b8a898; margin: 0 0 24px; line-height: 1.6;">Your one-time login code is:</p>
-            <div style="background: #1a1a2e; border: 1px solid rgba(165,28,48,0.3); border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 24px;">
-              <span style="font-size: 40px; font-weight: 700; letter-spacing: 0.18em; color: #d4a86a; font-family: monospace;">${otp}</span>
-            </div>
-            <p style="color: #7a6a5a; font-size: 12px; line-height: 1.6;">This code expires in 10 minutes. If you didn't request this, you can safely ignore it.</p>
-            <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 24px 0;">
-            <p style="color: #4a3a2a; font-size: 11px;">HKS Course Explorer — Built independently for Harvard Kennedy School students.</p>
-          </div>
-        `,
-      }),
-    })
-
-    if (!brevoRes.ok) {
-      const errBody = await brevoRes.text()
-      console.error('Brevo error:', errBody)
-      return new Response(JSON.stringify({ error: 'Failed to send email. Please try again.' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+      return json(request, 403, {
+        error: 'Only Harvard email addresses (or whitelisted emails) are allowed.',
       })
     }
+    if (!emailProvider(env))
+      return json(request, 503, { error: 'Email delivery is not configured.' })
+    if (!env?.HKS_KV?.put) return json(request, 503, { error: 'Login storage is not configured.' })
 
-    return new Response(
-      JSON.stringify({ ok: true, message: 'Check your inbox for a 6-digit code.' }),
-      { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-    )
-  } catch (err) {
-    console.error('request.js error:', err)
-    return new Response(JSON.stringify({ error: 'Internal server error.' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+    const normalizedEmail = email.toLowerCase().trim()
+    const otp = generateOTP()
+    const expires = Date.now() + 10 * 60 * 1000
+    const delivery = await sendOtpEmail({ env, email: normalizedEmail, otp })
+    if (!delivery.ok) {
+      console.error('OTP email delivery failed:', delivery.provider || 'unconfigured')
+      return json(request, 502, { error: 'Failed to send email. Please try again.' })
+    }
+
+    await env.HKS_KV.put(`otp:${normalizedEmail}`, JSON.stringify({ otp, expires }), {
+      expirationTtl: 660,
     })
+    return json(request, 200, { ok: true, message: 'Check your inbox for a 6-digit code.' })
+  } catch (error) {
+    console.error('OTP request failed:', error instanceof Error ? error.message : 'unknown error')
+    return json(request, 500, { error: 'Internal server error.' })
   }
 }
 
