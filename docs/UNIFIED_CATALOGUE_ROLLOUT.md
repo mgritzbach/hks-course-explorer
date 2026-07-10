@@ -3,9 +3,10 @@
 ## Outcome
 
 The public application will read one versioned catalogue of currently offered
-courses. Each offering has either verified historical evaluation context or an
-explicit `unmatched` state. The Harvard API is a trusted daily ingestion
-source, not a browser search dependency.
+courses. Each offering has either verified same-professor evaluation context, a
+course-only prior-offering record, a review candidate, or an explicit
+`unmatched` state. The Harvard API is a trusted daily ingestion source, not a
+browser search dependency.
 
 This document is a rollout plan. It does not authorize a production database
 change by itself.
@@ -22,9 +23,16 @@ The front-facing catalogue may combine those sources, but it must not replace
 or mutate them. It must retain the source IDs, source timestamps, and match
 evidence for every published row.
 
-Do not match by title similarity, instructor name, code prefix, or by removing
-a course suffix. Such similarities can propose an Admin review item, but must
-never publish another course's ratings automatically.
+The raw offering identity is course code, professor, addition/section suffix,
+semester, and part-semester. The teaching-history identity is the reviewed
+course-code lineage plus the same professor. Semester and part-semester describe
+when it ran, rather than a different course by themselves.
+
+Do not match by title similarity, code prefix, or by removing a course suffix.
+A same-professor A/B/C-style terminal suffix can propose a section-split review
+item, but must never publish another course's ratings automatically. A course
+with the same code but a different professor retains course history separately;
+it does not inherit the earlier professor's ratings as its own.
 
 ## Proposed read contract
 
@@ -35,8 +43,10 @@ Required fields:
 
 - `offering_id`, `term`, `school`, current code/title/instructors/meetings;
 - `canonical_course_code` when linked;
-- `match_status`: `verified` or `unmatched`;
-- `match_method`: `exact_code` or `approved_alias` when verified;
+- current instructor identity keys and a professor-specific teaching-lineage;
+- `match_status`: `verified`, `course_only`, `needs_review`, or `unmatched`;
+- `match_method`: exact/approved-alias same-professor, other-professor, or
+  suspected section split;
 - `historical_course_codes`, evaluation summary, and observed evaluation years;
 - `source_synced_at` and `catalogue_version`.
 

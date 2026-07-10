@@ -47,18 +47,22 @@ class PublishCatalogueSnapshotTests(unittest.TestCase):
                     "title": "Policy Analysis",
                     "instructors": ["Example"],
                     "canonical_course_code": "API-101",
+                    "current_instructor_keys": ["example"],
                     "match_status": "verified",
-                    "match_method": "exact_code",
+                    "match_method": "exact_code_same_professor",
                     "historical_course_codes": ["API-101"],
                     "evaluation_summary": {"evaluated_offering_count": 1},
+                    "course_history_summary": {"evaluated_offering_count": 1},
                     "historical_records": [{"id": "history-1"}],
+                    "course_history_records": [{"id": "history-1"}],
+                    "review_candidates": [],
                 }
             ],
             {"live-1": {"id": "live-1", "raw": "source"}},
         )
         self.assertEqual(rows[0]["sync_run_id"], "run-1")
         self.assertEqual(rows[0]["current_offering"], {"id": "live-1", "raw": "source"})
-        self.assertEqual(rows[0]["match_method"], "exact_code")
+        self.assertEqual(rows[0]["match_method"], "exact_code_same_professor")
 
 
 if __name__ == "__main__":

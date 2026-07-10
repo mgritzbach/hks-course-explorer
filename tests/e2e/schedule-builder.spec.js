@@ -40,36 +40,18 @@ test.describe('Schedule Builder critical flows', () => {
     await expect(page.getByText('Something went wrong')).toHaveCount(0)
   })
 
-  test('labels stale and partial catalogue data without hiding returned courses', async ({
-    page,
-  }) => {
-    await installMockBackend(page, {
-      harvardResponse: {
-        results: [
-          {
-            harvardId: 'stale-api-101',
-            courseCode: 'API-101',
-            title: 'Policy Analysis Foundations',
-            credits: 4,
-            instructors: ['Avery Analyst'],
-            sections: [],
-          },
-        ],
-        total: 1,
-        stale: true,
-        partial: true,
-      },
+  test('searches the synced catalogue without calling the Harvard proxy', async ({ page }) => {
+    await installMockBackend(page)
+    let harvardRequests = 0
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/harvard-courses') harvardRequests += 1
     })
     await page.addInitScript(() => localStorage.setItem('hks-splash-shown', '1'))
     await page.goto('/schedule-builder')
 
     await page.getByLabel('Search courses and instructors').fill('policy')
-    const warning = page
-      .getByRole('status')
-      .filter({ hasText: 'Catalogue data may be incomplete.' })
-    await expect(warning).toContainText('last successful catalogue response')
-    await expect(warning).toContainText('Some schools could not be retrieved')
     await expect(page.getByRole('list', { name: 'Course search results' })).toContainText('API-101')
+    expect(harvardRequests).toBe(0)
   })
 
   test('adds a missing cross-registration course through the manual form', async ({ page }) => {

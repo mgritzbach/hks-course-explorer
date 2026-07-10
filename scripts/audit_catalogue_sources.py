@@ -58,13 +58,24 @@ def audit_catalogue(offerings, historical_rows, aliases):
 
     hks_rows = [row for row in snapshot if row.get("school") == "HKS"]
     verified = [row for row in hks_rows if row["match_status"] == "verified"]
+    course_only = [row for row in hks_rows if row["match_status"] == "course_only"]
+    needs_review = [row for row in hks_rows if row["match_status"] == "needs_review"]
     unmatched = [row for row in hks_rows if row["match_status"] == "unmatched"]
     return {
         "current_offering_count": len(snapshot),
         "historical_record_count": len(historical_rows),
         "hks_current_offering_count": len(hks_rows),
         "hks_verified_history_count": len(verified),
+        "hks_course_only_history_count": len(course_only),
+        "hks_needs_review_count": len(needs_review),
         "hks_unmatched_history_count": len(unmatched),
+        "review_candidate_hks_codes": sorted(
+            {
+                row["course_code_base"]
+                for row in needs_review
+                if isinstance(row.get("course_code_base"), str) and row["course_code_base"]
+            }
+        ),
         "unmatched_hks_codes": sorted(
             {
                 row["course_code_base"]

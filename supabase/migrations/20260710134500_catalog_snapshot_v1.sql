@@ -13,6 +13,8 @@ create table if not exists public.catalogue_sync_runs (
   historical_record_count integer not null check (historical_record_count >= 0),
   snapshot_offering_count integer not null check (snapshot_offering_count >= 0),
   hks_verified_history_count integer not null check (hks_verified_history_count >= 0),
+  hks_course_only_history_count integer not null check (hks_course_only_history_count >= 0),
+  hks_needs_review_count integer not null check (hks_needs_review_count >= 0),
   hks_unmatched_history_count integer not null check (hks_unmatched_history_count >= 0),
   alias_registry_version text not null,
   failure_reason text,
@@ -39,15 +41,25 @@ create table if not exists public.catalogue_snapshot_v1 (
   instructors jsonb not null default '[]'::jsonb,
   current_offering jsonb not null,
   canonical_course_code text,
-  match_status text not null check (match_status in ('verified', 'unmatched')),
-  match_method text check (match_method in ('exact_code', 'approved_alias')),
+  current_instructor_keys jsonb not null default '[]'::jsonb,
+  match_status text not null check (match_status in ('verified', 'course_only', 'needs_review', 'unmatched')),
+  match_method text check (match_method in (
+    'exact_code_same_professor', 'approved_alias_same_professor',
+    'exact_code_other_professor', 'approved_alias_other_professor',
+    'exact_code_professor_unavailable', 'approved_alias_professor_unavailable',
+    'suspected_section_split'
+  )),
   historical_course_codes jsonb not null default '[]'::jsonb,
   evaluation_summary jsonb not null default '{}'::jsonb,
+  course_history_summary jsonb not null default '{}'::jsonb,
   historical_records jsonb not null default '[]'::jsonb,
+  course_history_records jsonb not null default '[]'::jsonb,
+  review_candidates jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   primary key (sync_run_id, offering_id),
   check (
-    (match_status = 'verified' and match_method is not null and canonical_course_code is not null)
+    (match_status in ('verified', 'course_only') and match_method is not null and canonical_course_code is not null)
+    or (match_status = 'needs_review' and match_method = 'suspected_section_split' and canonical_course_code is null)
     or (match_status = 'unmatched' and match_method is null and canonical_course_code is null)
   )
 );

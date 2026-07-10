@@ -56,11 +56,11 @@ class CatalogueAuditTests(unittest.TestCase):
     def test_reports_verified_and_unmatched_hks_offerings_without_data_loss(self):
         report = self.audit.audit_catalogue(
             [
-                {"id": "current-a", "school": "HKS", "course_code_base": "API-101"},
+                {"id": "current-a", "school": "HKS", "course_code_base": "API-101", "instructors": ["Avery Example"]},
                 {"id": "current-b", "school": "HKS", "course_code_base": "DPI-802-M-D"},
                 {"id": "other", "school": "FAS", "course_code_base": "GEN-1"},
             ],
-            [{"id": "history-a", "course_code_base": "API-101", "has_eval": True}],
+            [{"id": "history-a", "course_code_base": "API-101", "has_eval": True, "professor": "Example, Avery"}],
             {},
         )
         self.assertEqual(report["current_offering_count"], 3)

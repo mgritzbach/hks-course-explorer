@@ -38,11 +38,15 @@ def snapshot_database_rows(sync_run_id, snapshot, offerings_by_id):
             "instructors": row["instructors"],
             "current_offering": offerings_by_id[row["offering_id"]],
             "canonical_course_code": row["canonical_course_code"],
+            "current_instructor_keys": row["current_instructor_keys"],
             "match_status": row["match_status"],
             "match_method": row["match_method"],
             "historical_course_codes": row["historical_course_codes"],
             "evaluation_summary": row["evaluation_summary"],
+            "course_history_summary": row["course_history_summary"],
             "historical_records": row["historical_records"],
+            "course_history_records": row["course_history_records"],
+            "review_candidates": row["review_candidates"],
         }
         for row in snapshot
     ]
@@ -97,6 +101,8 @@ def main():
             "historical_record_count": report["historical_record_count"],
             "snapshot_offering_count": len(snapshot),
             "hks_verified_history_count": report["hks_verified_history_count"],
+            "hks_course_only_history_count": report["hks_course_only_history_count"],
+            "hks_needs_review_count": report["hks_needs_review_count"],
             "hks_unmatched_history_count": report["hks_unmatched_history_count"],
             "alias_registry_version": "data/school_config.json",
         },

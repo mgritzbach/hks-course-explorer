@@ -9,7 +9,7 @@ import {
   saveCompleted,
 } from '../lib/scheduleStorage'
 import { computeProgress, getPrograms } from '../lib/requirementsEngine'
-import { searchHarvardCourses } from '../lib/harvardApi'
+import { findLiveCatalogueRows } from '../lib/liveCatalogueSearch.js'
 import {
   DAY_INDEX,
   courseHasSchedule,
@@ -454,7 +454,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       return undefined
     }
     // effectiveQuery: typed query, or 'a' as browse seed when live_courses table is still empty
-    const effectiveQuery = query || (liveBrowse ? 'a' : '')
+    const effectiveQuery = query
     if (!effectiveQuery && !hasFilters) {
       setSearching(false)
       setSearchResults([])
@@ -481,7 +481,29 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
             else if (searchSource === 'HBS')
               apiOptions.school = 'Non-HKS' // HBS = HBSD+HBSM fan-out
             else apiOptions.school = searchSource // NONH, HLS, HGSE, HMS, HSPH, FAS, GSD, HDS
-            const remote = await searchHarvardCourses(effectiveQuery, apiOptions)
+            // The upstream API is a server-side sync source. Browser search is
+            // served only from the successfully synced local catalogue.
+            const remote = {
+              results: findLiveCatalogueRows(liveCoursesData, {
+                query: effectiveQuery,
+                year: semesterYear,
+                semester,
+                school: searchSource,
+              }).map((row) => ({
+                courseCode: row.course_code || row.course_code_base,
+                title: row.title || '',
+                instructors: Array.isArray(row.instructors) ? row.instructors : [],
+                credits: row.credits,
+                sections: [],
+                meeting_days: row.meeting_days || null,
+                time_start: row.time_start || null,
+                time_end: row.time_end || null,
+                location: row.location || null,
+                term: row.term || null,
+                _fromLiveDB: true,
+              })),
+            }
+            void apiOptions
             if (cancelled) return
             setLiveSearchStatus({
               stale: Boolean(remote?.stale),
@@ -503,7 +525,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
             if (searchStem === 'nonstem')
               normalized = normalized.filter((c) => !c.enrichment?.is_stem)
             if (searchCoreOnly) normalized = normalized.filter((c) => c.enrichment?.is_core)
-            if (normalized.length) {
+            if (normalized.length || searchMode === 'live') {
               setApiMode('live')
               setSearchResults(normalized)
             } else {
@@ -1431,7 +1453,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                         background: apiMode === 'live' ? 'var(--success)' : 'var(--text-muted)',
                       }}
                     />
-                    {apiMode === 'live' ? 'Live' : 'DB only'}
+                    {apiMode === 'live' ? 'Synced catalogue' : 'History'}
                   </span>
                 )}
               </div>
@@ -1855,7 +1877,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     color: 'var(--text)',
                   }}
                 >
-                  Live catalogue search is unavailable.{' '}
+                  Synced catalogue search is unavailable.{' '}
                   {searchSource === 'HKS' || searchSource === 'All'
                     ? 'Showing matching Q-guide history where available.'
                     : 'Please try again shortly.'}

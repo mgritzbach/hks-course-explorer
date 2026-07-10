@@ -8,6 +8,7 @@ snapshot before any production promotion.
 
 from collections import defaultdict
 import re
+import unicodedata
 
 
 def normalise_course_code(value):
@@ -24,6 +25,37 @@ def course_code(record):
     if not isinstance(record, dict):
         return None
     return normalise_course_code(record.get("course_code_base") or record.get("course_code"))
+
+
+def normalise_instructor_name(value):
+    """Create a stable professor key across 'Last, First' and 'First Last'."""
+    if not isinstance(value, str):
+        return None
+    ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    tokens = re.findall(r"[a-z]+", re.sub(r"\b(professor|prof|doctor|dr)\b", "", ascii_value.lower()))
+    tokens = sorted(token for token in tokens if len(token) > 1)
+    return " ".join(tokens) if tokens else None
+
+
+def instructor_keys(record):
+    """Return one or more explicit professor identities from either source shape."""
+    if not isinstance(record, dict):
+        return []
+    values = record.get("instructors") if isinstance(record.get("instructors"), list) else [
+        record.get("professor_display"),
+        record.get("professor"),
+        record.get("instructor_label"),
+    ]
+    return sorted({normalise_instructor_name(value) for value in values if normalise_instructor_name(value)})
+
+
+def shared_instructor(offering, historical_row):
+    return bool(set(instructor_keys(offering)) & set(instructor_keys(historical_row)))
+
+
+def probable_section_base(code):
+    """Return only a terminal A/B/C-style variant candidate, never an auto-link."""
+    return code[:-2] if isinstance(code, str) and re.search(r"-[A-Z]$", code) else None
 
 
 def truthy(value):
@@ -83,14 +115,38 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
             raise ValueError("Every current offering needs its immutable source id.")
 
         code = course_code(offering)
-        records = direct.get(code, []) if code else []
-        match_method = "exact_code" if records else None
+        course_history_records = direct.get(code, []) if code else []
+        source_method = "exact_code" if course_history_records else None
 
-        if not records and code:
-            records = approved_aliases.get(code, [])
-            match_method = "approved_alias" if records else None
+        if not course_history_records and code:
+            course_history_records = approved_aliases.get(code, [])
+            source_method = "approved_alias" if course_history_records else None
 
-        historical_codes = sorted({course_code(row) for row in records if course_code(row)})
+        teaching_records = [row for row in course_history_records if shared_instructor(offering, row)]
+        historical_codes = sorted({course_code(row) for row in course_history_records if course_code(row)})
+        review_candidates = []
+        if not course_history_records and code:
+            section_base = probable_section_base(code)
+            if section_base:
+                review_candidates = [
+                    row for row in direct.get(section_base, []) if shared_instructor(offering, row)
+                ]
+
+        if teaching_records:
+            match_status = "verified"
+            match_method = f"{source_method}_same_professor"
+        elif course_history_records:
+            match_status = "course_only"
+            professor_scope = "other_professor" if instructor_keys(offering) else "professor_unavailable"
+            match_method = f"{source_method}_{professor_scope}"
+        elif review_candidates:
+            match_status = "needs_review"
+            match_method = "suspected_section_split"
+            historical_codes = sorted({course_code(row) for row in review_candidates if course_code(row)})
+        else:
+            match_status = "unmatched"
+            match_method = None
+
         snapshot.append(
             {
                 "offering_id": str(offering["id"]),
@@ -100,12 +156,17 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
                 "school": offering.get("school"),
                 "title": offering.get("title"),
                 "instructors": offering.get("instructors") or [],
-                "canonical_course_code": code if records else None,
-                "match_status": "verified" if records else "unmatched",
+                "canonical_course_code": code if match_status in {"verified", "course_only"} else None,
+                "current_instructor_keys": instructor_keys(offering),
+                "match_status": match_status,
                 "match_method": match_method,
                 "historical_course_codes": historical_codes,
-                "evaluation_summary": build_evaluation_summary(records),
-                "historical_records": records,
+                # Only same-professor records become current-offering ratings.
+                "evaluation_summary": build_evaluation_summary(teaching_records),
+                "course_history_summary": build_evaluation_summary(course_history_records),
+                "historical_records": teaching_records,
+                "course_history_records": course_history_records,
+                "review_candidates": review_candidates,
             }
         )
 
