@@ -985,7 +985,7 @@ export default function Courses({
           onReplayTour={handleReplayTour}
         />
       </div>
-      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:max-w-4xl md:px-8 md:py-6">
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:max-w-4xl md:px-8 md:py-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="kicker mb-2">Deep dive</p>
@@ -1987,7 +1987,7 @@ export default function Courses({
           </a>{' '}
           {config.creatorDegrees} · {new Date().getFullYear()}
         </div>
-      </main>
+      </div>
     </div>
   )
 }

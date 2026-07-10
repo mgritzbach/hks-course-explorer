@@ -2609,7 +2609,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
             </div>
           ) : (
             <>
-              <main
+              <div
+                role="region"
                 data-tour="schedule-grid"
                 className="min-w-0 flex-1 overflow-x-auto overflow-y-auto"
                 tabIndex={0}
@@ -2859,7 +2860,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     </div>
                   </div>
                 </div>
-              </main>
+              </div>
 
               <aside
                 data-tour="plan-shortlist"

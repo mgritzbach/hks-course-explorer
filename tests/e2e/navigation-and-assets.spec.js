@@ -79,6 +79,7 @@ test.describe('local build navigation and static assets', () => {
     for (const [route, marker] of routes) {
       await page.goto(route)
       await expect(page.locator('#main-content')).toContainText(marker)
+      await expect(page.getByRole('main')).toHaveCount(1)
       expect(new URL(page.url()).pathname).toBe(route)
       await expect(page.locator('#main-content')).not.toContainText('Failed to load course data')
     }

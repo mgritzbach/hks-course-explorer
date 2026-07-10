@@ -24,7 +24,7 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
-    "test:e2e:build": "npm run build && npm run test:e2e",
+    "test:e2e:build": "node scripts/run_e2e_build.mjs",
     "test:e2e:ci": "playwright test"
   },
   "dependencies": {
