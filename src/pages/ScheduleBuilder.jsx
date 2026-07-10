@@ -9,7 +9,7 @@ import {
   saveCompleted,
 } from '../lib/scheduleStorage'
 import { computeProgress, getPrograms } from '../lib/requirementsEngine'
-import { findLiveCatalogueRows } from '../lib/liveCatalogueSearch.js'
+import { findLiveCatalogueRows, toScheduleSearchItem } from '../lib/liveCatalogueSearch.js'
 import {
   DAY_INDEX,
   courseHasSchedule,
@@ -470,17 +470,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         setSearching(true)
         setLiveSearchError('')
         try {
-          // Use live API when mode=live and we have a query (typed or browse seed)
+          // Search current offerings from the daily-synced local catalogue.
           if (effectiveQuery && searchMode === 'live') {
-            const semesterKey = semester === 'January' ? 'January' : semester
-            const apiOptions = { term: `${semesterYear}${semesterKey}` }
-            // Pass school to proxy — NONH/HLS/etc. pass directly; HBS needs fan-out (HBSD+HBSM)
-            if (searchSource === 'HKS') apiOptions.school = 'HKS'
-            else if (searchSource === 'Non-HKS') apiOptions.school = 'Non-HKS'
-            else if (searchSource === 'All') apiOptions.school = 'All'
-            else if (searchSource === 'HBS')
-              apiOptions.school = 'Non-HKS' // HBS = HBSD+HBSM fan-out
-            else apiOptions.school = searchSource // NONH, HLS, HGSE, HMS, HSPH, FAS, GSD, HDS
             // The upstream API is a server-side sync source. Browser search is
             // served only from the successfully synced local catalogue.
             const remote = {
@@ -489,21 +480,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                 year: semesterYear,
                 semester,
                 school: searchSource,
-              }).map((row) => ({
-                courseCode: row.course_code || row.course_code_base,
-                title: row.title || '',
-                instructors: Array.isArray(row.instructors) ? row.instructors : [],
-                credits: row.credits,
-                sections: [],
-                meeting_days: row.meeting_days || null,
-                time_start: row.time_start || null,
-                time_end: row.time_end || null,
-                location: row.location || null,
-                term: row.term || null,
-                _fromLiveDB: true,
-              })),
+              }).map(toScheduleSearchItem),
             }
-            void apiOptions
             if (cancelled) return
             setLiveSearchStatus({
               stale: Boolean(remote?.stale),

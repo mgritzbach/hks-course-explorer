@@ -11,6 +11,9 @@ browser search dependency.
 This document is a rollout plan. It does not authorize a production database
 change by itself.
 
+For the field-level identity, provenance, and operator-review rules, see
+[`CATALOGUE_DATA_DICTIONARY.md`](CATALOGUE_DATA_DICTIONARY.md).
+
 ## Source and identity rules
 
 | Source | Responsibility | Immutable identity |

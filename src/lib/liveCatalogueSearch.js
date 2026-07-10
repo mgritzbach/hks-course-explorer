@@ -33,3 +33,20 @@ export function findLiveCatalogueRows(rows, { query = '', year, semester, school
     return content.includes(needle)
   })
 }
+
+/** Adapt a synced database row to the Schedule Builder's normaliser contract. */
+export function toScheduleSearchItem(row) {
+  return {
+    courseCode: row?.course_code || row?.course_code_base,
+    title: row?.title || '',
+    instructors: Array.isArray(row?.instructors) ? row.instructors : [],
+    credits: row?.credits,
+    sections: [],
+    meeting_days: row?.meeting_days || null,
+    time_start: row?.time_start || null,
+    time_end: row?.time_end || null,
+    location: row?.location || null,
+    term: row?.term || null,
+    _fromLiveDB: true,
+  }
+}
