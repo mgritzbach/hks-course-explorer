@@ -630,7 +630,7 @@ export default function Home({
         />
       </div>
 
-      <main
+      <div
         ref={mainRef}
         className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6"
       >
@@ -984,7 +984,7 @@ export default function Home({
           </a>{' '}
           VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}
         </div>
-      </main>
+      </div>
     </div>
   )
 }

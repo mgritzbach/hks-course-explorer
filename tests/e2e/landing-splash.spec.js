@@ -24,6 +24,7 @@ test.describe('welcome landing page', () => {
     await direct.click()
 
     await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible()
+    await expect(page.getByRole('main')).toHaveCount(1)
     await page.waitForTimeout(600)
     await expect(page.getByRole('dialog', { name: 'Start with the Year' })).toHaveCount(0)
     await expect(

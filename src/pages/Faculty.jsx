@@ -700,7 +700,7 @@ export default function Faculty({
         />
       </div>
 
-      <main
+      <div
         data-tour="faculty-detail"
         className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-8 md:py-6"
       >
@@ -993,7 +993,7 @@ export default function Faculty({
             </div>
           </>
         )}
-      </main>
+      </div>
     </div>
   )
 }
