@@ -61,6 +61,9 @@ def audit_catalogue(offerings, historical_rows, aliases):
     course_only = [row for row in hks_rows if row["match_status"] == "course_only"]
     needs_review = [row for row in hks_rows if row["match_status"] == "needs_review"]
     unmatched = [row for row in hks_rows if row["match_status"] == "unmatched"]
+    renumbering_candidates = [
+        row for row in needs_review if row.get("renumbering_review_candidates")
+    ]
     return {
         "current_offering_count": len(snapshot),
         "historical_record_count": len(historical_rows),
@@ -69,6 +72,7 @@ def audit_catalogue(offerings, historical_rows, aliases):
         "hks_course_only_history_count": len(course_only),
         "hks_needs_review_count": len(needs_review),
         "hks_unmatched_history_count": len(unmatched),
+        "hks_renumbering_review_count": len(renumbering_candidates),
         "review_candidate_hks_codes": sorted(
             {
                 row["course_code_base"]
@@ -80,6 +84,13 @@ def audit_catalogue(offerings, historical_rows, aliases):
             {
                 row["course_code_base"]
                 for row in unmatched
+                if isinstance(row.get("course_code_base"), str) and row["course_code_base"]
+            }
+        ),
+        "renumbering_review_hks_codes": sorted(
+            {
+                row["course_code_base"]
+                for row in renumbering_candidates
                 if isinstance(row.get("course_code_base"), str) and row["course_code_base"]
             }
         ),

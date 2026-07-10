@@ -32,7 +32,7 @@ or break a teaching lineage.
 | --- | --- | --- | --- |
 | `verified` | Exact or reviewed alias code lineage and at least one matching professor | Professor-specific evaluation history and course history | Ratings from a different professor |
 | `course_only` | Course-family history exists, but the current professor differs or is absent | “Previously offered” and separately labelled prior-professor history | A current-instructor score or combined rating |
-| `needs_review` | A same-professor terminal suffix suggests a demand split/section variant | “Historical link under review” | Any carried-over evaluation metric |
+| `needs_review` | A same-professor terminal suffix or an exact normalized title under a different code suggests a section split or renumbering | “Historical link under review” | Any carried-over evaluation metric |
 | `unmatched` | No supported lineage evidence exists | “No verified historical link” | Implied zero rating or a guessed link |
 
 ## Approved alias registry
@@ -47,7 +47,10 @@ rule. Each registry entry must have:
 - reviewer identity and approval date.
 
 Title similarity, prefix similarity, shared subject area, or a stripped suffix
-may create a review candidate only. They cannot create an approved alias.
+may create a review candidate only. They cannot create an approved alias. In
+particular, an exact normalized title with the same professor but a different
+code is reported as a suspected renumbering. It remains unlinked until an
+operator records evidence in the reviewed alias registry.
 
 ## Operator review procedure
 

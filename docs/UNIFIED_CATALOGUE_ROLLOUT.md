@@ -33,9 +33,11 @@ when it ran, rather than a different course by themselves.
 
 Do not match by title similarity, code prefix, or by removing a course suffix.
 A same-professor A/B/C-style terminal suffix can propose a section-split review
-item, but must never publish another course's ratings automatically. A course
-with the same code but a different professor retains course history separately;
-it does not inherit the earlier professor's ratings as its own.
+item. An exact normalized title with the same professor but a different code
+can propose a suspected-renumbering review item. Neither may publish another
+course's ratings automatically. A course with the same code but a different
+professor retains course history separately; it does not inherit the earlier
+professor's ratings as its own.
 
 ## Proposed read contract
 
@@ -48,8 +50,8 @@ Required fields:
 - `canonical_course_code` when linked;
 - current instructor identity keys and a professor-specific teaching-lineage;
 - `match_status`: `verified`, `course_only`, `needs_review`, or `unmatched`;
-- `match_method`: exact/approved-alias same-professor, other-professor, or
-  suspected section split;
+- `match_method`: exact/approved-alias same-professor, other-professor,
+  suspected section split, or suspected same-professor renumbering;
 - `historical_course_codes`, evaluation summary, and observed evaluation years;
 - `source_synced_at` and `catalogue_version`.
 

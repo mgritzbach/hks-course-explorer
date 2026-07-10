@@ -37,6 +37,15 @@ def normalise_instructor_name(value):
     return " ".join(tokens) if tokens else None
 
 
+def normalise_course_title(value):
+    """Return a conservative title key for human-review candidate detection."""
+    if not isinstance(value, str):
+        return None
+    ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    tokens = re.findall(r"[a-z0-9]+", ascii_value.lower())
+    return " ".join(tokens) if tokens else None
+
+
 def instructor_keys(record):
     """Return one or more explicit professor identities from either source shape."""
     if not isinstance(record, dict):
@@ -125,11 +134,21 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
         teaching_records = [row for row in course_history_records if shared_instructor(offering, row)]
         historical_codes = sorted({course_code(row) for row in course_history_records if course_code(row)})
         review_candidates = []
+        renumbering_review_candidates = []
         if not course_history_records and code:
             section_base = probable_section_base(code)
             if section_base:
                 review_candidates = [
                     row for row in direct.get(section_base, []) if shared_instructor(offering, row)
+                ]
+            offering_title = normalise_course_title(offering.get("title"))
+            if offering_title:
+                renumbering_review_candidates = [
+                    row
+                    for row in historical_rows or []
+                    if course_code(row) != code
+                    and normalise_course_title(row.get("course_name")) == offering_title
+                    and shared_instructor(offering, row)
                 ]
 
         if teaching_records:
@@ -139,10 +158,21 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
             match_status = "course_only"
             professor_scope = "other_professor" if instructor_keys(offering) else "professor_unavailable"
             match_method = f"{source_method}_{professor_scope}"
-        elif review_candidates:
+        elif review_candidates or renumbering_review_candidates:
             match_status = "needs_review"
-            match_method = "suspected_section_split"
-            historical_codes = sorted({course_code(row) for row in review_candidates if course_code(row)})
+            if review_candidates and renumbering_review_candidates:
+                match_method = "suspected_section_split_and_renumbering"
+            elif review_candidates:
+                match_method = "suspected_section_split"
+            else:
+                match_method = "suspected_renumbering_same_professor_title"
+            historical_codes = sorted(
+                {
+                    course_code(row)
+                    for row in [*review_candidates, *renumbering_review_candidates]
+                    if course_code(row)
+                }
+            )
         else:
             match_status = "unmatched"
             match_method = None
@@ -167,6 +197,9 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
                 "historical_records": teaching_records,
                 "course_history_records": course_history_records,
                 "review_candidates": review_candidates,
+                # These require explicit human alias approval before any
+                # teaching history or ratings can be shown on the offering.
+                "renumbering_review_candidates": renumbering_review_candidates,
             }
         )
 

@@ -79,6 +79,36 @@ class CatalogueSnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "immutable source id"):
             self.snapshot.materialize_catalogue_snapshot([{"course_code_base": "API-101"}], self.history, self.aliases)
 
+    def test_same_professor_and_exact_title_under_new_code_is_review_only(self):
+        history = [
+            {
+                "id": "old-code",
+                "course_code_base": "DPI-700",
+                "course_name": "Advanced Policy Design",
+                "year": 2024,
+                "has_eval": True,
+                "professor": "Allison, Graham",
+            }
+        ]
+        row = self.snapshot.materialize_catalogue_snapshot(
+            [
+                {
+                    "id": "new-code",
+                    "course_code_base": "DPI-799",
+                    "title": "Advanced Policy Design",
+                    "instructors": ["Graham Allison"],
+                }
+            ],
+            history,
+            {},
+        )[0]
+
+        self.assertEqual(row["match_status"], "needs_review")
+        self.assertEqual(row["match_method"], "suspected_renumbering_same_professor_title")
+        self.assertEqual(row["historical_records"], [])
+        self.assertEqual(row["evaluation_summary"]["evaluated_offering_count"], 0)
+        self.assertEqual(row["renumbering_review_candidates"], history)
+
 
 if __name__ == "__main__":
     unittest.main()
