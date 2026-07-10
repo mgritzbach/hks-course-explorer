@@ -1,6 +1,7 @@
 import { createContext, useContext, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LandingSplash from './LandingSplash.jsx'
+import { skipAllTutorials } from '../lib/tutorialPreferences.js'
 
 const WelcomeEntryContext = createContext(null)
 
@@ -21,7 +22,7 @@ export function WelcomeEntryProvider({ children }) {
   }
 
   const continueDirectly = () => {
-    window.localStorage.setItem('hks-tour-home', '1')
+    skipAllTutorials()
     setHomeTourRequest(null)
     setDeferHomeOnboarding(false)
     navigate('/')

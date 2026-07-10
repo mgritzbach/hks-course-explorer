@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { ALL_TUTORIAL_STORAGE_KEYS } from '../../src/lib/tutorialPreferences.js'
 import { installMockBackend } from './support/mockBackend.js'
 
 test.describe('welcome landing page', () => {
@@ -13,11 +14,19 @@ test.describe('welcome landing page', () => {
     await expect(
       page.getByRole('heading', { name: 'Welcome to the HKS Course Explorer' }),
     ).toBeVisible()
-    await page.getByRole('button', { name: 'Continue directly without the tutorial' }).click()
+    await page
+      .getByRole('button', { name: 'Continue directly and skip all tutorial boxes' })
+      .click()
 
     await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible()
     await page.waitForTimeout(600)
     await expect(page.getByRole('dialog', { name: 'Start with the Year' })).toHaveCount(0)
+    await expect(
+      page.evaluate(
+        (keys) => keys.every((key) => window.localStorage.getItem(key) === '1'),
+        ALL_TUTORIAL_STORAGE_KEYS,
+      ),
+    ).resolves.toBe(true)
   })
 
   test('Tutorial opens Course Explorer with the Home tutorial active', async ({ page }) => {
