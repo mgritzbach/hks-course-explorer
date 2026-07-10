@@ -14,30 +14,30 @@ export async function onRequestGet({ request, env }) {
   try {
     const token = parseCookie(request.headers.get('Cookie'), 'hks_auth')
     if (!token) {
-      return new Response(
-        JSON.stringify({ authenticated: false }),
-        { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-      )
+      return new Response(JSON.stringify({ authenticated: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+      })
     }
 
     const payload = await verifyJWT(token, env.JWT_SECRET)
     if (!payload) {
-      return new Response(
-        JSON.stringify({ authenticated: false }),
-        { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-      )
+      return new Response(JSON.stringify({ authenticated: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+      })
     }
 
-    return new Response(
-      JSON.stringify({ authenticated: true, email: payload.email }),
-      { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-    )
+    return new Response(JSON.stringify({ authenticated: true, email: payload.email }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+    })
   } catch (err) {
     console.error('status.js error:', err)
-    return new Response(
-      JSON.stringify({ authenticated: false }),
-      { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-    )
+    return new Response(JSON.stringify({ authenticated: false }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+    })
   }
 }
 

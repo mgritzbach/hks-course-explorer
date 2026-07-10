@@ -1,60 +1,61 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
   useRef,
   useState,
-} from "react";
-import { useSearchParams } from "react-router-dom";
-import CourseCard from "../components/CourseCard.jsx";
-import ErrorBoundary from "../components/ErrorBoundary.jsx";
-import OnboardingTour from "../components/OnboardingTour.jsx";
-import Sidebar from "../components/Sidebar.jsx";
+} from 'react'
+import { useSearchParams } from 'react-router-dom'
+import CourseCard from '../components/CourseCard.jsx'
+import ErrorBoundary from '../components/ErrorBoundary.jsx'
+import OnboardingTour from '../components/OnboardingTour.jsx'
+import Sidebar from '../components/Sidebar.jsx'
 
 // Lazy-load ScatterPlot so the 4.8 MB Plotly bundle is only fetched
 // when the user opens the "Course Comparisons" tab — not on initial load.
-const ScatterPlot = lazy(() => import("../components/ScatterPlot.jsx"));
+const ScatterPlot = lazy(() => import('../components/ScatterPlot.jsx'))
 
 const HOME_TOUR_STEPS = [
   {
-    target: "year-filter",
-    title: "Start with the Year",
+    target: 'year-filter',
+    title: 'Start with the Year',
     body: "Pick the academic year you're planning for. 2025 has the most complete evaluations; 2026 shows the active bidding season.",
   },
   {
-    target: "scatter-plot",
-    title: "Visual Course Explorer",
-    body: "Every dot is a course. Change the X and Y axes to compare any two metrics — workload vs. rating, rigor vs. instructor quality, and more.",
+    target: 'scatter-plot',
+    title: 'Visual Course Explorer',
+    body: 'Every dot is a course. Change the X and Y axes to compare any two metrics — workload vs. rating, rigor vs. instructor quality, and more.',
   },
   {
-    target: "preset-pills",
-    title: "Quick Filters",
-    body: "One-click presets for Top Rated, STEM A/B, Bidding 2026, or your personal shortlist.",
+    target: 'preset-pills',
+    title: 'Quick Filters',
+    body: 'One-click presets for Top Rated, STEM A/B, Bidding 2026, or your personal shortlist.',
   },
   {
-    target: "course-list",
-    title: "Course Cards",
-    body: "Click any card to expand full evaluations, score history, and add to your shortlist. Star it to track across sessions.",
+    target: 'course-list',
+    title: 'Course Cards',
+    body: 'Click any card to expand full evaluations, score history, and add to your shortlist. Star it to track across sessions.',
   },
-];
+]
 
-const DEFAULT_X = "Workload";
-const DEFAULT_Y = "Course_Rating";
-const ALL_TERMS = ["Fall", "Spring", "January"];
+const DEFAULT_X = 'Workload'
+const DEFAULT_Y = 'Course_Rating'
+const ALL_TERMS = ['Fall', 'Spring', 'January']
 
 function isAverageYear(year) {
-  return year === 0;
+  return year === 0
 }
 
 function useDebounce(value, delay) {
-  const [debounced, setDebounced] = useState(value);
+  const [debounced, setDebounced] = useState(value)
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return debounced;
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
 }
 
 // yearPreFiltered=true skips the year/avg check when the caller already pre-filtered by year
@@ -69,45 +70,43 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
     minInstructorPct,
     evalOnly,
     biddingOnly,
-  } = filters;
+  } = filters
 
-  const avgMode = isAverageYear(year);
+  const avgMode = isAverageYear(year)
   const searchTerms = searchText
     ? searchText
-        .split(",")
+        .split(',')
         .map((term) => term.trim().toLowerCase())
         .filter(Boolean)
-    : [];
-  const minPct =
-    minInstructorPct !== "any" ? parseFloat(minInstructorPct) : null;
+    : []
+  const minPct = minInstructorPct !== 'any' ? parseFloat(minInstructorPct) : null
 
   return courses.filter((course) => {
     if (!yearPreFiltered) {
       if (avgMode) {
-        if (!course.is_average) return false;
+        if (!course.is_average) return false
       } else {
-        if (course.year !== year) return false;
-        if (course.is_average) return false;
+        if (course.year !== year) return false
+        if (course.is_average) return false
       }
     }
     // Always enforce term filter for non-avg mode (year pool includes all terms)
-    if (!avgMode && !terms.includes(course.term)) return false;
+    if (!avgMode && !terms.includes(course.term)) return false
 
-    if (concentration !== "All" && course.concentration !== concentration)
-      return false;
-    if (coreFilter === "core" && !course.is_core) return false;
-    if (coreFilter === "no-core" && course.is_core) return false;
-    if (stemGroup === "stem" && !course.is_stem) return false;
-    if (stemGroup === "A" && course.stem_group !== "A") return false;
-    if (stemGroup === "B" && course.stem_group !== "B") return false;
+    if (concentration !== 'All' && course.concentration !== concentration) return false
+    if (coreFilter === 'core' && !course.is_core) return false
+    if (coreFilter === 'no-core' && course.is_core) return false
+    if (stemGroup === 'stem' && !course.is_stem) return false
+    if (stemGroup === 'A' && course.stem_group !== 'A') return false
+    if (stemGroup === 'B' && course.stem_group !== 'B') return false
 
     if (minPct !== null) {
-      const instructorPct = course.metrics_pct?.Instructor_Rating;
-      if (instructorPct != null && instructorPct < minPct) return false;
+      const instructorPct = course.metrics_pct?.Instructor_Rating
+      if (instructorPct != null && instructorPct < minPct) return false
     }
 
-    if (evalOnly && !course.has_eval) return false;
-    if (biddingOnly && !course.has_bidding) return false;
+    if (evalOnly && !course.has_eval) return false
+    if (biddingOnly && !course.has_bidding) return false
 
     if (searchTerms.length > 0) {
       const haystack = [
@@ -118,79 +117,76 @@ function applyFilters(courses, filters, yearPreFiltered = false) {
         course.description,
         course.concentration,
       ]
-        .join(" ")
-        .toLowerCase();
+        .join(' ')
+        .toLowerCase()
 
-      if (!searchTerms.some((term) => haystack.includes(term))) return false;
+      if (!searchTerms.some((term) => haystack.includes(term))) return false
     }
 
-    return true;
-  });
+    return true
+  })
 }
 
 function pageTitle(filters) {
-  if (isAverageYear(filters.year))
-    return "HKS Course Search - All Years Average";
+  if (isAverageYear(filters.year)) return 'HKS Course Search - All Years Average'
   const termLabel =
-    filters.terms.length === ALL_TERMS.length
-      ? "All Terms"
-      : filters.terms.join(" + ");
-  return `HKS Course Search - ${termLabel} ${filters.year}`;
+    filters.terms.length === ALL_TERMS.length ? 'All Terms' : filters.terms.join(' + ')
+  return `HKS Course Search - ${termLabel} ${filters.year}`
 }
 
 function countFilterBadges(filters) {
-  let count = 0;
-  if (filters.searchText.trim()) count++;
-  if (filters.concentration !== "All") count++;
-  if (filters.coreFilter !== "all") count++;
-  if (filters.stemGroup !== "all") count++;
-  if (filters.minInstructorPct !== "any") count++;
-  if (filters.evalOnly) count++;
-  if (filters.biddingOnly) count++;
+  let count = 0
+  if (filters.searchText.trim()) count++
+  if (filters.concentration !== 'All') count++
+  if (filters.coreFilter !== 'all') count++
+  if (filters.stemGroup !== 'all') count++
+  if (filters.minInstructorPct !== 'any') count++
+  if (filters.evalOnly) count++
+  if (filters.biddingOnly) count++
   if (!isAverageYear(filters.year)) {
     if (
       filters.terms.length !== ALL_TERMS.length ||
       !ALL_TERMS.every((term) => filters.terms.includes(term))
     ) {
-      count++;
+      count++
     }
   }
-  return count;
+  return count
 }
 
 const STATIC_PRESETS = [
   {
-    key: "top_rated",
-    label: "Top Rated",
-    apply: (filters) => ({ ...filters, minInstructorPct: "75" }),
-    isActive: (filters) => filters.minInstructorPct === "75",
+    key: 'top_rated',
+    label: 'Top Rated',
+    apply: (filters) => ({ ...filters, minInstructorPct: '75' }),
+    isActive: (filters) => filters.minInstructorPct === '75',
   },
   {
-    key: "light_workload",
-    label: "Light Workload",
+    key: 'light_workload',
+    label: 'Light Workload',
     apply: (filters) => ({ ...filters, evalOnly: true }),
     isActive: (filters) => filters.evalOnly,
-    sortKey: "workload_asc",
+    sortKey: 'workload_asc',
   },
   {
-    key: "stem_only",
-    label: "STEM A",
-    apply: (filters) => ({ ...filters, stemGroup: "A" }),
-    isActive: (filters) => filters.stemGroup === "A",
+    key: 'stem_only',
+    label: 'STEM A',
+    apply: (filters) => ({ ...filters, stemGroup: 'A' }),
+    isActive: (filters) => filters.stemGroup === 'A',
   },
   {
-    key: "stem_b",
-    label: "STEM B",
-    apply: (filters) => ({ ...filters, stemGroup: "B" }),
-    isActive: (filters) => filters.stemGroup === "B",
+    key: 'stem_b',
+    label: 'STEM B',
+    apply: (filters) => ({ ...filters, stemGroup: 'B' }),
+    isActive: (filters) => filters.stemGroup === 'B',
   },
   {
-    key: "core_only",
-    label: "Core Courses",
-    apply: (filters) => ({ ...filters, coreFilter: "core" }),
-    isActive: (filters) => filters.coreFilter === "core",
+    key: 'core_only',
+    label: 'Core Courses',
+    apply: (filters) => ({ ...filters, coreFilter: 'core' }),
+    isActive: (filters) => filters.coreFilter === 'core',
   },
-];
+]
 
 function buildPresets(biddingYear) {
   const biddingPreset = {
@@ -198,21 +194,17 @@ function buildPresets(biddingYear) {
     label: `Bidding ${biddingYear}`,
     apply: (filters) => ({ ...filters, year: biddingYear, evalOnly: false }),
     isActive: (filters) => filters.year === biddingYear,
-    sortKey: "bid_price_desc",
-  };
+    sortKey: 'bid_price_desc',
+  }
   // Insert bidding preset after STEM B (index 3)
-  return [
-    ...STATIC_PRESETS.slice(0, 4),
-    biddingPreset,
-    ...STATIC_PRESETS.slice(4),
-  ];
+  return [...STATIC_PRESETS.slice(0, 4), biddingPreset, ...STATIC_PRESETS.slice(4)]
 }
 
 export default function Home({
   courses,
   meta,
   favs,
-  metricMode = "score",
+  metricMode = 'score',
   setMetricMode,
   colorblindMode = false,
   setColorblindMode,
@@ -223,122 +215,120 @@ export default function Home({
   welcomeTourRequest = null,
   onWelcomeTourRequestHandled,
 }) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const mainRef = useRef(null);
-  const visualizationRef = useRef(null);
-  const sidebarSearchRef = useRef(null);
-  const drawerTouchStartRef = useRef(null);
+  const [searchParams, setSearchParams] = useSearchParams()
+  const mainRef = useRef(null)
+  const visualizationRef = useRef(null)
+  const sidebarSearchRef = useRef(null)
+  const drawerTouchStartRef = useRef(null)
 
   const initYear = (() => {
-    const y = searchParams.get("year");
-    if (!y) return meta.default_year;
-    const n = parseInt(y, 10);
-    return Number.isNaN(n) ? meta.default_year : n;
-  })();
+    const y = searchParams.get('year')
+    if (!y) return meta.default_year
+    const n = parseInt(y, 10)
+    return Number.isNaN(n) ? meta.default_year : n
+  })()
   const initTerms = (() => {
-    const t = searchParams.get("terms");
-    if (!t) return [...ALL_TERMS];
-    const parts = t.split(",").filter((term) => ALL_TERMS.includes(term));
-    return parts.length ? parts : [...ALL_TERMS];
-  })();
-  const initConc = searchParams.get("conc") || "All";
-  const initSort = searchParams.get("sort") || "bid_price_desc";
+    const t = searchParams.get('terms')
+    if (!t) return [...ALL_TERMS]
+    const parts = t.split(',').filter((term) => ALL_TERMS.includes(term))
+    return parts.length ? parts : [...ALL_TERMS]
+  })()
+  const initConc = searchParams.get('conc') || 'All'
+  const initSort = searchParams.get('sort') || 'bid_price_desc'
 
   const [filters, setFilters] = useState({
-    searchText: "",
+    searchText: '',
     concentration: initConc,
-    coreFilter: searchParams.get("core") || "all",
+    coreFilter: searchParams.get('core') || 'all',
     terms: initTerms,
-    stemGroup: searchParams.get("stem") || "all",
+    stemGroup: searchParams.get('stem') || 'all',
     year: initYear,
-    minInstructorPct: searchParams.get("min_pct") || "any",
-    evalOnly: searchParams.get("eval") === "1",
-    biddingOnly: searchParams.get("bid") === "1",
-  });
-  const [xMetric, setXMetric] = useState(searchParams.get("x") || DEFAULT_X);
-  const [yMetric, setYMetric] = useState(searchParams.get("y") || DEFAULT_Y);
-  const [sortBy, setSortBy] = useState(initSort);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showShortlistOnly, setShowShortlistOnly] = useState(false);
-  const [replayTour, setReplayTour] = useState(false);
-  const [pageLimit, setPageLimit] = useState(50);
+    minInstructorPct: searchParams.get('min_pct') || 'any',
+    evalOnly: searchParams.get('eval') === '1',
+    biddingOnly: searchParams.get('bid') === '1',
+  })
+  const [xMetric, setXMetric] = useState(searchParams.get('x') || DEFAULT_X)
+  const [yMetric, setYMetric] = useState(searchParams.get('y') || DEFAULT_Y)
+  const [sortBy, setSortBy] = useState(initSort)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showShortlistOnly, setShowShortlistOnly] = useState(false)
+  const [replayTour, setReplayTour] = useState(false)
+  const [pageLimit, setPageLimit] = useState(50)
   const [compactView, setCompactView] = useState(
-    () => localStorage.getItem("hks_card_view") === "compact",
-  );
+    () => localStorage.getItem('hks_card_view') === 'compact',
+  )
   // Mobile: scatter plot is hidden by default to show course list immediately
-  const [showPlotMobile, setShowPlotMobile] = useState(false);
+  const [showPlotMobile, setShowPlotMobile] = useState(false)
 
   // The welcome page hands off an explicit tutorial request only once. Keeping
   // the active state here lets the tour continue after App consumes the
   // request, while Direct visitors retain the normal "already seen" state.
   useEffect(() => {
-    if (welcomeTourRequest !== "tutorial") return;
-    localStorage.removeItem("hks-tour-home");
-    setReplayTour(true);
-    onWelcomeTourRequestHandled?.();
-  }, [onWelcomeTourRequestHandled, welcomeTourRequest]);
+    if (welcomeTourRequest !== 'tutorial') return
+    localStorage.removeItem('hks-tour-home')
+    setReplayTour(true)
+    onWelcomeTourRequestHandled?.()
+  }, [onWelcomeTourRequestHandled, welcomeTourRequest])
 
   // Auto-clear shortlist filter if all favorites are removed while it's active
   useEffect(() => {
-    if (showShortlistOnly && (!favs || favs.count === 0)) {
-      setShowShortlistOnly(false);
+    if (showShortlistOnly && !favs?.count) {
+      setShowShortlistOnly(false)
     }
-  }, [favs?.count, showShortlistOnly]);
+  }, [favs?.count, showShortlistOnly])
 
   const handleReplayTour = () => {
-    localStorage.removeItem("hks-tour-home");
-    setReplayTour(true);
-  };
+    localStorage.removeItem('hks-tour-home')
+    setReplayTour(true)
+  }
 
-  const handleTourStepChange = (stepIndex) => {
+  const handleTourStepChange = useCallback((stepIndex) => {
     // Step 0 targets 'year-filter' which lives in the sidebar drawer
-    if (stepIndex === 0) setSidebarOpen(true);
-    else setSidebarOpen(false);
-  };
+    if (stepIndex === 0) setSidebarOpen(true)
+    else setSidebarOpen(false)
+  }, [])
 
   const _scrollToVisualization = () => {
-    if (!mainRef.current || !visualizationRef.current) return;
+    if (!mainRef.current || !visualizationRef.current) return
 
-    const offsetTop = Math.max(0, visualizationRef.current.offsetTop - 12);
-    mainRef.current.scrollTo({ top: offsetTop, behavior: "smooth" });
-  };
+    const offsetTop = Math.max(0, visualizationRef.current.offsetTop - 12)
+    mainRef.current.scrollTo({ top: offsetTop, behavior: 'smooth' })
+  }
 
   const handleDrawerTouchStart = (event) => {
-    const touch = event.touches[0];
-    if (!touch) return;
-    drawerTouchStartRef.current = { x: touch.clientX, y: touch.clientY };
-  };
+    const touch = event.touches[0]
+    if (!touch) return
+    drawerTouchStartRef.current = { x: touch.clientX, y: touch.clientY }
+  }
 
   const handleDrawerTouchEnd = (event) => {
-    const start = drawerTouchStartRef.current;
-    const touch = event.changedTouches[0];
-    drawerTouchStartRef.current = null;
-    if (!start || !touch) return;
+    const start = drawerTouchStartRef.current
+    const touch = event.changedTouches[0]
+    drawerTouchStartRef.current = null
+    if (!start || !touch) return
 
-    const deltaX = touch.clientX - start.x;
-    const deltaY = touch.clientY - start.y;
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
 
     if (deltaX < -60 || deltaY > 80) {
-      setSidebarOpen(false);
+      setSidebarOpen(false)
     }
-  };
+  }
 
   useEffect(() => {
-    const params = {};
-    if (filters.year !== meta.default_year) params.year = filters.year;
-    if (filters.terms.length !== ALL_TERMS.length)
-      params.terms = filters.terms.join(",");
-    if (filters.concentration !== "All") params.conc = filters.concentration;
-    if (filters.coreFilter !== "all") params.core = filters.coreFilter;
-    if (filters.stemGroup !== "all") params.stem = filters.stemGroup;
-    if (filters.minInstructorPct !== "any")
-      params.min_pct = filters.minInstructorPct;
-    if (filters.evalOnly) params.eval = "1";
-    if (filters.biddingOnly) params.bid = "1";
-    if (sortBy !== "bid_price_desc") params.sort = sortBy;
-    if (xMetric !== DEFAULT_X) params.x = xMetric;
-    if (yMetric !== DEFAULT_Y) params.y = yMetric;
-    setSearchParams(params, { replace: true });
+    const params = {}
+    if (filters.year !== meta.default_year) params.year = filters.year
+    if (filters.terms.length !== ALL_TERMS.length) params.terms = filters.terms.join(',')
+    if (filters.concentration !== 'All') params.conc = filters.concentration
+    if (filters.coreFilter !== 'all') params.core = filters.coreFilter
+    if (filters.stemGroup !== 'all') params.stem = filters.stemGroup
+    if (filters.minInstructorPct !== 'any') params.min_pct = filters.minInstructorPct
+    if (filters.evalOnly) params.eval = '1'
+    if (filters.biddingOnly) params.bid = '1'
+    if (sortBy !== 'bid_price_desc') params.sort = sortBy
+    if (xMetric !== DEFAULT_X) params.x = xMetric
+    if (yMetric !== DEFAULT_Y) params.y = yMetric
+    setSearchParams(params, { replace: true })
   }, [
     filters.year,
     filters.terms,
@@ -347,144 +337,131 @@ export default function Home({
     filters.stemGroup,
     filters.minInstructorPct,
     filters.evalOnly,
+    filters.biddingOnly,
     sortBy,
     xMetric,
     yMetric,
     meta.default_year,
     setSearchParams,
-  ]);
+  ])
 
   // Debounce text search — only triggers a re-filter after user pauses typing (150ms)
-  const debouncedSearch = useDebounce(filters.searchText, 150);
+  const debouncedSearch = useDebounce(filters.searchText, 150)
   // Merge debounced search back into filters before deferring
   const filtersWithDebouncedSearch = useMemo(
     () => ({ ...filters, searchText: debouncedSearch }),
     [filters, debouncedSearch],
-  );
+  )
 
   // Defer heavy filter computation so the UI stays responsive while the chart/list re-render
-  const deferredFilters = useDeferredValue(filtersWithDebouncedSearch);
-  const isStale = filtersWithDebouncedSearch !== deferredFilters;
+  const deferredFilters = useDeferredValue(filtersWithDebouncedSearch)
+  const isStale = filtersWithDebouncedSearch !== deferredFilters
 
-  const avgMode = isAverageYear(filters.year);
-  const biddingYearNum = meta.default_year;
-  const bidYear = filters.year === biddingYearNum;
-  const PRESETS = useMemo(() => buildPresets(biddingYearNum), [biddingYearNum]);
-  const activeFilterCount = countFilterBadges(filters);
+  const avgMode = isAverageYear(filters.year)
+  const biddingYearNum = meta.default_year
+  const bidYear = filters.year === biddingYearNum
+  const PRESETS = useMemo(() => buildPresets(biddingYearNum), [biddingYearNum])
+  const activeFilterCount = countFilterBadges(filters)
 
   // Derive "last updated" label dynamically from the data
   const lastUpdatedLabel = useMemo(() => {
-    const evalYears = courses.filter(
-      (c) => c.has_eval && !c.is_average && c.year && c.term,
-    );
-    if (!evalYears.length) return "Spring 2025";
-    const maxYear = Math.max(...evalYears.map((c) => c.year));
+    const evalYears = courses.filter((c) => c.has_eval && !c.is_average && c.year && c.term)
+    if (!evalYears.length) return 'Spring 2025'
+    const maxYear = Math.max(...evalYears.map((c) => c.year))
     const termsInMaxYear = [
-      ...new Set(
-        evalYears.filter((c) => c.year === maxYear).map((c) => c.term),
-      ),
-    ];
-    const termOrder = { Spring: 2, Fall: 1, January: 0 };
-    const latestTerm = termsInMaxYear.sort(
-      (a, b) => (termOrder[b] ?? -1) - (termOrder[a] ?? -1),
-    )[0];
-    return latestTerm ? `${latestTerm} ${maxYear}` : `${maxYear}`;
-  }, [courses]);
+      ...new Set(evalYears.filter((c) => c.year === maxYear).map((c) => c.term)),
+    ]
+    const termOrder = { Spring: 2, Fall: 1, January: 0 }
+    const latestTerm = termsInMaxYear.sort((a, b) => (termOrder[b] ?? -1) - (termOrder[a] ?? -1))[0]
+    return latestTerm ? `${latestTerm} ${maxYear}` : `${maxYear}`
+  }, [courses])
 
   useEffect(() => {
-    document.title = pageTitle(filters);
-  }, [filters]);
+    document.title = pageTitle(filters)
+  }, [filters])
 
   useEffect(() => {
-    if (!sidebarOpen) return undefined;
+    if (!sidebarOpen) return undefined
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") setSidebarOpen(false);
-    };
+      if (event.key === 'Escape') setSidebarOpen(false)
+    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [sidebarOpen]);
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [sidebarOpen])
 
   // "/" shortcut — focus the sidebar keyword search (desktop) or open drawer first (mobile)
   useEffect(() => {
     const handler = (event) => {
-      if (event.key !== "/") return;
-      const tag = document.activeElement?.tagName?.toLowerCase();
-      if (tag === "input" || tag === "textarea" || tag === "select") return;
-      event.preventDefault();
-      const isMobile = window.matchMedia("(max-width: 767px)").matches;
+      if (event.key !== '/') return
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      event.preventDefault()
+      const isMobile = window.matchMedia('(max-width: 767px)').matches
       if (isMobile) {
-        setSidebarOpen(true);
+        setSidebarOpen(true)
         setTimeout(() => {
-          sidebarSearchRef.current?.focus();
-          sidebarSearchRef.current?.select();
-        }, 150);
+          sidebarSearchRef.current?.focus()
+          sidebarSearchRef.current?.select()
+        }, 150)
       } else {
-        sidebarSearchRef.current?.focus();
-        sidebarSearchRef.current?.select();
+        sidebarSearchRef.current?.focus()
+        sidebarSearchRef.current?.select()
       }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   // Build a year→courses index once on load so filter passes touch ~300 items not 5500
   const coursesByYear = useMemo(() => {
-    const map = new Map();
+    const map = new Map()
     for (const c of courses) {
-      const key = c.is_average ? 0 : (c.year ?? -1);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(c);
+      const key = c.is_average ? 0 : (c.year ?? -1)
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(c)
     }
-    return map;
-  }, [courses]);
+    return map
+  }, [courses])
 
   const avgBidByBase = useMemo(() => {
-    const grouped = new Map();
+    const grouped = new Map()
     for (const course of courses) {
-      const bid = course.bid_clearing_price ?? course.last_bid_price;
-      if (!course.course_code_base || bid == null) continue;
-      if (!grouped.has(course.course_code_base))
-        grouped.set(course.course_code_base, []);
-      grouped.get(course.course_code_base).push(bid);
+      const bid = course.bid_clearing_price ?? course.last_bid_price
+      if (!course.course_code_base || bid == null) continue
+      if (!grouped.has(course.course_code_base)) grouped.set(course.course_code_base, [])
+      grouped.get(course.course_code_base).push(bid)
     }
 
-    const averages = new Map();
+    const averages = new Map()
     for (const [base, bids] of grouped.entries()) {
       averages.set(
         base,
-        Math.round(
-          (bids.reduce((sum, value) => sum + value, 0) / bids.length) * 10,
-        ) / 10,
-      );
+        Math.round((bids.reduce((sum, value) => sum + value, 0) / bids.length) * 10) / 10,
+      )
     }
-    return averages;
-  }, [courses]);
+    return averages
+  }, [courses])
 
   // All heavy computations use deferredFilters to avoid blocking the UI thread
-  const dAvgMode = isAverageYear(deferredFilters.year);
+  const dAvgMode = isAverageYear(deferredFilters.year)
 
   // Pre-filtered to just the current year — reduces filter work from 5500 → ~300 items
   const yearPool = useMemo(
     () => coursesByYear.get(deferredFilters.year) ?? [],
     [coursesByYear, deferredFilters.year],
-  );
+  )
 
-  const yearEvalCourses = useMemo(
-    () => yearPool.filter((course) => course.has_eval),
-    [yearPool],
-  );
+  const yearEvalCourses = useMemo(() => yearPool.filter((course) => course.has_eval), [yearPool])
 
   const biddingOnlyCourses = useMemo(() => {
-    if (dAvgMode || deferredFilters.evalOnly) return [];
+    if (dAvgMode || deferredFilters.evalOnly) return []
     return yearPool.filter(
       (course) =>
-        !course.has_eval &&
-        course.has_bidding &&
-        deferredFilters.terms.includes(course.term),
-    );
-  }, [dAvgMode, yearPool, deferredFilters.evalOnly, deferredFilters.terms]);
+        !course.has_eval && course.has_bidding && deferredFilters.terms.includes(course.term),
+    )
+  }, [dAvgMode, yearPool, deferredFilters.evalOnly, deferredFilters.terms])
 
   const filtered = useMemo(
     () =>
@@ -493,79 +470,64 @@ export default function Home({
         avg_bid_price: avgBidByBase.get(course.course_code_base) ?? null,
       })),
     [avgBidByBase, yearPool, deferredFilters],
-  );
-  const filteredEval = useMemo(
-    () => filtered.filter((course) => course.has_eval),
-    [filtered],
-  );
+  )
+  const filteredEval = useMemo(() => filtered.filter((course) => course.has_eval), [filtered])
 
   const sorted = useMemo(() => {
-    const result = [...filtered];
-    const compareValues = (a, b, getPrimary, direction = "desc") => {
-      const av = getPrimary(a);
-      const bv = getPrimary(b);
-      const aBid = a.last_bid_price;
-      const bBid = b.last_bid_price;
+    const result = [...filtered]
+    const compareValues = (a, b, getPrimary, direction = 'desc') => {
+      const av = getPrimary(a)
+      const bv = getPrimary(b)
+      const aBid = a.last_bid_price
+      const bBid = b.last_bid_price
 
       if (av == null && bv == null) {
-        if (aBid == null && bBid == null) return 0;
-        if (aBid == null) return 1;
-        if (bBid == null) return -1;
-        return bBid - aBid;
+        if (aBid == null && bBid == null) return 0
+        if (aBid == null) return 1
+        if (bBid == null) return -1
+        return bBid - aBid
       }
 
-      if (av == null) return 1;
-      if (bv == null) return -1;
+      if (av == null) return 1
+      if (bv == null) return -1
 
-      return direction === "asc" ? av - bv : bv - av;
-    };
+      return direction === 'asc' ? av - bv : bv - av
+    }
 
     switch (sortBy) {
-      case "instructor_desc":
+      case 'instructor_desc':
         return result.sort((a, b) =>
-          compareValues(
-            a,
-            b,
-            (course) => course.metrics_pct?.Instructor_Rating,
-          ),
-        );
-      case "workload_asc":
+          compareValues(a, b, (course) => course.metrics_pct?.Instructor_Rating),
+        )
+      case 'workload_asc':
         return result.sort((a, b) =>
-          compareValues(a, b, (course) => course.metrics_pct?.Workload, "asc"),
-        );
-      case "course_rating_desc":
+          compareValues(a, b, (course) => course.metrics_pct?.Workload, 'asc'),
+        )
+      case 'course_rating_desc':
         return result.sort((a, b) =>
           compareValues(a, b, (course) => course.metrics_pct?.Course_Rating),
-        );
-      case "rigor_desc":
+        )
+      case 'rigor_desc':
+        return result.sort((a, b) => compareValues(a, b, (course) => course.metrics_pct?.Rigor))
+      case 'diverse_desc':
         return result.sort((a, b) =>
-          compareValues(a, b, (course) => course.metrics_pct?.Rigor),
-        );
-      case "diverse_desc":
-        return result.sort((a, b) =>
-          compareValues(
-            a,
-            b,
-            (course) => course.metrics_pct?.["Diverse Perspectives"],
-          ),
-        );
-      case "bid_price_desc":
+          compareValues(a, b, (course) => course.metrics_pct?.['Diverse Perspectives']),
+        )
+      case 'bid_price_desc':
         return result.sort((a, b) => {
-          const av = a.last_bid_price;
-          const bv = b.last_bid_price;
-          if (av == null && bv == null) return 0;
-          if (av == null) return 1;
-          if (bv == null) return -1;
-          return bv - av;
-        });
-      case "name_asc":
-        return result.sort((a, b) =>
-          (a.course_name || "").localeCompare(b.course_name || ""),
-        );
+          const av = a.last_bid_price
+          const bv = b.last_bid_price
+          if (av == null && bv == null) return 0
+          if (av == null) return 1
+          if (bv == null) return -1
+          return bv - av
+        })
+      case 'name_asc':
+        return result.sort((a, b) => (a.course_name || '').localeCompare(b.course_name || ''))
       default:
-        return result;
+        return result
     }
-  }, [filtered, sortBy]);
+  }, [filtered, sortBy])
 
   const visibleCourses = useMemo(
     () =>
@@ -573,44 +535,44 @@ export default function Home({
         ? sorted.filter((course) => favs.isFavorite(course.course_code_base))
         : sorted,
     [favs, showShortlistOnly, sorted],
-  );
+  )
 
   const resultText = filters.searchText.trim()
-    ? `Search complete. Scroll down to view ${filtered.length} result${filtered.length !== 1 ? "s" : ""}.`
-    : null;
+    ? `Search complete. Scroll down to view ${filtered.length} result${filtered.length !== 1 ? 's' : ''}.`
+    : null
 
   // Reset page limit whenever filters or sort changes so the list starts fresh
   useEffect(() => {
-    setPageLimit(50);
-  }, [deferredFilters, sortBy, showShortlistOnly]);
+    setPageLimit(50)
+  }, [deferredFilters, sortBy, showShortlistOnly])
 
   const handlePreset = (preset) => {
-    if (preset.sortKey) setSortBy(preset.sortKey);
-    if (preset.apply) setFilters((current) => preset.apply(current));
-  };
+    if (preset.sortKey) setSortBy(preset.sortKey)
+    if (preset.apply) setFilters((current) => preset.apply(current))
+  }
 
   const toggleCompactView = () => {
     setCompactView((current) => {
-      const next = !current;
-      localStorage.setItem("hks_card_view", next ? "compact" : "full");
-      return next;
-    });
-  };
+      const next = !current
+      localStorage.setItem('hks_card_view', next ? 'compact' : 'full')
+      return next
+    })
+  }
 
   const clearAllFilters = () => {
     setFilters({
-      searchText: "",
-      concentration: "All",
-      coreFilter: "all",
+      searchText: '',
+      concentration: 'All',
+      coreFilter: 'all',
       terms: [...ALL_TERMS],
-      stemGroup: "all",
+      stemGroup: 'all',
       year: meta.default_year,
-      minInstructorPct: "any",
+      minInstructorPct: 'any',
       evalOnly: false,
       biddingOnly: false,
-    });
-    setShowShortlistOnly(false);
-  };
+    })
+    setShowShortlistOnly(false)
+  }
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
@@ -620,20 +582,20 @@ export default function Home({
           storageKey="hks-tour-home"
           autoStart={replayTour}
           onDone={() => {
-            setReplayTour(false);
-            setSidebarOpen(false);
+            setReplayTour(false)
+            setSidebarOpen(false)
           }}
           onStepChange={handleTourStepChange}
         />
       )}
       <div
-        className={`mobile-drawer-backdrop md:hidden ${sidebarOpen ? "open" : ""}`}
+        className={`mobile-drawer-backdrop md:hidden ${sidebarOpen ? 'open' : ''}`}
         onClick={() => setSidebarOpen(false)}
         aria-hidden={!sidebarOpen}
       />
 
       <div
-        className={`mobile-drawer md:hidden ${sidebarOpen ? "open" : ""}`}
+        className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}
         onTouchStart={handleDrawerTouchStart}
         onTouchEnd={handleDrawerTouchEnd}
       >
@@ -678,22 +640,20 @@ export default function Home({
               <p className="kicker mb-2">Independent HKS student tool</p>
               <h1
                 className="serif-display text-3xl font-semibold md:text-[2.5rem]"
-                style={{ color: "var(--text)" }}
+                style={{ color: 'var(--text)' }}
               >
                 {pageTitle(filters)}
               </h1>
               <p
                 className="mt-3 max-w-3xl text-sm md:text-[15px]"
-                style={{ color: "var(--text-soft)" }}
+                style={{ color: 'var(--text-soft)' }}
               >
                 <span className="hidden sm:inline">
-                  Cut through the HKS course selection chaos. Compare ratings,
-                  workload, and bidding history across every offering — so you
-                  can actually make an informed choice.
+                  Cut through the HKS course selection chaos. Compare ratings, workload, and bidding
+                  history across every offering — so you can actually make an informed choice.
                 </span>
                 <span className="sm:hidden">
-                  Compare ratings, workload &amp; bidding across every HKS
-                  course.
+                  Compare ratings, workload &amp; bidding across every HKS course.
                 </span>
               </p>
             </div>
@@ -703,95 +663,61 @@ export default function Home({
               onClick={() => setSidebarOpen(true)}
               className="md:hidden rounded-full border px-4 py-2.5 text-xs font-semibold text-label shadow-sm touch-manipulation"
               style={{
-                borderColor: "var(--line)",
-                background: "var(--panel-subtle)",
+                borderColor: 'var(--line)',
+                background: 'var(--panel-subtle)',
                 minHeight: 44,
               }}
             >
-              ⚙ Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+              ⚙ Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </button>
           </div>
 
           <div
             className="grid grid-cols-2 gap-2 border-t px-5 py-4 md:flex md:flex-wrap md:gap-3 md:px-7"
-            style={{
-              borderColor: "var(--line)",
-              background: "var(--panel-subtle)",
-            }}
+            style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
           >
             <div
               className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
-              style={{
-                borderColor: "var(--line)",
-                background: "var(--panel-soft)",
-              }}
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
             >
-              <span style={{ color: "var(--text-muted)" }}>View</span>
-              <p
-                className="mt-0.5 font-medium leading-tight"
-                style={{ color: "var(--text)" }}
-              >
-                {avgMode
-                  ? "All-years avg"
-                  : bidYear
-                    ? "Active bidding"
-                    : "Current courses"}
+              <span style={{ color: 'var(--text-muted)' }}>View</span>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                {avgMode ? 'All-years avg' : bidYear ? 'Active bidding' : 'Current courses'}
               </p>
             </div>
             <div
               className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
-              style={{
-                borderColor: "var(--line)",
-                background: "var(--panel-soft)",
-              }}
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
             >
-              <span style={{ color: "var(--text-muted)" }}>Matching</span>
-              <p
-                className="mt-0.5 font-medium leading-tight"
-                style={{ color: "var(--text)" }}
-              >
-                {filtered.length} course{filtered.length !== 1 ? "s" : ""}
+              <span style={{ color: 'var(--text-muted)' }}>Matching</span>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                {filtered.length} course{filtered.length !== 1 ? 's' : ''}
               </p>
             </div>
             <div
               className="hidden rounded-2xl border px-4 py-3 text-sm md:block"
-              style={{
-                borderColor: "var(--line)",
-                background: "var(--panel-soft)",
-              }}
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
             >
-              <span style={{ color: "var(--text-muted)" }}>Built for</span>
-              <p className="mt-1 font-medium" style={{ color: "var(--text)" }}>
+              <span style={{ color: 'var(--text-muted)' }}>Built for</span>
+              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>
                 Harvard Kennedy School students
               </p>
             </div>
             <div
               className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
-              style={{
-                borderColor: "var(--line)",
-                background: "var(--panel-soft)",
-              }}
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
             >
-              <span style={{ color: "var(--text-muted)" }}>Updated</span>
-              <p
-                className="mt-0.5 font-medium leading-tight"
-                style={{ color: "var(--text)" }}
-              >
+              <span style={{ color: 'var(--text-muted)' }}>Updated</span>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
                 {lastUpdatedLabel}
               </p>
             </div>
             <div
               className="rounded-2xl border px-3 py-2.5 text-xs md:hidden"
-              style={{
-                borderColor: "var(--line)",
-                background: "var(--panel-soft)",
-              }}
+              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
             >
-              <span style={{ color: "var(--text-muted)" }}>Built for</span>
-              <p
-                className="mt-0.5 font-medium leading-tight"
-                style={{ color: "var(--text)" }}
-              >
+              <span style={{ color: 'var(--text-muted)' }}>Built for</span>
+              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
                 HKS students
               </p>
             </div>
@@ -802,14 +728,13 @@ export default function Home({
           <div
             className="mb-4 rounded-2xl px-4 py-3 text-xs md:text-sm"
             style={{
-              background: "var(--blue-soft)",
-              border: "1px solid rgba(157, 194, 219, 0.18)",
-              color: "var(--blue)",
+              background: 'var(--blue-soft)',
+              border: '1px solid rgba(157, 194, 219, 0.18)',
+              color: 'var(--blue)',
             }}
           >
-            Showing weighted averages across all years for each course and
-            instructor pairing. Courses with more years and respondents carry
-            more weight.
+            Showing weighted averages across all years for each course and instructor pairing.
+            Courses with more years and respondents carry more weight.
           </div>
         )}
 
@@ -817,14 +742,13 @@ export default function Home({
           <div
             className="mb-4 rounded-2xl px-4 py-3 text-xs md:text-sm"
             style={{
-              background: "var(--gold-soft)",
-              border: "1px solid var(--gold-soft)",
-              color: "var(--gold)",
+              background: 'var(--gold-soft)',
+              border: '1px solid var(--gold-soft)',
+              color: 'var(--gold)',
             }}
           >
-            Bidding Season {biddingYearNum} is active. Courses without
-            evaluation data still appear, and amber diamonds are spread by
-            competitiveness rank.
+            Bidding Season {biddingYearNum} is active. Courses without evaluation data still appear,
+            and amber diamonds are spread by competitiveness rank.
           </div>
         )}
 
@@ -832,9 +756,9 @@ export default function Home({
           <div
             className="mb-4 rounded-2xl px-4 py-3 text-sm"
             style={{
-              background: "var(--success-soft)",
-              border: "1px solid var(--success)",
-              color: "var(--success)",
+              background: 'var(--success-soft)',
+              border: '1px solid var(--success)',
+              color: 'var(--success)',
             }}
           >
             {resultText}
@@ -842,16 +766,10 @@ export default function Home({
         )}
 
         {/* ── Scatter plot header — desktop always shows, mobile has toggle ── */}
-        <div
-          ref={visualizationRef}
-          className="mb-4 flex items-center justify-between gap-3"
-        >
+        <div ref={visualizationRef} className="mb-4 flex items-center justify-between gap-3">
           <div>
             <p className="kicker mb-1">Visual explorer</p>
-            <h2
-              className="serif-display text-2xl font-semibold"
-              style={{ color: "var(--text)" }}
-            >
+            <h2 className="serif-display text-2xl font-semibold" style={{ color: 'var(--text)' }}>
               Course Comparisons
             </h2>
           </div>
@@ -861,30 +779,28 @@ export default function Home({
             onClick={() => setShowPlotMobile((v) => !v)}
             className="md:hidden rounded-full border px-3 py-2 text-xs font-semibold transition-all"
             style={{
-              borderColor: "var(--line)",
-              background: showPlotMobile
-                ? "var(--accent-soft)"
-                : "var(--panel-subtle)",
-              color: showPlotMobile ? "var(--text)" : "var(--text-muted)",
+              borderColor: 'var(--line)',
+              background: showPlotMobile ? 'var(--accent-soft)' : 'var(--panel-subtle)',
+              color: showPlotMobile ? 'var(--text)' : 'var(--text-muted)',
               minHeight: 36,
             }}
             aria-expanded={showPlotMobile}
           >
-            {showPlotMobile ? "Hide chart ▲" : "Show chart ▼"}
+            {showPlotMobile ? 'Hide chart ▲' : 'Show chart ▼'}
           </button>
         </div>
 
         {/* Scatter plot: always visible on desktop, toggle-controlled on mobile */}
-        <div className={showPlotMobile ? "" : "hidden md:block"}>
+        <div className={showPlotMobile ? '' : 'hidden md:block'}>
           <Suspense
             fallback={
               <div
                 style={{
                   height: 420,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--text-muted)",
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--text-muted)',
                   fontSize: 13,
                 }}
               >
@@ -892,17 +808,17 @@ export default function Home({
               </div>
             }
           >
-            <div data-tour="scatter-plot" style={{ position: "relative" }}>
+            <div data-tour="scatter-plot" style={{ position: 'relative' }}>
               {isStale && (
                 <div
                   style={{
-                    position: "absolute",
+                    position: 'absolute',
                     top: 8,
                     right: 52,
                     zIndex: 10,
                     fontSize: 10,
-                    color: "var(--text-muted)",
-                    pointerEvents: "none",
+                    color: 'var(--text-muted)',
+                    pointerEvents: 'none',
                   }}
                 >
                   updating…
@@ -910,13 +826,7 @@ export default function Home({
               )}
               <ErrorBoundary
                 fallback={
-                  <div
-                    style={{
-                      color: "var(--text-muted)",
-                      fontSize: 13,
-                      padding: "16px 0",
-                    }}
-                  >
+                  <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>
                     Chart unavailable - use the filters to browse courses below.
                   </div>
                 }
@@ -942,27 +852,24 @@ export default function Home({
         <div className="mt-6">
           <div data-tour="preset-pills" className="preset-pills mb-3">
             {PRESETS.map((preset) => {
-              const active =
-                preset.isActive(filters) || sortBy === preset.sortKey;
+              const active = preset.isActive(filters) || sortBy === preset.sortKey
               return (
                 <button
                   key={preset.key}
                   onClick={() => handlePreset(preset)}
                   aria-pressed={active}
-                  className={`preset-pill touch-manipulation min-h-[44px] ${active ? "active" : ""}`}
+                  className={`preset-pill touch-manipulation min-h-[44px] ${active ? 'active' : ''}`}
                 >
                   {preset.label}
                 </button>
-              );
+              )
             })}
             {favs && favs.count > 0 && (
               <button
                 onClick={() => setShowShortlistOnly((v) => !v)}
-                className={`preset-pill touch-manipulation min-h-[44px] ${showShortlistOnly ? "active" : ""}`}
+                className={`preset-pill touch-manipulation min-h-[44px] ${showShortlistOnly ? 'active' : ''}`}
                 style={
-                  showShortlistOnly
-                    ? { borderColor: "var(--gold)", color: "var(--gold)" }
-                    : {}
+                  showShortlistOnly ? { borderColor: 'var(--gold)', color: 'var(--gold)' } : {}
                 }
               >
                 ★ Shortlist ({favs.count})
@@ -971,19 +878,10 @@ export default function Home({
           </div>
 
           <div className="sort-bar mb-3 flex flex-col gap-3 rounded-[22px] px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p
-              className="text-xs text-muted"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <span className="font-medium text-label">
-                {visibleCourses.length}
-              </span>{" "}
-              course{visibleCourses.length !== 1 ? "s" : ""}
-              <span className="text-muted">
-                {" "}
-                ({filteredEval.length} with evals)
-              </span>
+            <p className="text-xs text-muted" aria-live="polite" aria-atomic="true">
+              <span className="font-medium text-label">{visibleCourses.length}</span> course
+              {visibleCourses.length !== 1 ? 's' : ''}
+              <span className="text-muted"> ({filteredEval.length} with evals)</span>
             </p>
 
             <div className="flex items-center gap-2">
@@ -992,28 +890,27 @@ export default function Home({
                 onClick={toggleCompactView}
                 className="rounded-full border px-2.5 py-1 text-xs transition-colors hover:text-label"
                 style={{
-                  borderColor: "var(--line)",
-                  color: "var(--text-muted)",
-                  background: "var(--panel-subtle)",
+                  borderColor: 'var(--line)',
+                  color: 'var(--text-muted)',
+                  background: 'var(--panel-subtle)',
                 }}
               >
-                {compactView ? "Full" : "Compact"}
+                {compactView ? 'Full' : 'Compact'}
               </button>
               <span className="text-xs text-muted">Sort:</span>
               <div className="select-wrap w-full sm:w-[220px]">
                 <select
+                  aria-label="Sort courses"
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value)}
-                  style={{ padding: "4px 28px 4px 8px", fontSize: 12 }}
+                  style={{ padding: '4px 28px 4px 8px', fontSize: 12 }}
                 >
                   <option value="bid_price_desc">Most Competitive</option>
                   <option value="instructor_desc">Top Instructor Rating</option>
                   <option value="course_rating_desc">Top Course Rating</option>
                   <option value="workload_asc">Lightest Workload</option>
                   <option value="rigor_desc">Most Rigorous</option>
-                  <option value="diverse_desc">
-                    Most Diverse Perspectives
-                  </option>
+                  <option value="diverse_desc">Most Diverse Perspectives</option>
                   <option value="name_asc">Course Name A-Z</option>
                 </select>
               </div>
@@ -1023,17 +920,15 @@ export default function Home({
           <div data-tour="course-list">
             {visibleCourses.length === 0 ? (
               <div className="surface-card rounded-2xl px-6 py-12 text-center">
-                <p className="mb-2 font-medium text-label">
-                  No courses match your filters
-                </p>
+                <p className="mb-2 font-medium text-label">No courses match your filters</p>
                 <button
                   type="button"
                   onClick={clearAllFilters}
                   className="rounded-full border px-5 py-2 text-sm font-semibold transition-colors hover:text-label"
                   style={{
-                    borderColor: "var(--line)",
-                    background: "var(--panel-subtle)",
-                    color: "var(--text-muted)",
+                    borderColor: 'var(--line)',
+                    background: 'var(--panel-subtle)',
+                    color: 'var(--text-muted)',
                   }}
                 >
                   Clear all filters
@@ -1053,9 +948,7 @@ export default function Home({
                     yearMedianInstructor={
                       course.is_average
                         ? (meta.overall_median_instructor ?? null)
-                        : (meta.year_medians_instructor?.[
-                            String(course.year)
-                          ] ?? null)
+                        : (meta.year_medians_instructor?.[String(course.year)] ?? null)
                     }
                   />
                 ))}
@@ -1065,9 +958,9 @@ export default function Home({
                       onClick={() => setPageLimit((prev) => prev + 50)}
                       className="rounded-full border px-6 py-3 text-sm font-semibold transition-all hover:opacity-80"
                       style={{
-                        borderColor: "var(--line)",
-                        background: "var(--panel-subtle)",
-                        color: "var(--text)",
+                        borderColor: 'var(--line)',
+                        background: 'var(--panel-subtle)',
+                        color: 'var(--text)',
                       }}
                     >
                       Show more ({visibleCourses.length - pageLimit} remaining)
@@ -1080,18 +973,18 @@ export default function Home({
         </div>
 
         <div className="app-footer mt-8">
-          HKS Course Explorer by{" "}
+          HKS Course Explorer by{' '}
           <a
             href="https://www.linkedin.com/in/michael-gritzbach/"
             target="_blank"
             rel="noopener noreferrer"
-            style={{ color: "inherit" }}
+            style={{ color: 'inherit' }}
           >
             Michael Gritzbach
-          </a>{" "}
+          </a>{' '}
           VUS&apos;18, MPA&apos;26 · {new Date().getFullYear()}
         </div>
       </main>
     </div>
-  );
+  )
 }

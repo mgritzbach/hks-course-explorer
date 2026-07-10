@@ -211,7 +211,8 @@ SUPABASE_SERVICE_ROLE_KEY = <from Supabase Settings > API>
 ```
 
 ## Supabase Migration: `002_hidden_features.sql`
-Run via Supabase MCP `apply_migration` on project `cbtroatixvydpwoviezf`.
+Run via Supabase MCP `apply_migration` on the explicitly selected target
+project; never copy a project reference from this planning document.
 
 ---
 

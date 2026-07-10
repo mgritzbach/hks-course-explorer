@@ -14,9 +14,10 @@ export default function AuthGate({ onAuthSuccess }) {
   const cooldownRef = useRef(null)
   const otpInputRef = useRef(null)
 
-  const isLight = typeof document !== 'undefined'
-    ? document.documentElement.getAttribute('data-theme') === 'light'
-    : false
+  const isLight =
+    typeof document !== 'undefined'
+      ? document.documentElement.getAttribute('data-theme') === 'light'
+      : false
 
   // Focus OTP input when step changes
   useEffect(() => {
@@ -26,7 +27,12 @@ export default function AuthGate({ onAuthSuccess }) {
   }, [step])
 
   // Cleanup cooldown timer
-  useEffect(() => () => { if (cooldownRef.current) clearInterval(cooldownRef.current) }, [])
+  useEffect(
+    () => () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current)
+    },
+    [],
+  )
 
   const startCooldown = () => {
     setResendCooldown(60)
@@ -153,8 +159,19 @@ export default function AuthGate({ onAuthSuccess }) {
       >
         {/* Header */}
         <div style={{ marginBottom: 28 }}>
-          <p className="kicker" style={{ marginBottom: 6 }}>Harvard Kennedy School</p>
-          <h1 className="serif-display" style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', margin: 0, lineHeight: 1.2 }}>
+          <p className="kicker" style={{ marginBottom: 6 }}>
+            Harvard Kennedy School
+          </p>
+          <h1
+            className="serif-display"
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: 'var(--text)',
+              margin: 0,
+              lineHeight: 1.2,
+            }}
+          >
             Course Explorer
           </h1>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
@@ -163,15 +180,22 @@ export default function AuthGate({ onAuthSuccess }) {
             {step === 'success' && `You're in! Loading your data…`}
           </p>
           {step === 'otp' && (
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>{email}</p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>
+              {email}
+            </p>
           )}
         </div>
 
         {/* Email step */}
         {step === 'email' && (
-          <form onSubmit={handleRequestOTP} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <form
+            onSubmit={handleRequestOTP}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+          >
             <div>
-              <label className="filter-label" style={{ display: 'block', marginBottom: 6 }}>Email address</label>
+              <label className="filter-label" style={{ display: 'block', marginBottom: 6 }}>
+                Email address
+              </label>
               <input
                 type="email"
                 value={email}
@@ -194,7 +218,9 @@ export default function AuthGate({ onAuthSuccess }) {
             </div>
 
             {error && (
-              <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0, lineHeight: 1.5 }}>{error}</p>
+              <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0, lineHeight: 1.5 }}>
+                {error}
+              </p>
             )}
 
             <button
@@ -216,18 +242,32 @@ export default function AuthGate({ onAuthSuccess }) {
               {loading ? 'Sending…' : 'Send login code →'}
             </button>
 
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5, textAlign: 'center' }}>
+            <p
+              style={{
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                margin: 0,
+                lineHeight: 1.5,
+                textAlign: 'center',
+              }}
+            >
               Requires a <span style={{ color: 'var(--gold)' }}>harvard.edu</span> email address.
-              <br />Institutional subdomains (hks, hms, hbs, etc.) are all accepted.
+              <br />
+              Institutional subdomains (hks, hms, hbs, etc.) are all accepted.
             </p>
           </form>
         )}
 
         {/* OTP step */}
         {step === 'otp' && (
-          <form onSubmit={handleVerifyOTP} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <form
+            onSubmit={handleVerifyOTP}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+          >
             <div>
-              <label className="filter-label" style={{ display: 'block', marginBottom: 6 }}>Enter the 6-digit code</label>
+              <label className="filter-label" style={{ display: 'block', marginBottom: 6 }}>
+                Enter the 6-digit code
+              </label>
               <input
                 ref={otpInputRef}
                 type="text"
@@ -256,7 +296,9 @@ export default function AuthGate({ onAuthSuccess }) {
             </div>
 
             {error && (
-              <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0, lineHeight: 1.5 }}>{error}</p>
+              <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0, lineHeight: 1.5 }}>
+                {error}
+              </p>
             )}
 
             <button
@@ -281,8 +323,19 @@ export default function AuthGate({ onAuthSuccess }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button
                 type="button"
-                onClick={() => { setStep('email'); setOtp(''); setError('') }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, padding: 0 }}
+                onClick={() => {
+                  setStep('email')
+                  setOtp('')
+                  setError('')
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  fontSize: 12,
+                  padding: 0,
+                }}
               >
                 ← Change email
               </button>
@@ -316,12 +369,28 @@ export default function AuthGate({ onAuthSuccess }) {
 
         {/* Footer */}
         <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--line)' }}>
-          <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5, textAlign: 'center' }}>
+          <p
+            style={{
+              fontSize: 10,
+              color: 'var(--text-muted)',
+              margin: 0,
+              lineHeight: 1.5,
+              textAlign: 'center',
+            }}
+          >
             Built independently for {config.schoolCode} students by{' '}
-            <a href="https://www.linkedin.com/in/michael-gritzbach/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold)' }}>
+            <a
+              href="https://www.linkedin.com/in/michael-gritzbach/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--gold)' }}
+            >
               Michael Gritzbach
             </a>
-            . Issues? <a href="mailto:mgritzbach@hks.harvard.edu" style={{ color: 'var(--gold)' }}>Contact</a>
+            . Issues?{' '}
+            <a href="mailto:mgritzbach@hks.harvard.edu" style={{ color: 'var(--gold)' }}>
+              Contact
+            </a>
           </p>
         </div>
       </div>

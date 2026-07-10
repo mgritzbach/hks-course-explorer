@@ -1,72 +1,74 @@
 import { test, expect } from '@playwright/test'
+import { installMockBackend } from './support/mockBackend.js'
 
-test.describe('Schedule Builder — critical flows', () => {
-
-  test('TEST 1: HKS browse shows courses and session filter works', async ({ page }) => {
-    await page.goto('/schedule-builder')
-    // Wait for Supabase live_courses to load (can take 3-5s on cold start)
-    await page.waitForTimeout(6000)
-
-    // Target specifically the "with schedule" count — not the "Already Taken" 0 courses
-    const countText = page.locator('text=/\\d+ with schedule/').first()
-    await expect(countText).toBeVisible({ timeout: 15000 })
-    const before = await countText.textContent()
-    const countBefore = parseInt(before.match(/\d+/)[0])
-    expect(countBefore).toBeGreaterThan(5)
-
-    // Find and change session filter to Spring 1
-    const sessionSelect = page.locator('select').filter({ hasText: /All sessions/ })
-    await sessionSelect.selectOption('Spring 1')
-    await page.waitForTimeout(1500)
-
-    const after = await countText.textContent()
-    const countAfter = parseInt(after.match(/\d+/)[0])
-    // Spring 1 is a subset — should show fewer than all sessions
-    expect(countAfter).toBeLessThan(countBefore)
+test.describe('Schedule Builder critical flows', () => {
+  test.beforeEach(async ({ page }) => {
+    await installMockBackend(page)
+    await page.addInitScript(() => localStorage.setItem('hks-splash-shown', '1'))
+    await page.setViewportSize({ width: 1440, height: 1000 })
   })
 
-  test('TEST 2: Non-HKS browse shows non-HKS courses', async ({ page }) => {
+  test('filters the locally loaded catalogue by session', async ({ page }) => {
     await page.goto('/schedule-builder')
-    await page.waitForTimeout(4000)
 
-    // Find the school source selector and switch to Non-HKS
-    const schoolSelect = page.locator('select').filter({ hasText: /HKS/ }).first()
-    await schoolSelect.selectOption('Non-HKS')
-    await page.waitForTimeout(3000)
+    await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
+    const results = page.getByRole('list', { name: 'Course search results' })
+    await expect(results).toContainText('API-101')
+    await expect(results).toContainText('BGP-201')
+    await expect(results).toContainText('2 with schedule')
 
-    // Should show Non-HKS courses
-    const countText = page.locator('text=/\\d+ (courses|with schedule)/').first()
-    await expect(countText).toBeVisible({ timeout: 10000 })
-    const text = await countText.textContent()
-    const count = parseInt(text.match(/\d+/)[0])
-    expect(count).toBeGreaterThan(0)
-
-    // Should mention Non-HKS in the count text
-    const pageText = await page.textContent('body')
-    expect(pageText).toMatch(/Non-HKS/)
+    await page.getByLabel('Session filter').selectOption('Spring 1')
+    await expect(results).toContainText('1 with schedule')
+    await expect(results).toContainText('API-101')
+    await expect(results).not.toContainText('BGP-201')
   })
 
-  test('TEST 3: Typed search returns results without crashing', async ({ page }) => {
-    // Watch for console errors
-    const errors = []
-    page.on('console', msg => {
-      if (msg.type() === 'error' && msg.text().includes('ReferenceError')) {
-        errors.push(msg.text())
-      }
+  test('browses non-HKS results and typed catalogue search without an error boundary', async ({
+    page,
+  }) => {
+    await page.goto('/schedule-builder')
+    const results = page.getByRole('list', { name: 'Course search results' })
+
+    await page.getByLabel('School filter').selectOption('Non-HKS')
+    await expect(results).toContainText('ECON-50')
+    await expect(results).toContainText('1 course')
+
+    await page.getByLabel('School filter').selectOption('HKS')
+    await page.getByLabel('Search courses and instructors').fill('policy')
+    await expect(results).toContainText('API-101')
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(page.getByText('Something went wrong')).toHaveCount(0)
+  })
+
+  test('searches the synced catalogue without calling the Harvard proxy', async ({ page }) => {
+    await installMockBackend(page)
+    let harvardRequests = 0
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/harvard-courses') harvardRequests += 1
     })
-
+    await page.addInitScript(() => localStorage.setItem('hks-splash-shown', '1'))
     await page.goto('/schedule-builder')
-    await page.waitForTimeout(3000)
 
-    // Type a search query
-    const searchInput = page.locator('input[type="text"], input[placeholder*="Search"], input[placeholder*="search"]').first()
-    await searchInput.fill('economics')
-    await page.waitForTimeout(3000)
-
-    // Should show results or "no results" — but NOT crash
-    const body = await page.textContent('body')
-    expect(body).not.toMatch(/Something went wrong/)
-    expect(errors).toHaveLength(0)
+    await page.getByLabel('Search courses and instructors').fill('policy')
+    await expect(page.getByRole('list', { name: 'Course search results' })).toContainText('API-101')
+    expect(harvardRequests).toBe(0)
   })
 
+  test('adds a missing cross-registration course through the manual form', async ({ page }) => {
+    await page.goto('/schedule-builder')
+    await page.getByLabel('School filter').selectOption('Non-HKS')
+    await page.getByLabel('Search courses and instructors').fill('mit 15.783')
+    await page.getByRole('button', { name: /Add MIT-15.783 with details/ }).click()
+
+    const manualCourseDialog = page.getByRole('dialog', { name: 'Add a cross-registration course' })
+    await expect(manualCourseDialog).toBeVisible()
+    await manualCourseDialog
+      .getByRole('textbox', { name: 'Title' })
+      .fill('Machine Learning for Policy')
+    await manualCourseDialog.getByRole('button', { name: 'MON', exact: true }).click()
+    await manualCourseDialog.getByRole('button', { name: 'Add to schedule' }).click()
+
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.getByText('Added MIT-15.783 to plan', { exact: true })).toBeVisible()
+  })
 })

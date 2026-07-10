@@ -1,0 +1,27 @@
+HKS COURSE EXPLORER DATA PIPELINE
+
+Historical evaluations:
+  data/canonical_courses_enriched.csv
+    -> scripts/build_data.py
+    -> public/courses.json and public/sim_coords.json
+    -> static CDN assets used by the React application
+
+Current offerings:
+  Harvard ATS API
+    -> scripts/sync_live_courses.py
+    -> Supabase live_courses
+    -> Browser Schedule Builder
+
+Section meeting data:
+  Harvard source/section import process
+    -> Supabase course_sections
+    -> Browser Schedule Builder meeting-time enrichment
+
+Safety rules:
+- The canonical CSV is reviewed input; build validation rejects fatal data errors.
+- Generated duplicate course IDs are reported with the conflicting IDs. They
+  retain legacy last-write-wins behavior during loading and must be resolved
+  before any controlled promotion.
+- Any failed source request aborts a live-sync run before upsert or stale deletion.
+- Current database schema/RLS and data-retention setup still require a fully
+  versioned baseline migration before a clean environment is reproducible.

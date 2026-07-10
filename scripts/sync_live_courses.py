@@ -11,7 +11,7 @@ Or via GitHub Actions (see .github/workflows/sync-live-courses.yml).
 
 Required env vars:
     HARVARD_API_KEY   – Harvard ATS API key
-    SUPABASE_URL      – https://cbtroatixvydpwoviezf.supabase.co
+    SUPABASE_URL      – https://your-project-ref.supabase.co
     SUPABASE_KEY      – service_role / secret key (not anon)
 """
 
@@ -20,6 +20,7 @@ import sys
 import re
 import time
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -51,6 +52,28 @@ API_LIMIT    = 50    # Harvard ATS API max per request
 BATCH_SIZE   = 500   # Supabase upsert batch size
 WORKERS      = 3     # Low parallelism to avoid 429s
 REQUEST_DELAY = 0.2  # seconds between requests per worker
+HTTP_MAX_ATTEMPTS = 3
+RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
+
+# A sync can safely add/update records after every planned source request has
+# succeeded.  It cannot, however, prove that an upstream search returned the
+# entire catalogue: a valid HTTP 200 with a truncated result set is
+# indistinguishable from a complete response without a documented upstream
+# completeness contract.  Retain historical rows by default instead of
+# risking destructive cleanup.  Operators may enable cleanup only after
+# verifying their API coverage and database `synced_at` trigger.
+ALLOW_STALE_DELETION = os.environ.get("SYNC_ALLOW_STALE_DELETE", "false").lower() == "true"
+MIN_UNIQUE_COURSES = int(os.environ.get("SYNC_MIN_UNIQUE_COURSES", "1"))
+
+
+@dataclass
+class FetchResult:
+    """Outcome for one school/query fetch; success is independent of row count."""
+    school: str
+    query: str
+    rows: list[dict]
+    success: bool
+    error: str = ""
 
 
 # ── Harvard API helpers ───────────────────────────────────────────────────────
@@ -152,39 +175,50 @@ def normalise_course(c: dict, school: str) -> dict:
     }
 
 
-def fetch_school(school: str, query: str, session: requests.Session) -> list[dict]:
-    """Fetch courses for one school + seed query. No term filter — API returns active courses."""
+# ── Sync safety helpers ───────────────────────────────────────────────────────
+
+def fetch_school(school: str, query: str, session: requests.Session) -> FetchResult:
+    """Fetch one school/query safely and report failures distinctly from empty results.
+
+    A failed request must never look like an empty result: main aborts before
+    any writes or stale-row deletion if even one source request is incomplete.
+    """
     time.sleep(REQUEST_DELAY)
-    params = {
-        "q":             query,
-        "catalogSchool": school,
-        "limit":         API_LIMIT,
+    params = {"q": query, "catalogSchool": school, "limit": API_LIMIT}
+    headers = {
+        "x-api-key": HARVARD_API_KEY,
+        "Accept": "application/json",
+        "User-Agent": "HKS-Course-Explorer-Sync/1.0",
     }
-    try:
-        resp = session.get(
-            HARVARD_API_BASE, params=params, timeout=25,
-            headers={
-                "x-api-key":  HARVARD_API_KEY,
-                "Accept":     "application/json",
-                "User-Agent": "HKS-Course-Explorer-Sync/1.0",
-            }
-        )
-        if resp.status_code == 429:
-            log.warning("  %s q=%-6s → 429 rate-limited, retrying after 5s", school, query)
-            time.sleep(5)
-            resp = session.get(HARVARD_API_BASE, params=params, timeout=25,
-                               headers={"x-api-key": HARVARD_API_KEY, "Accept": "application/json"})
-        if not resp.ok:
-            log.warning("  %s q=%-6s → HTTP %s", school, query, resp.status_code)
-            return []
-        raw   = resp.json()
-        items = raw.get("results") or raw.get("courses") or (raw if isinstance(raw, list) else [])
-        return [normalise_course(c, school) for c in items]
-    except Exception as exc:
-        log.warning("  %s q=%-6s → %s", school, query, exc)
-        return []
+    last_error = "unknown error"
+    for attempt in range(HTTP_MAX_ATTEMPTS):
+        try:
+            response = session.get(HARVARD_API_BASE, params=params, timeout=25, headers=headers)
+            if response.ok:
+                raw = response.json()
+                if isinstance(raw, list):
+                    items = raw
+                elif isinstance(raw, dict):
+                    items = raw.get("results") or raw.get("courses") or []
+                else:
+                    raise ValueError("response was not a JSON object or list")
+                if not isinstance(items, list):
+                    raise ValueError("response did not contain a course list")
+                return FetchResult(school, query, [normalise_course(course, school) for course in items], True)
 
+            last_error = f"HTTP {response.status_code}"
+            if response.status_code not in RETRYABLE_STATUS_CODES:
+                break
+        except (requests.RequestException, ValueError) as exc:
+            last_error = str(exc)
 
+        if attempt < HTTP_MAX_ATTEMPTS - 1:
+            delay = min(5, 2 ** attempt)
+            log.warning("  %s q=%-6s failed (%s); retrying in %ss (%d/%d)", school, query, last_error, delay, attempt + 1, HTTP_MAX_ATTEMPTS)
+            time.sleep(delay)
+
+    log.error("  %s q=%-6s failed after %d attempts: %s", school, query, HTTP_MAX_ATTEMPTS, last_error)
+    return FetchResult(school, query, [], False, last_error)
 # ── Supabase helpers ──────────────────────────────────────────────────────────
 
 def _sb_headers():
@@ -230,20 +264,29 @@ def main():
     log.info("Schools: %s", ALL_SCHOOLS)
     log.info("Seed queries: %s  Workers: %d", SEED_QUERIES, WORKERS)
 
-    session   = requests.Session()
     all_rows: dict[str, dict] = {}  # id → row
 
+    failures: list[FetchResult] = []
     tasks = [(school, q) for school in ALL_SCHOOLS for q in SEED_QUERIES]
     log.info("Total API calls planned: %d", len(tasks))
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         futures = {
-            pool.submit(fetch_school, school, q, session): (school, q)
+            # requests.Session is not documented as thread-safe; use an
+            # isolated session per request rather than sharing connection state.
+            pool.submit(fetch_school, school, q, requests.Session()): (school, q)
             for school, q in tasks
         }
         for fut in as_completed(futures):
             school, q = futures[fut]
-            rows = fut.result()
+            try:
+                result = fut.result()
+            except Exception as exc:
+                result = FetchResult(school, q, [], False, f"worker crashed: {exc}")
+            if not result.success:
+                failures.append(result)
+                continue
+            rows = result.rows
             new = 0
             for row in rows:
                 if row["id"] not in all_rows:
@@ -252,8 +295,17 @@ def main():
             log.info("  %-6s q=%-6s → %d returned, %d new (total unique: %d)",
                      school, q, len(rows), new, len(all_rows))
 
-    if not all_rows:
-        log.error("No courses fetched from any school — aborting to protect existing data")
+    if failures:
+        failed_calls = ", ".join(f"{result.school}/{result.query} ({result.error})" for result in failures)
+        log.error("Aborting sync: %d of %d Harvard requests failed. No Supabase writes or stale-row deletion will run. Failed calls: %s", len(failures), len(tasks), failed_calls)
+        sys.exit(1)
+
+    if len(all_rows) < MIN_UNIQUE_COURSES:
+        log.error(
+            "Only %d unique courses were fetched (minimum required: %d) — aborting to protect existing data",
+            len(all_rows),
+            MIN_UNIQUE_COURSES,
+        )
         sys.exit(1)
 
     rows_list = list(all_rows.values())
@@ -261,7 +313,17 @@ def main():
     log.info("Upserting %d unique courses (terms: %s)…", len(rows_list), terms)
     supabase_upsert(rows_list)
 
-    supabase_delete_stale(sync_start)
+    if ALLOW_STALE_DELETION:
+        log.warning(
+            "SYNC_ALLOW_STALE_DELETE=true: removing rows not refreshed in this run. "
+            "This requires verified complete upstream coverage and a working synced_at database trigger."
+        )
+        supabase_delete_stale(sync_start)
+    else:
+        log.info(
+            "Stale-row deletion is disabled. Set SYNC_ALLOW_STALE_DELETE=true only after "
+            "verifying complete upstream coverage and the live_courses synced_at trigger."
+        )
     log.info("Done. %d courses in live_courses.", len(rows_list))
 
 

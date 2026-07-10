@@ -1,4 +1,13 @@
-export async function searchHarvardCourses(query = '', options = {}) {
+export class HarvardCourseSearchError extends Error {
+  constructor(message, { status, code } = {}) {
+    super(message)
+    this.name = 'HarvardCourseSearchError'
+    this.status = status
+    this.code = code
+  }
+}
+
+export async function searchHarvardCourses(query = '', options = {}, fetchImpl = fetch) {
   const params = new URLSearchParams()
 
   if (query) {
@@ -11,9 +20,15 @@ export async function searchHarvardCourses(query = '', options = {}) {
     }
   })
 
-  const response = await fetch(`/api/harvard-courses${params.toString() ? `?${params.toString()}` : ''}`)
+  const response = await fetchImpl(
+    `/api/harvard-courses${params.toString() ? `?${params.toString()}` : ''}`,
+  )
   if (!response.ok) {
-    throw new Error(`Harvard course search failed (${response.status})`)
+    const body = await response.json().catch(() => ({}))
+    throw new HarvardCourseSearchError(
+      body.error || `Harvard course search failed (${response.status})`,
+      { status: response.status, code: body.code },
+    )
   }
 
   return response.json()

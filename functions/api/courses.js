@@ -14,18 +14,18 @@ export async function onRequestGet({ request, env }) {
   try {
     const token = parseCookie(request.headers.get('Cookie'), 'hks_auth')
     if (!token) {
-      return new Response(
-        JSON.stringify({ error: 'Authentication required.' }),
-        { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-      )
+      return new Response(JSON.stringify({ error: 'Authentication required.' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+      })
     }
 
     const payload = await verifyJWT(token, env.JWT_SECRET)
     if (!payload) {
-      return new Response(
-        JSON.stringify({ error: 'Session expired. Please log in again.' }),
-        { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-      )
+      return new Response(JSON.stringify({ error: 'Session expired. Please log in again.' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+      })
     }
 
     // Fetch course data from KV
@@ -47,10 +47,10 @@ export async function onRequestGet({ request, env }) {
     })
   } catch (err) {
     console.error('courses.js error:', err)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error.' }),
-      { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-    )
+    return new Response(JSON.stringify({ error: 'Internal server error.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+    })
   }
 }
 

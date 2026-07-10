@@ -181,6 +181,87 @@ def professor_display(name):
     return text
 
 
+def stable_course_id(row, course_code, year, term, professor, course_name):
+    """Return a deterministic catalogue identity without collapsing distinct aggregates.
+
+    Historical rows are naturally identified by code, term, year, and instructor.
+    Aggregate rows use year ``0``/term ``Average`` and can represent different
+    evaluation windows for a returning course. Include only stable, user-visible
+    aggregate provenance in a short digest so those records cannot overwrite each
+    other or inherit the wrong schedule override.
+    """
+    base = f"{course_code}||{year if year is not None else ''}||{term}||{professor}"
+    if term != "Average" or year not in (None, 0):
+        return base
+
+    provenance = "||".join(
+        [
+            course_name.casefold(),
+            clean_text(row.get("year_range")),
+            clean_text(row.get("n_terms")),
+        ]
+    )
+    digest = hashlib.sha256(provenance.encode("utf-8")).hexdigest()[:12]
+    return f"{base}||aggregate-{digest}"
+
+
+def raw_course_identity(row):
+    """Identity used to detect complementary records before catalogue generation."""
+    return "||".join(
+        [
+            clean_text(row.get("course_code")),
+            str(parse_year(row.get("year")) or ""),
+            clean_text(row.get("term")),
+            clean_text(row.get("professor")),
+        ]
+    )
+
+
+_BOOLEAN_OR_FIELDS = {"has_eval", "has_bidding", "has_description", "core", "is_stem"}
+
+
+def _merge_complementary_rows(rows):
+    """Merge only duplicate records whose populated fields are non-conflicting.
+
+    Imported evaluation and bidding records occasionally describe the exact same
+    course/offering. Combining complementary values retains both sources. Any
+    substantive disagreement is intentionally left unmerged for operator review.
+    """
+    grouped = defaultdict(list)
+    for row in rows:
+        grouped[raw_course_identity(row)].append(row)
+
+    output = []
+    merged_count = 0
+    for group in grouped.values():
+        if len(group) != 2:
+            output.extend(group)
+            continue
+        first, second = group
+        merged = dict(first)
+        compatible = True
+        for field in set(first) | set(second):
+            left = clean_text(first.get(field))
+            right = clean_text(second.get(field))
+            if field in _BOOLEAN_OR_FIELDS:
+                merged[field] = "True" if parse_bool(left) or parse_bool(right) else (left or right)
+            elif not left:
+                merged[field] = right
+            elif not right or left == right:
+                merged[field] = left
+            elif field == "course_name" and (left.casefold() in right.casefold() or right.casefold() in left.casefold()):
+                merged[field] = max((left, right), key=len)
+            else:
+                compatible = False
+                break
+        if compatible:
+            output.append(merged)
+            merged_count += 1
+        else:
+            output.extend(group)
+    return output, merged_count
+
+
 def instructor_label(score):
     if score is None:
         return "No Data"
@@ -399,11 +480,13 @@ def build_course(row, latest_bid_lookup):
     year = parse_year(row.get("year"))
     term = clean_text(row.get("term"))
     professor = clean_text(row.get("professor"))
+    course_name = clean_text(row.get("course_name"))
     metrics_raw = {
         metric["key"]: parse_float(row.get(metric["key"]))
         for metric in METRICS
         if not metric.get("bid_metric")
     }
+
     metrics_raw["Bid_Price"] = parse_float(row.get("bid_clearing_price"))
     metrics_raw["Bid_N_Bids"] = parse_float(row.get("bid_n_bids"))
 
@@ -431,7 +514,7 @@ def build_course(row, latest_bid_lookup):
     meeting_time_end = nullable_text(row.get("meeting_time_end"))
 
     return {
-        "id": f"{course_code}||{year if year is not None else ''}||{term}||{professor}",
+        "id": stable_course_id(row, course_code, year, term, professor, course_name),
         "course_code": course_code,
         "course_code_base": course_code_base,
         "historical_code": course_code_base if course_code_base in HISTORICAL_CODE_MAP else None,
@@ -441,7 +524,7 @@ def build_course(row, latest_bid_lookup):
         "term": term,
         "professor": professor,
         "professor_display": professor_display(professor),
-        "course_name": clean_text(row.get("course_name")),
+        "course_name": course_name,
         "description": clean_text(row.get("description")),
         "course_url": clean_text(row.get("course_url")),
         "is_stem": parse_bool(row.get("is_stem")),
@@ -475,6 +558,18 @@ def build_course(row, latest_bid_lookup):
         "meeting_time": meeting_time,
         "meeting_time_end": meeting_time_end,
     }
+
+
+def find_duplicate_course_ids(courses):
+    """Return stable duplicate generated IDs for a source-data remediation queue."""
+    seen = set()
+    duplicates = set()
+    for course in courses:
+        course_id = course.get("id")
+        if course_id in seen:
+            duplicates.add(course_id)
+        seen.add(course_id)
+    return sorted(duplicates)
 
 
 def validate_rows(rows):
@@ -549,6 +644,10 @@ def main():
     print(f"Validating {len(rows)} rows...")
     validate_rows(rows)
 
+    rows, complementary_merges = _merge_complementary_rows(rows)
+    if complementary_merges:
+        print(f"  Merged {complementary_merges} complementary duplicate canonical record(s)")
+
     fill_average_bid_fields(rows)
 
     bid_rows_by_course = defaultdict(list)
@@ -589,6 +688,15 @@ def main():
             course["meeting_time"] = override["meeting_time"]
         if not course.get("meeting_time_end") and override.get("meeting_time_end"):
             course["meeting_time_end"] = override["meeting_time_end"]
+
+    duplicate_ids = find_duplicate_course_ids(courses)
+    if duplicate_ids:
+        preview = ", ".join(duplicate_ids[:20])
+        suffix = " (truncated)" if len(duplicate_ids) > 20 else ""
+        print(
+            f"WARNING: generated catalogue contains {len(duplicate_ids)} conflicting duplicate id(s): "
+            f"{preview}{suffix}. Resolve these before a controlled promotion."
+        )
 
     # --- Similarity map: only recompute when source data changes ---
     SIM_JSON = ROOT / "public" / "sim_coords.json"

@@ -21,7 +21,8 @@
  */
 
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase.js'
+import { fetchCataloguePages } from '../lib/cataloguePagination.js'
+import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
 export function useScheduleData(semesterYear, semester) {
   const [liveCoursesData, setLiveCoursesData] = useState([])
@@ -33,16 +34,24 @@ export function useScheduleData(semesterYear, semester) {
   // Fetch live_courses once — all terms loaded upfront, semester filtering
   // happens client-side so switching semesters doesn't trigger a new fetch.
   useEffect(() => {
-    supabase
-      .from('live_courses')
-      .select(
-        'id,course_code,course_code_base,title,term,credits,instructors,' +
-        'meeting_days,time_start,time_end,school,is_hks,session_code,' +
-        'session_description,cross_reg_eligible'
-      )
-      .order('term', { ascending: false })
-      .limit(2000)
-      .then(({ data }) => setLiveCoursesData(Array.isArray(data) ? data : []))
+    if (!isSupabaseConfigured) {
+      setLiveCoursesData([])
+      return undefined
+    }
+    fetchCataloguePages(() =>
+      supabase
+        .from('live_courses')
+        .select(
+          'id,course_code,course_code_base,title,term,credits,instructors,' +
+            'meeting_days,time_start,time_end,school,is_hks,session_code,' +
+            'session_description,cross_reg_eligible',
+        )
+        // The ID tie-breaker makes page boundaries stable when many offerings
+        // share a term, preventing duplicate or skipped rows across requests.
+        .order('term', { ascending: false })
+        .order('id', { ascending: true }),
+    )
+      .then((rows) => setLiveCoursesData(rows))
       .catch(() => {})
   }, []) // intentionally empty — see ADR-002
 
@@ -54,17 +63,24 @@ export function useScheduleData(semesterYear, semester) {
     setSectionInfoMap(new Map())
     setSectionTimesLoading(true)
 
+    if (!isSupabaseConfigured) {
+      setSectionTimesLoading(false)
+      return undefined
+    }
+
     // Term format for course_sections: "2026Spring", "2026Fall", "2026January"
     // (no space — see ADR-004)
     const termStr = `${semesterYear}${semester === 'January' ? 'January' : semester}`
 
-    supabase
-      .from('course_sections')
-      .select('course_code_base,meetings,title,instructors,credits')
-      .eq('term', termStr)
-      .limit(2000)
-      .then(({ data }) => {
-        const rows = Array.isArray(data) ? data : []
+    fetchCataloguePages(() =>
+      supabase
+        .from('course_sections')
+        .select('id,course_code_base,meetings,title,instructors,credits')
+        .eq('term', termStr)
+        .order('course_code_base', { ascending: true })
+        .order('id', { ascending: true }),
+    )
+      .then((rows) => {
         const map = new Map()
         const canonical = new Set()
         const infoMap = new Map()

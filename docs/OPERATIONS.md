@@ -1,0 +1,167 @@
+# Operations and release runbook
+
+## Local quality gate
+
+Run this before requesting review:
+
+```bash
+npm ci --legacy-peer-deps
+npm run check:vendor-integrity
+npm run lint
+npm run check:format
+npm run check:contracts
+npm run check:architecture
+npm run check:ui-complexity
+npm run check:runtime-contracts
+npm test
+python -m unittest discover -s scripts/tests -v
+npm run build
+npm run check:bundle-budget
+npm run test:e2e
+```
+
+The E2E suite must target a locally built preview or controlled preview
+environment. A mutable production deployment is a smoke target, not a
+deterministic test fixture.
+
+If port 4173 is intentionally occupied by another local preview, run the
+same isolated built-artifact suite on a different port, for example:
+
+```powershell
+$env:PLAYWRIGHT_PORT=4174; npm run test:e2e
+```
+
+## Admin source imports
+
+Admin uploads stage governed source records; they do not publish course-card
+data directly. Follow [Admin import operations](ADMIN_IMPORT_OPERATIONS.md)
+for the workbook contract, review/publish boundary, failure handling, and
+required staging proof.
+
+## Accessibility baseline
+
+The built-artifact suite verifies keyboard skip navigation and runs the full
+Axe WCAG A/AA serious/critical gate for Home and Schedule Builder. Contrast and
+scrollable-region keyboard access are included; no Axe rule is disabled. This
+is a deterministic regression gate, not a substitute for production manual
+assistive-technology acceptance.
+
+The first-visit landing screen is a labelled modal portal. While it is open,
+the application root is inert and hidden from assistive technology, focus is
+contained within the Direct/Tutorial choice, and body scrolling is paused. Do
+not replace the dialog semantics with a second page `<main>` element.
+
+## Response security headers
+
+`public/_headers` protects Cloudflare Pages static responses, while
+`functions/_shared/cors.js` applies the matching baseline to Function
+responses. The policy includes `nosniff`, a strict referrer policy, disabled
+unused browser permissions, same-origin framing, and HTTPS transport
+enforcement. `scripts/tests/security_headers.test.js` prevents static and
+Function headers from drifting apart.
+
+Content Security Policy is intentionally not enabled by this baseline. It must
+be introduced only after an owner inventories and tests every current browser
+integration (including observability and analytics endpoints), because an
+untested CSP can break a working release.
+
+## Bundle budgets
+
+`npm run check:bundle-budget` reads Vite's generated
+`dist/.vite/manifest.json` (kept separate from the public PWA
+`/manifest.json`). It
+measures the HTML shell plus the lazy Home chunk and all of their static
+dependencies: the code required to render `/`. That graph must remain at or
+below **1,050,000 raw bytes** and **310,000 gzip bytes**. It intentionally does
+not include Home's dynamic imports; the guard verifies the Plotly chunk remains
+outside this root-route graph because the similarity map is loaded on demand.
+
+The same command also protects direct navigation to `/courses` and
+`/schedule-builder`: each must remain a Vite dynamic route imported lazily by
+the app shell, and each route graph is checked against documented raw/gzip
+limits. Treat a budget failure as a release-blocking regression. Do not loosen
+a limit without a measured performance review and an approved documented
+rationale.
+
+## Live-course sync
+
+The scheduled GitHub Action runs `scripts/sync_live_courses.py`.
+
+The sync will upsert data only when every planned Harvard request succeeds and
+the configured minimum unique-course count is reached. Stale-row deletion is
+disabled by default (`SYNC_ALLOW_STALE_DELETE=false`): a successful API
+response alone does not prove the upstream search returned a complete
+catalogue. Enable deletion only after an operator has verified both complete
+upstream coverage and the `live_courses.synced_at` database trigger in the
+target environment. This protects existing catalogue data when an upstream
+response is incomplete.
+
+- Any failed Harvard source request causes a non-zero exit before database writes
+  or stale-row deletion.
+- Review row counts and per-school/term coverage before enabling stale cleanup
+  in a new environment.
+- `SYNC_MIN_UNIQUE_COURSES=1` is only a non-empty guard. Before deletion is
+  ever enabled, set and validate per-school/term thresholds against a
+  last-known-good run; do not infer complete coverage from an HTTP success.
+- Keep the last verified catalogue/data version available for rollback.
+- Treat a partial run as an incident, not as an empty current catalogue.
+
+### Remaining transaction boundary
+
+`live_courses` is upserted in 500-row REST batches. If Supabase rejects a
+later batch, earlier batches may already be committed. The script exits
+non-zero, but it cannot roll those batches back. Until the database owner
+provides a staged/run-versioned promotion (or proves a tested rollback), this
+is a release blocker for G02 in `GOAL_STATUS.md`; do not claim an atomic sync.
+
+### Schedule-plan persistence
+
+Schedule plans are intentionally browser-local. `savePlan` persists the plan in
+`localStorage` and emits the `hks-plan-updated` event used by the rest of the
+application; it does not write a browser-generated identifier to Supabase.
+This preserves the supported local planning workflow without creating a remote
+record that cannot be protected by authenticated ownership. Existing production
+`schedules` records and their RLS policy require a separately authorized
+cleanup/migration exercise before any platform certification.
+
+## Admin data operations
+
+The Admin UI uses same-origin Functions, not direct browser Supabase writes.
+Required Cloudflare secrets are `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`,
+`SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. Configure them only as Pages
+Function secrets/bindings, verify they do not begin with `VITE_`, and rotate the
+session secret to immediately invalidate all Admin sessions.
+
+Before production promotion, run an authorized staging exercise that proves:
+
+1. An unauthenticated browser cannot read Admin history or mutate an allowed
+   table.
+2. An Admin session expires after 15 minutes and is invalid after session-secret
+   rotation.
+3. Every allowed import target accepts its expected schema; an unknown table or
+   column is rejected with no database write.
+4. The `uploads` history projection contains the documented six display fields
+   and no additional sensitive data.
+5. Function logs retain status/target diagnostics without passwords, sessions,
+   row values, or service-role credentials.
+
+Do not promote based on local contract tests alone: table schema, RLS/public
+grants, backup/restore, Function secrets, and Cloudflare log retention require
+platform-owner evidence.
+
+## Incident response
+
+1. Stop promotion and preserve the failing release/data-sync logs.
+2. Classify the incident: browser UI, Pages Function, Harvard API, Supabase,
+   sync job, or third-party provider.
+3. Roll back the Pages deployment and, if applicable, restore the last-known-good
+   live catalogue only after approved backup/restore verification.
+4. Create a regression test before re-promoting.
+5. Record impact, root cause, owner, and follow-up in an ADR or incident record.
+
+## Release approval
+
+A release is blocked while any P0 item in `GOAL_STATUS.md` is `0`. Required
+evidence includes an exact-commit CI run, preview smoke checks, data freshness,
+rollback target, and post-deploy monitoring. Production secrets, database
+migrations, and provider accounts require the responsible platform owner.

@@ -21,10 +21,27 @@
         "displayOrder": 1,
         "color": "blue",
         "courseCodes": [
-          "API-165","API-205","API-222","API-302","API-318",
-          "BGP-610","DEV-130","DEV-215","DEV-309","DEV-356",
-          "SUP-125","DPI-851M","DPI-691M","API-135","API-303",
-          "DEV-209","DPI-610","SUP-680","API-148","SUP-462","DPI-852M"
+          "API-165",
+          "API-205",
+          "API-222",
+          "API-302",
+          "API-318",
+          "BGP-610",
+          "DEV-130",
+          "DEV-215",
+          "DEV-309",
+          "DEV-356",
+          "SUP-125",
+          "DPI-851M",
+          "DPI-691M",
+          "API-135",
+          "API-303",
+          "DEV-209",
+          "DPI-610",
+          "SUP-680",
+          "API-148",
+          "SUP-462",
+          "DPI-852M"
         ]
       },
       {
@@ -36,11 +53,31 @@
         "displayOrder": 2,
         "color": "purple",
         "courseCodes": [
-          "MLD-101","MLD-103M","MLD-201","MLD-201A","MLD-201B","MLD-201C",
-          "MLD-215","MLD-215B","MLD-234M","MLD-257M","MLD-308",
-          "MLD-375","MLD-377","MLD-411M","MLD-412M","MLD-427B",
-          "MLD-502","MLD-605","MLD-617M","MLD-620M","MLD-634M",
-          "MLD-802M","MLD-820M","MLD-831","MLD-836M"
+          "MLD-101",
+          "MLD-103M",
+          "MLD-201",
+          "MLD-201A",
+          "MLD-201B",
+          "MLD-201C",
+          "MLD-215",
+          "MLD-215B",
+          "MLD-234M",
+          "MLD-257M",
+          "MLD-308",
+          "MLD-375",
+          "MLD-377",
+          "MLD-411M",
+          "MLD-412M",
+          "MLD-427B",
+          "MLD-502",
+          "MLD-605",
+          "MLD-617M",
+          "MLD-620M",
+          "MLD-634M",
+          "MLD-802M",
+          "MLD-820M",
+          "MLD-831",
+          "MLD-836M"
         ]
       },
       {
@@ -52,13 +89,48 @@
         "displayOrder": 3,
         "color": "green",
         "courseCodes": [
-          "DPI-115","DPI-120","DPI-122","DPI-127","DPI-202","DPI-207",
-          "DPI-208","DPI-210","DPI-247","DPI-307","DPI-348","DPI-376",
-          "DPI-398","DPI-410","DPI-415","DPI-418","DPI-422M","DPI-442M",
-          "DPI-450","DPI-453","DPI-505","DPI-515","DPI-527M","DPI-535",
-          "DPI-543","DPI-555","DPI-600","DPI-608","DPI-660","DPI-662M",
-          "DPI-703","IGA-103","IGA-105","IGA-108","IGA-125","IGA-211",
-          "IGA-229","IGA-260","IGA-298","IGA-315","IGA-632","IGA-655"
+          "DPI-115",
+          "DPI-120",
+          "DPI-122",
+          "DPI-127",
+          "DPI-202",
+          "DPI-207",
+          "DPI-208",
+          "DPI-210",
+          "DPI-247",
+          "DPI-307",
+          "DPI-348",
+          "DPI-376",
+          "DPI-398",
+          "DPI-410",
+          "DPI-415",
+          "DPI-418",
+          "DPI-422M",
+          "DPI-442M",
+          "DPI-450",
+          "DPI-453",
+          "DPI-505",
+          "DPI-515",
+          "DPI-527M",
+          "DPI-535",
+          "DPI-543",
+          "DPI-555",
+          "DPI-600",
+          "DPI-608",
+          "DPI-660",
+          "DPI-662M",
+          "DPI-703",
+          "IGA-103",
+          "IGA-105",
+          "IGA-108",
+          "IGA-125",
+          "IGA-211",
+          "IGA-229",
+          "IGA-260",
+          "IGA-298",
+          "IGA-315",
+          "IGA-632",
+          "IGA-655"
         ]
       },
       {
@@ -114,7 +186,7 @@
         "note": "API-101 (sections A/B/Z) or exemption exam. Grade B- or better required.",
         "displayOrder": 1,
         "color": "blue",
-        "courseCodes": ["API-101","API-101A","API-101B","API-101Z","API-111"]
+        "courseCodes": ["API-101", "API-101A", "API-101B", "API-101Z", "API-111"]
       },
       {
         "id": "core_econ2",
@@ -134,7 +206,7 @@
         "note": "API-201 or exemption. Grade B- or better required.",
         "displayOrder": 3,
         "color": "purple",
-        "courseCodes": ["API-201","API-209"]
+        "courseCodes": ["API-201", "API-209"]
       },
       {
         "id": "core_quant2",
@@ -144,7 +216,7 @@
         "note": "API-202M or API-203M (modules). Spring Y1.",
         "displayOrder": 4,
         "color": "purple",
-        "courseCodes": ["API-202M","API-203M","API-202","API-203"]
+        "courseCodes": ["API-202M", "API-203M", "API-202", "API-203"]
       },
       {
         "id": "core_mld",
@@ -154,7 +226,7 @@
         "note": "MLD-201 (sections A/B/C).",
         "displayOrder": 5,
         "color": "green",
-        "courseCodes": ["MLD-201","MLD-201A","MLD-201B","MLD-201C"]
+        "courseCodes": ["MLD-201", "MLD-201A", "MLD-201B", "MLD-201C"]
       },
       {
         "id": "core_dpi",
@@ -164,7 +236,7 @@
         "note": "DPI-200 (Spring Y1) + DPI-386M.",
         "displayOrder": 6,
         "color": "crimson",
-        "courseCodes": ["DPI-200","DPI-386M","DPI-201"]
+        "courseCodes": ["DPI-200", "DPI-386M", "DPI-201"]
       },
       {
         "id": "dist_econquant",
@@ -175,9 +247,24 @@
         "displayOrder": 7,
         "color": "blue",
         "courseCodes": [
-          "API-165","API-205","API-222","API-302","API-318",
-          "BGP-610","DEV-130","DEV-215","DEV-309","DEV-356",
-          "SUP-125","API-135","API-303","DEV-209","DPI-610","SUP-680","API-148","SUP-462"
+          "API-165",
+          "API-205",
+          "API-222",
+          "API-302",
+          "API-318",
+          "BGP-610",
+          "DEV-130",
+          "DEV-215",
+          "DEV-309",
+          "DEV-356",
+          "SUP-125",
+          "API-135",
+          "API-303",
+          "DEV-209",
+          "DPI-610",
+          "SUP-680",
+          "API-148",
+          "SUP-462"
         ]
       },
       {
@@ -189,8 +276,18 @@
         "displayOrder": 8,
         "color": "purple",
         "courseCodes": [
-          "MLD-201","MLD-201A","MLD-201B","MLD-201C","MLD-215","MLD-215B",
-          "MLD-375","MLD-377","MLD-427B","MLD-502","MLD-605","MLD-831"
+          "MLD-201",
+          "MLD-201A",
+          "MLD-201B",
+          "MLD-201C",
+          "MLD-215",
+          "MLD-215B",
+          "MLD-375",
+          "MLD-377",
+          "MLD-427B",
+          "MLD-502",
+          "MLD-605",
+          "MLD-831"
         ]
       },
       {
@@ -202,11 +299,35 @@
         "displayOrder": 9,
         "color": "green",
         "courseCodes": [
-          "DPI-115","DPI-120","DPI-122","DPI-127","DPI-202","DPI-207",
-          "DPI-208","DPI-247","DPI-307","DPI-376","DPI-398","DPI-410",
-          "DPI-415","DPI-418","DPI-450","DPI-453","DPI-505","DPI-515",
-          "DPI-535","DPI-543","DPI-600","DPI-703","IGA-103","IGA-105",
-          "IGA-108","IGA-125","IGA-211","IGA-229","IGA-260"
+          "DPI-115",
+          "DPI-120",
+          "DPI-122",
+          "DPI-127",
+          "DPI-202",
+          "DPI-207",
+          "DPI-208",
+          "DPI-247",
+          "DPI-307",
+          "DPI-376",
+          "DPI-398",
+          "DPI-410",
+          "DPI-415",
+          "DPI-418",
+          "DPI-450",
+          "DPI-453",
+          "DPI-505",
+          "DPI-515",
+          "DPI-535",
+          "DPI-543",
+          "DPI-600",
+          "DPI-703",
+          "IGA-103",
+          "IGA-105",
+          "IGA-108",
+          "IGA-125",
+          "IGA-211",
+          "IGA-229",
+          "IGA-260"
         ]
       },
       {
@@ -249,7 +370,15 @@
         "note": "PAE seminar + independent PAE project. Must pass.",
         "displayOrder": 2,
         "color": "gold",
-        "courseCodes": ["DPI-300Y","IGA-300Y","SUP-300Y","DEV-300Y","BGP-300Y","API-300Y","MLD-300Y"]
+        "courseCodes": [
+          "DPI-300Y",
+          "IGA-300Y",
+          "SUP-300Y",
+          "DEV-300Y",
+          "BGP-300Y",
+          "API-300Y",
+          "MLD-300Y"
+        ]
       },
       {
         "id": "electives",
@@ -280,7 +409,7 @@
         "note": "Both semesters required (Supply/Demand + Game Theory).",
         "displayOrder": 1,
         "color": "blue",
-        "courseCodes": ["MPAID-101","MPAID-101A","MPAID-101B","API-211","API-212"]
+        "courseCodes": ["MPAID-101", "MPAID-101A", "MPAID-101B", "API-211", "API-212"]
       },
       {
         "id": "core_macro",
@@ -290,7 +419,7 @@
         "note": "Open Economy Macro, both semesters.",
         "displayOrder": 2,
         "color": "blue",
-        "courseCodes": ["MPAID-221","MPAID-221A","MPAID-221B","API-221","API-222"]
+        "courseCodes": ["MPAID-221", "MPAID-221A", "MPAID-221B", "API-221", "API-222"]
       },
       {
         "id": "core_quant",
@@ -300,7 +429,7 @@
         "note": "Description/Prediction (Fall) + Causal Inference (Spring).",
         "displayOrder": 3,
         "color": "purple",
-        "courseCodes": ["MPAID-211","MPAID-211A","MPAID-211B","API-209","API-210"]
+        "courseCodes": ["MPAID-211", "MPAID-211A", "MPAID-211B", "API-209", "API-210"]
       },
       {
         "id": "core_dev",
@@ -310,7 +439,7 @@
         "note": "Theory/Evidence (Fall) + Analytic Frameworks (Spring).",
         "displayOrder": 4,
         "color": "green",
-        "courseCodes": ["DEV-101","DEV-101A","DEV-101B","DEV-200","DEV-201"]
+        "courseCodes": ["DEV-101", "DEV-101A", "DEV-101B", "DEV-200", "DEV-201"]
       },
       {
         "id": "core_cases",
@@ -320,7 +449,7 @@
         "note": "Cases-based practicum, Year 1.",
         "displayOrder": 5,
         "color": "green",
-        "courseCodes": ["DEV-105","MPA/ID-105","MPAID-105"]
+        "courseCodes": ["DEV-105", "MPA/ID-105", "MPAID-105"]
       },
       {
         "id": "sypa",
@@ -330,7 +459,7 @@
         "note": "DEV-250Y seminar. Max 40 pages. Individual or pairs.",
         "displayOrder": 6,
         "color": "crimson",
-        "courseCodes": ["DEV-250Y","DEV-250"]
+        "courseCodes": ["DEV-250Y", "DEV-250"]
       },
       {
         "id": "stem",
@@ -375,10 +504,27 @@
         "displayOrder": 1,
         "color": "blue",
         "courseCodes": [
-          "API-165","API-205","API-222","API-302","API-318",
-          "BGP-610","DEV-130","DEV-215","DEV-309","DEV-356",
-          "SUP-125","DPI-851M","DPI-691M","API-135","API-303",
-          "DEV-209","DPI-610","SUP-680","API-148","SUP-462","DPI-852M"
+          "API-165",
+          "API-205",
+          "API-222",
+          "API-302",
+          "API-318",
+          "BGP-610",
+          "DEV-130",
+          "DEV-215",
+          "DEV-309",
+          "DEV-356",
+          "SUP-125",
+          "DPI-851M",
+          "DPI-691M",
+          "API-135",
+          "API-303",
+          "DEV-209",
+          "DPI-610",
+          "SUP-680",
+          "API-148",
+          "SUP-462",
+          "DPI-852M"
         ]
       },
       {
@@ -390,11 +536,31 @@
         "displayOrder": 2,
         "color": "purple",
         "courseCodes": [
-          "MLD-101","MLD-103M","MLD-201","MLD-201A","MLD-201B","MLD-201C",
-          "MLD-215","MLD-215B","MLD-234M","MLD-257M","MLD-308",
-          "MLD-375","MLD-377","MLD-411M","MLD-412M","MLD-427B",
-          "MLD-502","MLD-605","MLD-617M","MLD-620M","MLD-634M",
-          "MLD-802M","MLD-820M","MLD-831","MLD-836M"
+          "MLD-101",
+          "MLD-103M",
+          "MLD-201",
+          "MLD-201A",
+          "MLD-201B",
+          "MLD-201C",
+          "MLD-215",
+          "MLD-215B",
+          "MLD-234M",
+          "MLD-257M",
+          "MLD-308",
+          "MLD-375",
+          "MLD-377",
+          "MLD-411M",
+          "MLD-412M",
+          "MLD-427B",
+          "MLD-502",
+          "MLD-605",
+          "MLD-617M",
+          "MLD-620M",
+          "MLD-634M",
+          "MLD-802M",
+          "MLD-820M",
+          "MLD-831",
+          "MLD-836M"
         ]
       },
       {
@@ -406,13 +572,46 @@
         "displayOrder": 3,
         "color": "green",
         "courseCodes": [
-          "DPI-115","DPI-120","DPI-122","DPI-127","DPI-202","DPI-207",
-          "DPI-208","DPI-247","DPI-307","DPI-376","DPI-398","DPI-410",
-          "DPI-415","DPI-418","DPI-422M","DPI-442M","DPI-450","DPI-453",
-          "DPI-505","DPI-515","DPI-527M","DPI-535","DPI-543","DPI-555",
-          "DPI-600","DPI-608","DPI-660","DPI-662M","DPI-703",
-          "IGA-103","IGA-105","IGA-108","IGA-125","IGA-211",
-          "IGA-229","IGA-260","IGA-298","IGA-315","IGA-632","IGA-655"
+          "DPI-115",
+          "DPI-120",
+          "DPI-122",
+          "DPI-127",
+          "DPI-202",
+          "DPI-207",
+          "DPI-208",
+          "DPI-247",
+          "DPI-307",
+          "DPI-376",
+          "DPI-398",
+          "DPI-410",
+          "DPI-415",
+          "DPI-418",
+          "DPI-422M",
+          "DPI-442M",
+          "DPI-450",
+          "DPI-453",
+          "DPI-505",
+          "DPI-515",
+          "DPI-527M",
+          "DPI-535",
+          "DPI-543",
+          "DPI-555",
+          "DPI-600",
+          "DPI-608",
+          "DPI-660",
+          "DPI-662M",
+          "DPI-703",
+          "IGA-103",
+          "IGA-105",
+          "IGA-108",
+          "IGA-125",
+          "IGA-211",
+          "IGA-229",
+          "IGA-260",
+          "IGA-298",
+          "IGA-315",
+          "IGA-632",
+          "IGA-655"
         ]
       },
       {

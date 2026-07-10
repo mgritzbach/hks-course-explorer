@@ -107,7 +107,8 @@ export function meetingsConflict(left, right) {
   const second = parseMeetingWindow(right)
 
   if (!first.days.size || !second.days.size) return false
-  if (first.start == null || first.end == null || second.start == null || second.end == null) return false
+  if (first.start == null || first.end == null || second.start == null || second.end == null)
+    return false
 
   const sameDay = [...first.days].some((day) => second.days.has(day))
   if (!sameDay) return false

@@ -11,7 +11,7 @@ Usage:
     python scripts/scrape_beta_harvard.py
 
 Required env vars:
-    SUPABASE_URL   — e.g. https://cbtroatixvydpwoviezf.supabase.co
+    SUPABASE_URL   — e.g. https://your-project-ref.supabase.co
     SUPABASE_KEY   — service-role key (full write access)
 """
 

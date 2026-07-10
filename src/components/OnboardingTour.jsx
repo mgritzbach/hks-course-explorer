@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 /**
@@ -11,22 +11,34 @@ import { createPortal } from 'react-dom'
  *   autoStart    — boolean; if true, shows even if user skipped the splash
  *   onDone       — called when the tour finishes or is skipped
  */
-export default function OnboardingTour({ steps, storageKey, autoStart = false, onDone, onStepChange }) {
+export default function OnboardingTour({
+  steps,
+  storageKey,
+  autoStart = false,
+  onDone,
+  onStepChange,
+}) {
   const [index, setIndex] = useState(0)
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
   const [tick, setTick] = useState(-1)
+  const onDoneRef = useRef(onDone)
 
-  // This must be declared before any useEffect that uses it
-  const dismiss = () => {
+  useEffect(() => {
+    onDoneRef.current = onDone
+  }, [onDone])
+
+  // Keep the latest parent callback without making the tour control flow
+  // depend on an inline callback identity from the page that owns the tour.
+  const dismiss = useCallback(() => {
     setFading(true)
     setTimeout(() => {
       localStorage.setItem(storageKey, '1')
       setVisible(false)
       setFading(false)
-      onDone?.()
+      onDoneRef.current?.()
     }, 200)
-  }
+  }, [storageKey])
 
   useEffect(() => {
     const alreadySeen = localStorage.getItem(storageKey)
@@ -53,7 +65,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
     const delay = window.innerWidth < 768 ? 360 : 0
     const t = setTimeout(() => setTick(0), delay)
     return () => clearTimeout(t)
-  }, [index, visible])
+  }, [index, onStepChange, visible])
 
   const step = steps[index]
   const rect = step
@@ -64,12 +76,16 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
         for (const element of elements) {
           const nextRect = element.getBoundingClientRect()
           if (
-            nextRect.width > 0 && nextRect.height > 0 &&
-            nextRect.right > 0 && nextRect.bottom > 0 &&
-            nextRect.left < viewportWidth && nextRect.top < viewportHeight
-          ) return nextRect
+            nextRect.width > 0 &&
+            nextRect.height > 0 &&
+            nextRect.right > 0 &&
+            nextRect.bottom > 0 &&
+            nextRect.left < viewportWidth &&
+            nextRect.top < viewportHeight
+          )
+            return nextRect
         }
-    // All matching elements exist but are hidden — return null so we wait
+        // All matching elements exist but are hidden — return null so we wait
         return null
       })()
     : null
@@ -100,7 +116,9 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   useEffect(() => {
     if (!visible || rect || tick < 0) return
     const currentStep = steps[index]
-    const anyEl = currentStep ? document.querySelectorAll(`[data-tour="${currentStep.target}"]`).length > 0 : false
+    const anyEl = currentStep
+      ? document.querySelectorAll(`[data-tour="${currentStep.target}"]`).length > 0
+      : false
     if (!anyEl || tick >= 40) {
       if (index + 1 < steps.length) {
         setIndex((i) => i + 1)
@@ -108,7 +126,7 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
         dismiss()
       }
     }
-  }, [visible, tick])
+  }, [dismiss, index, rect, steps, tick, visible])
 
   const next = () => {
     if (index + 1 >= steps.length) {
@@ -124,7 +142,9 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
     // tick=-1 means we're in the drawer-open delay — don't evaluate yet
     if (tick < 0) return null
     // Use the outer `step` variable (no re-declaration needed — same value)
-    const anyEl = step ? document.querySelectorAll(`[data-tour="${step.target}"]`).length > 0 : false
+    const anyEl = step
+      ? document.querySelectorAll(`[data-tour="${step.target}"]`).length > 0
+      : false
     // Element absent or has been hidden/off-screen too long — the skip
     // itself is handled by the useEffect below to avoid calling setState
     // during render (anti-pattern). Just return null here.
@@ -158,7 +178,9 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
   return createPortal(
     <div
       style={{
-        position: 'fixed', inset: 0, zIndex: 8800,
+        position: 'fixed',
+        inset: 0,
+        zIndex: 8800,
         pointerEvents: 'none',
         opacity: fading ? 0 : 1,
         transition: 'opacity 0.2s ease',
@@ -168,8 +190,10 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
       <div
         style={{
           position: 'fixed',
-          left: spotX, top: spotY,
-          width: spotW, height: spotH,
+          left: spotX,
+          top: spotY,
+          width: spotW,
+          height: spotH,
           borderRadius: 12,
           boxShadow: [
             isLight ? '0 0 0 9999px rgba(140,110,100,0.55)' : '0 0 0 9999px rgba(0,0,0,0.60)',
@@ -188,7 +212,8 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
         aria-labelledby="tour-title"
         style={{
           position: 'fixed',
-          left: tipLeft, top: tipTop,
+          left: tipLeft,
+          top: tipTop,
           width: TW,
           background: 'var(--panel-strong)',
           border: '1px solid var(--line-strong)',
@@ -202,10 +227,20 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
         }}
       >
         {/* Step counter + close */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 8,
+          }}
+        >
           <span
             style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
               color: 'var(--accent-strong)',
             }}
           >
@@ -214,9 +249,15 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
           <button
             onClick={dismiss}
             style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-muted)', fontSize: 18, lineHeight: 1,
-              padding: '0 2px', display: 'flex', alignItems: 'center',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+              fontSize: 18,
+              lineHeight: 1,
+              padding: '0 2px',
+              display: 'flex',
+              alignItems: 'center',
             }}
             aria-label="Close tour"
           >
@@ -224,7 +265,10 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
           </button>
         </div>
 
-        <p id="tour-title" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 5 }}>
+        <p
+          id="tour-title"
+          style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 5 }}
+        >
           {step.title}
         </p>
         <p style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, marginBottom: 14 }}>
@@ -238,7 +282,8 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
               <div
                 key={i}
                 style={{
-                  height: 4, borderRadius: 999,
+                  height: 4,
+                  borderRadius: 999,
                   flex: i === index ? 2 : 1,
                   background: i === index ? 'var(--accent)' : 'var(--line)',
                   transition: 'flex 0.2s ease, background 0.2s ease',
@@ -251,24 +296,35 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
             <button
               onClick={dismiss}
               style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 11, color: 'var(--text-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 11,
+                color: 'var(--text-muted)',
                 padding: '6px 8px',
                 minHeight: 44,
                 transition: 'color 0.15s',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-soft)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--text-soft)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-muted)'
+              }}
             >
               Skip
             </button>
             <button
               onClick={next}
               style={{
-                borderRadius: 999, padding: '8px 18px',
-                fontSize: 12, fontWeight: 600,
-                background: 'var(--accent)', color: '#fff8f5',
-                border: 'none', cursor: 'pointer',
+                borderRadius: 999,
+                padding: '8px 18px',
+                fontSize: 12,
+                fontWeight: 600,
+                background: 'var(--accent)',
+                color: '#fff8f5',
+                border: 'none',
+                cursor: 'pointer',
                 minHeight: 44,
                 boxShadow: '0 4px 12px rgba(165,28,48,0.28)',
               }}
@@ -279,6 +335,6 @@ export default function OnboardingTour({ steps, storageKey, autoStart = false, o
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   )
 }

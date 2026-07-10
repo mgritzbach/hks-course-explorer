@@ -7,36 +7,79 @@ on:
     branches: ["**"]
 
 jobs:
-  lint-and-build:
-    name: Lint & Build
+  quality-gate:
+    name: Quality gate
     runs-on: ubuntu-latest
+    # A bounded gate fails safely and leaves a diagnostic instead of consuming
+    # a hosted runner indefinitely if a subprocess becomes unresponsive.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: "npm"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
       - name: Install Python dependencies
-        run: pip install pandas numpy scikit-learn
+        run: pip install pandas numpy scikit-learn requests
 
       - name: Install Node dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Verify vendored production dependencies
+        run: npm run check:vendor-integrity
+
+      - name: Block high-severity production dependency findings
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Lint
         run: npm run lint
 
-      - name: Build
+      - name: Enforce JavaScript and JSX formatting
+        run: npm run check:format
+
+      - name: Type-check public frontend contracts
+        run: npm run check:contracts
+
+      - name: Enforce architecture size ratchet
+        run: npm run check:architecture
+
+      - name: Enforce UI complexity ratchet
+        run: npm run check:ui-complexity
+
+      - name: Validate frontend runtime contracts
+        run: npm run check:runtime-contracts
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Python sync safety tests
+        run: python -m unittest discover -s scripts/tests -v
+
+      - name: Build deployable artifact
         run: npm run build
         env:
-          # Build uses hardcoded Supabase anon key — no secrets needed
           NODE_ENV: production
+          # Non-secret inert values make the local static artifact exercise
+          # the same configuration contract as production. Browser tests mock
+          # all REST traffic and never contact this host.
+          VITE_SUPABASE_URL: https://ci.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-public-anon-key
+
+      - name: Enforce route bundle budgets
+        run: npm run check:bundle-budget
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests against local preview
+        run: npm run test:e2e:ci

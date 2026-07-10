@@ -1,5 +1,5 @@
-import posthog from 'posthog-js'
 import { useCallback, useEffect, useState } from 'react'
+import { capture } from './lib/analytics.js'
 
 const KEY = 'hks_favorites'
 
@@ -12,7 +12,7 @@ function load() {
           favsParam
             .split(',')
             .map((value) => value.trim())
-            .filter(Boolean)
+            .filter(Boolean),
         )
       }
     } catch {
@@ -22,8 +22,11 @@ function load() {
 
   if (typeof window === 'undefined') return new Set()
 
-  try { return new Set(JSON.parse(window.localStorage.getItem(KEY) || '[]')) }
-  catch { return new Set() }
+  try {
+    return new Set(JSON.parse(window.localStorage.getItem(KEY) || '[]'))
+  } catch {
+    return new Set()
+  }
 }
 
 export function useFavorites() {
@@ -53,7 +56,7 @@ export function useFavorites() {
   const toggle = useCallback((courseCodeBase) => {
     setFavorites((prev) => {
       const adding = !prev.has(courseCodeBase)
-      posthog.capture(adding ? 'course_shortlisted' : 'course_unshortlisted', {
+      capture(adding ? 'course_shortlisted' : 'course_unshortlisted', {
         course_code: courseCodeBase,
         shortlist_size: prev.size + (adding ? 1 : -1),
       })
@@ -63,10 +66,13 @@ export function useFavorites() {
     })
   }, [])
 
-  const isFavorite = useCallback((courseCodeBase) => favorites?.has(courseCodeBase) || false, [favorites])
+  const isFavorite = useCallback(
+    (courseCodeBase) => favorites?.has(courseCodeBase) || false,
+    [favorites],
+  )
 
   const clearAll = useCallback(() => {
-    posthog.capture('shortlist_cleared', { shortlist_size: favorites?.size || 0 })
+    capture('shortlist_cleared', { shortlist_size: favorites?.size || 0 })
     setFavorites(new Set())
   }, [favorites])
 

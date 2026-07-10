@@ -29,11 +29,12 @@ Choose the track that matches how much data you have.
 
 1. Fork this repository on GitHub.
 
-2. Create a free [Supabase](https://supabase.com) project. Run the schema migration:
-   ```sql
-   -- In Supabase SQL editor, create the live_courses and course_sections tables.
-   -- Schema file: supabase/schema.sql (coming soon — see note below)
-   ```
+2. Create a free [Supabase](https://supabase.com) project and establish the
+   catalogue schema first. This repository does not yet include a complete
+   clean-project schema baseline. The administrative-import migration at
+   `supabase/migrations/20260710003218_corporate_admin_import.sql` is
+   forward-only and must be applied only after its documented prerequisites
+   are present.
 
 3. Get a Harvard ATS API key from [Harvard's API portal](https://go.apis.huit.harvard.edu).
 
@@ -72,7 +73,11 @@ Choose the track that matches how much data you have.
    ```
    This fetches current course listings from the Harvard ATS API for all schools.
 
-7. Deploy: push to `master` → Cloudflare Pages auto-builds.
+7. Deploy through the versioned GitHub Actions workflow. Before pushing to
+   `master`, configure `DEPLOY_VITE_SUPABASE_URL` as a GitHub variable and
+   `DEPLOY_VITE_SUPABASE_ANON_KEY` as a GitHub secret. The workflow validates
+   them, builds the verified commit, and deploys that exact artifact to
+   Cloudflare Pages.
 
 8. *(Optional)* Set up the daily sync via GitHub Actions — create a repository secret for each env var listed above, then the workflow at `.github/workflows/sync-live-courses.yml` runs automatically.
 

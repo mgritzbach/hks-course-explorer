@@ -9,7 +9,7 @@ Usage:
 
 Required env vars:
     HARVARD_API_KEY   — from the Harvard Developer Portal (x-api-key header)
-    SUPABASE_URL      — e.g. https://cbtroatixvydpwoviezf.supabase.co
+    SUPABASE_URL      — e.g. https://your-project-ref.supabase.co
     SUPABASE_KEY      — service-role key (full write access)
 
 Key discovery: use catalogSchool=HKS (not school=HKS).

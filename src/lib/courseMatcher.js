@@ -1,4 +1,4 @@
-import { supabase } from './supabase.js'
+import { isSupabaseConfigured, supabase } from './supabase.js'
 
 function normalizeCode(value) {
   return String(value || '')
@@ -10,16 +10,21 @@ function normalizeCode(value) {
 function extractCandidateCode(row) {
   return normalizeCode(
     row?.course_code ||
-    row?.courseCode ||
-    row?.code ||
-    row?.catalog ||
-    row?.catalog_number ||
-    row?.Course ||
-    row?.['Course Code']
+      row?.courseCode ||
+      row?.code ||
+      row?.catalog ||
+      row?.catalog_number ||
+      row?.Course ||
+      row?.['Course Code'],
   )
 }
 
 export async function matchBatch(rows = []) {
+  if (!isSupabaseConfigured) {
+    throw new Error(
+      'Course matching is unavailable until Supabase browser configuration is provided.',
+    )
+  }
   const inputs = Array.isArray(rows) ? rows : []
   const normalized = inputs.map(extractCandidateCode).filter(Boolean)
   const exactCodes = [...new Set(normalized)]

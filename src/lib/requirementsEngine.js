@@ -10,7 +10,13 @@ function normalizeCode(value) {
 function normalizeCourse(course, index) {
   const credits = Number(course?.credits ?? course?.credits_min ?? course?.credits_max ?? 4) || 4
   // Support both snake_case (Supabase rows) and camelCase (ScheduleBuilder plan objects)
-  const courseCode = course?.course_code || course?.course_code_base || course?.courseCode || course?.code || course?.id || `course-${index}`
+  const courseCode =
+    course?.course_code ||
+    course?.course_code_base ||
+    course?.courseCode ||
+    course?.code ||
+    course?.id ||
+    `course-${index}`
 
   return {
     ...course,
@@ -26,7 +32,11 @@ function courseMatchesCategory(course, category) {
 
   if (Array.isArray(category.courseCodes) && category.courseCodes.length > 0) {
     const allowed = category.courseCodes.map(normalizeCode)
-    if (allowed.some((code) => normalized === code || normalized.startsWith(code) || code.startsWith(normalized))) {
+    if (
+      allowed.some(
+        (code) => normalized === code || normalized.startsWith(code) || code.startsWith(normalized),
+      )
+    ) {
       return true
     }
   }
@@ -70,7 +80,7 @@ function selectPacCourses(courses, category, preferredPrefix = null) {
 
   let chosenPrefix = null
   let chosenCourses = []
-  let bestCredits = 0  // Only pick a prefix if it has at least some credits
+  let bestCredits = 0 // Only pick a prefix if it has at least some credits
 
   for (const [prefix, items] of buckets.entries()) {
     const credits = items.reduce((sum, item) => sum + item._credits, 0)
@@ -105,21 +115,31 @@ function takeCreditsUntilRequired(courses, requiredCredits) {
 
 export function getPrograms() {
   return Object.entries(programRequirements)
-    .filter(([id]) => !id.startsWith('_'))   // exclude _meta, _notes etc.
+    .filter(([id]) => !id.startsWith('_')) // exclude _meta, _notes etc.
     .map(([id, program]) => ({
       id,
       ...program,
     }))
 }
 
-export function computeProgress(programId, scheduledCourses = [], completedCourses = [], options = {}) {
+export function computeProgress(
+  programId,
+  scheduledCourses = [],
+  completedCourses = [],
+  options = {},
+) {
   const program = programRequirements[programId]
   if (!program) return null
 
   const normalizedScheduled = scheduledCourses.map(normalizeCourse)
-  const normalizedCompleted = completedCourses.map((c, i) => ({ ...normalizeCourse({ ...c, _isCompleted: true }, 100000 + i), _isCompleted: true }))
+  const normalizedCompleted = completedCourses.map((c, i) => ({
+    ...normalizeCourse({ ...c, _isCompleted: true }, 100000 + i),
+    _isCompleted: true,
+  }))
   const normalizedCourses = [...normalizedScheduled, ...normalizedCompleted]
-  const categories = [...(program.categories || [])].sort((left, right) => (left.displayOrder || 0) - (right.displayOrder || 0))
+  const categories = [...(program.categories || [])].sort(
+    (left, right) => (left.displayOrder || 0) - (right.displayOrder || 0),
+  )
   const usedIndices = new Set()
 
   const computedCategories = categories.map((category) => {
@@ -140,7 +160,10 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
       matchedCourses = available.filter((course) => courseMatchesCategory(course, category))
     }
 
-    const { selected, appliedCredits } = takeCreditsUntilRequired(matchedCourses, category.requiredCredits || 0)
+    const { selected, appliedCredits } = takeCreditsUntilRequired(
+      matchedCourses,
+      category.requiredCredits || 0,
+    )
     // nonExclusive categories don't consume slots — those courses remain available for other categories
     if (!category.nonExclusive) {
       selected.forEach((course) => usedIndices.add(course._index))
@@ -156,7 +179,10 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
       matchedCredits: matchedCourses.reduce((sum, course) => sum + course._credits, 0),
       appliedCredits: creditsEarned,
       remainingCredits: Math.max(0, requiredCredits - creditsEarned),
-      percent: requiredCredits > 0 ? Math.min(100, Math.round((creditsEarned / requiredCredits) * 100)) : 100,
+      percent:
+        requiredCredits > 0
+          ? Math.min(100, Math.round((creditsEarned / requiredCredits) * 100))
+          : 100,
       isComplete: creditsEarned >= requiredCredits,
       chosenArea,
     }
@@ -167,7 +193,7 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
     const otherUsedIndices = new Set(
       computedCategories
         .filter((category) => category.id !== 'stem' && !category.nonExclusive)
-        .flatMap((category) => category.selectedCourses.map((course) => course._index))
+        .flatMap((category) => category.selectedCourses.map((course) => course._index)),
     )
     const overlapCredits = stemCat.selectedCourses
       .filter((course) => otherUsedIndices.has(course._index))
@@ -189,16 +215,31 @@ export function computeProgress(programId, scheduledCourses = [], completedCours
     totalScheduledCredits,
     totalRequiredCredits,
     overallAppliedCredits,
-    overallPercent: totalRequiredCredits > 0 ? Math.min(100, Math.round((overallAppliedCredits / totalRequiredCredits) * 100)) : 100,
+    overallPercent:
+      totalRequiredCredits > 0
+        ? Math.min(100, Math.round((overallAppliedCredits / totalRequiredCredits) * 100))
+        : 100,
     categories: computedCategories,
   }
 }
 
-export function findCompletingCourses(programId, scheduledCourses = [], allCourses = [], categoryId = null, options = {}) {
+export function findCompletingCourses(
+  programId,
+  scheduledCourses = [],
+  allCourses = [],
+  categoryId = null,
+  options = {},
+) {
   const progress = computeProgress(programId, scheduledCourses, [], options)
   if (!progress) return []
 
-  const scheduledCodes = new Set(scheduledCourses.map((course) => normalizeCode(course?.course_code || course?.course_code_base || course?.courseCode || course?.code)))
+  const scheduledCodes = new Set(
+    scheduledCourses.map((course) =>
+      normalizeCode(
+        course?.course_code || course?.course_code_base || course?.courseCode || course?.code,
+      ),
+    ),
+  )
   const candidateCategories = categoryId
     ? progress.categories.filter((category) => category.id === categoryId)
     : progress.categories.filter((category) => !category.isComplete)
