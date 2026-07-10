@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { fetchCataloguePages } from '../lib/cataloguePagination.js'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
 export function useScheduleData(semesterYear, semester) {
@@ -37,16 +38,20 @@ export function useScheduleData(semesterYear, semester) {
       setLiveCoursesData([])
       return undefined
     }
-    supabase
-      .from('live_courses')
-      .select(
-        'id,course_code,course_code_base,title,term,credits,instructors,' +
-          'meeting_days,time_start,time_end,school,is_hks,session_code,' +
-          'session_description,cross_reg_eligible',
-      )
-      .order('term', { ascending: false })
-      .limit(2000)
-      .then(({ data }) => setLiveCoursesData(Array.isArray(data) ? data : []))
+    fetchCataloguePages(() =>
+      supabase
+        .from('live_courses')
+        .select(
+          'id,course_code,course_code_base,title,term,credits,instructors,' +
+            'meeting_days,time_start,time_end,school,is_hks,session_code,' +
+            'session_description,cross_reg_eligible',
+        )
+        // The ID tie-breaker makes page boundaries stable when many offerings
+        // share a term, preventing duplicate or skipped rows across requests.
+        .order('term', { ascending: false })
+        .order('id', { ascending: true }),
+    )
+      .then((rows) => setLiveCoursesData(rows))
       .catch(() => {})
   }, []) // intentionally empty — see ADR-002
 
@@ -67,13 +72,15 @@ export function useScheduleData(semesterYear, semester) {
     // (no space — see ADR-004)
     const termStr = `${semesterYear}${semester === 'January' ? 'January' : semester}`
 
-    supabase
-      .from('course_sections')
-      .select('course_code_base,meetings,title,instructors,credits')
-      .eq('term', termStr)
-      .limit(2000)
-      .then(({ data }) => {
-        const rows = Array.isArray(data) ? data : []
+    fetchCataloguePages(() =>
+      supabase
+        .from('course_sections')
+        .select('id,course_code_base,meetings,title,instructors,credits')
+        .eq('term', termStr)
+        .order('course_code_base', { ascending: true })
+        .order('id', { ascending: true }),
+    )
+      .then((rows) => {
         const map = new Map()
         const canonical = new Set()
         const infoMap = new Map()
