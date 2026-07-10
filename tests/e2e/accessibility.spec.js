@@ -41,4 +41,18 @@ test.describe('built accessibility checks', () => {
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
     await expectNoSeriousOrCriticalAxeViolations(page)
   })
+
+  test('has no serious or critical WCAG A/AA violations on the mobile primary flows', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    await page.goto('/')
+    await expect(page.locator('#main-content')).toBeVisible()
+    await expectNoSeriousOrCriticalAxeViolations(page)
+
+    await page.goto('/schedule-builder')
+    await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
+    await expectNoSeriousOrCriticalAxeViolations(page)
+  })
 })

@@ -187,7 +187,7 @@ export default function CourseCard({
                 >
                   <span>{course.metrics_raw.Instructor_Rating.toFixed(2)}/5</span>
                   {yearMedianInstructor != null && (
-                    <span className="ml-1.5" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
+                    <span className="ml-1.5" style={{ color: 'var(--text-muted)' }}>
                       · med {yearMedianInstructor.toFixed(2)}
                     </span>
                   )}
