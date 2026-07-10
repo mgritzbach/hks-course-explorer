@@ -1,123 +1,227 @@
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import config from '../school.config.js'
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
-const STORAGE_KEY = 'hks-splash-shown'
+const STORAGE_KEY = "hks-splash-shown";
 
-export default function LandingSplash({ onStart, onSkip }) {
-  const [visible, setVisible] = useState(false)
-  const [fading, setFading] = useState(false)
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light'
-  const dismissTimerRef = useRef(null)
+/** A full first-visit page with an explicit direct or guided entry choice. */
+export default function LandingSplash({ onDirect, onTutorial }) {
+  const [visible, setVisible] = useState(false);
+  const [fading, setFading] = useState(false);
+  const dismissTimerRef = useRef(null);
+  const pageRef = useRef(null);
 
   useEffect(() => {
-    if (!localStorage.getItem(STORAGE_KEY)) setVisible(true)
-    return () => { if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current) }
-  }, [])
+    if (!localStorage.getItem(STORAGE_KEY)) setVisible(true);
+    return () => {
+      if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+    };
+  }, []);
 
-  const dismiss = (cb) => {
-    setFading(true)
+  useEffect(() => {
+    if (visible) pageRef.current?.focus();
+  }, [visible]);
+
+  const dismiss = (next) => {
+    setFading(true);
     dismissTimerRef.current = setTimeout(() => {
-      localStorage.setItem(STORAGE_KEY, '1')
-      setVisible(false)
-      cb?.()
-    }, 280)
-  }
+      localStorage.setItem(STORAGE_KEY, "1");
+      setVisible(false);
+      next?.();
+    }, 280);
+  };
 
-  if (!visible) return null
+  if (!visible) return null;
 
   return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="splash-heading"
+    <main
+      ref={pageRef}
+      aria-labelledby="welcome-heading"
+      tabIndex={-1}
       style={{
-        position: 'fixed', inset: 0, zIndex: 9100,
-        backdropFilter: 'blur(28px)',
-        background: isLight ? 'rgba(180, 160, 148, 0.72)' : 'rgba(8, 8, 16, 0.84)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '1rem',
-        transition: 'opacity 0.28s ease',
+        position: "fixed",
+        inset: 0,
+        zIndex: 9100,
+        overflowY: "auto",
+        background: "#f5f2ee",
+        color: "#211d1a",
         opacity: fading ? 0 : 1,
+        transition: "opacity 0.28s ease",
       }}
     >
       <div
         style={{
-          maxWidth: 460, width: '100%',
-          background: 'var(--panel-strong)',
-          borderRadius: 28,
-          border: '1px solid var(--line-strong)',
-          padding: '40px 36px 32px',
-          textAlign: 'center',
-          boxShadow: isLight
-            ? '0 32px 80px rgba(80,40,40,0.18), 0 2px 0 rgba(255,255,255,0.9) inset'
-            : '0 48px 96px rgba(0,0,0,0.56)',
+          boxSizing: "border-box",
+          display: "flex",
+          minHeight: "100%",
+          width: "min(100%, 940px)",
+          margin: "0 auto",
+          padding: "clamp(36px, 8vh, 96px) clamp(24px, 7vw, 80px)",
+          alignItems: "center",
         }}
       >
-        <p className="kicker mb-4">Harvard Kennedy School</p>
-
-        <div
-          style={{
-            width: 64, height: 64, borderRadius: 18,
-            background: 'linear-gradient(135deg, rgba(165,28,48,0.28), rgba(212,168,106,0.14))',
-            border: '1px solid rgba(212,168,106,0.22)',
-            margin: '0 auto 20px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 28,
-          }}
-        >
-          📚
-        </div>
-
-        <h1
-          id="splash-heading"
-          className="serif-display text-3xl font-semibold"
-          style={{ color: 'var(--text)', marginBottom: 10 }}
-        >
-          Course Explorer
-        </h1>
-        <p className="text-sm" style={{ color: 'var(--text-soft)', marginBottom: 6, lineHeight: 1.6 }}>
-          {config.appTagline}
-        </p>
-        <p className="text-xs" style={{ color: 'var(--text-muted)', marginBottom: 32 }}>
-          Student-built · Independent · Real evaluation data
-        </p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            onClick={() => dismiss(onStart)}
+        <div style={{ width: "100%" }}>
+          <div
             style={{
-              width: '100%', borderRadius: 999,
-              padding: '12px 24px',
-              fontSize: 14, fontWeight: 600,
-              background: 'linear-gradient(180deg, rgba(165,28,48,0.9), rgba(140,20,38,0.95))',
-              color: '#fff8f5',
-              border: '1px solid rgba(212,168,106,0.28)',
-              cursor: 'pointer',
-              boxShadow: '0 8px 24px rgba(165,28,48,0.32)',
-              transition: 'transform 0.12s ease, box-shadow 0.12s ease',
+              width: 56,
+              height: 5,
+              marginBottom: 30,
+              background: "#a51c30",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(165,28,48,0.4)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 8px 24px rgba(165,28,48,0.32)' }}
-          >
-            Start Exploring →
-          </button>
-          <button
-            onClick={() => dismiss(onSkip)}
+          />
+          <h1
+            id="welcome-heading"
             style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 12, color: 'var(--text-muted)',
-              padding: '6px 0',
-              transition: 'color 0.15s',
+              maxWidth: 720,
+              margin: 0,
+              fontFamily: "Georgia, serif",
+              fontSize: "clamp(38px, 6vw, 64px)",
+              fontWeight: 600,
+              letterSpacing: "-0.045em",
+              lineHeight: 1.06,
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-soft)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
           >
-            Skip intro
-          </button>
+            Welcome to the HKS Course Explorer
+          </h1>
+          <p
+            id="welcome-description"
+            style={{
+              maxWidth: 720,
+              margin: "30px 0 0",
+              fontSize: "clamp(18px, 2.2vw, 22px)",
+              lineHeight: 1.58,
+            }}
+          >
+            This is a student-built initiative to help HKS students get the
+            course experience they desire.
+          </p>
+          <p
+            style={{
+              maxWidth: 720,
+              margin: "18px 0 0",
+              fontSize: 16,
+              lineHeight: 1.58,
+            }}
+          >
+            The code and maintenance are provided by Michael Gritzbach,
+            MPA&apos;26, KSSG 2025/26.
+          </p>
+
+          <section
+            aria-labelledby="disclaimer-heading"
+            style={{
+              maxWidth: 760,
+              marginTop: 42,
+              paddingTop: 25,
+              borderTop: "1px solid #c9c0b8",
+            }}
+          >
+            <h2
+              id="disclaimer-heading"
+              style={{
+                margin: 0,
+                color: "#8c1628",
+                fontSize: 16,
+                fontWeight: 800,
+              }}
+            >
+              Disclaimer
+            </h2>
+            <p style={{ margin: "9px 0 0", fontSize: 16, lineHeight: 1.6 }}>
+              This is not an official University website, and all use of this
+              website and its data is at your own personal risk. Please confirm
+              all course information, requirements, enrollment decisions, and
+              schedules through official sources.
+            </p>
+          </section>
+
+          <section
+            aria-labelledby="attention-heading"
+            style={{
+              maxWidth: 760,
+              marginTop: 24,
+              padding: "20px 22px",
+              borderLeft: "4px solid #a51c30",
+              background: "#ece5df",
+            }}
+          >
+            <h2
+              id="attention-heading"
+              style={{
+                margin: 0,
+                color: "#8c1628",
+                fontSize: 16,
+                fontWeight: 800,
+              }}
+            >
+              Attention
+            </h2>
+            <p style={{ margin: "9px 0 0", fontSize: 16, lineHeight: 1.6 }}>
+              Due to new coding models, the repository is currently under
+              review. We apologize for potential disruptions or errors while the
+              codebase is being optimized and rewritten.
+            </p>
+          </section>
+
+          <section aria-labelledby="continue-heading" style={{ marginTop: 42 }}>
+            <h2
+              id="continue-heading"
+              style={{
+                margin: 0,
+                fontFamily: "Georgia, serif",
+                fontSize: 27,
+                fontWeight: 600,
+              }}
+            >
+              Would you like to continue?
+            </h2>
+            <p
+              style={{ margin: "10px 0 18px", fontSize: 16, lineHeight: 1.55 }}
+            >
+              You can go directly to the first page and skip all tutorial boxes,
+              or you can begin with a short tutorial.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              <button
+                type="button"
+                aria-label="Continue directly and skip all tutorial boxes"
+                onClick={() => dismiss(onDirect)}
+                style={{
+                  minWidth: 160,
+                  border: "1px solid #a51c30",
+                  borderRadius: 2,
+                  padding: "13px 24px",
+                  background: "#a51c30",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: 16,
+                  fontWeight: 700,
+                }}
+              >
+                Direct
+              </button>
+              <button
+                type="button"
+                aria-label="Continue with the guided tutorial"
+                onClick={() => dismiss(onTutorial)}
+                style={{
+                  minWidth: 160,
+                  border: "1px solid #a51c30",
+                  borderRadius: 2,
+                  padding: "13px 24px",
+                  background: "transparent",
+                  color: "#8c1628",
+                  cursor: "pointer",
+                  fontSize: 16,
+                  fontWeight: 700,
+                }}
+              >
+                Tutorial
+              </button>
+            </div>
+          </section>
         </div>
       </div>
-    </div>,
-    document.body
-  )
+    </main>,
+    document.body,
+  );
 }
