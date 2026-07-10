@@ -9,6 +9,7 @@ Historical evaluations:
 Current offerings:
   Harvard ATS API
     -> scripts/sync_live_courses.py
+    -> service-only atomic Supabase RPC
     -> Supabase live_courses
     -> Browser Schedule Builder
 
@@ -23,5 +24,7 @@ Safety rules:
   retain legacy last-write-wins behavior during loading and must be resolved
   before any controlled promotion.
 - Any failed source request aborts a live-sync run before upsert or stale deletion.
+- A complete validated source payload is upserted in one database transaction;
+  a database error leaves the previously served live catalogue intact.
 - Current database schema/RLS and data-retention setup still require a fully
   versioned baseline migration before a clean environment is reproducible.

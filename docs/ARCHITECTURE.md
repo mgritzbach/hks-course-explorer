@@ -33,9 +33,10 @@ provider keys, OTP delivery, and JWT signing run outside the browser.
 
 - A Harvard API failure is distinguishable from an empty search result.
 - Live-sync writes are skipped entirely if any upstream source request fails.
-  Database promotion is not yet atomic across upsert batches; a staged database
-  promotion or proven rollback remains required before treating a sync as
-  fully transactional.
+- After upstream validation, one service-only Postgres RPC validates and
+  upserts the entire fetched catalogue in a single transaction. A database
+  failure therefore preserves the prior `live_courses` state rather than
+  exposing a partial batch refresh. Stale-row deletion remains opt-in.
 - Static routes that must not fall through to the SPA are explicitly listed
   before the SPA catch-all in `public/_redirects`.
 - Every external contract requires fixtures/contract tests before a release.

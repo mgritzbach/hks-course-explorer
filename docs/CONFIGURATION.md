@@ -43,10 +43,12 @@ Pages too if Pages can create builds outside this workflow.
 | `SYNC_ALLOW_STALE_DELETE` | No | Enables destructive deletion of rows not refreshed by a successful sync. Default: `false`; enable only with verified complete upstream coverage and a tested `live_courses.synced_at` trigger. |
 
 The sync job fails closed if any required source request fails or the minimum
-course guard is not met. It must run with a service account restricted to the
-minimum required database privileges. The default schedule does not delete
-historical rows, because a 200 response alone does not prove an upstream search
-was complete.
+course guard is not met. It passes the complete validated payload to the
+server-only `sync_live_courses_atomically(jsonb)` RPC, which validates IDs and
+upserts in one Postgres transaction. It must run with a service account
+restricted to the minimum required database privileges. The default schedule
+does not delete historical rows, because a 200 response alone does not prove
+an upstream search was complete.
 
 ## Cloudflare Pages Functions
 

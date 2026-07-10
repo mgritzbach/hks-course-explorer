@@ -118,6 +118,33 @@ class FetchSchoolTests(unittest.TestCase):
 
         delete_stale.assert_called_once()
 
+    def test_atomic_upsert_posts_one_complete_payload_and_verifies_row_count(self):
+        response = Mock(ok=True)
+        response.json.return_value = 2
+        rows = [{"id": "one"}, {"id": "two"}]
+
+        with patch.object(self.sync.requests, "post", return_value=response) as post:
+            self.sync.supabase_upsert(rows)
+
+        post.assert_called_once_with(
+            "https://example.supabase.co/rest/v1/rpc/sync_live_courses_atomically",
+            headers=self.sync._sb_headers(),
+            json={"p_rows": rows},
+            timeout=120,
+        )
+
+    def test_atomic_upsert_rejects_failed_or_incomplete_database_results(self):
+        failed = Mock(ok=False, status_code=500, text="database error")
+        with patch.object(self.sync.requests, "post", return_value=failed):
+            with self.assertRaisesRegex(RuntimeError, "Atomic live-course sync failed"):
+                self.sync.supabase_upsert([{"id": "one"}])
+
+        incomplete = Mock(ok=True)
+        incomplete.json.return_value = 0
+        with patch.object(self.sync.requests, "post", return_value=incomplete):
+            with self.assertRaisesRegex(RuntimeError, "expected 1"):
+                self.sync.supabase_upsert([{"id": "one"}])
+
 
 if __name__ == "__main__":
     unittest.main()

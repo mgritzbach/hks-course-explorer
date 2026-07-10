@@ -49,7 +49,6 @@ HKS_SCHOOL = "HKS"
 SEED_QUERIES = ["a", "e", "i", "o", "s", "the", "pol", "eco", "law", "med"]
 
 API_LIMIT    = 50    # Harvard ATS API max per request
-BATCH_SIZE   = 500   # Supabase upsert batch size
 WORKERS      = 3     # Low parallelism to avoid 429s
 REQUEST_DELAY = 0.2  # seconds between requests per worker
 HTTP_MAX_ATTEMPTS = 3
@@ -231,14 +230,30 @@ def _sb_headers():
 
 
 def supabase_upsert(rows: list[dict]) -> None:
-    url = f"{SUPABASE_URL}/rest/v1/live_courses"
-    for i in range(0, len(rows), BATCH_SIZE):
-        batch = rows[i : i + BATCH_SIZE]
-        resp  = requests.post(url, headers=_sb_headers(), json=batch, timeout=30)
-        if not resp.ok:
-            log.error("Supabase upsert failed: %s %s", resp.status_code, resp.text[:400])
-            sys.exit(1)
-        log.info("  upserted rows %d–%d", i + 1, i + len(batch))
+    """Apply the complete fetched catalogue in one database transaction.
+
+    The service-only RPC validates the payload and executes its upsert inside
+    Postgres. Unlike REST batches, a database failure cannot expose a partly
+    refreshed catalogue to the website.
+    """
+    response = requests.post(
+        f"{SUPABASE_URL}/rest/v1/rpc/sync_live_courses_atomically",
+        headers=_sb_headers(),
+        json={"p_rows": rows},
+        timeout=120,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Atomic live-course sync failed: HTTP {response.status_code} {response.text[:400]}")
+
+    try:
+        updated_rows = response.json()
+    except ValueError as exc:
+        raise RuntimeError("Atomic live-course sync returned invalid JSON.") from exc
+    if updated_rows != len(rows):
+        raise RuntimeError(
+            f"Atomic live-course sync reported {updated_rows!r} rows; expected {len(rows)}."
+        )
+    log.info("  atomically upserted %d rows", updated_rows)
 
 
 def supabase_delete_stale(synced_before: str) -> None:
