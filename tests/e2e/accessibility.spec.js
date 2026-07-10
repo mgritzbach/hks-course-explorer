@@ -30,8 +30,12 @@ test.describe('built accessibility checks', () => {
 
   test('provides a keyboard skip link and an accessible Home screen', async ({ page }) => {
     await page.goto('/')
-    await page.keyboard.press('Tab')
     const skip = page.getByRole('link', { name: 'Skip to main content' })
+    // `page.goto()` resolves before React has necessarily committed its first
+    // render. Wait for the real first keyboard target so this test exercises
+    // keyboard navigation rather than racing hydration on slower CI runners.
+    await expect(skip).toBeAttached()
+    await page.keyboard.press('Tab')
     await expect(skip).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(page.locator('#main-content')).toBeFocused()
