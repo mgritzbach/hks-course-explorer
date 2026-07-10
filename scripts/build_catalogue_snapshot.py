@@ -135,7 +135,10 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
         historical_codes = sorted({course_code(row) for row in course_history_records if course_code(row)})
         review_candidates = []
         renumbering_review_candidates = []
-        if not course_history_records and code:
+        # A verified exact/approved-alias teaching record wins. Otherwise, a
+        # same-professor candidate under another code deserves operator review
+        # even if this code has history for a different professor.
+        if not teaching_records and code:
             section_base = probable_section_base(code)
             if section_base:
                 review_candidates = [
@@ -154,10 +157,6 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
         if teaching_records:
             match_status = "verified"
             match_method = f"{source_method}_same_professor"
-        elif course_history_records:
-            match_status = "course_only"
-            professor_scope = "other_professor" if instructor_keys(offering) else "professor_unavailable"
-            match_method = f"{source_method}_{professor_scope}"
         elif review_candidates or renumbering_review_candidates:
             match_status = "needs_review"
             if review_candidates and renumbering_review_candidates:
@@ -169,10 +168,18 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
             historical_codes = sorted(
                 {
                     course_code(row)
-                    for row in [*review_candidates, *renumbering_review_candidates]
+                    for row in [
+                        *course_history_records,
+                        *review_candidates,
+                        *renumbering_review_candidates,
+                    ]
                     if course_code(row)
                 }
             )
+        elif course_history_records:
+            match_status = "course_only"
+            professor_scope = "other_professor" if instructor_keys(offering) else "professor_unavailable"
+            match_method = f"{source_method}_{professor_scope}"
         else:
             match_status = "unmatched"
             match_method = None

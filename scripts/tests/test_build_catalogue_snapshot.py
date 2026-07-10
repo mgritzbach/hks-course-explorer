@@ -109,6 +109,44 @@ class CatalogueSnapshotTests(unittest.TestCase):
         self.assertEqual(row["evaluation_summary"]["evaluated_offering_count"], 0)
         self.assertEqual(row["renumbering_review_candidates"], history)
 
+    def test_renumbering_review_wins_over_unrelated_same_code_history(self):
+        history = [
+            {
+                "id": "same-code-other-professor",
+                "course_code_base": "DPI-799",
+                "course_name": "Different Course",
+                "year": 2024,
+                "has_eval": True,
+                "professor": "Other, Professor",
+            },
+            {
+                "id": "old-same-professor-code",
+                "course_code_base": "DPI-700",
+                "course_name": "Advanced Policy Design",
+                "year": 2024,
+                "has_eval": True,
+                "professor": "Allison, Graham",
+            },
+        ]
+        row = self.snapshot.materialize_catalogue_snapshot(
+            [
+                {
+                    "id": "current-code",
+                    "course_code_base": "DPI-799",
+                    "title": "Advanced Policy Design",
+                    "instructors": ["Graham Allison"],
+                }
+            ],
+            history,
+            {},
+        )[0]
+
+        self.assertEqual(row["match_status"], "needs_review")
+        self.assertEqual(row["match_method"], "suspected_renumbering_same_professor_title")
+        self.assertEqual(row["historical_records"], [])
+        self.assertEqual(row["course_history_records"], [history[0]])
+        self.assertEqual(row["renumbering_review_candidates"], [history[1]])
+
 
 if __name__ == "__main__":
     unittest.main()

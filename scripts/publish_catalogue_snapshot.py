@@ -47,6 +47,7 @@ def snapshot_database_rows(sync_run_id, snapshot, offerings_by_id):
             "historical_records": row["historical_records"],
             "course_history_records": row["course_history_records"],
             "review_candidates": row["review_candidates"],
+            "renumbering_review_candidates": row["renumbering_review_candidates"],
         }
         for row in snapshot
     ]

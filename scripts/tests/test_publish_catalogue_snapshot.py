@@ -56,6 +56,7 @@ class PublishCatalogueSnapshotTests(unittest.TestCase):
                     "historical_records": [{"id": "history-1"}],
                     "course_history_records": [{"id": "history-1"}],
                     "review_candidates": [],
+                    "renumbering_review_candidates": [],
                 }
             ],
             {"live-1": {"id": "live-1", "raw": "source"}},
@@ -63,6 +64,7 @@ class PublishCatalogueSnapshotTests(unittest.TestCase):
         self.assertEqual(rows[0]["sync_run_id"], "run-1")
         self.assertEqual(rows[0]["current_offering"], {"id": "live-1", "raw": "source"})
         self.assertEqual(rows[0]["match_method"], "exact_code_same_professor")
+        self.assertEqual(rows[0]["renumbering_review_candidates"], [])
 
 
 if __name__ == "__main__":

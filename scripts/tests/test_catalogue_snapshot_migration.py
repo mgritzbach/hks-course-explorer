@@ -5,11 +5,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "supabase" / "migrations" / "20260710134500_catalog_snapshot_v1.sql"
+RENUMBERING_MIGRATION = ROOT / "supabase" / "migrations" / "20260710234500_catalogue_renumbering_review.sql"
 
 
 class CatalogueSnapshotMigrationTests(unittest.TestCase):
     def setUp(self):
         self.sql = MIGRATION.read_text(encoding="utf-8").lower()
+        self.renumbering_sql = RENUMBERING_MIGRATION.read_text(encoding="utf-8").lower()
 
     def test_creates_new_snapshot_boundaries_without_replacing_existing_sources(self):
         self.assertIn("create table if not exists public.catalogue_sync_runs", self.sql)
@@ -47,6 +49,12 @@ class CatalogueSnapshotMigrationTests(unittest.TestCase):
         self.assertIn("mismatched source and snapshot counts", self.sql)
         self.assertIn("does not contain every current offering", self.sql)
         self.assertIn("catalogue_sync_runs_one_promoted", self.sql)
+
+    def test_allows_and_persists_renumbering_review_candidates(self):
+        self.assertIn("renumbering_review_candidates jsonb not null", self.renumbering_sql)
+        self.assertIn("suspected_renumbering_same_professor_title", self.renumbering_sql)
+        self.assertIn("suspected_section_split_and_renumbering", self.renumbering_sql)
+        self.assertIn("canonical_course_code is null", self.renumbering_sql)
 
 
 if __name__ == "__main__":

@@ -36,11 +36,18 @@ test.describe('welcome landing page', () => {
   })
 
   test('Tutorial opens Course Explorer with the Home tutorial active', async ({ page }) => {
+    // The guided path waits for the real Home view, including its deliberately
+    // lazy chart. Keep a finite budget for slower parallel CI workers.
+    test.slow()
     await page.goto('/')
 
     await page.getByRole('button', { name: 'Continue with the guided tutorial' }).click()
 
-    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible()
-    await expect(page.getByRole('dialog', { name: 'Start with the Year' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect(page.getByRole('dialog', { name: 'Start with the Year' })).toBeVisible({
+      timeout: 15_000,
+    })
   })
 })
