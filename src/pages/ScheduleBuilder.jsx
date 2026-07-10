@@ -2612,6 +2612,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
               <main
                 data-tour="schedule-grid"
                 className="min-w-0 flex-1 overflow-x-auto overflow-y-auto"
+                tabIndex={0}
+                aria-label="Schedule grid"
                 style={{ background: 'var(--panel-strong)' }}
               >
                 <div className="min-w-[720px] p-6">

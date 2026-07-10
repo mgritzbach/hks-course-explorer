@@ -12,7 +12,7 @@ release proceeds while any P0 goal is `0`.
 | G03 | P0 | Supabase reliability | 70% | 0 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
 | G04 | P0 | Security | 85% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
 | G05 | P1 | Navigation / usability | 60% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
-| G06 | P1 | Accessibility | 60% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
+| G06 | P1 | Accessibility | 75% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
 | G07 | P1 | Dependency security | 100% | 1 | Audited upgrade matrix, green complete suite, and documented residual risk. |
 | G08 | P1 | Performance | 75% | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
 | G09 | P1 | Regression safety | 85% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
@@ -78,3 +78,4 @@ Production certification needs authorized access to Cloudflare Pages/Functions l
 | L41 | OTP delivery supports the configured Resend secret while retaining Brevo compatibility; unavailable delivery fails before an OTP is stored. | 1 | Provider-selection/Resend/Brevo/fail-closed contracts (4/4), full 150-test JavaScript suite, lint, formatting, and configuration handover update. |
 | L42 | The additive catalogue migration has a clean-room Supabase staging proof: complete snapshots promote, incomplete snapshots remain staged, and browser roles cannot read or promote private snapshot data. | 1 | Isolated free staging project `hks-course-explorer-staging`; exact migration rerun; database proof of promoted row `1`, incomplete run `staging`, `anon`/`authenticated` denied, and `service_role` promotion only. No production tables or policies changed. |
 | L43 | The two known unrestricted Course Explorer browser-write policies have a generated, scope-locked migration and a staged anonymous-role proof that preserves public catalogue reads and legacy rows. | 1 | Supabase CLI-generated migration; staging replicas preserve one row per target, reject anonymous writes, hide schedules from anonymous users, retain `Public read`, and leave zero target `ALL` policies. Production remains unchanged. |
+| L44 | Home and Schedule Builder have a full serious/critical Axe WCAG A/AA gate without excluded contrast or scrollable-region rules. | 1 | Built-artifact strict audit passed after shared Hub contrast-token correction and keyboard-focusable schedule-grid landmark; full browser regression remains required before release. |

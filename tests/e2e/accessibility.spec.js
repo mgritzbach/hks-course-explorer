@@ -3,13 +3,7 @@ import { test, expect } from '@playwright/test'
 import { installMockBackend } from './support/mockBackend.js'
 
 async function expectNoSeriousOrCriticalAxeViolations(page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa'])
-    // The existing theme has a documented contrast-remediation backlog. Keep
-    // the new gate focused on semantic and keyboard regressions until the
-    // palette has been corrected across the legacy component set.
-    .disableRules(['color-contrast', 'scrollable-region-focusable'])
-    .analyze()
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
   const blocking = results.violations.filter((violation) =>
     ['serious', 'critical'].includes(violation.impact),
   )

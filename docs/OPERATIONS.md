@@ -40,12 +40,11 @@ required staging proof.
 
 ## Accessibility baseline
 
-The built-artifact suite verifies keyboard skip navigation and runs Axe WCAG A/AA
-checks. The legacy contrast and scrollable-region findings are explicitly
-excluded from the initial semantic-regression gate while their
-component-by-component remediation is completed; they must not be treated as
-resolved or as production accessibility certification. Select controls are now
-included in the gate.
+The built-artifact suite verifies keyboard skip navigation and runs the full
+Axe WCAG A/AA serious/critical gate for Home and Schedule Builder. Contrast and
+scrollable-region keyboard access are included; no Axe rule is disabled. This
+is a deterministic regression gate, not a substitute for production manual
+assistive-technology acceptance.
 
 ## Response security headers
 
