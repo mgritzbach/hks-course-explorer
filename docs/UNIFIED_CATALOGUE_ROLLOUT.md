@@ -72,3 +72,7 @@ rollback path until then.
    browsing and course detail pages.
 7. Retire browser use of `/api/harvard-courses` only after the daily sync and
    snapshot promotions have demonstrated stable complete coverage.
+
+`scripts/publish_catalogue_snapshot.py` is deliberately disabled by default.
+It will not write unless `CATALOGUE_SNAPSHOT_ENABLED=true` is explicitly set
+after all prior rollout gates have been accepted.
