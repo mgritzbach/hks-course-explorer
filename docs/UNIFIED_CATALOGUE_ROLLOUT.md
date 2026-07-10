@@ -63,10 +63,12 @@ rollback path until then.
 ## Rollout order
 
 1. Correct paginated reads and capture source-count baselines.
-2. Materialise and validate the snapshot without serving it.
-3. Review all non-exact aliases and unmatched current HKS offerings.
-4. Run old and new catalogues in parallel and compare results.
-5. Switch one feature at a time to the snapshot: Schedule Builder, then course
+2. Run `scripts/audit_catalogue_sources.py` against the existing project to
+   capture paginated source counts and the verified/unmatched HKS baseline.
+3. Materialise and validate the snapshot without serving it.
+4. Review all non-exact aliases and unmatched current HKS offerings.
+5. Run old and new catalogues in parallel and compare results.
+6. Switch one feature at a time to the snapshot: Schedule Builder, then course
    browsing and course detail pages.
-6. Retire browser use of `/api/harvard-courses` only after the daily sync and
+7. Retire browser use of `/api/harvard-courses` only after the daily sync and
    snapshot promotions have demonstrated stable complete coverage.
