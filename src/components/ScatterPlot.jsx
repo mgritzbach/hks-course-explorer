@@ -1,199 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Plot from 'react-plotly.js'
+import {
+  SCATTER_JITTER,
+  buildHoverTemplate,
+  clampDomain,
+  coverageWarning,
+  dedupeCoTaught,
+  formatMetricValue,
+  getAxisMode,
+  getAxisTitle,
+  hashJitter,
+  isBaseOrWiderDomain,
+  normalizeBidPrice,
+  spreadRankPosition,
+  zoomNumericDomain,
+} from '../lib/scatterData.js'
 import { useFavorites } from '../useFavorites'
-
-const MIN_ZOOM_SPAN_RATIO = 0.015
-const SCATTER_JITTER = 0.015
-
-// Deterministic jitter keeps tied points from stacking directly on top of each other.
-function hashJitter(str, scale = 1) {
-  let hash = 5381
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) ^ str.charCodeAt(i)
-    hash = hash & hash
-  }
-  return ((hash % 1000) / 1000) * scale * 2 - scale
-}
-
-function buildHoverTemplate(isBidOnly = false) {
-  return isBidOnly
-    ? '<b>%{customdata.course_name}</b><br>%{customdata.course_code}<br>%{customdata.professor_display}<extra></extra>'
-    : '<b>%{customdata.course_name}</b><br>%{customdata.course_code}<br>%{customdata.professor_display}<extra></extra>'
-}
-
-function getAxisTitle(metric, metricMode) {
-  if (metric?.key === 'Workload') return 'Workload Intensity (score/100)'
-  if (metric?.key === 'Instructor_Rating') return 'Instructor Quality (score/100)'
-  const suffix = metricMode === 'score' ? 'score/100' : 'percentile'
-  return `${metric?.label || 'Metric'} (${suffix})`
-}
-
-function clampDomain(nextDomain, baseDomain) {
-  const baseSpan = baseDomain[1] - baseDomain[0]
-  const nextSpan = nextDomain[1] - nextDomain[0]
-  if (nextSpan >= baseSpan) return [...baseDomain]
-
-  let start = nextDomain[0]
-  let end = nextDomain[1]
-
-  if (start < baseDomain[0]) {
-    end += baseDomain[0] - start
-    start = baseDomain[0]
-  }
-  if (end > baseDomain[1]) {
-    start -= end - baseDomain[1]
-    end = baseDomain[1]
-  }
-
-  return [start, end]
-}
-
-function isBaseOrWiderDomain(nextDomain, baseDomain) {
-  const epsilon = 0.0001
-  const baseSpan = baseDomain[1] - baseDomain[0]
-  const nextSpan = nextDomain[1] - nextDomain[0]
-  return nextSpan >= baseSpan - epsilon
-}
-
-function zoomNumericDomain(currentDomain, baseDomain, factor, anchorValue = null) {
-  const activeDomain = currentDomain || baseDomain
-  const activeSpan = activeDomain[1] - activeDomain[0]
-  const baseSpan = baseDomain[1] - baseDomain[0]
-  const minSpan = baseSpan * MIN_ZOOM_SPAN_RATIO
-  const nextSpan = Math.min(baseSpan, Math.max(minSpan, activeSpan * factor))
-  const anchor = anchorValue ?? (activeDomain[0] + activeDomain[1]) / 2
-  const anchorRatio = activeSpan === 0 ? 0.5 : (anchor - activeDomain[0]) / activeSpan
-  const nextStart = anchor - (nextSpan * anchorRatio)
-  return clampDomain([nextStart, nextStart + nextSpan], baseDomain)
-}
-
-function _panNumericDomain(currentDomain, baseDomain, deltaValue) {
-  const activeDomain = currentDomain || baseDomain
-  return clampDomain([activeDomain[0] + deltaValue, activeDomain[1] + deltaValue], baseDomain)
-}
-
-function dedupeCoTaught(courses) {
-  const grouped = new Map()
-
-  for (const course of courses) {
-    const key = course.year === 0 ? course.id : `${course.course_code}||${course.year}||${course.term}`
-    if (!grouped.has(key)) grouped.set(key, [course])
-    else grouped.get(key).push(course)
-  }
-
-  return Array.from(grouped.values()).map((group) => {
-    if (group.length === 1) return group[0]
-
-    const metricsPct = {}
-    const metricsRaw = {}
-
-    for (const key of Object.keys(group[0].metrics_pct || {})) {
-      let weightedSum = 0
-      let weightCount = 0
-      for (const course of group) {
-        const value = course.metrics_pct?.[key]
-        if (value != null) {
-          const weight = course.n_respondents || 1
-          weightedSum += value * weight
-          weightCount += weight
-        }
-      }
-      metricsPct[key] = weightCount > 0 ? Math.round((weightedSum / weightCount) * 10) / 10 : null
-    }
-
-    for (const key of Object.keys(group[0].metrics_raw || {})) {
-      let weightedSum = 0
-      let weightCount = 0
-      for (const course of group) {
-        const value = course.metrics_raw?.[key]
-        if (value != null) {
-          const weight = course.n_respondents || 1
-          weightedSum += value * weight
-          weightCount += weight
-        }
-      }
-      metricsRaw[key] = weightCount > 0 ? Math.round((weightedSum / weightCount) * 100) / 100 : null
-    }
-
-    return {
-      ...group[0],
-      professor_display: [...new Set(group.map((course) => course.professor_display || course.professor).filter(Boolean))].join(', '),
-      professor: group.map((course) => course.professor).join('; '),
-      n_respondents: group.reduce((sum, course) => sum + (course.n_respondents || 0), 0) || null,
-      metrics_pct: metricsPct,
-      metrics_raw: metricsRaw,
-      _coTaught: true,
-      _coTaughtCount: group.length,
-    }
-  })
-}
-
-function getAxisMode(metricMeta, allDeduped, matchedDeduped) {
-  if (!metricMeta?.bid_metric) {
-    return { useRaw: false, domain: [0, 100], tickFmt: (value) => `${value}%` }
-  }
-
-  const rawValues = [...(allDeduped || []), ...(matchedDeduped || [])]
-    .map((course) => course.metrics_raw?.[metricMeta.key])
-    .filter((value) => value != null && value > 0)
-
-  if (!rawValues.length) {
-    return { useRaw: false, domain: [0, 100], tickFmt: (value) => `${value}%` }
-  }
-
-  const maxValue = Math.max(...rawValues)
-  if (metricMeta.key === 'Bid_Price') {
-    const domainMax = Math.max(Math.ceil(maxValue / 100) * 100, 200)
-    return { useRaw: true, domain: [0, domainMax], tickFmt: (value) => `${value}` }
-  }
-
-  const domainMax = Math.max(Math.ceil(maxValue / 50) * 50, 50)
-  return { useRaw: true, domain: [0, domainMax], tickFmt: (value) => `${value}` }
-}
-
-function normalizeBidPrice(price) {
-  if (price == null) return null
-  return Math.max(0, Math.min(100, (price / 1000) * 100))
-}
-
-function spreadRankPosition(index, total, domainMax) {
-  if (total <= 1) return domainMax * 0.5
-  const startPct = 14
-  const endPct = 86
-  const step = (endPct - startPct) / (total - 1)
-  const positionPct = endPct - (index * step)
-  return (positionPct / 100) * domainMax
-}
-
-function coverageWarning(courses, metricMeta) {
-  if (!courses.length) return null
-
-  const hasData = courses.filter((course) =>
-    metricMeta.bid_metric ? course.metrics_raw?.[metricMeta.key] != null : course.metrics_pct?.[metricMeta.key] != null
-  ).length
-  const coverage = Math.round((hasData / courses.length) * 100)
-
-  if (coverage === 100) return null
-  if (coverage === 0) return { type: 'error', msg: `"${metricMeta.label}" was not collected for this year's evaluations.` }
-
-  return {
-    type: 'warn',
-    msg: `"${metricMeta.label}" has data for ${hasData}/${courses.length} courses (${coverage}%) this year.`,
-  }
-}
-
-function formatMetricValue(datum, valueKey, rawKey, rawModeKey, metricMode = 'score') {
-  const value = datum[valueKey]
-  const rawValue = datum[rawKey]
-  const rawMode = datum[rawModeKey]
-
-  if (value == null) return null
-  if (rawMode) return rawValue != null ? `${rawValue} pts` : `${Math.round(value)}`
-  const suffix = metricMode === 'score' ? '%' : ' pct'
-  if (rawValue != null) return `${rawValue} pts (${Math.round(value)}${suffix})`
-  return `${Math.round(value)}${suffix}`
-}
+import Plot from '../lib/plotlyComponent.js'
 
 function _CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -211,49 +34,91 @@ function _CustomTooltip({ active, payload }) {
         boxShadow: 'var(--shadow-lg)',
       }}
     >
-      <p className="mb-1 text-sm font-bold" style={{ color: datum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>{datum.course_code}</p>
+      <p
+        className="mb-1 text-sm font-bold"
+        style={{ color: datum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)' }}
+      >
+        {datum.course_code}
+      </p>
       <p className="mb-1 leading-snug text-label">{datum.course_name}</p>
       <p className="mb-1 text-muted">
         {datum.professor_display || datum.professor}
-        {datum._coTaught && <span className="ml-1 text-[10px]" style={{ color: 'var(--blue)' }}>co-taught ({datum._coTaughtCount})</span>}
+        {datum._coTaught && (
+          <span className="ml-1 text-[10px]" style={{ color: 'var(--blue)' }}>
+            co-taught ({datum._coTaughtCount})
+          </span>
+        )}
       </p>
-      <p className="mb-2 text-muted">{datum.is_average ? `avg ${datum.year_range}` : `${datum.term} ${datum.year}`}</p>
+      <p className="mb-2 text-muted">
+        {datum.is_average ? `avg ${datum.year_range}` : `${datum.term} ${datum.year}`}
+      </p>
 
       <div className="space-y-0.5">
         {datum._xVal != null && !datum._isBidOnly && (
-          <p>{datum._xLabel}: <span className="font-medium">{formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}</span></p>
+          <p>
+            {datum._xLabel}:{' '}
+            <span className="font-medium">
+              {formatMetricValue(datum, '_xVal', '_xRaw', '_xIsRaw')}
+            </span>
+          </p>
         )}
         {datum._yVal != null && !datum._isBidOnly && (
-          <p>{datum._yLabel}: <span className="font-medium">{formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}</span></p>
+          <p>
+            {datum._yLabel}:{' '}
+            <span className="font-medium">
+              {formatMetricValue(datum, '_yVal', '_yRaw', '_yIsRaw')}
+            </span>
+          </p>
         )}
-        {datum._isBidOnly && <p className="text-[10px]" style={{ color: 'var(--gold)' }}>No eval data yet · ranked by bid competitiveness</p>}
-        {datum.metrics_pct?.Instructor_Rating != null && datum._xLabel !== 'Instructor Rating' && datum._yLabel !== 'Instructor Rating' && (
-          <p>Instructor: <span className="font-medium" style={{ color: 'var(--blue)' }}>{Math.round(datum.metrics_pct.Instructor_Rating)} pct</span></p>
+        {datum._isBidOnly && (
+          <p className="text-[10px]" style={{ color: 'var(--gold)' }}>
+            No eval data yet · ranked by bid competitiveness
+          </p>
         )}
+        {datum.metrics_pct?.Instructor_Rating != null &&
+          datum._xLabel !== 'Instructor Rating' &&
+          datum._yLabel !== 'Instructor Rating' && (
+            <p>
+              Instructor:{' '}
+              <span className="font-medium" style={{ color: 'var(--blue)' }}>
+                {Math.round(datum.metrics_pct.Instructor_Rating)} pct
+              </span>
+            </p>
+          )}
       </div>
 
       <div className="mt-2 space-y-0.5 border-t pt-2" style={{ borderColor: 'var(--line)' }}>
         {datum.n_respondents != null && (
           <p className="text-muted">
             N=<span className="font-medium text-label">{datum.n_respondents}</span>
-            <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>survey respondents</span>
+            <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              survey respondents
+            </span>
           </p>
         )}
         <p className="text-muted">
-          Bidding: <span className="font-medium" style={{ color: datum.ever_bidding ? '#e6a4bb' : 'var(--text-muted)' }}>{datum.ever_bidding ? 'Yes' : 'No'}</span>
+          Bidding:{' '}
+          <span
+            className="font-medium"
+            style={{ color: datum.ever_bidding ? '#e6a4bb' : 'var(--text-muted)' }}
+          >
+            {datum.ever_bidding ? 'Yes' : 'No'}
+          </span>
         </p>
         {datum.last_bid_price != null && (
           <p className="text-muted">
-            Last clearing price: <span className="font-medium text-label">{datum.last_bid_price} pts</span>
+            Last clearing price:{' '}
+            <span className="font-medium text-label">{datum.last_bid_price} pts</span>
           </p>
         )}
       </div>
 
-      <p className="mt-1 text-[10px]" style={{ color: 'var(--blue)' }}>Click to pin and preview details below</p>
+      <p className="mt-1 text-[10px]" style={{ color: 'var(--blue)' }}>
+        Click to pin and preview details below
+      </p>
     </div>
   )
 }
-
 
 export default function ScatterPlot({
   allCourses,
@@ -283,8 +148,14 @@ export default function ScatterPlot({
   const yMeta = metrics.find((metric) => metric.key === yMetric) || metrics[2]
   const xHigherBetter = xMeta.higher_is_better
   const yHigherBetter = yMeta.higher_is_better
-  const xMode = useMemo(() => getAxisMode(xMeta, allCoursesDeduped, matchedCoursesDeduped), [allCoursesDeduped, matchedCoursesDeduped, xMeta])
-  const yMode = useMemo(() => getAxisMode(yMeta, allCoursesDeduped, matchedCoursesDeduped), [allCoursesDeduped, matchedCoursesDeduped, yMeta])
+  const xMode = useMemo(
+    () => getAxisMode(xMeta, allCoursesDeduped, matchedCoursesDeduped),
+    [allCoursesDeduped, matchedCoursesDeduped, xMeta],
+  )
+  const yMode = useMemo(
+    () => getAxisMode(yMeta, allCoursesDeduped, matchedCoursesDeduped),
+    [allCoursesDeduped, matchedCoursesDeduped, yMeta],
+  )
   const showQuadrants = !xMeta.bid_metric && !yMeta.bid_metric
 
   const effectiveXDomain = zoomedX || xMode.domain
@@ -296,93 +167,144 @@ export default function ScatterPlot({
     coverageWarning(allCoursesDeduped, yMeta),
   ].filter(Boolean)
 
-  const matchedIds = useMemo(() => new Set(matchedCoursesDeduped.map((course) => course.id)), [matchedCoursesDeduped])
-  const getValue = (course, axisMode, key) => {
-    if (axisMode.useRaw) return course.metrics_raw?.[key] ?? null
-    if (metricMode === 'score') return course.metrics_score?.[key] ?? null
-    return course.metrics_pct?.[key] ?? null
-  }
+  const matchedIds = useMemo(
+    () => new Set(matchedCoursesDeduped.map((course) => course.id)),
+    [matchedCoursesDeduped],
+  )
+  const getValue = useCallback(
+    (course, axisMode, key) => {
+      if (axisMode.useRaw) return course.metrics_raw?.[key] ?? null
+      if (metricMode === 'score') return course.metrics_score?.[key] ?? null
+      return course.metrics_pct?.[key] ?? null
+    },
+    [metricMode],
+  )
 
-  const bgData = useMemo(() => (
-    allCoursesDeduped
-      .filter((course) => !matchedIds.has(course.id) && getValue(course, xMode, xMetric) != null && getValue(course, yMode, yMetric) != null)
-      .map((course) => {
-        const rawX = getValue(course, xMode, xMetric)
-        const rawY = getValue(course, yMode, yMetric)
-        const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', SCATTER_JITTER)
-        const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', SCATTER_JITTER)
-        return {
-          ...course,
-          _xVal: Math.max(xMode.domain[0], Math.min(xMode.domain[1], rawX + jx)),
-          _yVal: Math.max(yMode.domain[0], Math.min(yMode.domain[1], rawY + jy)),
-          _color: 'rgba(205, 191, 181, 0.18)',
-          _opacity: 0.48,
-          _noHover: true,
-        }
-      })
-  ), [allCoursesDeduped, matchedIds, metricMode, xMetric, xMode, yMetric, yMode])
+  const bgData = useMemo(
+    () =>
+      allCoursesDeduped
+        .filter(
+          (course) =>
+            !matchedIds.has(course.id) &&
+            getValue(course, xMode, xMetric) != null &&
+            getValue(course, yMode, yMetric) != null,
+        )
+        .map((course) => {
+          const rawX = getValue(course, xMode, xMetric)
+          const rawY = getValue(course, yMode, yMetric)
+          const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', SCATTER_JITTER)
+          const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', SCATTER_JITTER)
+          return {
+            ...course,
+            _xVal: Math.max(xMode.domain[0], Math.min(xMode.domain[1], rawX + jx)),
+            _yVal: Math.max(yMode.domain[0], Math.min(yMode.domain[1], rawY + jy)),
+            _color: 'rgba(205, 191, 181, 0.18)',
+            _opacity: 0.48,
+            _noHover: true,
+          }
+        }),
+    [allCoursesDeduped, getValue, matchedIds, xMetric, xMode, yMetric, yMode],
+  )
 
-  const matchedData = useMemo(() => (
-    matchedCoursesDeduped
-      .filter((course) => getValue(course, xMode, xMetric) != null && getValue(course, yMode, yMetric) != null)
-      .map((course) => {
-        const rawX = getValue(course, xMode, xMetric)
-        const rawY = getValue(course, yMode, yMetric)
-        const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', SCATTER_JITTER)
-        const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', SCATTER_JITTER)
-        const code = course.course_code_base || course.course_code
-        const starred = favorites?.has(code) ?? false
-        return {
-          ...course,
-          _xVal: Math.max(xMode.domain[0], Math.min(xMode.domain[1], rawX + jx)),
-          _yVal: Math.max(yMode.domain[0], Math.min(yMode.domain[1], rawY + jy)),
-          _xRaw: !xMode.useRaw && xMeta.bid_metric ? course.metrics_raw?.[xMetric] ?? null : null,
-          _yRaw: !yMode.useRaw && yMeta.bid_metric ? course.metrics_raw?.[yMetric] ?? null : null,
-          _xRaw05: !xMode.useRaw ? course.metrics_raw?.[xMetric] ?? null : null,
-          _yRaw05: !yMode.useRaw ? course.metrics_raw?.[yMetric] ?? null : null,
-          _xIsRaw: xMode.useRaw,
-          _yIsRaw: yMode.useRaw,
-          _xLabel: xMeta.label,
-          _yLabel: yMeta.label,
-          _color: course.ever_bidding ? '#d78aa7' : '#a51c30',
-          _opacity: 1,
-          _starred: starred,
-        }
-      })
-  ), [matchedCoursesDeduped, metricMode, xMeta, xMetric, xMode, yMeta, yMetric, yMode, favorites])
+  const matchedData = useMemo(
+    () =>
+      matchedCoursesDeduped
+        .filter(
+          (course) =>
+            getValue(course, xMode, xMetric) != null && getValue(course, yMode, yMetric) != null,
+        )
+        .map((course) => {
+          const rawX = getValue(course, xMode, xMetric)
+          const rawY = getValue(course, yMode, yMetric)
+          const jx = xMode.useRaw ? 0 : hashJitter(course.id + 'x', SCATTER_JITTER)
+          const jy = yMode.useRaw ? 0 : hashJitter(course.id + 'y', SCATTER_JITTER)
+          const code = course.course_code_base || course.course_code
+          const starred = favorites?.has(code) ?? false
+          return {
+            ...course,
+            _xVal: Math.max(xMode.domain[0], Math.min(xMode.domain[1], rawX + jx)),
+            _yVal: Math.max(yMode.domain[0], Math.min(yMode.domain[1], rawY + jy)),
+            _xRaw:
+              !xMode.useRaw && xMeta.bid_metric ? (course.metrics_raw?.[xMetric] ?? null) : null,
+            _yRaw:
+              !yMode.useRaw && yMeta.bid_metric ? (course.metrics_raw?.[yMetric] ?? null) : null,
+            _xRaw05: !xMode.useRaw ? (course.metrics_raw?.[xMetric] ?? null) : null,
+            _yRaw05: !yMode.useRaw ? (course.metrics_raw?.[yMetric] ?? null) : null,
+            _xIsRaw: xMode.useRaw,
+            _yIsRaw: yMode.useRaw,
+            _xLabel: xMeta.label,
+            _yLabel: yMeta.label,
+            _color: course.ever_bidding ? '#d78aa7' : '#a51c30',
+            _opacity: 1,
+            _starred: starred,
+          }
+        }),
+    [favorites, getValue, matchedCoursesDeduped, xMeta, xMetric, xMode, yMeta, yMetric, yMode],
+  )
 
-  const bidOnlyData = useMemo(() => (
-    (biddingOnlyCourses || [])
-      .filter((course) => course.last_bid_price != null)
-      .sort((a, b) => {
-        if ((b.last_bid_price ?? -1) !== (a.last_bid_price ?? -1)) return (b.last_bid_price ?? -1) - (a.last_bid_price ?? -1)
-        return (a.course_name || a.course_code || '').localeCompare(b.course_name || b.course_code || '')
-      })
-      .map((course, index, rankedCourses) => {
-        const normalizedBid = normalizeBidPrice(course.last_bid_price)
-        const rankX = spreadRankPosition(index, rankedCourses.length, xMode.useRaw ? xMode.domain[1] : 100)
-        const rankY = spreadRankPosition(index, rankedCourses.length, yMode.useRaw ? yMode.domain[1] : 100)
-        const axisBidValueX = xMeta.bid_metric ? (xMode.useRaw ? course.last_bid_price ?? null : normalizedBid) : rankX
-        const axisBidValueY = yMeta.bid_metric ? (yMode.useRaw ? course.last_bid_price ?? null : normalizedBid) : rankY
+  const bidOnlyData = useMemo(
+    () =>
+      (biddingOnlyCourses || [])
+        .filter((course) => course.last_bid_price != null)
+        .sort((a, b) => {
+          if ((b.last_bid_price ?? -1) !== (a.last_bid_price ?? -1))
+            return (b.last_bid_price ?? -1) - (a.last_bid_price ?? -1)
+          return (a.course_name || a.course_code || '').localeCompare(
+            b.course_name || b.course_code || '',
+          )
+        })
+        .map((course, index, rankedCourses) => {
+          const normalizedBid = normalizeBidPrice(course.last_bid_price)
+          const rankX = spreadRankPosition(
+            index,
+            rankedCourses.length,
+            xMode.useRaw ? xMode.domain[1] : 100,
+          )
+          const rankY = spreadRankPosition(
+            index,
+            rankedCourses.length,
+            yMode.useRaw ? yMode.domain[1] : 100,
+          )
+          const axisBidValueX = xMeta.bid_metric
+            ? xMode.useRaw
+              ? (course.last_bid_price ?? null)
+              : normalizedBid
+            : rankX
+          const axisBidValueY = yMeta.bid_metric
+            ? yMode.useRaw
+              ? (course.last_bid_price ?? null)
+              : normalizedBid
+            : rankY
 
-        return {
-          ...course,
-          _xVal: axisBidValueX,
-          _yVal: axisBidValueY,
-          _xRaw: xMeta.bid_metric ? (course.last_bid_price ?? null) : null,
-          _yRaw: yMeta.bid_metric ? (course.last_bid_price ?? null) : null,
-          _xIsRaw: xMode.useRaw,
-          _yIsRaw: yMode.useRaw,
-          _xLabel: xMeta.label,
-          _yLabel: yMeta.label,
-          _color: '#d4a86a',
-          _opacity: 0.92,
-          _isBidOnly: true,
-          _bidRank: index + 1,
-        }
-      })
-      .filter((course) => course._xVal != null && course._yVal != null)
-  ), [biddingOnlyCourses, xMeta.bid_metric, xMode.domain, xMode.useRaw, yMeta.bid_metric, yMode.domain, yMode.useRaw])
+          return {
+            ...course,
+            _xVal: axisBidValueX,
+            _yVal: axisBidValueY,
+            _xRaw: xMeta.bid_metric ? (course.last_bid_price ?? null) : null,
+            _yRaw: yMeta.bid_metric ? (course.last_bid_price ?? null) : null,
+            _xIsRaw: xMode.useRaw,
+            _yIsRaw: yMode.useRaw,
+            _xLabel: xMeta.label,
+            _yLabel: yMeta.label,
+            _color: '#d4a86a',
+            _opacity: 0.92,
+            _isBidOnly: true,
+            _bidRank: index + 1,
+          }
+        })
+        .filter((course) => course._xVal != null && course._yVal != null),
+    [
+      biddingOnlyCourses,
+      xMeta.bid_metric,
+      xMeta.label,
+      xMode.domain,
+      xMode.useRaw,
+      yMeta.bid_metric,
+      yMeta.label,
+      yMode.domain,
+      yMode.useRaw,
+    ],
+  )
 
   const allEmpty = allCoursesDeduped.length === 0 && bidOnlyData.length === 0
   const chartHeight = 340
@@ -398,7 +320,9 @@ export default function ScatterPlot({
   useEffect(() => {
     if (!pinnedDatum) return
 
-    const stillExists = [...matchedData, ...bidOnlyData].some((datum) => datum.id === pinnedDatum.id)
+    const stillExists = [...matchedData, ...bidOnlyData].some(
+      (datum) => datum.id === pinnedDatum.id,
+    )
     if (!stillExists) setPinnedDatum(null)
   }, [bidOnlyData, matchedData, pinnedDatum])
 
@@ -461,14 +385,21 @@ export default function ScatterPlot({
       return
     }
 
-    const nextX = event['xaxis.range[0]'] != null && event['xaxis.range[1]'] != null
-      ? [Number(event['xaxis.range[0]']), Number(event['xaxis.range[1]'])]
-      : null
-    const nextY = event['yaxis.range[0]'] != null && event['yaxis.range[1]'] != null
-      ? [Number(event['yaxis.range[0]']), Number(event['yaxis.range[1]'])]
-      : null
+    const nextX =
+      event['xaxis.range[0]'] != null && event['xaxis.range[1]'] != null
+        ? [Number(event['xaxis.range[0]']), Number(event['xaxis.range[1]'])]
+        : null
+    const nextY =
+      event['yaxis.range[0]'] != null && event['yaxis.range[1]'] != null
+        ? [Number(event['yaxis.range[0]']), Number(event['yaxis.range[1]'])]
+        : null
 
-    if (nextX && nextY && isBaseOrWiderDomain(nextX, xMode.domain) && isBaseOrWiderDomain(nextY, yMode.domain)) {
+    if (
+      nextX &&
+      nextY &&
+      isBaseOrWiderDomain(nextX, xMode.domain) &&
+      isBaseOrWiderDomain(nextY, yMode.domain)
+    ) {
       resetZoom()
       return
     }
@@ -517,14 +448,22 @@ export default function ScatterPlot({
         hovertemplate: buildHoverTemplate(),
         showlegend: false,
         marker: {
-          size: hasStarred ? matchedData.map((datum) => datum._starred ? 14 : 10) : 11,
-          color: matchedData.map((datum) => datum._starred ? '#d4a86a' : datum._color),
+          size: hasStarred ? matchedData.map((datum) => (datum._starred ? 14 : 10)) : 11,
+          color: matchedData.map((datum) => (datum._starred ? '#d4a86a' : datum._color)),
           opacity: 0.55,
           line: {
             color: hasStarred
-              ? matchedData.map((datum) => datum._starred ? '#b8873a' : (isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.16)'))
-              : (isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.16)'),
-            width: hasStarred ? matchedData.map((datum) => datum._starred ? 2 : 0.8) : 0.8,
+              ? matchedData.map((datum) =>
+                  datum._starred
+                    ? '#b8873a'
+                    : isLight
+                      ? 'rgba(0,0,0,0.15)'
+                      : 'rgba(255,255,255,0.16)',
+                )
+              : isLight
+                ? 'rgba(0,0,0,0.15)'
+                : 'rgba(255,255,255,0.16)',
+            width: hasStarred ? matchedData.map((datum) => (datum._starred ? 2 : 0.8)) : 0.8,
           },
         },
       })
@@ -550,15 +489,15 @@ export default function ScatterPlot({
     }
 
     return traces
-  }, [bgData, bidOnlyData, matchedData, showQuadrants])
+  }, [bgData, bidOnlyData, isLight, matchedData, showQuadrants])
 
   // Task 5: Colorblind-safe palette — blue/orange instead of green/red
   const quadGoodColor = colorblindMode ? 'rgba(66, 133, 244, 0.18)' : 'rgba(123, 176, 138, 0.18)'
-  const quadBadColor  = colorblindMode ? 'rgba(255, 152, 0, 0.18)'  : 'rgba(165, 28, 48, 0.18)'
+  const quadBadColor = colorblindMode ? 'rgba(255, 152, 0, 0.18)' : 'rgba(165, 28, 48, 0.18)'
   const quadGoodBorder = colorblindMode ? 'rgba(66, 133, 244, 0.35)' : 'rgba(123, 176, 138, 0.35)'
-  const quadBadBorder  = colorblindMode ? 'rgba(255, 152, 0, 0.35)'  : 'rgba(165, 28, 48, 0.35)'
+  const quadBadBorder = colorblindMode ? 'rgba(255, 152, 0, 0.35)' : 'rgba(165, 28, 48, 0.35)'
   const legendGoodLabel = colorblindMode ? 'var(--blue)' : 'var(--success)'
-  const legendBadLabel  = colorblindMode ? 'var(--gold)' : 'var(--accent-strong)'
+  const legendBadLabel = colorblindMode ? 'var(--gold)' : 'var(--accent-strong)'
 
   const plotLayout = useMemo(() => {
     const shapes = []
@@ -600,7 +539,11 @@ export default function ScatterPlot({
             x1: 50,
             y0: effectiveYDomain[0],
             y1: effectiveYDomain[1],
-            line: { color: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(243, 233, 226, 0.28)', dash: 'dot', width: 1 },
+            line: {
+              color: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(243, 233, 226, 0.28)',
+              dash: 'dot',
+              width: 1,
+            },
             layer: 'below',
           },
           {
@@ -611,7 +554,11 @@ export default function ScatterPlot({
             x1: effectiveXDomain[1],
             y0: 50,
             y1: 50,
-            line: { color: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(243, 233, 226, 0.28)', dash: 'dot', width: 1 },
+            line: {
+              color: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(243, 233, 226, 0.28)',
+              dash: 'dot',
+              width: 1,
+            },
             layer: 'below',
           },
         )
@@ -633,13 +580,16 @@ export default function ScatterPlot({
         minallowed: xMode.domain[0],
         maxallowed: xMode.domain[1],
         tickfont: { color: 'var(--text-muted)', size: 11 },
-        ticksuffix: xMode.useRaw ? '' : (metricMode === 'score' ? '%' : ' pct'),
+        ticksuffix: xMode.useRaw ? '' : metricMode === 'score' ? '%' : ' pct',
         showline: true,
         linecolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
         tickcolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
         gridcolor: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(243, 233, 226, 0.06)',
         zeroline: false,
-        title: { text: getAxisTitle(xMeta, metricMode), font: { color: 'var(--text-muted)', size: 12 } },
+        title: {
+          text: getAxisTitle(xMeta, metricMode),
+          font: { color: 'var(--text-muted)', size: 12 },
+        },
       },
       yaxis: {
         range: effectiveYDomain,
@@ -647,74 +597,110 @@ export default function ScatterPlot({
         minallowed: yMode.domain[0],
         maxallowed: yMode.domain[1],
         tickfont: { color: 'var(--text-muted)', size: 11 },
-        ticksuffix: yMode.useRaw ? '' : (metricMode === 'score' ? '%' : ' pct'),
+        ticksuffix: yMode.useRaw ? '' : metricMode === 'score' ? '%' : ' pct',
         showline: true,
         linecolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
         tickcolor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(243, 233, 226, 0.2)',
         gridcolor: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(243, 233, 226, 0.06)',
         zeroline: false,
-        title: { text: getAxisTitle(yMeta, metricMode), font: { color: 'var(--text-muted)', size: 12 } },
+        title: {
+          text: getAxisTitle(yMeta, metricMode),
+          font: { color: 'var(--text-muted)', size: 12 },
+        },
       },
       hoverlabel: {
         bgcolor: 'var(--panel-strong)',
         bordercolor: 'var(--line-strong)',
         font: { color: 'var(--text)', size: 12 },
       },
-      annotations: showQuadrants && !isZoomed && xMeta.key === 'Workload' && yMeta.key === 'Instructor_Rating' ? [
-        {
-          xref: 'paper',
-          yref: 'paper',
-          x: 0.08,
-          y: 0.92,
-          text: 'Easy A',
-          showarrow: false,
-          font: { size: 10, color: 'var(--text-muted)' },
-        },
-        {
-          xref: 'paper',
-          yref: 'paper',
-          x: 0.92,
-          y: 0.92,
-          text: 'Worth It',
-          showarrow: false,
-          font: { size: 10, color: 'var(--text-muted)' },
-        },
-        {
-          xref: 'paper',
-          yref: 'paper',
-          x: 0.08,
-          y: 0.08,
-          text: 'Skip',
-          showarrow: false,
-          font: { size: 10, color: 'var(--text-muted)' },
-        },
-        {
-          xref: 'paper',
-          yref: 'paper',
-          x: 0.92,
-          y: 0.08,
-          text: 'Brutal',
-          showarrow: false,
-          font: { size: 10, color: 'var(--text-muted)' },
-        },
-      ] : [],
+      annotations:
+        showQuadrants && !isZoomed && xMeta.key === 'Workload' && yMeta.key === 'Instructor_Rating'
+          ? [
+              {
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.08,
+                y: 0.92,
+                text: 'Easy A',
+                showarrow: false,
+                font: { size: 10, color: 'var(--text-muted)' },
+              },
+              {
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.92,
+                y: 0.92,
+                text: 'Worth It',
+                showarrow: false,
+                font: { size: 10, color: 'var(--text-muted)' },
+              },
+              {
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.08,
+                y: 0.08,
+                text: 'Skip',
+                showarrow: false,
+                font: { size: 10, color: 'var(--text-muted)' },
+              },
+              {
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.92,
+                y: 0.08,
+                text: 'Brutal',
+                showarrow: false,
+                font: { size: 10, color: 'var(--text-muted)' },
+              },
+            ]
+          : [],
     }
-  }, [effectiveXDomain, effectiveYDomain, greenX0, greenX1, greenY0, greenY1, isLight, isZoomed, metricMode, quadBadBorder, quadBadColor, quadGoodBorder, quadGoodColor, redX0, redX1, redY0, redY1, showQuadrants, xMeta, xMetric, xMode.useRaw, yMeta, yMetric, yMode.useRaw])
+  }, [
+    effectiveXDomain,
+    effectiveYDomain,
+    greenX0,
+    greenX1,
+    greenY0,
+    greenY1,
+    isLight,
+    isZoomed,
+    metricMode,
+    quadBadBorder,
+    quadBadColor,
+    quadGoodBorder,
+    quadGoodColor,
+    redX0,
+    redX1,
+    redY0,
+    redY1,
+    showQuadrants,
+    xMeta,
+    xMetric,
+    xMode.domain,
+    xMode.useRaw,
+    yMeta,
+    yMetric,
+    yMode.domain,
+    yMode.useRaw,
+  ])
 
-  const plotConfig = useMemo(() => ({
-    responsive: true,
-    displaylogo: false,
-    scrollZoom: false,
-    doubleClick: 'reset',
-    modeBarButtonsToRemove: [
-      'select2d',
-      'lasso2d',
-      'hoverClosestCartesian',
-      'hoverCompareCartesian',
-      'toggleSpikelines',
-      'autoScale2d',
-    ],
-  }), [])
+  const plotConfig = useMemo(
+    () => ({
+      responsive: true,
+      displaylogo: false,
+      scrollZoom: false,
+      doubleClick: 'reset',
+      modeBarButtonsToRemove: [
+        'select2d',
+        'lasso2d',
+        'hoverClosestCartesian',
+        'hoverCompareCartesian',
+        'toggleSpikelines',
+        'autoScale2d',
+      ],
+    }),
+    [],
+  )
 
   const handlePlotHover = (event) => {
     const point = event?.points?.[0]
@@ -740,16 +726,29 @@ export default function ScatterPlot({
   const clearHover = () => setHoverState(null)
 
   const AxisSelectors = () => (
-    <div className="grid gap-3 border-b px-4 py-4 md:grid-cols-2" style={{ borderColor: 'var(--line)' }}>
+    <div
+      className="grid gap-3 border-b px-4 py-4 md:grid-cols-2"
+      style={{ borderColor: 'var(--line)' }}
+    >
       <div>
         <p className="mb-1 text-[10px] text-muted">
           Y-Axis: {yHigherBetter ? 'Higher is better' : 'Lower is better'}
-          {yMode.useRaw && <span className="ml-1" style={{ color: 'var(--gold)' }}>raw values</span>}
+          {yMode.useRaw && (
+            <span className="ml-1" style={{ color: 'var(--gold)' }}>
+              raw values
+            </span>
+          )}
         </p>
         <div className="select-wrap">
-          <select value={yMetric} onChange={(event) => onYChange(event.target.value)}>
+          <select
+            aria-label="Y-axis metric"
+            value={yMetric}
+            onChange={(event) => onYChange(event.target.value)}
+          >
             {metrics.map((metric) => (
-              <option key={metric.key} value={metric.key}>{metric.label}</option>
+              <option key={metric.key} value={metric.key}>
+                {metric.label}
+              </option>
             ))}
           </select>
         </div>
@@ -758,12 +757,22 @@ export default function ScatterPlot({
       <div>
         <p className="mb-1 text-[10px] text-muted">
           X-Axis: {xHigherBetter ? 'Higher is better' : 'Lower is better'}
-          {xMode.useRaw && <span className="ml-1" style={{ color: 'var(--gold)' }}>raw values</span>}
+          {xMode.useRaw && (
+            <span className="ml-1" style={{ color: 'var(--gold)' }}>
+              raw values
+            </span>
+          )}
         </p>
         <div className="select-wrap">
-          <select value={xMetric} onChange={(event) => onXChange(event.target.value)}>
+          <select
+            aria-label="X-axis metric"
+            value={xMetric}
+            onChange={(event) => onXChange(event.target.value)}
+          >
             {metrics.map((metric) => (
-              <option key={metric.key} value={metric.key}>{metric.label}</option>
+              <option key={metric.key} value={metric.key}>
+                {metric.label}
+              </option>
             ))}
           </select>
         </div>
@@ -774,7 +783,11 @@ export default function ScatterPlot({
           onClick={() => handleZoomButton('out')}
           aria-label="Zoom out"
           className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
-          style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
+          style={{
+            border: '1px solid var(--line)',
+            background: 'var(--panel-subtle)',
+            color: 'var(--text-muted)',
+          }}
         >
           -
         </button>
@@ -782,17 +795,27 @@ export default function ScatterPlot({
           onClick={() => handleZoomButton('in')}
           aria-label="Zoom in"
           className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
-          style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
+          style={{
+            border: '1px solid var(--line)',
+            background: 'var(--panel-subtle)',
+            color: 'var(--text-muted)',
+          }}
         >
           +
         </button>
         {isZoomed && (
           <>
-            <span className="text-[10px]" style={{ color: 'var(--blue)' }}>Zoomed in</span>
+            <span className="text-[10px]" style={{ color: 'var(--blue)' }}>
+              Zoomed in
+            </span>
             <button
               onClick={resetZoom}
               className="rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors hover:text-label"
-              style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
+              style={{
+                border: '1px solid var(--line)',
+                background: 'var(--panel-subtle)',
+                color: 'var(--text-muted)',
+              }}
             >
               Reset zoom
             </button>
@@ -804,7 +827,10 @@ export default function ScatterPlot({
 
   if (allEmpty) {
     return (
-      <div className="surface-card shrink-0 rounded-[24px]" style={{ display: 'flex', flexDirection: 'column' }}>
+      <div
+        className="surface-card shrink-0 rounded-[24px]"
+        style={{ display: 'flex', flexDirection: 'column' }}
+      >
         <AxisSelectors />
         <div className="flex items-center justify-center px-8 text-center" style={{ height: 300 }}>
           <div>
@@ -817,7 +843,10 @@ export default function ScatterPlot({
   }
 
   return (
-    <div className="surface-card shrink-0 rounded-[24px]" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div
+      className="surface-card shrink-0 rounded-[24px]"
+      style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+    >
       <AxisSelectors />
 
       <div
@@ -856,7 +885,12 @@ export default function ScatterPlot({
               zIndex: 5,
             }}
           >
-            <p className="mb-1 text-sm font-bold" style={{ color: hoverState.datum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>
+            <p
+              className="mb-1 text-sm font-bold"
+              style={{
+                color: hoverState.datum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)',
+              }}
+            >
               {hoverState.datum.course_code}
             </p>
             <p className="mb-1 leading-snug text-label">{hoverState.datum.course_name}</p>
@@ -869,71 +903,119 @@ export default function ScatterPlot({
               )}
             </p>
             <p className="mb-0.5 text-muted">
-              {hoverState.datum.is_average ? `avg ${hoverState.datum.year_range}` : `${hoverState.datum.term} ${hoverState.datum.year}`}
+              {hoverState.datum.is_average
+                ? `avg ${hoverState.datum.year_range}`
+                : `${hoverState.datum.term} ${hoverState.datum.year}`}
             </p>
             {hoverState.datum.concentration && (
-              <p className="mb-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>{hoverState.datum.concentration}</p>
+              <p className="mb-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                {hoverState.datum.concentration}
+              </p>
             )}
 
             <div className="space-y-0.5">
               {hoverState.datum._xVal != null && !hoverState.datum._isBidOnly && (
                 <p>
-                  {hoverState.datum._xLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_xVal', '_xRaw', '_xIsRaw', metricMode)}</span>
+                  {hoverState.datum._xLabel}:{' '}
+                  <span className="font-medium">
+                    {formatMetricValue(hoverState.datum, '_xVal', '_xRaw', '_xIsRaw', metricMode)}
+                  </span>
                   {hoverState.datum._xRaw05 != null && (
-                    <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>({hoverState.datum._xRaw05.toFixed(1)}/5)</span>
+                    <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      ({hoverState.datum._xRaw05.toFixed(1)}/5)
+                    </span>
                   )}
                 </p>
               )}
               {hoverState.datum._yVal != null && !hoverState.datum._isBidOnly && (
                 <p>
-                  {hoverState.datum._yLabel}: <span className="font-medium">{formatMetricValue(hoverState.datum, '_yVal', '_yRaw', '_yIsRaw', metricMode)}</span>
+                  {hoverState.datum._yLabel}:{' '}
+                  <span className="font-medium">
+                    {formatMetricValue(hoverState.datum, '_yVal', '_yRaw', '_yIsRaw', metricMode)}
+                  </span>
                   {hoverState.datum._yRaw05 != null && (
-                    <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>({hoverState.datum._yRaw05.toFixed(1)}/5)</span>
+                    <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      ({hoverState.datum._yRaw05.toFixed(1)}/5)
+                    </span>
                   )}
                 </p>
               )}
               {hoverState.datum._isBidOnly && (
-                <p className="text-[10px]" style={{ color: 'var(--gold)' }}>No eval data yet · ranked by bid competitiveness</p>
+                <p className="text-[10px]" style={{ color: 'var(--gold)' }}>
+                  No eval data yet · ranked by bid competitiveness
+                </p>
               )}
-              {hoverState.datum.metrics_pct?.Instructor_Rating != null && hoverState.datum._xLabel !== 'Instructor Rating' && hoverState.datum._yLabel !== 'Instructor Rating' && (
-                <p>Instructor: <span className="font-medium" style={{ color: 'var(--blue)' }}>
-                  {metricMode === 'score'
-                    ? `${Math.round(hoverState.datum.metrics_score?.Instructor_Rating ?? hoverState.datum.metrics_pct.Instructor_Rating)}%`
-                    : `${Math.round(hoverState.datum.metrics_pct.Instructor_Rating)} pct`}
-                </span></p>
-              )}
+              {hoverState.datum.metrics_pct?.Instructor_Rating != null &&
+                hoverState.datum._xLabel !== 'Instructor Rating' &&
+                hoverState.datum._yLabel !== 'Instructor Rating' && (
+                  <p>
+                    Instructor:{' '}
+                    <span className="font-medium" style={{ color: 'var(--blue)' }}>
+                      {metricMode === 'score'
+                        ? `${Math.round(hoverState.datum.metrics_score?.Instructor_Rating ?? hoverState.datum.metrics_pct.Instructor_Rating)}%`
+                        : `${Math.round(hoverState.datum.metrics_pct.Instructor_Rating)} pct`}
+                    </span>
+                  </p>
+                )}
             </div>
 
             <div className="mt-2 space-y-0.5 border-t pt-2" style={{ borderColor: 'var(--line)' }}>
               {hoverState.datum.n_respondents != null && (
                 <p className="text-muted">
                   N=<span className="font-medium text-label">{hoverState.datum.n_respondents}</span>
-                  <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>survey respondents</span>
+                  <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    survey respondents
+                  </span>
                 </p>
               )}
               <p className="text-muted">
-                Bidding: <span className="font-medium" style={{ color: hoverState.datum.ever_bidding ? '#e6a4bb' : 'var(--text-muted)' }}>{hoverState.datum.ever_bidding ? 'Yes' : 'No'}</span>
+                Bidding:{' '}
+                <span
+                  className="font-medium"
+                  style={{ color: hoverState.datum.ever_bidding ? '#e6a4bb' : 'var(--text-muted)' }}
+                >
+                  {hoverState.datum.ever_bidding ? 'Yes' : 'No'}
+                </span>
               </p>
               {hoverState.datum.last_bid_price != null && (
                 <p className="text-muted">
-                  Last clearing price: <span className="font-medium text-label">{hoverState.datum.last_bid_price} pts</span>
+                  Last clearing price:{' '}
+                  <span className="font-medium text-label">
+                    {hoverState.datum.last_bid_price} pts
+                  </span>
                 </p>
               )}
             </div>
 
-            <p className="mt-1 text-[10px]" style={{ color: 'var(--blue)' }}>Click to pin and preview details below</p>
+            <p className="mt-1 text-[10px]" style={{ color: 'var(--blue)' }}>
+              Click to pin and preview details below
+            </p>
           </div>
         )}
       </div>
 
       {pinnedDatum && (
-        <div className="border-t px-4 py-4" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+        <div
+          className="border-t px-4 py-4"
+          style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
+        >
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-bold" style={{ color: pinnedDatum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>{pinnedDatum.course_code}</p>
+              <p
+                className="text-sm font-bold"
+                style={{ color: pinnedDatum._isBidOnly ? 'var(--gold)' : 'var(--accent-strong)' }}
+              >
+                {pinnedDatum.course_code}
+              </p>
               <p className="text-sm text-label">{pinnedDatum.course_name}</p>
-              <p className="mt-0.5 text-xs text-muted">{pinnedDatum.professor_display || pinnedDatum.professor}</p>
-              {pinnedDatum.concentration && <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{pinnedDatum.concentration}</p>}
+              <p className="mt-0.5 text-xs text-muted">
+                {pinnedDatum.professor_display || pinnedDatum.professor}
+              </p>
+              {pinnedDatum.concentration && (
+                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {pinnedDatum.concentration}
+                </p>
+              )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {(() => {
@@ -945,7 +1027,10 @@ export default function ScatterPlot({
                     title={starred ? 'Remove from shortlist' : 'Add to shortlist'}
                     aria-label={starred ? 'Remove from shortlist' : 'Add to shortlist'}
                     className="rounded-full border px-2.5 py-1 text-sm transition-colors"
-                    style={{ borderColor: starred ? 'var(--gold)' : 'var(--line)', color: starred ? 'var(--gold)' : 'var(--text-muted)' }}
+                    style={{
+                      borderColor: starred ? 'var(--gold)' : 'var(--line)',
+                      color: starred ? 'var(--gold)' : 'var(--text-muted)',
+                    }}
                   >
                     {starred ? '★' : '☆'}
                   </button>
@@ -964,21 +1049,59 @@ export default function ScatterPlot({
           </div>
 
           <div className="space-y-1 text-xs text-muted">
-            <p>{pinnedDatum.is_average ? `Average ${pinnedDatum.year_range}` : `${pinnedDatum.term} ${pinnedDatum.year}`}</p>
-            {pinnedDatum._xVal != null && <p>{pinnedDatum._xLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_xVal', '_xRaw', '_xIsRaw', metricMode)}</span></p>}
-            {pinnedDatum._yVal != null && <p>{pinnedDatum._yLabel}: <span className="text-label">{formatMetricValue(pinnedDatum, '_yVal', '_yRaw', '_yIsRaw', metricMode)}</span></p>}
-            {pinnedDatum.n_respondents != null && <p>N=<span className="text-label">{pinnedDatum.n_respondents}</span> survey respondents</p>}
-            {pinnedDatum.last_bid_price != null && <p>Last clearing price: <span className="text-label">{pinnedDatum.last_bid_price} pts</span></p>}
+            <p>
+              {pinnedDatum.is_average
+                ? `Average ${pinnedDatum.year_range}`
+                : `${pinnedDatum.term} ${pinnedDatum.year}`}
+            </p>
+            {pinnedDatum._xVal != null && (
+              <p>
+                {pinnedDatum._xLabel}:{' '}
+                <span className="text-label">
+                  {formatMetricValue(pinnedDatum, '_xVal', '_xRaw', '_xIsRaw', metricMode)}
+                </span>
+              </p>
+            )}
+            {pinnedDatum._yVal != null && (
+              <p>
+                {pinnedDatum._yLabel}:{' '}
+                <span className="text-label">
+                  {formatMetricValue(pinnedDatum, '_yVal', '_yRaw', '_yIsRaw', metricMode)}
+                </span>
+              </p>
+            )}
+            {pinnedDatum.n_respondents != null && (
+              <p>
+                N=<span className="text-label">{pinnedDatum.n_respondents}</span> survey respondents
+              </p>
+            )}
+            {pinnedDatum.last_bid_price != null && (
+              <p>
+                Last clearing price:{' '}
+                <span className="text-label">{pinnedDatum.last_bid_price} pts</span>
+              </p>
+            )}
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <button onClick={() => navigate(`/courses?id=${encodeURIComponent(pinnedDatum.id)}`)} className="btn-details">
+            <button
+              onClick={() => navigate(`/courses?id=${encodeURIComponent(pinnedDatum.id)}`)}
+              className="btn-details"
+            >
               Course Details
             </button>
             <button
-              onClick={() => navigate(`/compare?ids=${encodeURIComponent(pinnedDatum.course_code_base || pinnedDatum.course_code)}`)}
+              onClick={() =>
+                navigate(
+                  `/compare?ids=${encodeURIComponent(pinnedDatum.course_code_base || pinnedDatum.course_code)}`,
+                )
+              }
               className="rounded-full border px-4 py-2 text-sm font-medium transition-colors hover:text-label"
-              style={{ borderColor: 'var(--line)', color: 'var(--text-muted)', background: 'var(--panel-soft)' }}
+              style={{
+                borderColor: 'var(--line)',
+                color: 'var(--text-muted)',
+                background: 'var(--panel-soft)',
+              }}
             >
               ⇄ Compare
             </button>
@@ -1001,27 +1124,54 @@ export default function ScatterPlot({
         </div>
       ))}
 
-      <div className="border-t px-4 py-3 text-xs" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+      <div
+        className="border-t px-4 py-3 text-xs"
+        style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
+      >
         <p className="mb-2 font-medium text-label">How to read this</p>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {showQuadrants && (
             <>
-              <p className="text-muted"><span className="font-medium" style={{ color: legendGoodLabel }}>{colorblindMode ? 'Blue' : 'Green'} quadrant</span> = stronger on both axes</p>
-              <p className="text-muted"><span className="font-medium" style={{ color: legendBadLabel }}>{colorblindMode ? 'Orange' : 'Crimson'} quadrant</span> = weaker on both axes</p>
+              <p className="text-muted">
+                <span className="font-medium" style={{ color: legendGoodLabel }}>
+                  {colorblindMode ? 'Blue' : 'Green'} quadrant
+                </span>{' '}
+                = stronger on both axes
+              </p>
+              <p className="text-muted">
+                <span className="font-medium" style={{ color: legendBadLabel }}>
+                  {colorblindMode ? 'Orange' : 'Crimson'} quadrant
+                </span>{' '}
+                = weaker on both axes
+              </p>
             </>
           )}
-          <p className="text-muted"><span className="font-medium" style={{ color: '#d78aa7' }}>Rose</span> = ever went to bidding</p>
+          <p className="text-muted">
+            <span className="font-medium" style={{ color: '#d78aa7' }}>
+              Rose
+            </span>{' '}
+            = ever went to bidding
+          </p>
           {matchedData.some((d) => d._starred) && (
-            <p className="text-muted"><span className="font-medium" style={{ color: 'var(--gold)' }}>★ Gold outline</span> = in your shortlist</p>
+            <p className="text-muted">
+              <span className="font-medium" style={{ color: 'var(--gold)' }}>
+                ★ Gold outline
+              </span>{' '}
+              = in your shortlist
+            </p>
           )}
           {bidOnlyData.length > 0 && (
             <p className="text-muted">
-              <span className="font-medium" style={{ color: 'var(--gold)' }}>Amber diamond</span> = bidding now, no eval yet, evenly spread by competitiveness rank
+              <span className="font-medium" style={{ color: 'var(--gold)' }}>
+                Amber diamond
+              </span>{' '}
+              = bidding now, no eval yet, evenly spread by competitiveness rank
             </p>
           )}
         </div>
         <p className="mt-2 text-[11px] text-muted">
-          Click a point to preview details · use + / - or pinch to zoom · drag or two-finger pan to move
+          Click a point to preview details · use + / - or pinch to zoom · drag or two-finger pan to
+          move
           {isZoomed && <span style={{ color: 'var(--blue)' }}> · zoomed</span>}
           {` · ${matchedData.length} course${matchedData.length !== 1 ? 's' : ''} shown`}
           {bidOnlyData.length > 0 && ` · ${bidOnlyData.length} bidding only`}

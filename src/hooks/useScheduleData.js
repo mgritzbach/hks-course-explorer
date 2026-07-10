@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase.js'
+import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
 export function useScheduleData(semesterYear, semester) {
   const [liveCoursesData, setLiveCoursesData] = useState([])
@@ -33,12 +33,16 @@ export function useScheduleData(semesterYear, semester) {
   // Fetch live_courses once — all terms loaded upfront, semester filtering
   // happens client-side so switching semesters doesn't trigger a new fetch.
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setLiveCoursesData([])
+      return undefined
+    }
     supabase
       .from('live_courses')
       .select(
         'id,course_code,course_code_base,title,term,credits,instructors,' +
-        'meeting_days,time_start,time_end,school,is_hks,session_code,' +
-        'session_description,cross_reg_eligible'
+          'meeting_days,time_start,time_end,school,is_hks,session_code,' +
+          'session_description,cross_reg_eligible',
       )
       .order('term', { ascending: false })
       .limit(2000)
@@ -53,6 +57,11 @@ export function useScheduleData(semesterYear, semester) {
     setSectionCanonicalCodes(new Set())
     setSectionInfoMap(new Map())
     setSectionTimesLoading(true)
+
+    if (!isSupabaseConfigured) {
+      setSectionTimesLoading(false)
+      return undefined
+    }
 
     // Term format for course_sections: "2026Spring", "2026Fall", "2026January"
     // (no space — see ADR-004)

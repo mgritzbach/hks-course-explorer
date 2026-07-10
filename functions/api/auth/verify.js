@@ -14,10 +14,10 @@ export async function onRequestPost({ request, env }) {
     const { email, otp } = await request.json()
 
     if (!email || !otp) {
-      return new Response(
-        JSON.stringify({ error: 'Email and OTP are required.' }),
-        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-      )
+      return new Response(JSON.stringify({ error: 'Email and OTP are required.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+      })
     }
 
     const key = `otp:${email.toLowerCase().trim()}`
@@ -41,10 +41,10 @@ export async function onRequestPost({ request, env }) {
     }
 
     if (otp.trim() !== storedOtp) {
-      return new Response(
-        JSON.stringify({ error: 'Incorrect code. Please try again.' }),
-        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-      )
+      return new Response(JSON.stringify({ error: 'Incorrect code. Please try again.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+      })
     }
 
     // OTP valid — delete it (single-use)
@@ -70,23 +70,20 @@ export async function onRequestPost({ request, env }) {
       'Secure',
     ].join('; ')
 
-    return new Response(
-      JSON.stringify({ ok: true, email: payload.email }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Set-Cookie': cookieOptions,
-          ...corsHeaders(request),
-        },
+    return new Response(JSON.stringify({ ok: true, email: payload.email }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Set-Cookie': cookieOptions,
+        ...corsHeaders(request),
       },
-    )
+    })
   } catch (err) {
     console.error('verify.js error:', err)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error.' }),
-      { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-    )
+    return new Response(JSON.stringify({ error: 'Internal server error.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+    })
   }
 }
 

@@ -19,12 +19,22 @@ function RatingBadge({ label, value, color, metricMode }) {
   return (
     <div className="text-xs leading-5 md:text-right">
       <span className="text-muted">{label}: </span>
-      <span className="font-medium" style={{ color: color || 'var(--text-soft)' }}>{fmtShort(value, metricMode)}</span>
+      <span className="font-medium" style={{ color: color || 'var(--text-soft)' }}>
+        {fmtShort(value, metricMode)}
+      </span>
     </div>
   )
 }
 
-export default function CourseCard({ course, favs, compact = false, metricMode = 'score', yearMedianInstructor = null, notes, setNote }) {
+export default function CourseCard({
+  course,
+  favs,
+  compact = false,
+  metricMode = 'score',
+  yearMedianInstructor = null,
+  notes,
+  setNote,
+}) {
   const navigate = useNavigate()
   const [descExpanded, setDescExpanded] = useState(false)
   const starred = favs?.isFavorite(course.course_code_base)
@@ -35,18 +45,31 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
   const workloadPct = metricSrc?.Workload
   const coursePct = metricSrc?.Course_Rating
   const responseCount = course.is_average ? course.total_n_respondents : course.n_respondents
-  const instrColor = instructorPct == null ? 'var(--text-muted)' : instructorPct >= 75 ? 'var(--success)' : instructorPct >= 50 ? 'var(--gold)' : 'var(--danger)'
+  const instrColor =
+    instructorPct == null
+      ? 'var(--text-muted)'
+      : instructorPct >= 75
+        ? 'var(--success)'
+        : instructorPct >= 50
+          ? 'var(--gold)'
+          : 'var(--danger)'
   const biddingOnly = !course.has_eval && course.has_bidding
   const noEval = !course.has_eval && !course.has_bidding
 
   const borderAccent = biddingOnly ? 'var(--gold)' : noEval ? 'var(--line-strong)' : 'var(--accent)'
   const hasLongDescription = Boolean(course.description && course.description.length > 180)
   const descriptionText = course.description
-    ? (hasLongDescription && !descExpanded ? course.description.slice(0, 180) : course.description)
+    ? hasLongDescription && !descExpanded
+      ? course.description.slice(0, 180)
+      : course.description
     : null
   // meeting_days may be a string ('MON/WED') or legacy array — handle both
   const _mdRaw = course.meeting_days
-  const _mdParts = Array.isArray(_mdRaw) ? _mdRaw : (_mdRaw ? String(_mdRaw).split('/').filter(Boolean) : [])
+  const _mdParts = Array.isArray(_mdRaw)
+    ? _mdRaw
+    : _mdRaw
+      ? String(_mdRaw).split('/').filter(Boolean)
+      : []
   const _meetingTime = course.time_start || course.meeting_time
   const _meetingTimeEnd = course.time_end || course.meeting_time_end
   const hasSchedule = _mdParts.length > 0 || _meetingTime
@@ -66,37 +89,58 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
         background: 'var(--panel)',
       }}
     >
-      <div className={`flex flex-col md:flex-row md:items-start md:justify-between ${compact ? 'mb-2 gap-2' : 'mb-3 gap-3'}`}>
+      <div
+        className={`flex flex-col md:flex-row md:items-start md:justify-between ${compact ? 'mb-2 gap-2' : 'mb-3 gap-3'}`}
+      >
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap gap-2">
             {course.is_stem && (
-              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}>
+              <span
+                className="rounded-full px-2.5 py-1 text-[10px] font-bold"
+                style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}
+              >
                 {course.stem_group ? `STEM ${course.stem_group}` : 'STEM'}
               </span>
             )}
             {course.is_core && (
-              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
+              <span
+                className="rounded-full px-2.5 py-1 text-[10px] font-bold"
+                style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}
+              >
                 Core
               </span>
             )}
             {biddingOnly && (
-              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
+              <span
+                className="rounded-full px-2.5 py-1 text-[10px] font-bold"
+                style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}
+              >
                 Bidding pressure
               </span>
             )}
           </div>
 
-          <h3 className="serif-display text-lg font-semibold leading-6 md:text-[22px]" style={{ color: 'var(--text)' }}>
+          <h3
+            className="serif-display text-lg font-semibold leading-6 md:text-[22px]"
+            style={{ color: 'var(--text)' }}
+          >
             <button
               onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}
               className="text-left transition-opacity hover:opacity-85"
             >
-              <span style={{ color: biddingOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>{course.course_code}</span>
+              <span style={{ color: biddingOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>
+                {course.course_code}
+              </span>
               <span style={{ color: biddingOnly ? 'var(--gold)' : 'var(--accent-strong)' }}>:</span>
-              <span style={{ color: 'var(--text)' }}>{` ${course.course_name || '(Untitled)'}`}</span>
+              <span
+                style={{ color: 'var(--text)' }}
+              >{` ${course.course_name || '(Untitled)'}`}</span>
             </button>
             {course.historical_code && (
-              <span className="ml-2 text-[10px] font-normal align-middle" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
+              <span
+                className="ml-2 text-[10px] font-normal align-middle"
+                style={{ color: 'var(--text-muted)', opacity: 0.7 }}
+              >
                 formerly {course.historical_code}
               </span>
             )}
@@ -107,23 +151,40 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
           {biddingOnly ? (
             <div
               className="inline-flex rounded-2xl border px-3 py-2 text-xs font-bold md:flex md:flex-col md:items-end"
-              style={{ background: 'var(--gold-soft)', color: 'var(--gold)', borderColor: 'var(--gold-soft)' }}
+              style={{
+                background: 'var(--gold-soft)',
+                color: 'var(--gold)',
+                borderColor: 'var(--gold-soft)',
+              }}
             >
               <span>Most Competitive</span>
               {course.last_bid_price != null && (
-                <span className="font-normal md:mt-1" style={{ fontSize: 11, color: 'var(--gold)' }}>
+                <span
+                  className="font-normal md:mt-1"
+                  style={{ fontSize: 11, color: 'var(--gold)' }}
+                >
                   {course.last_bid_price} pts
                 </span>
               )}
             </div>
           ) : noEval ? (
-            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>No eval data</div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              No eval data
+            </div>
           ) : (
             <div className="grid gap-1">
-              <RatingBadge label="Instructor" value={instructorPct} color={instrColor} metricMode={metricMode} />
+              <RatingBadge
+                label="Instructor"
+                value={instructorPct}
+                color={instrColor}
+                metricMode={metricMode}
+              />
               {/* Raw rating + year median, always visible for grounding */}
               {course.metrics_raw?.Instructor_Rating != null && (
-                <div className="text-[10px] leading-4 text-right" style={{ color: 'var(--text-muted)' }}>
+                <div
+                  className="text-[10px] leading-4 text-right"
+                  style={{ color: 'var(--text-muted)' }}
+                >
                   <span>{course.metrics_raw.Instructor_Rating.toFixed(2)}/5</span>
                   {yearMedianInstructor != null && (
                     <span className="ml-1.5" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
@@ -132,8 +193,18 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
                   )}
                 </div>
               )}
-              <RatingBadge label="Course" value={coursePct} color="var(--success)" metricMode={metricMode} />
-              <RatingBadge label="Workload" value={workloadPct} color="var(--text-soft)" metricMode={metricMode} />
+              <RatingBadge
+                label="Course"
+                value={coursePct}
+                color="var(--success)"
+                metricMode={metricMode}
+              />
+              <RatingBadge
+                label="Workload"
+                value={workloadPct}
+                color="var(--text-soft)"
+                metricMode={metricMode}
+              />
               {responseCount != null && responseCount < 10 && (
                 <div
                   className="mt-0.5 text-[10px] text-right"
@@ -141,7 +212,9 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
                   title="Small sample - interpret ratings with caution"
                 >
                   <span aria-hidden="true">⚠ </span>
-                  {responseCount < 5 ? `Only ${responseCount} responses` : `${responseCount} responses`}
+                  {responseCount < 5
+                    ? `Only ${responseCount} responses`
+                    : `${responseCount} responses`}
                 </div>
               )}
             </div>
@@ -159,7 +232,11 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
           >
             {course.professor_display}
           </button>
-          {course.faculty_category && <span className="ml-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>({course.faculty_category})</span>}
+          {course.faculty_category && (
+            <span className="ml-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              ({course.faculty_category})
+            </span>
+          )}
         </p>
       )}
 
@@ -173,19 +250,28 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
         </div>
       )}
 
-      <p className={`${compact ? 'mb-2' : 'mb-3'} text-xs leading-5`} style={{ color: 'var(--text-muted)' }}>
+      <p
+        className={`${compact ? 'mb-2' : 'mb-3'} text-xs leading-5`}
+        style={{ color: 'var(--text-muted)' }}
+      >
         {course.is_average ? (
           <>
-            <span className="mr-2 rounded-full px-2 py-1 text-[11px]" style={{ background: 'var(--panel-subtle)', color: 'var(--blue)' }}>
+            <span
+              className="mr-2 rounded-full px-2 py-1 text-[11px]"
+              style={{ background: 'var(--panel-subtle)', color: 'var(--blue)' }}
+            >
               avg {course.year_range}
             </span>
             <span>
               {course.n_terms} term{course.n_terms !== 1 ? 's' : ''}
-              {course.total_n_respondents != null && <span className="ml-1">(N={course.total_n_respondents})</span>}
+              {course.total_n_respondents != null && (
+                <span className="ml-1">(N={course.total_n_respondents})</span>
+              )}
             </span>
             {course.ever_bidding && course.last_bid_price != null && (
               <span className="block pt-1 sm:inline sm:pl-2">
-                Last Bid: {course.last_bid_price} pts ({course.last_bid_acad || ''} {course.last_bid_term || ''})
+                Last Bid: {course.last_bid_price} pts ({course.last_bid_acad || ''}{' '}
+                {course.last_bid_term || ''})
               </span>
             )}
             {course.avg_bid_price != null && (
@@ -197,10 +283,13 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
         ) : (
           <>
             {course.term && <span>Term: {course.term}</span>}
-            {course.n_respondents != null && <span className="ml-1">(N={course.n_respondents})</span>}
+            {course.n_respondents != null && (
+              <span className="ml-1">(N={course.n_respondents})</span>
+            )}
             {course.ever_bidding && course.last_bid_price != null && (
               <span className="block pt-1 sm:inline sm:pl-2">
-                Last Bid: {course.last_bid_price} pts ({course.last_bid_acad || ''} {course.last_bid_term || ''})
+                Last Bid: {course.last_bid_price} pts ({course.last_bid_acad || ''}{' '}
+                {course.last_bid_term || ''})
               </span>
             )}
             {course.avg_bid_price != null && (
@@ -221,7 +310,14 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
               <button
                 type="button"
                 onClick={() => setDescExpanded(true)}
-                style={{ color: 'var(--accent)', cursor: 'pointer', fontSize: 'inherit', border: 'none', background: 'none', padding: 0 }}
+                style={{
+                  color: 'var(--accent)',
+                  cursor: 'pointer',
+                  fontSize: 'inherit',
+                  border: 'none',
+                  background: 'none',
+                  padding: 0,
+                }}
               >
                 read more
               </button>
@@ -233,7 +329,14 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
               <button
                 type="button"
                 onClick={() => setDescExpanded(false)}
-                style={{ color: 'var(--accent)', cursor: 'pointer', fontSize: 'inherit', border: 'none', background: 'none', padding: 0 }}
+                style={{
+                  color: 'var(--accent)',
+                  cursor: 'pointer',
+                  fontSize: 'inherit',
+                  border: 'none',
+                  background: 'none',
+                  padding: 0,
+                }}
               >
                 show less
               </button>
@@ -249,7 +352,11 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
       )}
 
       <div className="flex flex-wrap gap-2 sm:flex-row sm:items-center">
-        <button onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)} className="btn-details touch-manipulation" style={{ minHeight: 44 }}>
+        <button
+          onClick={() => navigate(`/courses?id=${encodeURIComponent(course.id)}`)}
+          className="btn-details touch-manipulation"
+          style={{ minHeight: 44 }}
+        >
           View Full Details
         </button>
         {!compact && course.course_url && (
@@ -258,19 +365,35 @@ export default function CourseCard({ course, favs, compact = false, metricMode =
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-medium transition-opacity hover:opacity-80 touch-manipulation"
-            style={{ background: 'var(--panel-subtle)', borderColor: 'var(--line)', color: 'var(--text)', minHeight: 44 }}
+            style={{
+              background: 'var(--panel-subtle)',
+              borderColor: 'var(--line)',
+              color: 'var(--text)',
+              minHeight: 44,
+            }}
           >
             Course Website
-            <span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>↗</span>
+            <span aria-hidden="true" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>
+              ↗
+            </span>
           </a>
         )}
         {!compact && (
           <button
-            onClick={() => navigate(`/compare?ids=${encodeURIComponent(course.course_code_base || course.course_code)}`)}
+            onClick={() =>
+              navigate(
+                `/compare?ids=${encodeURIComponent(course.course_code_base || course.course_code)}`,
+              )
+            }
             title="Open in Compare"
             aria-label="Open in Compare"
             className="inline-flex items-center justify-center rounded-full border px-3 py-2 text-xs font-medium transition-colors hover:text-label touch-manipulation"
-            style={{ borderColor: 'var(--line)', color: 'var(--text-muted)', background: 'transparent', minHeight: 44 }}
+            style={{
+              borderColor: 'var(--line)',
+              color: 'var(--text-muted)',
+              background: 'transparent',
+              minHeight: 44,
+            }}
           >
             ⇄ Compare
           </button>

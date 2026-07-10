@@ -18,6 +18,10 @@ Environment variables (or .env file):
 The table is upserted (insert or replace) on the `id` column, so
 re-running this script is safe and idempotent.
 
+Before connecting, the loader validates the JSON shape and every prepared
+upsert key. Duplicate IDs abort the run before a database client is created;
+last-write-wins is not an acceptable catalogue-promotion behavior.
+
 To add new academic year data:
     1. Update data/canonical_courses_enriched.csv with the new rows
     2. Run: python scripts/build_data.py         (rebuilds courses.json)
@@ -32,8 +36,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 COURSES_JSON = ROOT / "public" / "courses.json"
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://cbtroatixvydpwoviezf.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")  # set your service-role key here or via env
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
 
 
 BATCH_SIZE = 200  # rows per upsert call
@@ -43,10 +47,20 @@ def load_courses():
     if not COURSES_JSON.exists():
         sys.exit(f"ERROR: {COURSES_JSON} not found. Run `python scripts/build_data.py` first.")
 
-    with COURSES_JSON.open(encoding="utf-8") as fh:
-        payload = json.load(fh)
+    try:
+        with COURSES_JSON.open(encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        sys.exit("ERROR: courses.json is not valid UTF-8 JSON. Rebuild the catalogue before loading.")
 
-    return payload.get("courses", [])
+    if not isinstance(payload, dict):
+        sys.exit("ERROR: courses.json must contain a JSON object.")
+    courses = payload.get("courses")
+    if not isinstance(courses, list):
+        sys.exit("ERROR: courses.json must contain a 'courses' array.")
+    if not all(isinstance(course, dict) for course in courses):
+        sys.exit("ERROR: Every course in courses.json must be an object.")
+    return courses
 
 
 def prepare_row(course):
@@ -96,24 +110,49 @@ def prepare_row(course):
     }
 
 
-def main():
-    if not SUPABASE_KEY:
+def validate_prepared_rows(rows):
+    """Reject malformed or duplicate upsert keys before any client/database operation."""
+    for index, row in enumerate(rows, start=1):
+        row_id = row.get("id") if isinstance(row, dict) else None
+        if not isinstance(row_id, str) or not row_id.strip():
+            sys.exit(f"ERROR: Prepared course row {index} has a missing or invalid id.")
+    duplicate_ids = find_duplicate_prepared_ids(rows)
+    if duplicate_ids:
+        preview = ", ".join(duplicate_ids[:20])
+        suffix = " (truncated)" if len(duplicate_ids) > 20 else ""
         sys.exit(
-            "ERROR: SUPABASE_KEY is not set.\n"
-            "Set it via environment variable or edit this script.\n"
+            f"ERROR: {len(duplicate_ids)} duplicate prepared course id(s): {preview}{suffix}. "
+            "Resolve canonical-data conflicts before a promotion."
+        )
+
+
+def find_duplicate_prepared_ids(rows):
+    """Return sorted duplicate IDs for deterministic preflight diagnostics."""
+    seen_ids = set()
+    duplicates = set()
+    for row in rows:
+        row_id = row.get("id")
+        if row_id in seen_ids:
+            duplicates.add(row_id)
+        seen_ids.add(row_id)
+    return sorted(duplicates)
+
+
+def main():
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        sys.exit(
+            "ERROR: SUPABASE_URL and SUPABASE_KEY must be set for the target project.\n"
+            "Set both via environment variables; do not edit a project fallback into this script.\n"
             "Use the service_role key (Project Settings → API → service_role)."
         )
 
-    try:
-        from supabase import create_client  # noqa: PLC0415
-    except ImportError:
-        sys.exit("ERROR: supabase-py not installed. Run: pip install supabase")
-
-    client = create_client(SUPABASE_URL, SUPABASE_KEY)
     courses = load_courses()
 
     if not courses:
         sys.exit("ERROR: No courses found in courses.json")
+
+    rows = [prepare_row(course) for course in courses]
+    validate_prepared_rows(rows)
 
     # Sanity check: warn if course count looks unexpectedly low
     EXPECTED_MIN = 5000
@@ -124,10 +163,15 @@ def main():
         if answer != "y":
             sys.exit("Aborted.")
 
-    print(f"Loaded {len(courses)} courses from {COURSES_JSON}")
+    try:
+        from supabase import create_client  # noqa: PLC0415
+    except ImportError:
+        sys.exit("ERROR: supabase-py not installed. Run: pip install supabase")
+
+    client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print(f"Loaded {len(courses)} validated courses from {COURSES_JSON}")
     print(f"Upserting to Supabase ({SUPABASE_URL}) in batches of {BATCH_SIZE}…")
 
-    rows = [prepare_row(c) for c in courses]
     total_upserted = 0
     failed_batches = []
 
@@ -155,9 +199,11 @@ def main():
     try:
         result = client.table("courses").select("id", count="exact").execute()
         db_count = result.count
-        if db_count is not None and abs(db_count - len(rows)) > 10:
-            print(f"WARNING: Supabase reports {db_count} rows but we upserted {len(rows)}.")
-            print("         There may be stale rows from a previous dataset version.")
+        if db_count is None:
+            print("UNVERIFIED: Supabase did not return a catalogue row count.")
+        elif db_count != len(rows):
+            print(f"UNVERIFIED: Supabase reports {db_count} rows but this run prepared {len(rows)}.")
+            print("            There may be stale rows or an incomplete promotion.")
         else:
             print(f"Verified: {db_count} rows in Supabase.")
     except Exception as exc:

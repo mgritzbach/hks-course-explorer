@@ -30,7 +30,10 @@ function JFKIllustration() {
       {/* ── Left arm (relaxed, down) ─────────────────────── */}
       <path
         d="M 80 172 Q 65 205 62 228"
-        stroke="#1B2B45" strokeWidth="20" strokeLinecap="round" fill="none"
+        stroke="#1B2B45"
+        strokeWidth="20"
+        strokeLinecap="round"
+        fill="none"
       />
       {/* Left hand */}
       <ellipse cx="61" cy="234" rx="11" ry="9" fill="#F2C18A" />
@@ -38,14 +41,20 @@ function JFKIllustration() {
       {/* ── Right arm (raised, pointing UP) ─────────────── */}
       <path
         d="M 140 172 Q 162 148 172 122"
-        stroke="#1B2B45" strokeWidth="20" strokeLinecap="round" fill="none"
+        stroke="#1B2B45"
+        strokeWidth="20"
+        strokeLinecap="round"
+        fill="none"
       />
       {/* Right hand / fist */}
       <ellipse cx="175" cy="115" rx="12" ry="10" fill="#F2C18A" />
       {/* Index finger pointing up */}
       <path
         d="M 174 105 Q 176 90 177 78"
-        stroke="#F2C18A" strokeWidth="7" strokeLinecap="round" fill="none"
+        stroke="#F2C18A"
+        strokeWidth="7"
+        strokeLinecap="round"
+        fill="none"
       />
       {/* Fingernail hint */}
       <ellipse cx="177" cy="76" rx="3.5" ry="2.5" fill="#E8AA70" />
@@ -59,7 +68,8 @@ function JFKIllustration() {
       {/* Jaw / chin emphasis */}
       <path
         d="M 74 128 Q 72 148 88 160 Q 110 168 132 160 Q 148 148 146 128"
-        fill="#F2C18A" stroke="none"
+        fill="#F2C18A"
+        stroke="none"
       />
       {/* Chin cleft (iconic!) */}
       <path d="M 108 160 Q 110 164 112 160" stroke="#D4956A" strokeWidth="1.5" fill="none" />
@@ -78,17 +88,44 @@ function JFKIllustration() {
       {/* Hair part line and volume */}
       <path
         d="M 88 68 Q 105 62 122 66"
-        stroke="#1A0F08" strokeWidth="2" fill="none" opacity="0.5"
+        stroke="#1A0F08"
+        strokeWidth="2"
+        fill="none"
+        opacity="0.5"
       />
       {/* Sideburns */}
-      <path d="M 68 108 Q 65 118 67 128" stroke="#2C1E10" strokeWidth="5" strokeLinecap="round" fill="none" />
-      <path d="M 152 108 Q 155 118 153 128" stroke="#2C1E10" strokeWidth="5" strokeLinecap="round" fill="none" />
+      <path
+        d="M 68 108 Q 65 118 67 128"
+        stroke="#2C1E10"
+        strokeWidth="5"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M 152 108 Q 155 118 153 128"
+        stroke="#2C1E10"
+        strokeWidth="5"
+        strokeLinecap="round"
+        fill="none"
+      />
 
       {/* ── Face features ─────────────────────────────────── */}
       {/* Left eyebrow — slightly raised (quizzical) */}
-      <path d="M 84 100 Q 91 95 98 99" stroke="#2C1E10" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <path
+        d="M 84 100 Q 91 95 98 99"
+        stroke="#2C1E10"
+        strokeWidth="2.5"
+        fill="none"
+        strokeLinecap="round"
+      />
       {/* Right eyebrow — raised higher (dramatic) */}
-      <path d="M 120 97 Q 127 91 135 96" stroke="#2C1E10" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <path
+        d="M 120 97 Q 127 91 135 96"
+        stroke="#2C1E10"
+        strokeWidth="2.5"
+        fill="none"
+        strokeLinecap="round"
+      />
 
       {/* Eyes */}
       <ellipse cx="91" cy="107" rx="6" ry="4.5" fill="#fff" />
@@ -100,12 +137,30 @@ function JFKIllustration() {
       <ellipse cx="130" cy="106" rx="1.5" ry="1.5" fill="#fff" opacity="0.6" />
 
       {/* Nose — straight, slight shadow */}
-      <path d="M 110 113 L 107 124 Q 110 127 113 124" stroke="#D4956A" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <path
+        d="M 110 113 L 107 124 Q 110 127 113 124"
+        stroke="#D4956A"
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+      />
 
       {/* Mouth — wry grin, one side up */}
-      <path d="M 95 136 Q 110 144 126 136" stroke="#B87050" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <path
+        d="M 95 136 Q 110 144 126 136"
+        stroke="#B87050"
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+      />
       {/* Lower lip */}
-      <path d="M 99 137 Q 110 141 122 137" stroke="#D4806A" strokeWidth="1" fill="none" opacity="0.5" />
+      <path
+        d="M 99 137 Q 110 141 122 137"
+        stroke="#D4806A"
+        strokeWidth="1"
+        fill="none"
+        opacity="0.5"
+      />
 
       {/* ── Ear ──────────────────────────────────────────── */}
       <path d="M 66 112 Q 60 118 62 128 Q 66 134 70 128 Q 68 120 70 112 Z" fill="#EAB07A" />
@@ -118,11 +173,43 @@ function JFKIllustration() {
       {/* ── Speech bubble ─────────────────────────────────── */}
       <path
         d="M 158 35 Q 158 10 185 10 Q 215 10 215 35 Q 215 58 190 60 Q 188 65 182 68 Q 183 62 180 60 Q 158 58 158 35 Z"
-        fill="#FFFEF8" stroke="#D4C090" strokeWidth="1.5"
+        fill="#FFFEF8"
+        stroke="#D4C090"
+        strokeWidth="1.5"
       />
-      <text x="187" y="30" textAnchor="middle" fontSize="9" fill="#3B2A1A" fontFamily="serif" fontStyle="italic">Ask</text>
-      <text x="187" y="42" textAnchor="middle" fontSize="9" fill="#3B2A1A" fontFamily="serif" fontStyle="italic">not…</text>
-      <text x="187" y="54" textAnchor="middle" fontSize="8" fill="#A51C30" fontFamily="serif" fontStyle="italic">wait.</text>
+      <text
+        x="187"
+        y="30"
+        textAnchor="middle"
+        fontSize="9"
+        fill="#3B2A1A"
+        fontFamily="serif"
+        fontStyle="italic"
+      >
+        Ask
+      </text>
+      <text
+        x="187"
+        y="42"
+        textAnchor="middle"
+        fontSize="9"
+        fill="#3B2A1A"
+        fontFamily="serif"
+        fontStyle="italic"
+      >
+        not…
+      </text>
+      <text
+        x="187"
+        y="54"
+        textAnchor="middle"
+        fontSize="8"
+        fill="#A51C30"
+        fontFamily="serif"
+        fontStyle="italic"
+      >
+        wait.
+      </text>
     </svg>
   )
 }
@@ -144,7 +231,10 @@ export default function NotFound() {
       </p>
 
       {/* JFK illustration */}
-      <div className="mb-4 select-none" style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.12))' }}>
+      <div
+        className="mb-4 select-none"
+        style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.12))' }}
+      >
         <JFKIllustration />
       </div>
 
@@ -153,24 +243,17 @@ export default function NotFound() {
         className="serif-display mb-3 max-w-sm text-2xl font-bold leading-snug md:text-3xl"
         style={{ color: 'var(--text)' }}
       >
-        "I know it says{' '}
-        <span style={{ color: 'var(--accent)' }}>'Ask what you can do'</span>
+        "I know it says <span style={{ color: 'var(--accent)' }}>'Ask what you can do'</span>
         …"
       </h1>
 
       {/* Punchline */}
-      <p
-        className="mb-1 max-w-xs text-base leading-relaxed"
-        style={{ color: 'var(--text-soft)' }}
-      >
+      <p className="mb-1 max-w-xs text-base leading-relaxed" style={{ color: 'var(--text-soft)' }}>
         "…but I am afraid this cannot be done at the moment."
       </p>
 
       {/* Attribution */}
-      <p
-        className="mb-8 text-xs italic"
-        style={{ color: 'var(--text-muted)' }}
-      >
+      <p className="mb-8 text-xs italic" style={{ color: 'var(--text-muted)' }}>
         — John F. Kennedy, probably, from the afterlife
       </p>
 
@@ -186,7 +269,11 @@ export default function NotFound() {
         <button
           onClick={() => navigate('/courses')}
           className="rounded-full border px-5 py-2.5 text-sm font-semibold transition-opacity hover:opacity-80"
-          style={{ borderColor: 'var(--line)', color: 'var(--text-soft)', background: 'var(--panel-subtle)' }}
+          style={{
+            borderColor: 'var(--line)',
+            color: 'var(--text-soft)',
+            background: 'var(--panel-subtle)',
+          }}
         >
           Browse Courses
         </button>

@@ -47,7 +47,9 @@ export async function onRequestPost({ request, env }) {
 
     if (!isAllowed(email)) {
       return new Response(
-        JSON.stringify({ error: 'Only Harvard email addresses (or whitelisted emails) are allowed.' }),
+        JSON.stringify({
+          error: 'Only Harvard email addresses (or whitelisted emails) are allowed.',
+        }),
         { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
       )
     }
@@ -56,11 +58,9 @@ export async function onRequestPost({ request, env }) {
     const expires = Date.now() + 10 * 60 * 1000 // 10 minutes
 
     // Store OTP in KV with 11-minute TTL (slightly longer than expires check)
-    await env.HKS_KV.put(
-      `otp:${email.toLowerCase().trim()}`,
-      JSON.stringify({ otp, expires }),
-      { expirationTtl: 660 },
-    )
+    await env.HKS_KV.put(`otp:${email.toLowerCase().trim()}`, JSON.stringify({ otp, expires }), {
+      expirationTtl: 660,
+    })
 
     // Send email via Brevo (no domain verification required — just a verified sender address)
     const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -92,10 +92,10 @@ export async function onRequestPost({ request, env }) {
     if (!brevoRes.ok) {
       const errBody = await brevoRes.text()
       console.error('Brevo error:', errBody)
-      return new Response(
-        JSON.stringify({ error: 'Failed to send email. Please try again.' }),
-        { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-      )
+      return new Response(JSON.stringify({ error: 'Failed to send email. Please try again.' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+      })
     }
 
     return new Response(
@@ -104,10 +104,10 @@ export async function onRequestPost({ request, env }) {
     )
   } catch (err) {
     console.error('request.js error:', err)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error.' }),
-      { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } },
-    )
+    return new Response(JSON.stringify({ error: 'Internal server error.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+    })
   }
 }
 

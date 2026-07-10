@@ -4,7 +4,9 @@ export default function Resources() {
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
       <p className="kicker mb-1">Official Links</p>
-      <h1 className="serif-display text-2xl font-semibold mb-1" style={{ color: 'var(--text)' }}>HKS Resources</h1>
+      <h1 className="serif-display text-2xl font-semibold mb-1" style={{ color: 'var(--text)' }}>
+        HKS Resources
+      </h1>
       <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
         Curated links for course planning, registration, and programs.
       </p>
@@ -13,13 +15,20 @@ export default function Resources() {
       <a
         href="https://github.com/mgritzbach/hks-course-explorer/releases/download/v1.0-android/HKS-Course-Explorer-v1.0.apk"
         className="mb-6 flex items-center gap-4 rounded-2xl px-5 py-4 transition-opacity hover:opacity-90"
-        style={{ background: 'linear-gradient(135deg, var(--accent) 0%, #7a1020 100%)', textDecoration: 'none' }}
+        style={{
+          background: 'linear-gradient(135deg, var(--accent) 0%, #7a1020 100%)',
+          textDecoration: 'none',
+        }}
         aria-label="Download Android APK"
       >
         <span style={{ fontSize: 36, lineHeight: 1 }}>🤖</span>
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-sm" style={{ color: '#fff' }}>Download for Android</p>
-          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>HKS-Course-Explorer-v1.0.apk · 9.7 MB</p>
+          <p className="font-bold text-sm" style={{ color: '#fff' }}>
+            Download for Android
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>
+            HKS-Course-Explorer-v1.0.apk · 9.7 MB
+          </p>
         </div>
         <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 20 }}>↓</span>
       </a>
@@ -27,7 +36,16 @@ export default function Resources() {
       <div className="flex flex-col gap-6">
         {HKS_RESOURCES.map((section) => (
           <div key={section.group}>
-            <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 }}>
+            <p
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--text-muted)',
+                marginBottom: 6,
+              }}
+            >
               {section.group}
             </p>
             <div
@@ -50,13 +68,28 @@ export default function Resources() {
                     gap: 12,
                   }}
                   className="transition-colors"
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--panel-subtle)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--panel-subtle)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = ''
+                  }}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>{link.label}</p>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--text)',
+                        marginBottom: 2,
+                      }}
+                    >
+                      {link.label}
+                    </p>
                     {link.desc && (
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>{link.desc}</p>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                        {link.desc}
+                      </p>
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -76,7 +109,9 @@ export default function Resources() {
                         🔒 {link.auth}
                       </span>
                     )}
-                    <span style={{ fontSize: 13, color: 'var(--text-muted)', opacity: 0.5 }}>↗</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)', opacity: 0.5 }}>
+                      ↗
+                    </span>
                   </div>
                 </a>
               ))}

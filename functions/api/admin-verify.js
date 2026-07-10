@@ -1,61 +1,50 @@
 // POST /api/admin-verify
 // Body: { "password": "..." }
-// Returns: { "ok": true, "token": "<ts>.<hmac>" } on success
-// Env var required: ADMIN_PASSWORD (set in Cloudflare Pages dashboard)
+// Returns: { "ok": true, "session": "..." } on success
+// Env vars required: ADMIN_PASSWORD and ADMIN_SESSION_SECRET (set in
+// Cloudflare Pages dashboard). The session is short-lived and only grants the
+// admin data scope; the browser holds it in memory, never storage/cookies.
 
 import { corsHeaders, handleOptions } from '../_shared/cors.js'
+import { issueAdminSession, passwordMatches } from '../_shared/adminSession.js'
+import { readBoundedJson } from '../_shared/adminData.js'
 
-async function hmacSign(secret, data) {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data))
-  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('')
+const MAX_PASSWORD_LENGTH = 256
+
+function response(request, status, body) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      ...corsHeaders(request),
+    },
+  })
 }
 
 export async function onRequestPost({ request, env }) {
-  let body
-  try {
-    body = await request.json()
-  } catch {
-    return new Response(JSON.stringify({ ok: false, error: 'Invalid JSON' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
-    })
-  }
+  const parsed = await readBoundedJson(request, 4 * 1024)
+  if (!parsed.ok) return response(request, parsed.status, { ok: false, error: parsed.error })
 
-  const { password } = body ?? {}
+  const { password } = parsed.value ?? {}
   const adminPassword = env?.ADMIN_PASSWORD
 
-  if (!adminPassword) {
-    // Env var not set — fail closed
-    return new Response(JSON.stringify({ ok: false, error: 'Admin not configured' }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
-    })
+  if (!adminPassword || !env?.ADMIN_SESSION_SECRET) {
+    return response(request, 503, { ok: false, error: 'Admin not configured' })
   }
 
-  if (!password || password !== adminPassword) {
-    return new Response(JSON.stringify({ ok: false }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
-    })
+  if (
+    typeof password !== 'string' ||
+    password.length < 1 ||
+    password.length > MAX_PASSWORD_LENGTH ||
+    !(await passwordMatches(password, adminPassword))
+  ) {
+    return response(request, 401, { ok: false })
   }
 
-  // Issue a short-lived HMAC token: "<timestamp>.<signature>"
-  // Client stores in sessionStorage — cleared on tab close
-  const ts = String(Date.now())
-  const sig = await hmacSign(adminPassword, ts)
-  const token = `${ts}.${sig}`
-
-  return new Response(JSON.stringify({ ok: true, token }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
-  })
+  const session = await issueAdminSession(env)
+  if (!session) return response(request, 503, { ok: false, error: 'Admin not configured' })
+  return response(request, 200, { ok: true, session })
 }
 
 export async function onRequestOptions({ request }) {

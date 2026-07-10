@@ -1,5 +1,8 @@
 node_modules/
 dist/
+.playwright-cli/
+test-results/
+**/__pycache__/
 .DS_Store
 *.local
 .env

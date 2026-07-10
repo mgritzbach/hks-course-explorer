@@ -14,14 +14,30 @@ function countActiveFilters(filters) {
   if (filters.biddingOnly) count++
   if (filters.year !== 0) {
     const allTerms = ['Fall', 'Spring', 'January']
-    if (filters.terms.length !== allTerms.length || !allTerms.every((term) => filters.terms.includes(term))) {
+    if (
+      filters.terms.length !== allTerms.length ||
+      !allTerms.every((term) => filters.terms.includes(term))
+    ) {
       count++
     }
   }
   return count
 }
 
-export default function Sidebar({ filters, setFilters, meta, title = 'Search Courses', onClose = null, mobile = false, metricMode = 'score', setMetricMode = null, colorblindMode = false, setColorblindMode = null, onReplayTour = null, searchRef = null }) {
+export default function Sidebar({
+  filters,
+  setFilters,
+  meta,
+  title = 'Search Courses',
+  onClose = null,
+  mobile = false,
+  metricMode = 'score',
+  setMetricMode = null,
+  colorblindMode = false,
+  setColorblindMode = null,
+  onReplayTour = null,
+  searchRef = null,
+}) {
   const containerRef = useRef(null)
   const [searchInput, setSearchInput] = useState(filters.searchText)
   const [tourPending, setTourPending] = useState(false)
@@ -36,9 +52,12 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
     setSearchInput(filters.searchText)
   }, [filters.searchText])
 
-  useEffect(() => () => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    },
+    [],
+  )
 
   useEffect(() => {
     if (!mobile || !containerRef.current) return undefined
@@ -48,7 +67,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
 
     const focusFirstElement = () => {
       const focusable = containerRef.current?.querySelector(
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       )
       focusable?.focus()
     }
@@ -57,7 +76,8 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       const isOpen = drawer.classList.contains('open')
 
       if (isOpen && !lastOpenStateRef.current) {
-        lastTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        lastTriggerRef.current =
+          document.activeElement instanceof HTMLElement ? document.activeElement : null
         if (openTimeoutRef.current) clearTimeout(openTimeoutRef.current)
         openTimeoutRef.current = setTimeout(focusFirstElement, 50)
       }
@@ -157,7 +177,12 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
               type="button"
               onClick={onClose}
               className="rounded-full px-4 py-2 text-xs font-semibold transition-colors hover:text-label"
-              style={{ border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)', minHeight: 40 }}
+              style={{
+                border: '1px solid var(--line)',
+                background: 'var(--panel-subtle)',
+                color: 'var(--text-muted)',
+                minHeight: 40,
+              }}
               aria-label="Close filter panel"
             >
               Done ✓
@@ -167,7 +192,12 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
 
         <div className="mb-1.5 flex items-center justify-between">
           <label className="filter-label">Keywords</label>
-          <span className="hidden rounded border px-1.5 py-0.5 text-[10px] font-mono text-muted md:inline" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>/</span>
+          <span
+            className="hidden rounded border px-1.5 py-0.5 text-[10px] font-mono text-muted md:inline"
+            style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}
+          >
+            /
+          </span>
         </div>
         <div className="search-input-wrap">
           <input
@@ -187,9 +217,18 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       </div>
 
       {/* Year — primary filter, visually elevated */}
-      <div data-tour="year-filter" className="px-4 py-3" style={{ background: 'rgba(165,28,48,0.07)', borderBottom: '1px solid var(--line)' }}>
+      <div
+        data-tour="year-filter"
+        className="px-4 py-3"
+        style={{ background: 'rgba(165,28,48,0.07)', borderBottom: '1px solid var(--line)' }}
+      >
         <div className="mb-2 flex items-center justify-between">
-          <label className="filter-label font-semibold" style={{ color: 'var(--text)', fontSize: 11 }}>📅 Year</label>
+          <label
+            className="filter-label font-semibold"
+            style={{ color: 'var(--text)', fontSize: 11 }}
+          >
+            📅 Year
+          </label>
           {filters.year !== 0 && (
             <button
               onClick={() => update({ year: 0 })}
@@ -203,6 +242,7 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
         </div>
         <div className="select-wrap">
           <select
+            aria-label="Academic year"
             value={filters.year}
             onChange={(event) => update({ year: parseInt(event.target.value, 10) })}
             style={{ fontWeight: 600, fontSize: 13 }}
@@ -220,8 +260,11 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
             Weighted averages across all years — best for comparing instructors long-term.
           </p>
         )}
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
-          Data: {config.schoolCode} evals through {meta.default_year} · Bidding {meta.default_year - 1}–{String(meta.default_year).slice(-2)}
+        <div
+          style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}
+        >
+          Data: {config.schoolCode} evals through {meta.default_year} · Bidding{' '}
+          {meta.default_year - 1}–{String(meta.default_year).slice(-2)}
         </div>
       </div>
 
@@ -229,10 +272,16 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       <div className="filter-section px-4 py-3">
         <label className="filter-label mb-1.5 block">Concentration</label>
         <div className="select-wrap">
-          <select value={filters.concentration} onChange={(event) => update({ concentration: event.target.value })}>
+          <select
+            aria-label="Concentration"
+            value={filters.concentration}
+            onChange={(event) => update({ concentration: event.target.value })}
+          >
             <option value="All">All concentrations</option>
             {meta.concentrations.map((concentration) => (
-              <option key={concentration} value={concentration}>{concentration}</option>
+              <option key={concentration} value={concentration}>
+                {concentration}
+              </option>
             ))}
           </select>
         </div>
@@ -242,7 +291,11 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       <div className="filter-section px-4 py-3">
         <label className="filter-label mb-1.5 block">Core Courses</label>
         <div className="select-wrap">
-          <select value={filters.coreFilter} onChange={(event) => update({ coreFilter: event.target.value })}>
+          <select
+            aria-label="Core courses"
+            value={filters.coreFilter}
+            onChange={(event) => update({ coreFilter: event.target.value })}
+          >
             <option value="all">Show All</option>
             <option value="core">Core Only</option>
             <option value="no-core">Electives Only</option>
@@ -271,12 +324,26 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
                   onClick={() => toggleTerm(term)}
                   aria-pressed={active}
                   className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all touch-manipulation min-h-[44px]"
-                  style={active
-                    ? { background: 'var(--accent)', color: '#fff8f5', border: '1px solid transparent' }
-                    : { border: '1px solid var(--line)', background: 'var(--panel-subtle)', color: 'var(--text-muted)' }}
+                  style={
+                    active
+                      ? {
+                          background: 'var(--accent)',
+                          color: '#fff8f5',
+                          border: '1px solid transparent',
+                        }
+                      : {
+                          border: '1px solid var(--line)',
+                          background: 'var(--panel-subtle)',
+                          color: 'var(--text-muted)',
+                        }
+                  }
                 >
                   {TERM_LABELS[term]}
-                  {active && <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>✕</span>}
+                  {active && (
+                    <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.85, lineHeight: 1 }}>
+                      ✕
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -288,7 +355,11 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       <div className="filter-section px-4 py-3">
         <label className="filter-label mb-1.5 block">Min Instructor Rating</label>
         <div className="select-wrap">
-          <select value={filters.minInstructorPct} onChange={(event) => update({ minInstructorPct: event.target.value })}>
+          <select
+            aria-label="Minimum instructor rating"
+            value={filters.minInstructorPct}
+            onChange={(event) => update({ minInstructorPct: event.target.value })}
+          >
             <option value="any">Any</option>
             <option value="75">Top 25% (≥75th pct)</option>
             <option value="50">Top 50% (≥50th pct)</option>
@@ -301,7 +372,11 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       <div className="filter-section px-4 py-3">
         <label className="filter-label mb-1.5 block">STEM</label>
         <div className="select-wrap">
-          <select value={filters.stemGroup} onChange={(event) => update({ stemGroup: event.target.value })}>
+          <select
+            aria-label="STEM designation"
+            value={filters.stemGroup}
+            onChange={(event) => update({ stemGroup: event.target.value })}
+          >
             <option value="all">All courses</option>
             <option value="stem">STEM only (A + B)</option>
             <option value="A">STEM A only</option>
@@ -338,7 +413,11 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
       {setMetricMode && (
         <div className="filter-section px-4 py-3">
           <label className="filter-label mb-2 block">Metric Display</label>
-          <div data-tour="metric-toggle" className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}>
+          <div
+            data-tour="metric-toggle"
+            className="flex gap-1 rounded-full border p-0.5"
+            style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
+          >
             <button
               onClick={() => setMetricMode('score')}
               className="flex-1 rounded-full py-1.5 text-[11px] font-medium transition-colors"
@@ -445,7 +524,14 @@ export default function Sidebar({ filters, setFilters, meta, title = 'Search Cou
               }, 150)
             }}
             className="mt-3 block text-xs transition-colors hover:text-label touch-manipulation"
-            style={{ color: tourPending ? 'var(--accent)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: tourPending ? 'default' : 'pointer', padding: 0, opacity: tourPending ? 0.7 : 1 }}
+            style={{
+              color: tourPending ? 'var(--accent)' : 'var(--text-muted)',
+              background: 'none',
+              border: 'none',
+              cursor: tourPending ? 'default' : 'pointer',
+              padding: 0,
+              opacity: tourPending ? 0.7 : 1,
+            }}
           >
             {tourPending ? '↺ Starting…' : '↺ Replay tour'}
           </button>

@@ -8,6 +8,14 @@
     "build:data": "python scripts/build_data.py",
     "prebuild": "npm run build:data",
     "build": "vite build",
+    "check:vendor-integrity": "node scripts/verify_vendor_integrity.mjs",
+    "check:architecture": "node scripts/check_architecture.mjs",
+    "check:ui-complexity": "node scripts/check_ui_complexity.mjs",
+    "check:runtime-contracts": "node scripts/check_runtime_contracts.mjs",
+    "check:contracts": "tsc --project tsconfig.contracts.json --noEmit",
+    "check:format": "prettier --check \"{src,scripts,functions,tests}/**/*.{js,jsx,mjs,json}\" \"*.{js,json}\"",
+    "format": "prettier --write \"{src,scripts,functions,tests}/**/*.{js,jsx,mjs,json}\" \"*.{js,json}\"",
+    "check:bundle-budget": "node scripts/check_bundle_budget.mjs",
     "preview": "vite preview",
     "lint": "eslint src --max-warnings 0",
     "lint:fix": "eslint src --fix",
@@ -15,7 +23,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:build": "npm run build && npm run test:e2e",
+    "test:e2e:ci": "playwright test"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",
@@ -31,14 +41,16 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^18.2.0",
     "react-plotly.js": "^2.6.0",
-    "react-router-dom": "^6.22.0",
+    "react-router-dom": "^6.30.4",
     "recharts": "^3.8.1",
     "sharp": "^0.34.5",
     "uuid": "^14.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "^9.0.0",
+    "@testing-library/dom": "10.4.1",
     "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -53,7 +65,9 @@
     "jsdom": "^29.1.1",
     "lint-staged": "^16.4.0",
     "postcss": "^8.4.35",
+    "prettier": "3.9.5",
     "tailwindcss": "^3.4.1",
+    "typescript": "7.0.2",
     "vite": "^5.1.4",
     "vitest": "^4.1.5"
   },

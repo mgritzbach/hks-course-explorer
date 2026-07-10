@@ -25,4 +25,7 @@ jobs:
           HARVARD_API_KEY: ${{ secrets.HARVARD_API_KEY }}
           SUPABASE_URL:    ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY:    ${{ secrets.SUPABASE_KEY }}
+          # Destructive stale-row deletion remains disabled unless production
+          # coverage and the database synced_at trigger are independently verified.
+          SYNC_ALLOW_STALE_DELETE: 'false'
         run: python scripts/sync_live_courses.py

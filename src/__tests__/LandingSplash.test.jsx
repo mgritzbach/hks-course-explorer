@@ -1,65 +1,53 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import LandingSplash from "../components/LandingSplash.jsx";
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import LandingSplash from '../components/LandingSplash.jsx'
 
-describe("LandingSplash", () => {
+describe('LandingSplash', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    window.localStorage.clear();
-  });
+    vi.useFakeTimers()
+    window.localStorage.clear()
+  })
 
   afterEach(() => {
-    vi.useRealTimers();
-  });
+    vi.useRealTimers()
+  })
 
-  it("presents the requested HKS welcome content and continues directly without a tutorial", () => {
-    const onDirect = vi.fn();
-    render(<LandingSplash onDirect={onDirect} onTutorial={vi.fn()} />);
+  it('presents the requested full-sentence welcome content and continues directly', () => {
+    const onDirect = vi.fn()
+    render(<LandingSplash onDirect={onDirect} onTutorial={vi.fn()} />)
 
-    expect(
-      screen.getByRole("heading", {
-        name: "Welcome to the HKS Course Explorer",
-      }),
-    ).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Welcome to the HKS Course Explorer' })).toBeTruthy()
     expect(
       screen.getByText(
-        "This is a student-built initiative to help HKS students get the course experience they desire.",
+        'This is a student-built initiative to help HKS students get the course experience they desire.',
       ),
-    ).toBeTruthy();
-    expect(screen.getByText("Disclaimer")).toBeTruthy();
-    expect(screen.getByText("Attention")).toBeTruthy();
+    ).toBeTruthy()
+    expect(screen.getByText('Disclaimer')).toBeTruthy()
+    expect(screen.getByText('Attention')).toBeTruthy()
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Continue directly and skip all tutorial boxes",
-      }),
-    );
-    act(() => vi.advanceTimersByTime(280));
+      screen.getByRole('button', { name: 'Continue directly and skip all tutorial boxes' }),
+    )
+    act(() => vi.advanceTimersByTime(280))
 
-    expect(window.localStorage.getItem("hks-splash-shown")).toBe("1");
-    expect(onDirect).toHaveBeenCalledOnce();
-  });
+    expect(window.localStorage.getItem('hks-splash-shown')).toBe('1')
+    expect(onDirect).toHaveBeenCalledOnce()
+  })
 
-  it("offers the guided tutorial as a distinct first-visit action", () => {
-    const onTutorial = vi.fn();
-    render(<LandingSplash onDirect={vi.fn()} onTutorial={onTutorial} />);
+  it('offers the guided tutorial as a distinct first-visit action', () => {
+    const onTutorial = vi.fn()
+    render(<LandingSplash onDirect={vi.fn()} onTutorial={onTutorial} />)
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Continue with the guided tutorial" }),
-    );
-    act(() => vi.advanceTimersByTime(280));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with the guided tutorial' }))
+    act(() => vi.advanceTimersByTime(280))
 
-    expect(window.localStorage.getItem("hks-splash-shown")).toBe("1");
-    expect(onTutorial).toHaveBeenCalledOnce();
-  });
+    expect(window.localStorage.getItem('hks-splash-shown')).toBe('1')
+    expect(onTutorial).toHaveBeenCalledOnce()
+  })
 
-  it("focuses the full welcome page when it first appears", () => {
-    render(<LandingSplash onDirect={vi.fn()} onTutorial={vi.fn()} />);
+  it('focuses the full welcome page when it first appears', () => {
+    render(<LandingSplash onDirect={vi.fn()} onTutorial={vi.fn()} />)
 
-    expect(document.activeElement).toBe(
-      screen.getByRole("main", {
-        name: "Welcome to the HKS Course Explorer",
-      }),
-    );
-  });
-});
+    expect(document.activeElement).toBe(screen.getByRole('main'))
+  })
+})

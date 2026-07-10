@@ -1,9 +1,9 @@
-import { createContext, useContext, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import LandingSplash from "./LandingSplash.jsx";
-import { skipAllTutorials } from "../lib/tutorialPreferences.js";
+import { createContext, useContext, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import LandingSplash from './LandingSplash.jsx'
+import { skipAllTutorials } from '../lib/tutorialPreferences.js'
 
-const WelcomeEntryContext = createContext(null);
+const WelcomeEntryContext = createContext(null)
 
 /**
  * Owns the first-visit choice independently from the application shell. The
@@ -11,36 +11,31 @@ const WelcomeEntryContext = createContext(null);
  * the first experience while Home receives a deterministic tour handoff.
  */
 export function WelcomeEntryProvider({ children }) {
-  const navigate = useNavigate();
+  const navigate = useNavigate()
   const [deferHomeOnboarding, setDeferHomeOnboarding] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      !window.localStorage.getItem("hks-splash-shown"),
-  );
-  const [homeTourRequest, setHomeTourRequest] = useState(null);
+    () => typeof window !== 'undefined' && !window.localStorage.getItem('hks-splash-shown'),
+  )
+  const [homeTourRequest, setHomeTourRequest] = useState(null)
 
   const focusMainContent = () => {
-    window.setTimeout(
-      () => document.getElementById("main-content")?.focus(),
-      0,
-    );
-  };
+    window.setTimeout(() => document.getElementById('main-content')?.focus(), 0)
+  }
 
   const continueDirectly = () => {
-    skipAllTutorials();
-    setHomeTourRequest(null);
-    setDeferHomeOnboarding(false);
-    navigate("/");
-    focusMainContent();
-  };
+    skipAllTutorials()
+    setHomeTourRequest(null)
+    setDeferHomeOnboarding(false)
+    navigate('/')
+    focusMainContent()
+  }
 
   const continueWithTutorial = () => {
-    window.localStorage.removeItem("hks-tour-home");
-    setHomeTourRequest("tutorial");
-    setDeferHomeOnboarding(false);
-    navigate("/");
-    focusMainContent();
-  };
+    window.localStorage.removeItem('hks-tour-home')
+    setHomeTourRequest('tutorial')
+    setDeferHomeOnboarding(false)
+    navigate('/')
+    focusMainContent()
+  }
 
   return (
     <WelcomeEntryContext.Provider
@@ -50,18 +45,14 @@ export function WelcomeEntryProvider({ children }) {
         consumeHomeTourRequest: () => setHomeTourRequest(null),
       }}
     >
-      <LandingSplash
-        onDirect={continueDirectly}
-        onTutorial={continueWithTutorial}
-      />
+      <LandingSplash onDirect={continueDirectly} onTutorial={continueWithTutorial} />
       {children}
     </WelcomeEntryContext.Provider>
-  );
+  )
 }
 
 export function useWelcomeEntry() {
-  const context = useContext(WelcomeEntryContext);
-  if (!context)
-    throw new Error("useWelcomeEntry must be used within WelcomeEntryProvider");
-  return context;
+  const context = useContext(WelcomeEntryContext)
+  if (!context) throw new Error('useWelcomeEntry must be used within WelcomeEntryProvider')
+  return context
 }
