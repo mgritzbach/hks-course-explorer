@@ -21,8 +21,51 @@ export default function LandingSplash({ onDirect, onTutorial }) {
   }, [])
 
   useEffect(() => {
-    if (visible) pageRef.current?.focus()
+    if (!visible) return undefined
+
+    // The portal is a true first-visit modal. Keep the already-rendered app
+    // out of the accessibility tree and keyboard order until the visitor has
+    // made an explicit Direct/Tutorial choice.
+    const appRoot = document.getElementById('root')
+    const previousAriaHidden = appRoot?.getAttribute('aria-hidden')
+    const previousInert = appRoot?.inert
+    const previousBodyOverflow = document.body.style.overflow
+    if (appRoot) {
+      appRoot.inert = true
+      appRoot.setAttribute('aria-hidden', 'true')
+    }
+    document.body.style.overflow = 'hidden'
+    pageRef.current?.focus()
+
+    return () => {
+      if (appRoot) {
+        appRoot.inert = previousInert
+        if (previousAriaHidden == null) appRoot.removeAttribute('aria-hidden')
+        else appRoot.setAttribute('aria-hidden', previousAriaHidden)
+      }
+      document.body.style.overflow = previousBodyOverflow
+    }
   }, [visible])
+
+  const trapFocus = (event) => {
+    if (event.key !== 'Tab') return
+    const focusable = Array.from(
+      pageRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) || [],
+    )
+    if (focusable.length === 0) return
+
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
 
   const dismiss = (next) => {
     setFading(true)
@@ -36,10 +79,14 @@ export default function LandingSplash({ onDirect, onTutorial }) {
   if (!visible) return null
 
   return createPortal(
-    <main
+    <div
       ref={pageRef}
+      role="dialog"
+      aria-modal="true"
       aria-labelledby="welcome-heading"
+      aria-describedby="welcome-description"
       tabIndex={-1}
+      onKeyDown={trapFocus}
       style={{
         position: 'fixed',
         inset: 0,
@@ -190,7 +237,7 @@ export default function LandingSplash({ onDirect, onTutorial }) {
           </section>
         </div>
       </div>
-    </main>,
+    </div>,
     document.body,
   )
 }

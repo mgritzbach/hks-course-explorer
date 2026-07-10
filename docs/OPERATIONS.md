@@ -46,6 +46,11 @@ scrollable-region keyboard access are included; no Axe rule is disabled. This
 is a deterministic regression gate, not a substitute for production manual
 assistive-technology acceptance.
 
+The first-visit landing screen is a labelled modal portal. While it is open,
+the application root is inert and hidden from assistive technology, focus is
+contained within the Direct/Tutorial choice, and body scrolling is paused. Do
+not replace the dialog semantics with a second page `<main>` element.
+
 ## Response security headers
 
 `public/_headers` protects Cloudflare Pages static responses, while

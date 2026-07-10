@@ -11,8 +11,8 @@ release proceeds while any P0 goal is `0`.
 | G02 | P0 | Data integrity | 75% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
 | G03 | P0 | Supabase reliability | 70% | 0 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
 | G04 | P0 | Security | 85% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
-| G05 | P1 | Navigation / usability | 65% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
-| G06 | P1 | Accessibility | 80% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
+| G05 | P1 | Navigation / usability | 70% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
+| G06 | P1 | Accessibility | 85% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
 | G07 | P1 | Dependency security | 100% | 1 | Audited upgrade matrix, green complete suite, and documented residual risk. |
 | G08 | P1 | Performance | 75% | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
 | G09 | P1 | Regression safety | 85% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
@@ -80,3 +80,4 @@ Production certification needs authorized access to Cloudflare Pages/Functions l
 | L43 | The two known unrestricted Course Explorer browser-write policies have a generated, scope-locked migration and a staged anonymous-role proof that preserves public catalogue reads and legacy rows. | 1 | Supabase CLI-generated migration; staging replicas preserve one row per target, reject anonymous writes, hide schedules from anonymous users, retain `Public read`, and leave zero target `ALL` policies. Production remains unchanged. |
 | L44 | Home and Schedule Builder have a full serious/critical Axe WCAG A/AA gate without excluded contrast or scrollable-region rules, on desktop and a 390px mobile viewport. | 1 | Built-artifact audit passed after shared Hub contrast-token correction, Course Card metadata contrast repair, and keyboard-focusable schedule-grid landmark; full browser regression remains required before release. |
 | L45 | The Home route has a reproducible local production-build performance baseline. | 1 | Chrome DevTools cold trace: 409 ms LCP, 0.00 CLS, and 8 ms local TTFB; no measurable render-blocking savings. Production mobile and RUM evidence remains required for G08. |
+| L46 | The first-visit landing page is a true focus-contained modal rather than a competing second main landmark. | 1 | Unit and built-browser checks prove a labelled modal, inert/hidden background, Tab containment, and unchanged Direct/Tutorial handoffs. |

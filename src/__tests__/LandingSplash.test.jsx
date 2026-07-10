@@ -45,9 +45,19 @@ describe('LandingSplash', () => {
     expect(onTutorial).toHaveBeenCalledOnce()
   })
 
-  it('focuses the full welcome page when it first appears', () => {
+  it('is a focus-contained modal landing page when it first appears', () => {
     render(<LandingSplash onDirect={vi.fn()} onTutorial={vi.fn()} />)
 
-    expect(document.activeElement).toBe(screen.getByRole('main'))
+    const dialog = screen.getByRole('dialog', { name: 'Welcome to the HKS Course Explorer' })
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    expect(document.activeElement).toBe(dialog)
+
+    const direct = screen.getByRole('button', {
+      name: 'Continue directly and skip all tutorial boxes',
+    })
+    const tutorial = screen.getByRole('button', { name: 'Continue with the guided tutorial' })
+    tutorial.focus()
+    fireEvent.keyDown(tutorial, { key: 'Tab' })
+    expect(document.activeElement).toBe(direct)
   })
 })
