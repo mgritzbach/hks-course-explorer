@@ -75,6 +75,12 @@ create index if not exists catalogue_snapshot_v1_run_code
 alter table public.catalogue_sync_runs enable row level security;
 alter table public.catalogue_snapshot_v1 enable row level security;
 
+-- RLS is the row-level guard, but explicit revocation is defense in depth:
+-- these tables are not a browser API and must remain server-only even if a
+-- broad schema/table grant exists elsewhere in the project.
+revoke all on table public.catalogue_sync_runs from public, anon, authenticated;
+revoke all on table public.catalogue_snapshot_v1 from public, anon, authenticated;
+
 create or replace function public.promote_catalogue_snapshot(p_sync_run_id uuid)
 returns void
 language plpgsql
@@ -114,7 +120,10 @@ begin
 end;
 $$;
 
-revoke all on function public.promote_catalogue_snapshot(uuid) from public;
+-- New functions normally inherit PUBLIC execute. Revoke it explicitly from
+-- every browser-facing role before allowing the server-only service role.
+revoke all on function public.promote_catalogue_snapshot(uuid)
+  from public, anon, authenticated;
 grant execute on function public.promote_catalogue_snapshot(uuid) to service_role;
 
 -- The browser is not granted access to this view. The future Pages Function

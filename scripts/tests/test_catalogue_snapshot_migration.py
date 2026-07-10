@@ -21,8 +21,27 @@ class CatalogueSnapshotMigrationTests(unittest.TestCase):
     def test_keeps_new_snapshot_tables_private_until_a_public_function_is_reviewed(self):
         self.assertIn("alter table public.catalogue_sync_runs enable row level security", self.sql)
         self.assertIn("alter table public.catalogue_snapshot_v1 enable row level security", self.sql)
+        self.assertIn(
+            "revoke all on table public.catalogue_sync_runs from public, anon, authenticated",
+            self.sql,
+        )
+        self.assertIn(
+            "revoke all on table public.catalogue_snapshot_v1 from public, anon, authenticated",
+            self.sql,
+        )
         self.assertNotIn("create policy", self.sql)
         self.assertIn("create or replace view public.catalogue_current_v1", self.sql)
+
+    def test_all_browser_roles_are_revoked_before_service_role_promotion_access(self):
+        self.assertIn(
+            "revoke all on function public.promote_catalogue_snapshot(uuid)\n"
+            "  from public, anon, authenticated",
+            self.sql,
+        )
+        self.assertIn(
+            "grant execute on function public.promote_catalogue_snapshot(uuid) to service_role",
+            self.sql,
+        )
 
     def test_promotion_rejects_partial_snapshots(self):
         self.assertIn("mismatched source and snapshot counts", self.sql)

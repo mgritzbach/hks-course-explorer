@@ -73,6 +73,31 @@ rollback path until then.
 7. Run browser, accessibility, and mobile regression tests before changing any
    application read path.
 
+## Staging proof: 2026-07-10
+
+The exact additive migration was applied and rerun from scratch in the
+isolated free `hks-course-explorer-staging` Supabase project. It contains no
+production catalogue data and did not alter the existing production project.
+
+- One complete test snapshot promoted and appeared in `catalogue_current_v1`.
+- One intentionally incomplete snapshot was rejected and remained `staging`.
+- `anon` could not read either private table or execute promotion.
+- `authenticated` could not execute promotion.
+- Only `service_role` retained promotion permission.
+
+The security adviser reports only the expected informational finding that the
+two private tables have RLS enabled with no policy. This is intentional: all
+browser-role table grants are explicitly revoked, and the future server-only
+Function will use its service credential. The original staging run exposed
+that a new `SECURITY DEFINER` function inherits executable access unless every
+browser-facing role is explicitly revoked. The migration now enforces those
+revocations and the static regression test protects them.
+
+This proves the additive snapshot boundary; it does **not** authorize a
+production migration or UI switchover. Production still requires a source
+parity audit, backup/restore exercise, and separately reviewed RLS remediation
+for the existing public tables.
+
 ## Rollout order
 
 1. Correct paginated reads and capture source-count baselines.
