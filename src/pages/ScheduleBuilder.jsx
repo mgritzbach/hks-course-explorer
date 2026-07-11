@@ -1828,10 +1828,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     color: 'var(--text)',
                   }}
                 >
-                  {catalogueReadError || 'Synced catalogue search is unavailable.'}{' '}
-                  {searchSource === 'HKS' || searchSource === 'All'
-                    ? 'Showing matching Q-guide history where available.'
-                    : 'Please try again shortly.'}
+                  {catalogueReadError || 'Synced catalogue search is unavailable.'} Please try again
+                  shortly.
                 </p>
               )}
               {(liveSearchStatus.stale || liveSearchStatus.partial) && (
