@@ -34,8 +34,8 @@ class CatalogueSnapshotTests(unittest.TestCase):
     def test_preserves_each_current_offering_id_even_when_codes_repeat(self):
         rows = self.snapshot.materialize_catalogue_snapshot(
             [
-                {"id": "one", "course_code_base": "API-101", "instructors": ["Graham Allison"]},
-                {"id": "two", "course_code_base": "API-101", "instructors": ["Graham Allison"]},
+                {"id": "one", "school": "HKS", "course_code_base": "API-101", "instructors": ["Graham Allison"]},
+                {"id": "two", "school": "HKS", "course_code_base": "API-101", "instructors": ["Graham Allison"]},
             ],
             self.history,
             self.aliases,
@@ -45,7 +45,7 @@ class CatalogueSnapshotTests(unittest.TestCase):
 
     def test_uses_only_the_reviewed_alias_registry_for_renumbered_courses(self):
         row = self.snapshot.materialize_catalogue_snapshot(
-            [{"id": "current", "course_code_base": "DPI-803-M", "instructors": ["Graham Allison"]}], self.history, {"PAL-117": "DPI-803-M", "MLD-717-M": "DPI-803-M"}
+            [{"id": "current", "school": "HKS", "course_code_base": "DPI-803-M", "instructors": ["Graham Allison"]}], self.history, {"PAL-117": "DPI-803-M", "MLD-717-M": "DPI-803-M"}
         )[0]
         self.assertEqual(row["match_status"], "verified")
         self.assertEqual(row["match_method"], "approved_alias_same_professor")
@@ -58,7 +58,7 @@ class CatalogueSnapshotTests(unittest.TestCase):
 
     def test_nearby_suffixes_remain_unmatched_instead_of_inheriting_ratings(self):
         row = self.snapshot.materialize_catalogue_snapshot(
-            [{"id": "suffix", "course_code_base": "DPI-802-M-D", "instructors": ["Graham Allison"]}], self.history, self.aliases
+            [{"id": "suffix", "school": "HKS", "course_code_base": "DPI-802-M-D", "instructors": ["Graham Allison"]}], self.history, self.aliases
         )[0]
         self.assertEqual(row["match_status"], "needs_review")
         self.assertEqual(row["historical_records"], [])
@@ -66,7 +66,7 @@ class CatalogueSnapshotTests(unittest.TestCase):
 
     def test_keeps_other_professors_as_course_history_without_attaching_their_ratings(self):
         row = self.snapshot.materialize_catalogue_snapshot(
-            [{"id": "new-professor", "course_code_base": "API-101", "instructors": ["Different Professor"]}],
+            [{"id": "new-professor", "school": "HKS", "course_code_base": "API-101", "instructors": ["Different Professor"]}],
             self.history,
             self.aliases,
         )[0]
@@ -98,6 +98,17 @@ class CatalogueSnapshotTests(unittest.TestCase):
         self.assertEqual(row["renumbering_review_candidates"], [])
         self.assertEqual(row["evaluation_summary"]["evaluated_offering_count"], 0)
 
+    def test_offering_without_a_verified_school_remains_current_only(self):
+        row = self.snapshot.materialize_catalogue_snapshot(
+            [{"id": "unknown-school", "course_code_base": "API-101", "instructors": ["Graham Allison"]}],
+            self.history,
+            self.aliases,
+        )[0]
+
+        self.assertEqual(row["match_status"], "not_applicable")
+        self.assertEqual(row["match_method"], "non_hks_current_only")
+        self.assertEqual(row["historical_records"], [])
+
     def test_rejects_missing_current_offering_ids_before_promotion(self):
         with self.assertRaisesRegex(ValueError, "immutable source id"):
             self.snapshot.materialize_catalogue_snapshot([{"course_code_base": "API-101"}], self.history, self.aliases)
@@ -117,6 +128,7 @@ class CatalogueSnapshotTests(unittest.TestCase):
             [
                 {
                     "id": "new-code",
+                    "school": "HKS",
                     "course_code_base": "DPI-799",
                     "title": "Advanced Policy Design",
                     "instructors": ["Graham Allison"],
@@ -155,6 +167,7 @@ class CatalogueSnapshotTests(unittest.TestCase):
             [
                 {
                     "id": "current-code",
+                    "school": "HKS",
                     "course_code_base": "DPI-799",
                     "title": "Advanced Policy Design",
                     "instructors": ["Graham Allison"],
