@@ -20,7 +20,7 @@ HKS Course Explorer gives students a single place to:
 - **Similarity map** — find courses similar to ones you already like via a PCA-based scatter plot
 - **AI advisor** — ask a chatbot trained on the course catalog to find the right course for your interests
 
-Data covers **5,581 HKS Q-guide evaluation records** across multiple years, plus live course listings from the Harvard ATS API for all schools.
+Data covers **5,581 HKS Q-guide evaluation records** across multiple years, plus current course listings synchronised daily from the Harvard ATS API for all schools. The browser searches that last verified catalogue; it does not call the upstream API while a student is using the site.
 
 ---
 
@@ -52,7 +52,7 @@ This project is designed to be forked by students at other Harvard schools (or a
 
 | Track | Time | What you get |
 |-------|------|-------------|
-| **A — Schedule builder only** | ~2 hours | Working schedule builder powered by the Harvard ATS API. No evaluation data needed. |
+| **A — Schedule builder only** | ~2 hours | Working schedule builder powered by the daily-synced course catalogue. No evaluation data needed. |
 | **B — Add your eval data** | 1–3 days | Full app with your school's historical course evaluations, faculty explorer, and similarity map. |
 | **C — Full replica** | Days–weeks | Build your own scraping pipeline for your school's evaluation portal. |
 
@@ -123,12 +123,16 @@ public/courses.json  +  public/sim_coords.json
        v
 Static files served from CDN globally
 
-Harvard ATS API  -->  scripts/sync_live_courses.py  -->  Supabase live_courses
-                                                    -->  Supabase course_sections
-                                                              |
-                                                              v
-                                                    Fetched at runtime by
-                                                    Schedule Builder
+Harvard ATS API  -->  scheduled scripts/sync_live_courses.py  -->  Supabase live_courses
+                                                                  -->  Supabase course_sections
+                                                                            |
+                                                                            v
+                                                        Browser Schedule Builder reads
+                                                        the selected synced term only
+
+The Harvard API is an ingestion source, not a browser search dependency. A
+failed daily sync leaves the prior verified catalogue in place; a student
+search never falls back to an on-demand upstream request.
 ```
 
 Full pipeline documentation: [docs/data-pipeline-overview.txt](docs/data-pipeline-overview.txt)

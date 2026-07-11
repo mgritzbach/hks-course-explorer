@@ -312,6 +312,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   // All Supabase fetching is handled by this hook (see src/hooks/useScheduleData.js)
   const {
     liveCoursesData,
+    liveCoursesLoading,
+    liveCoursesError,
     sectionTimesMap,
     sectionCanonicalCodes,
     sectionInfoMap,
@@ -356,6 +358,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   const toggleSection = (key) => setCollapsedSections((s) => ({ ...s, [key]: !s[key] }))
   const importInputRef = useRef(null)
   const [saveLoadMsg, setSaveLoadMsg] = useState(null)
+  // A current-offering query always depends on the selected-term synced
+  // catalogue, including a typed HKS/Non-HKS search. Keep this distinct from
+  // the legacy fallback-search message so an unavailable catalogue can never
+  // look like a trustworthy empty current result.
+  const catalogueReadError = searchMode === 'live' ? liveCoursesError : ''
 
   function openManualModal(prefillCode) {
     setManualCourseModal({ code: prefillCode || '' })
@@ -1791,9 +1798,13 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                 </p>
               ) : !searchQ.trim() && searchSource !== 'HKS' && searchMode === 'live' ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-                  {liveCoursesData.length > 0
-                    ? `Browsing ${semesterYear} ${semester} catalog — type to narrow`
-                    : 'Loading catalog…'}
+                  {catalogueReadError
+                    ? 'Current catalogue unavailable — see notice below.'
+                    : liveCoursesLoading
+                      ? 'Loading current catalog…'
+                      : liveCoursesData.length > 0
+                        ? `Browsing ${semesterYear} ${semester} catalog — type to narrow`
+                        : `No synced courses are available for ${semesterYear} ${semester}.`}
                 </p>
               ) : apiMode === 'db' && !searchQ.trim() ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
@@ -1807,7 +1818,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-              {liveSearchError && (
+              {(liveSearchError || catalogueReadError) && (
                 <p
                   role="alert"
                   className="mb-3 rounded-xl border px-3 py-2 text-xs leading-5"
@@ -1817,7 +1828,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     color: 'var(--text)',
                   }}
                 >
-                  Synced catalogue search is unavailable.{' '}
+                  {catalogueReadError || 'Synced catalogue search is unavailable.'}{' '}
                   {searchSource === 'HKS' || searchSource === 'All'
                     ? 'Showing matching Q-guide history where available.'
                     : 'Please try again shortly.'}
@@ -1843,6 +1854,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
               )}
               {!searching &&
                 !liveSearchError &&
+                !catalogueReadError &&
                 filteredSearchResults.length === 0 &&
                 searchMode === 'live' && (
                   <p
