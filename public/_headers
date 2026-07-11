@@ -4,3 +4,9 @@
   Permissions-Policy: camera=(), geolocation=(), microphone=(), payment=(), usb=()
   X-Frame-Options: SAMEORIGIN
   Strict-Transport-Security: max-age=31536000
+
+# Vite fingerprints every production asset under /assets/. Those URLs change
+# with their content, so browsers may safely reuse them without revalidation.
+# Do not put Cache-Control on /*: HTML must continue to discover each release.
+/assets/*
+  Cache-Control: public, max-age=31556952, immutable

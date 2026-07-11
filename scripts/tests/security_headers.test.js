@@ -10,4 +10,14 @@ describe('Cloudflare Pages security headers', () => {
       expect(staticHeaders).toContain(`${name}: ${value}`)
     }
   })
+
+  it('long-caches only content-fingerprinted Vite assets', async () => {
+    const staticHeaders = await readFile('public/_headers', 'utf8')
+    const [generalRule] = staticHeaders.split('/assets/*')
+
+    expect(generalRule).not.toContain('Cache-Control:')
+    expect(staticHeaders).toContain(
+      '/assets/*\n  Cache-Control: public, max-age=31556952, immutable',
+    )
+  })
 })
