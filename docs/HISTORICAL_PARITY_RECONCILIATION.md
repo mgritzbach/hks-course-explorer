@@ -12,7 +12,7 @@ or data changes. Its results are the current release baseline:
 
 | Evidence | Observed count | Interpretation |
 | --- | ---: | --- |
-| Current offerings | 6,553 | Complete paginated `live_courses` read used for a future snapshot. |
+| `live_courses` rows | 7,283 | Complete paginated database read. The latest full Harvard source contained 5,890 offerings, so 1,393 retained rows are absent from that source and require reconciliation; they are not automatically deleted. |
 | Historical database rows | 5,812 | Existing `courses` source remains immutable during reconciliation. |
 | Browser canonical history rows | 5,580 | Generated `public/courses.json` served by the current application. |
 | Exact semantic one-to-one history rows | 5,163 | Candidates with matching normalized evidence, not automatic ID rewrites. |
@@ -34,6 +34,14 @@ below with a trusted service key, review ambiguous and missing-identity rows
 against authoritative course records, then make separately reviewed source
 corrections. This repository intentionally does not upload that report from
 GitHub Actions or write it into source control.
+
+The live-course count above was rechecked by the protected read-only audit at
+commit `6dac43a` after the scheduled sync. It explains the earlier 6,553/7,283
+discrepancy: the sync successfully upserted its complete current source but
+retained database rows that were not in that source. These rows are a
+reconciliation queue, not proof of a safe deletion set. The sync now records
+this aggregate inventory after every successful promotion and rejects all
+deletion requests before API or database activity.
 
 ## Read-only operator review
 
