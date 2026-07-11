@@ -99,7 +99,8 @@ def historical_semantic_key(row):
     if not isinstance(row, dict):
         return None
     code = normalise_course_code(row.get("course_code_base") or row.get("course_code"))
-    year = str(row.get("year") or "").strip()
+    year_value = row.get("year")
+    year = str(year_value).strip() if year_value is not None else ""
     term = str(row.get("term") or "").strip().casefold()
     professor = normalise_instructor_name(row.get("professor") or row.get("professor_display"))
     title = normalise_course_title(row.get("course_name"))

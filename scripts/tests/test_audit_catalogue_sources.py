@@ -121,6 +121,17 @@ class CatalogueAuditTests(unittest.TestCase):
         self.assertEqual(report["semantic_source_missing_key_count"], 1)
         self.assertEqual(report["semantic_changed_id_candidate_count"], 1)
 
+    def test_treats_year_zero_as_a_valid_aggregate_identity_component(self):
+        row = {
+            "id": "average", "course_code": "API-101", "year": 0, "term": "Fall",
+            "professor": "Average", "course_name": "Public Policy", "is_average": True,
+        }
+
+        key = self.audit.historical_semantic_key(row)
+
+        self.assertIsNotNone(key)
+        self.assertEqual(key[1], "0")
+
 
 if __name__ == "__main__":
     unittest.main()
