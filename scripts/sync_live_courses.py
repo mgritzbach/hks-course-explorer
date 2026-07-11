@@ -33,6 +33,13 @@ log = logging.getLogger(__name__)
 # ── Config ────────────────────────────────────────────────────────────────────
 
 HARVARD_API_BASE = "https://go.apis.huit.harvard.edu/ats/course/v2/search"
+# The public gateway issues cursors from its production API hostname. Both
+# exact hosts are documented Harvard endpoints; accept neither arbitrary
+# redirects nor look-alike subdomains when following a cursor with the key.
+HARVARD_CURSOR_HOSTS = {
+    "go.apis.huit.harvard.edu",
+    "go.prod.apis.huit.harvard.edu",
+}
 SUPABASE_URL     = os.environ["SUPABASE_URL"].rstrip("/")
 SUPABASE_KEY     = os.environ["SUPABASE_KEY"]
 HARVARD_API_KEY  = os.environ["HARVARD_API_KEY"]
@@ -183,10 +190,9 @@ def _valid_scroll_url(value: object) -> bool:
     if not isinstance(value, str):
         return False
     parsed = urlparse(value)
-    base = urlparse(HARVARD_API_BASE)
     return (
         parsed.scheme == "https"
-        and parsed.netloc == base.netloc
+        and parsed.netloc in HARVARD_CURSOR_HOSTS
         and parsed.path.startswith("/ats/course/v2/search/scroll/")
     )
 

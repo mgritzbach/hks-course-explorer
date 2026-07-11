@@ -48,7 +48,7 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertEqual(result.rows, [])
 
     def test_uses_documented_page_size_and_follows_every_scroll_page(self):
-        scroll_url = f"{self.sync.HARVARD_API_BASE}/scroll/test-cursor"
+        scroll_url = "https://go.prod.apis.huit.harvard.edu/ats/course/v2/search/scroll/test-cursor"
         first = Mock(ok=True)
         first.json.return_value = {
             "results": [{"courseID": "one", "courseNumber": "API 101", "courseTitle": "One"}],
