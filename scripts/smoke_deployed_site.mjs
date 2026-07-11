@@ -90,7 +90,17 @@ export async function smokeDeployedSite({
       redirect: 'follow',
       signal: AbortSignal.timeout(30_000),
     })
-    assertFingerprintAsset(assetResponse, assetUrl)
+    if (!assetResponse.ok) assertFingerprintAsset(assetResponse, assetUrl)
+    if (assetResponse.headers.get('cache-control') !== FINGERPRINTED_ASSET_CACHE_CONTROL) {
+      // The entry HTML and the Pages header rules can arrive at edge locations
+      // a few seconds apart. Keep waiting only for this exact expected asset;
+      // never accept a stale hash or an unsuccessful asset response.
+      if (attempt < maxAttempts) {
+        await waitImpl(DEPLOYED_ASSET_RETRY_MS)
+        continue
+      }
+      assertFingerprintAsset(assetResponse, assetUrl)
+    }
     return
   }
 }

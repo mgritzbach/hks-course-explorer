@@ -127,4 +127,30 @@ describe('deployed site smoke check', () => {
     ).resolves.toBeUndefined()
     expect(waits).toEqual([3_000])
   })
+
+  it('waits for the immutable header after the exact asset is present', async () => {
+    const responses = [
+      response({
+        body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+      }),
+      response({ contentType: 'application/javascript' }),
+      response({
+        body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+      }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+    ]
+    const waits = []
+
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-current123.js',
+        fetchImpl: async () => responses.shift(),
+        waitImpl: async (milliseconds) => waits.push(milliseconds),
+      }),
+    ).resolves.toBeUndefined()
+    expect(waits).toEqual([3_000])
+  })
 })
