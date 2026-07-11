@@ -61,6 +61,16 @@ The report is evidence, not a migration. Its statuses mean:
 - `*_missing_identity_fields`: repair source metadata before attempting any
   mapping.
 
+The report additionally includes `manual_nonaggregate_section_code_change_reviews`.
+This is a narrow subset of exact semantic ID-change candidates: non-aggregate,
+one-to-one records where the historical structured ID has exactly one terminal
+section token (such as `-A`) that is absent from the browser canonical ID.
+It excludes generated aggregates, ambiguous rows, and all other renumbering
+patterns. The queue makes potentially consequential A/B/C section changes
+visible without treating them as approved aliases. Every item still requires
+authoritative catalogue evidence and two-person approval before any reviewed
+alias is added.
+
 ## Approval gate
 
 Only evidence-backed approved aliases may enter the reviewed alias registry.

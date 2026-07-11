@@ -8,6 +8,7 @@ the evidence needed before a later snapshot promotion.
 import argparse
 import json
 import os
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -213,14 +214,73 @@ def semantic_reconciliation_review_rows(source_rows, canonical_rows):
     return sorted(rows, key=lambda row: (row["status"], row.get("source_ids", []), row.get("canonical_ids", [])))
 
 
+def raw_course_code_from_row_id(row_id):
+    """Return the code-sized prefix of a structured history ID, if present.
+
+    This is deliberately only a review aid.  It is not an identity parser and
+    must never be used to create an alias or select a historical evaluation.
+    """
+    value = str(row_id or "")
+    code, separator, _ = value.partition("||")
+    return code if separator and code else None
+
+
+def manual_nonaggregate_section_code_change_review_rows(review_rows):
+    """Surface exact non-aggregate terminal-section changes for manual review.
+
+    Generated aggregate IDs intentionally add a digest and are verified by
+    ``verify_aggregate_provenance.py``.  This narrower queue is for the much
+    riskier individual-course cases where one terminal section token was
+    removed (for example, a historical A/B section becoming an unsuffixed
+    course). It intentionally excludes every other renumbering direction,
+    aggregate, and ambiguous case. It only labels rows for manual
+    investigation; it does not infer equivalence or permit ratings to cross
+    the boundary.
+    """
+    queue = []
+    for row in review_rows:
+        if row.get("status") != "exact_semantic_id_change":
+            continue
+        source_ids = row.get("source_ids", [])
+        canonical_ids = row.get("canonical_ids", [])
+        if len(source_ids) != 1 or len(canonical_ids) != 1:
+            continue
+        source_id, canonical_id = source_ids[0], canonical_ids[0]
+        if "||aggregate-" in source_id or "||aggregate-" in canonical_id:
+            continue
+        if str(row.get("identity", {}).get("is_average", "")).casefold() != "false":
+            continue
+        source_code = raw_course_code_from_row_id(source_id)
+        canonical_code = raw_course_code_from_row_id(canonical_id)
+        if not source_code or not canonical_code:
+            continue
+        source_base = re.sub(r"-[A-Z]$", "", source_code, flags=re.IGNORECASE)
+        if source_base.casefold() != canonical_code.casefold():
+            continue
+        queue.append(
+            {
+                "status": "needs_manual_provenance_review",
+                "candidate_kind": "terminal_section_token_removed",
+                "identity": row["identity"],
+                "source_id": source_id,
+                "canonical_id": canonical_id,
+                "source_course_code": source_code,
+                "canonical_course_code": canonical_code,
+            }
+        )
+    return sorted(queue, key=lambda row: (row["source_course_code"], row["source_id"]))
+
+
 def write_semantic_reconciliation_review(path, source_rows, canonical_rows):
     """Write a local-only review export; this function never contacts Supabase."""
     destination = Path(path)
     if not destination.is_absolute():
         raise ValueError("Review-report path must be absolute to avoid accidental repository output.")
+    review_rows = semantic_reconciliation_review_rows(source_rows, canonical_rows)
     payload = {
         "purpose": "review_only_no_automatic_id_rewrites",
-        "rows": semantic_reconciliation_review_rows(source_rows, canonical_rows),
+        "rows": review_rows,
+        "manual_nonaggregate_section_code_change_reviews": manual_nonaggregate_section_code_change_review_rows(review_rows),
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -292,6 +352,11 @@ def audit_catalogue(offerings, historical_rows, aliases, canonical_rows=None):
     if canonical_rows is not None:
         report.update(historical_source_parity(historical_rows, canonical_rows))
         report.update(semantic_history_reconciliation(historical_rows, canonical_rows))
+        report["manual_nonaggregate_section_code_change_review_count"] = len(
+            manual_nonaggregate_section_code_change_review_rows(
+                semantic_reconciliation_review_rows(historical_rows, canonical_rows)
+            )
+        )
     return report
 
 
