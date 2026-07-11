@@ -39,7 +39,7 @@ Pages too if Pages can create builds outside this workflow.
 | `SUPABASE_URL` | Yes | REST/client endpoint for trusted data-sync scripts. |
 | `SUPABASE_KEY` | Yes | Supabase service-role/secret key for trusted scripts only. |
 | `HARVARD_API_KEY` | Yes | Harvard ATS API key used by the sync script. |
-| `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated results required before the sync writes. Default: `1`; set an environment-specific guardrail only after establishing a trustworthy baseline. |
+| `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated results required before the sync writes. Script default: `1`; the production workflow uses the reviewed `1200` floor against its 1,555-offering baseline. |
 | `SYNC_ALLOW_STALE_DELETE` | No | Enables destructive deletion of rows not refreshed by a successful sync. Default: `false`; enable only with verified complete upstream coverage and a tested `live_courses.synced_at` trigger. |
 
 The sync job fails closed if any required source request fails or the minimum
