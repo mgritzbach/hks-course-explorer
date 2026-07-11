@@ -87,6 +87,11 @@ rationale.
 
 The scheduled GitHub Action runs `scripts/sync_live_courses.py`.
 
+Scheduled and manually dispatched runs share one production concurrency group.
+GitHub will not run them simultaneously, so a recovery attempt cannot race the
+scheduled run's atomic promotion. Do not cancel an in-progress sync solely to
+start another one; wait for its summary and start the follow-up only if needed.
+
 The sync will upsert data only when every planned Harvard request succeeds and
 the configured minimum unique-course count is reached. Stale-row deletion is
 disabled by default (`SYNC_ALLOW_STALE_DELETE=false`): a successful API
