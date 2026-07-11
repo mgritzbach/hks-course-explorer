@@ -1,7 +1,9 @@
 """Read-only source-audit contract tests."""
 
 import importlib.util
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -131,6 +133,23 @@ class CatalogueAuditTests(unittest.TestCase):
 
         self.assertIsNotNone(key)
         self.assertEqual(key[1], "0")
+
+    def test_writes_local_review_rows_without_authorising_an_id_rewrite(self):
+        source = [{"id": "legacy", "course_code": "API-101", "year": 2024, "term": "Fall", "professor": "Avery Example", "course_name": "Public Policy"}]
+        canonical = [{"id": "generated", "course_code": "API-101", "year": 2024, "term": "Fall", "professor": "Avery Example", "course_name": "Public Policy"}]
+        with tempfile.TemporaryDirectory() as directory:
+            report_path = Path(directory) / "review.json"
+            self.audit.write_semantic_reconciliation_review(report_path, source, canonical)
+            payload = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["purpose"], "review_only_no_automatic_id_rewrites")
+        self.assertEqual(payload["rows"][0]["status"], "exact_semantic_id_change")
+        self.assertEqual(payload["rows"][0]["source_ids"], ["legacy"])
+        self.assertEqual(payload["rows"][0]["canonical_ids"], ["generated"])
+
+    def test_rejects_relative_review_report_paths(self):
+        with self.assertRaisesRegex(ValueError, "must be absolute"):
+            self.audit.write_semantic_reconciliation_review("review.json", [], [])
 
 
 if __name__ == "__main__":
