@@ -69,7 +69,7 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertEqual(first_call.args[0], self.sync.HARVARD_API_BASE)
         self.assertEqual(
             first_call.kwargs["params"],
-            {"q": "api", "catalogSchool": "HKS", "size": 1000, "scroll": "true"},
+            {"q": "api", "catalogSchool": "HKS", "size": 250, "scroll": "true"},
         )
         self.assertEqual(second_call.args[0], scroll_url)
         self.assertIsNone(second_call.kwargs["params"])

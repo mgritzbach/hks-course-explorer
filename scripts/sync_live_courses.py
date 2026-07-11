@@ -56,11 +56,17 @@ HKS_SCHOOL = "HKS"
 # then read the term field from each returned course.
 SEED_QUERIES = ["a", "e", "i", "o", "s", "the", "pol", "eco", "law", "med"]
 
-API_PAGE_SIZE = 1000  # Harvard ATS Course API documented maximum page size
+# Harvard documents a maximum of 1,000 rows, but broad FAS queries produced
+# upstream 502s at that size.  Use a conservative page size with pagination;
+# this trades a few cursor requests for a complete, provider-tolerable sync.
+API_PAGE_SIZE = 250
 MAX_PAGES_PER_QUERY = 1000  # Fail closed if the provider's scroll cursor loops
-WORKERS      = 3     # Low parallelism to avoid 429s
-REQUEST_DELAY = 0.2  # seconds between requests per worker
-HTTP_MAX_ATTEMPTS = 3
+# A previous three-worker burst hit the provider's 429 limit after partial
+# collection. One request per second stays comfortably below that observed
+# ceiling while the 15-minute workflow timeout still covers all queries.
+WORKERS      = 1
+REQUEST_DELAY = 1.0
+HTTP_MAX_ATTEMPTS = 5
 RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
 
 # A sync can safely add/update records after every planned source request has
@@ -243,7 +249,7 @@ def _fetch_course_page(
             last_error = str(exc)
 
         if attempt < HTTP_MAX_ATTEMPTS - 1:
-            delay = min(5, 2 ** attempt)
+            delay = min(30, 2 ** attempt)
             log.warning("  %s q=%-6s failed (%s); retrying in %ss (%d/%d)", school, query, last_error, delay, attempt + 1, HTTP_MAX_ATTEMPTS)
             time.sleep(delay)
 
