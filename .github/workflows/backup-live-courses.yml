@@ -1,0 +1,56 @@
+name: Backup live courses
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_backup:
+        description: Create a private, read-only live_courses backup artifact
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    if: ${{ inputs.confirm_backup }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Export live-course backup
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python scripts/export_live_courses_backup.py --output "$RUNNER_TEMP/live-courses-backup.json"
+
+      - name: Encrypt backup before upload
+        env:
+          BACKUP_ARTIFACT_PASSPHRASE: ${{ secrets.BACKUP_ARTIFACT_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_ARTIFACT_PASSPHRASE" ]; then
+            echo "BACKUP_ARTIFACT_PASSPHRASE must be configured; refusing plaintext backup upload." >&2
+            exit 1
+          fi
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+            -in "$RUNNER_TEMP/live-courses-backup.json" \
+            -out "$RUNNER_TEMP/live-courses-backup.json.enc" \
+            -pass env:BACKUP_ARTIFACT_PASSPHRASE
+          rm "$RUNNER_TEMP/live-courses-backup.json"
+
+      - name: Retain encrypted backup artifact for seven days
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-courses-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/live-courses-backup.json.enc
+          if-no-files-found: error
+          retention-days: 7

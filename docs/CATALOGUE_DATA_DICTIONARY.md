@@ -28,6 +28,12 @@ or break a teaching lineage.
 
 ## Snapshot match states
 
+`not_applicable` is reserved for a current offering outside HKS. The record
+remains in the read model so scheduling, credits, meeting times, title,
+description, and instructors remain available. It deliberately has no legacy
+course history, evaluations, aliases, or review candidates because the legacy
+evaluation dataset is HKS-only.
+
 | State | What it means | What the UI may show | What it must not show |
 | --- | --- | --- | --- |
 | `verified` | Exact or reviewed alias code lineage and at least one matching professor | Professor-specific evaluation history and course history | Ratings from a different professor |

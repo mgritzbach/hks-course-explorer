@@ -126,6 +126,29 @@ by itself prove production recovery: a database owner must still provide and
 test backup/restore, and the future versioned catalogue path must prove a
 staged rollback before G02 can be marked complete.
 
+### Manual live-course backup
+
+Before any separately approved reconciliation, RLS migration, or recovery
+exercise, run **Backup live courses** from the GitHub Actions tab with
+`confirm_backup` checked. It reads `live_courses` using the existing
+service-only repository secrets and creates an encrypted GitHub Actions
+artifact for seven days. It never writes to Supabase and does not change the
+deployed site.
+
+Create a strong, unique `BACKUP_ARTIFACT_PASSPHRASE` repository secret before
+the first run. The workflow refuses to upload a plaintext backup if that
+secret is absent. This is necessary because people with read access to a
+repository can download its GitHub Actions artifacts; do not reuse a database
+or application secret as the passphrase.
+
+The artifact includes the complete row payload, row count, timestamp, and a
+SHA-256 digest of the canonical row payload. Record the run URL, row count,
+and digest in the change record. To inspect it, download the artifact and use
+the stored passphrase with `openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000`.
+The artifact is rollback evidence only: do not restore it automatically. A
+database owner must review and test any restore procedure before a destructive
+reconciliation is considered.
+
 ### Schedule-plan persistence
 
 Schedule plans are intentionally browser-local. `savePlan` persists the plan in

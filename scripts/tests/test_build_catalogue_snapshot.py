@@ -75,6 +75,29 @@ class CatalogueSnapshotTests(unittest.TestCase):
         self.assertEqual(row["historical_records"], [])
         self.assertEqual(row["course_history_records"], [self.history[0]])
 
+    def test_non_hks_offerings_remain_current_only_without_legacy_enrichment(self):
+        offering = {
+            "id": "law-current",
+            "school": "HLS",
+            "course_code_base": "API-101",
+            "title": "A similarly coded non-HKS course",
+            "instructors": ["Graham Allison"],
+            "credits": 3,
+            "meeting_times": [{"day": "Monday", "start": "09:00"}],
+        }
+        row = self.snapshot.materialize_catalogue_snapshot([offering], self.history, self.aliases)[0]
+
+        self.assertEqual(row["offering_id"], "law-current")
+        self.assertEqual(row["match_status"], "not_applicable")
+        self.assertEqual(row["match_method"], "non_hks_current_only")
+        self.assertIsNone(row["canonical_course_code"])
+        self.assertEqual(row["historical_course_codes"], [])
+        self.assertEqual(row["historical_records"], [])
+        self.assertEqual(row["course_history_records"], [])
+        self.assertEqual(row["review_candidates"], [])
+        self.assertEqual(row["renumbering_review_candidates"], [])
+        self.assertEqual(row["evaluation_summary"]["evaluated_offering_count"], 0)
+
     def test_rejects_missing_current_offering_ids_before_promotion(self):
         with self.assertRaisesRegex(ValueError, "immutable source id"):
             self.snapshot.materialize_catalogue_snapshot([{"course_code_base": "API-101"}], self.history, self.aliases)

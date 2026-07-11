@@ -113,8 +113,12 @@ def build_evaluation_summary(records):
 def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_map):
     """Return one safe public record per current offering.
 
-    Exact code and reviewed alias mappings may link history. Similar titles,
-    instructors, prefixes, and suffix-stripped codes remain unmatched.
+    Only HKS offerings may link to HKS legacy history. Non-HKS offerings are
+    deliberately retained as current-only records so the scheduler continues
+    to have their meeting, credit, and descriptive data without suggesting an
+    unsupported evaluation relationship. For HKS offerings, exact code and
+    reviewed alias mappings may link history. Similar titles, instructors,
+    prefixes, and suffix-stripped codes remain unmatched.
     """
     direct, approved_aliases = build_historical_index(historical_rows, historical_code_map)
     snapshot = []
@@ -124,6 +128,36 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
             raise ValueError("Every current offering needs its immutable source id.")
 
         code = course_code(offering)
+
+        # Current offerings from other Harvard schools remain part of the
+        # read model for schedule building. The reviewed historical catalogue
+        # is HKS-only, so never infer an evaluation, code alias, or review
+        # candidate for a non-HKS offering.
+        if offering.get("school") and offering.get("school") != "HKS":
+            snapshot.append(
+                {
+                    "offering_id": str(offering["id"]),
+                    "course_code": offering.get("course_code"),
+                    "course_code_base": offering.get("course_code_base"),
+                    "term": offering.get("term"),
+                    "school": offering.get("school"),
+                    "title": offering.get("title"),
+                    "instructors": offering.get("instructors") or [],
+                    "canonical_course_code": None,
+                    "current_instructor_keys": instructor_keys(offering),
+                    "match_status": "not_applicable",
+                    "match_method": "non_hks_current_only",
+                    "historical_course_codes": [],
+                    "evaluation_summary": build_evaluation_summary([]),
+                    "course_history_summary": build_evaluation_summary([]),
+                    "historical_records": [],
+                    "course_history_records": [],
+                    "review_candidates": [],
+                    "renumbering_review_candidates": [],
+                }
+            )
+            continue
+
         course_history_records = direct.get(code, []) if code else []
         source_method = "exact_code" if course_history_records else None
 
