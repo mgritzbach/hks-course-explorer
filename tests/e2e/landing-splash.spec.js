@@ -88,6 +88,27 @@ test.describe('welcome landing page', () => {
     }
   })
 
+  test('keeps both first-visit actions reachable in a 390 by 844 mobile viewport', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+
+    for (const name of [
+      'Continue directly and skip all tutorial boxes',
+      'Continue with the guided tutorial',
+    ]) {
+      const button = page.getByRole('button', { name })
+      await expect(button).toBeVisible()
+      const bounds = await button.boundingBox()
+      expect(bounds).not.toBeNull()
+      expect(bounds.x).toBeGreaterThanOrEqual(0)
+      expect(bounds.y).toBeGreaterThanOrEqual(0)
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(390)
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(844)
+    }
+  })
+
   test('Tutorial opens Course Explorer with the Home tutorial active', async ({ page }) => {
     // The guided path waits for the real Home view, including its deliberately
     // lazy chart. Keep a finite budget for slower parallel CI workers.
