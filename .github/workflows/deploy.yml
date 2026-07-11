@@ -60,6 +60,14 @@ jobs:
         # repository's pinned Node 20 deployment runner.
         run: npm install -g wrangler@4.86.0
 
+      - name: Deploy atomic chat-rate limiter
+        # The Pages chat handler fails closed without this Durable Object
+        # namespace, so deploy its class/migration before the Pages artifact.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 54cdc2ac5fbe86216672ccf2589cf9cb
+        run: wrangler deploy --config workers/chat-rate-limiter/wrangler.jsonc
+
       - name: Deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
