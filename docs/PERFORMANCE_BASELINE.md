@@ -33,9 +33,10 @@ This baseline does not complete G08. Before production certification, collect:
 
 ## 2026-07-11 production mobile trace
 
-Target: `https://hks-course-explorer.pages.dev/`, Home route (`/`), cold
-navigation at a 390 x 844 mobile viewport with Fast 4G network emulation and
-4x CPU throttling. This is one reproducible lab trace, not real-user data.
+Target: `https://hks-course-explorer.pages.dev/`, Home route (`/`), a
+cache-revalidating navigation at a 390 x 844 mobile viewport with Fast 4G
+network emulation and 4x CPU throttling. This is one reproducible lab trace,
+not real-user data; a fully cache-cold production trace remains outstanding.
 
 | Metric | Observed value | Status |
 | --- | ---: | --- |
