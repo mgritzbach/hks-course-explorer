@@ -15,6 +15,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install diagnostic dependency
+        run: pip install requests
+
       # Temporary branch-only diagnostic. This workflow is dispatched against
       # this branch and deliberately has no Supabase credential or write path.
       - name: Inspect a read-only paginated Harvard response
