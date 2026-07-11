@@ -113,6 +113,8 @@ for the existing public tables.
    Its ID-level parity fields must confirm that the historical `courses` table
    exactly matches generated `public/courses.json`; a count match is not
    sufficient. The publisher refuses to write a snapshot while this is false.
+   The trusted historical loader also exits non-zero on a source/database count
+   mismatch and never deletes stale rows implicitly.
 3. Materialise and validate the snapshot without serving it.
 4. Review all non-exact aliases and unmatched current HKS offerings.
 5. Run old and new catalogues in parallel and compare results.

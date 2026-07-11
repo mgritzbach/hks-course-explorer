@@ -138,6 +138,17 @@ def find_duplicate_prepared_ids(rows):
     return sorted(duplicates)
 
 
+def require_database_count(db_count, expected_count):
+    """Make an incomplete or stale historical promotion a failed operator run."""
+    if db_count is None:
+        sys.exit("ERROR: Supabase did not return a historical catalogue row count.")
+    if db_count != expected_count:
+        sys.exit(
+            f"ERROR: Supabase reports {db_count} historical rows but this run prepared {expected_count}. "
+            "No stale rows were deleted automatically; reconcile the target before treating this as a promotion."
+        )
+
+
 def main():
     if not SUPABASE_URL or not SUPABASE_KEY:
         sys.exit(
@@ -195,19 +206,18 @@ def main():
             print(f"  Batch {num} (starting row {start_row}): {err}")
         sys.exit(f"ERROR: {len(failed_batches)} batch(es) failed — check errors above.")
 
-    # Verify final count in Supabase matches what we sent
+    # Verify final count in Supabase matches what we sent. Upsert alone cannot
+    # remove obsolete IDs, so a mismatched count is a failed promotion rather
+    # than a warning that an operator might overlook.
     try:
         result = client.table("courses").select("id", count="exact").execute()
         db_count = result.count
-        if db_count is None:
-            print("UNVERIFIED: Supabase did not return a catalogue row count.")
-        elif db_count != len(rows):
-            print(f"UNVERIFIED: Supabase reports {db_count} rows but this run prepared {len(rows)}.")
-            print("            There may be stale rows or an incomplete promotion.")
-        else:
-            print(f"Verified: {db_count} rows in Supabase.")
+        require_database_count(db_count, len(rows))
+        print(f"Verified: {db_count} rows in Supabase.")
+    except SystemExit:
+        raise
     except Exception as exc:
-        print(f"Could not verify row count: {exc}")
+        sys.exit(f"ERROR: Could not verify the historical catalogue row count: {exc}")
 
     print(f"Supabase project: {SUPABASE_URL}")
 
