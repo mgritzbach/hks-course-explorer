@@ -1,65 +1,76 @@
-import { describe, expect, it } from 'vitest'
-import { onRequestGet } from '../../functions/api/catalogue.js'
+import { describe, expect, it, vi } from 'vitest'
+import { __test__ as catalogue } from '../../functions/api/catalogue.js'
 
 const env = {
+  CATALOGUE_API_ENABLED: 'true',
   SUPABASE_URL: 'https://example.supabase.co',
-  SUPABASE_SERVICE_ROLE_KEY: 'server-only-key',
+  SUPABASE_SERVICE_ROLE_KEY: 'server-only-service-role-key',
 }
 
-function request(url = 'https://worker.test/api/catalogue') {
-  return new Request(url, { headers: { Origin: 'https://hks-course-explorer.org' } })
-}
-
-describe('catalogue worker', () => {
-  it('returns only rows from the promoted snapshot view and filters them safely', async () => {
-    const fetchImpl = async (url, init) => {
-      expect(url).toBe(
-        'https://example.supabase.co/rest/v1/catalogue_current_v1?select=*&limit=2000',
-      )
-      expect(init.headers.apikey).toBe(env.SUPABASE_SERVICE_ROLE_KEY)
-      return new Response(
-        JSON.stringify([
-          { course_code: 'API-101', title: 'Policy Analysis', school: 'HKS', term: '2026 Fall' },
-          { course_code: 'GEN-1', title: 'General Studies', school: 'FAS', term: '2026 Fall' },
-        ]),
-        { status: 200 },
-      )
-    }
-
-    const response = await onRequestGet({
-      request: request('https://worker.test/api/catalogue?school=HKS&q=policy'),
-      env,
-      fetch: fetchImpl,
-    })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      ok: true,
-      items: [expect.objectContaining({ course_code: 'API-101' })],
-    })
-  })
-
-  it('fails closed when the server-only configuration is absent', async () => {
-    const response = await onRequestGet({ request: request(), env: {}, fetch: () => null })
+describe('unified catalogue Pages Function', () => {
+  it('fails closed before contacting Supabase until the parity switch is explicitly enabled', async () => {
+    const fetchImpl = vi.fn()
+    const response = await catalogue.handleGet(
+      { request: new Request('https://app.example/api/catalogue'), env: {} },
+      fetchImpl,
+    )
 
     expect(response.status).toBe(503)
-    await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: 'Catalogue is not configured.',
-    })
+    await expect(response.json()).resolves.toMatchObject({ code: 'CATALOGUE_NOT_READY' })
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 
-  it('does not expose an upstream failure as an empty catalogue', async () => {
-    const response = await onRequestGet({
-      request: request(),
-      env,
-      fetch: async () => new Response('failure', { status: 500 }),
-    })
+  it('uses a fixed promoted-snapshot view and never exposes the service credential', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([{ offering_id: 'harvard-1', match_status: 'verified' }]), {
+        status: 200,
+      }),
+    )
+    const response = await catalogue.handleGet(
+      {
+        request: new Request(
+          'https://app.example/api/catalogue?term=2026%20Fall&school=hks&q=API-101&limit=25',
+        ),
+        env,
+      },
+      fetchImpl,
+    )
 
-    expect(response.status).toBe(502)
+    expect(response.status).toBe(200)
+    expect(await response.clone().text()).not.toContain(env.SUPABASE_SERVICE_ROLE_KEY)
     await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: 'Catalogue is temporarily unavailable.',
+      rows: [{ offering_id: 'harvard-1', match_status: 'verified' }],
+      count: 1,
     })
+    expect(fetchImpl).toHaveBeenCalledWith(
+      expect.stringContaining('/rest/v1/catalogue_current_v1?'),
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        }),
+      }),
+    )
+    expect(fetchImpl.mock.calls[0][0]).toContain('term=eq.2026+Fall')
+    expect(fetchImpl.mock.calls[0][0]).toContain('school=eq.HKS')
+    expect(fetchImpl.mock.calls[0][0]).toContain('course_code.ilike')
+  })
+
+  it('rejects unsafe filters before Supabase and reports an upstream failure without leaking details', async () => {
+    const fetchImpl = vi.fn()
+    const invalid = await catalogue.handleGet(
+      { request: new Request('https://app.example/api/catalogue?q=API-101,drop'), env },
+      fetchImpl,
+    )
+    expect(invalid.status).toBe(400)
+    expect(fetchImpl).not.toHaveBeenCalled()
+
+    const unavailable = await catalogue.handleGet(
+      { request: new Request('https://app.example/api/catalogue'), env },
+      vi.fn().mockResolvedValue(new Response('database detail', { status: 500 })),
+    )
+    expect(unavailable.status).toBe(502)
+    await expect(unavailable.json()).resolves.toMatchObject({ code: 'CATALOGUE_UNAVAILABLE' })
   })
 })

@@ -44,6 +44,11 @@ professor's ratings as its own.
 `catalog_snapshot_v1` is an additive, versioned read model. One row represents
 one current Harvard offering, even when two offerings share a code and term.
 
+`GET /api/catalogue` is the server-only public boundary for the promoted view.
+It remains disabled until `CATALOGUE_API_ENABLED=true` is set after the parity
+and rollback gates below. The browser must not query the private snapshot or
+receive a service-role credential.
+
 Required fields:
 
 - `offering_id`, `term`, `school`, current code/title/instructors/meetings;

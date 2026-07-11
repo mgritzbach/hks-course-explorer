@@ -67,6 +67,7 @@ an upstream search was complete.
 | `ADMIN_SESSION_SECRET` | Admin endpoints | Distinct, randomly generated HMAC secret (at least 32 characters) for 15-minute admin data sessions. Rotate it to invalidate all outstanding Admin sessions. |
 | `SUPABASE_URL` | Admin upload/history | Server-only Supabase REST endpoint used by Pages Functions. It must not use the `VITE_` prefix. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin upload/history | Server-only service-role/secret key. It is never bundled or returned by Pages Functions. |
+| `CATALOGUE_API_ENABLED` | `/api/catalogue` | Explicit `true` switch for the private, promoted `catalogue_current_v1` read contract. Keep `false` until the parity and rollback gates in `UNIFIED_CATALOGUE_ROLLOUT.md` have passed. |
 
 ### Admin data Functions
 
