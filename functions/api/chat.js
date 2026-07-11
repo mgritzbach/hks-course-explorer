@@ -17,6 +17,7 @@ const MAX_SHORTLISTED_COURSES = 30
 const MAX_SHORTLISTED_NAME_CHARS = 200
 const UPSTREAM_TIMEOUT_MS = 20_000
 const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 15_000
+const CHAT_COOLDOWN_SECONDS = 60
 
 const COURSE_STRING_FIELDS = new Set([
   'code',
@@ -54,6 +55,30 @@ function jsonResponse(body, status, request) {
     status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
   })
+}
+
+async function chatCooldownKey(request) {
+  // Cloudflare supplies this header at the trusted edge. Hash it so the
+  // short-lived operational throttle does not store a raw client address.
+  const client = request.headers.get('CF-Connecting-IP') || 'unknown-client'
+  const bytes = new TextEncoder().encode(client)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  const hash = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
+  return `chat-cooldown:${hash}`
+}
+
+async function enforceChatCooldown(request, env) {
+  // HKS_KV is already the deployed free state store for the application. If a
+  // local preview intentionally has no binding, preserve its existing chat
+  // contract rather than making an absent optional development binding fatal.
+  if (!env?.HKS_KV?.get || !env.HKS_KV?.put) return false
+
+  const key = await chatCooldownKey(request)
+  if (await env.HKS_KV.get(key)) return true
+  await env.HKS_KV.put(key, '1', { expirationTtl: CHAT_COOLDOWN_SECONDS })
+  return false
 }
 
 function isPlainObject(value) {
@@ -351,6 +376,13 @@ export async function onRequestPost({ request, env }) {
     const { message, history, courses, shortlisted } = validateChatPayload(
       await readJsonBody(request),
     )
+    if (await enforceChatCooldown(request, env)) {
+      return jsonResponse(
+        { error: 'Please wait one minute before sending another chat message.' },
+        429,
+        request,
+      )
+    }
     const response = await fetchFromOpenRouter(apiKey, {
       models: FREE_MODELS,
       route: 'fallback',

@@ -97,6 +97,21 @@ describe('Chat Pages Function contract', () => {
     })
   })
 
+  it('throttles a repeated client before consuming provider capacity', async () => {
+    const fetchImpl = vi.fn()
+    vi.stubGlobal('fetch', fetchImpl)
+    const HKS_KV = { get: vi.fn().mockResolvedValue('1'), put: vi.fn() }
+
+    const response = await onRequestPost({
+      request: chatRequest(validPayload, { 'CF-Connecting-IP': '203.0.113.7' }),
+      env: { OPENROUTER_API_KEY: 'test-key', HKS_KV },
+    })
+
+    expect(response.status).toBe(429)
+    expect(HKS_KV.put).not.toHaveBeenCalled()
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
   it('maps an aborted upstream request to a bounded gateway-timeout failure', async () => {
     const fetchImpl = vi.fn(
       (_, options) =>
