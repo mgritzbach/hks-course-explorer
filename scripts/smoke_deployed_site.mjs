@@ -97,6 +97,7 @@ export async function smokeDeployedSite({
   buildHtmlPath = process.env.DEPLOY_BUILD_HTML || 'dist/index.html',
   expectedAssetPath,
   maxAttempts = DEPLOYED_ASSET_MAX_ATTEMPTS,
+  spaRoutes = DEPLOYED_SPA_ROUTE_PATHS,
   verifySpaRoutes = false,
   waitImpl = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 } = {}) {
@@ -144,7 +145,23 @@ export async function smokeDeployedSite({
       assertFingerprintAsset(assetResponse, assetUrl)
     }
     if (verifySpaRoutes) {
-      await smokeDeployedSpaRoutes({ fetchImpl, targetUrl, expectedAssetPath: expectedAsset })
+      try {
+        await smokeDeployedSpaRoutes({
+          fetchImpl,
+          targetUrl,
+          expectedAssetPath: expectedAsset,
+          routes: spaRoutes,
+        })
+      } catch (error) {
+        // Route caches can lag the root entrypoint for a few seconds. Keep the
+        // route check in the same bounded propagation window rather than
+        // failing an otherwise healthy deployment on a transient stale route.
+        if (attempt < maxAttempts) {
+          await waitImpl(DEPLOYED_ASSET_RETRY_MS)
+          continue
+        }
+        throw error
+      }
     }
     return
   }

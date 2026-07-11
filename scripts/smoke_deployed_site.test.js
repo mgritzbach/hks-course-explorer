@@ -197,4 +197,41 @@ describe('deployed site smoke check', () => {
       ),
     ).not.toThrow()
   })
+
+  it('waits for a direct route cache to serve the exact deployed build', async () => {
+    const responses = [
+      response({
+        body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+      }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+      response({
+        body: '<script src="/assets/index-stale12345.js"></script><div id="root"></div>',
+      }),
+      response({
+        body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+      }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+      response({
+        body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+      }),
+    ]
+    const waits = []
+
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-current123.js',
+        fetchImpl: async () => responses.shift(),
+        spaRoutes: ['/courses'],
+        verifySpaRoutes: true,
+        waitImpl: async (milliseconds) => waits.push(milliseconds),
+      }),
+    ).resolves.toBeUndefined()
+    expect(waits).toEqual([3_000])
+  })
 })
