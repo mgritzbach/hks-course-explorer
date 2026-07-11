@@ -12,6 +12,7 @@ test-results/
 .claude/
 
 # Scratch data files
+artifacts/
 data/*.bak*
 scripts/supabase_rows.json
 data/duplicate_analysis.py

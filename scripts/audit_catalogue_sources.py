@@ -5,6 +5,7 @@ historical tables, materialises the proposed catalogue in memory, and reports
 the evidence needed before a later snapshot promotion.
 """
 
+import argparse
 import json
 import os
 import sys
@@ -155,6 +156,76 @@ def semantic_history_reconciliation(source_rows, canonical_rows):
     }
 
 
+def semantic_reconciliation_review_rows(source_rows, canonical_rows):
+    """Create operator-review rows; never infer an approved ID mapping.
+
+    The export identifies exact semantic ID-change candidates separately from
+    ambiguous and source-only records. It deliberately contains no evaluation
+    metrics and is written only when an operator explicitly supplies a local
+    path; it is not emitted to GitHub Action logs.
+    """
+    source_by_key = {}
+    canonical_by_key = {}
+    source_missing = []
+    canonical_missing = []
+    for row in source_rows:
+        key = historical_semantic_key(row)
+        if key:
+            source_by_key.setdefault(key, []).append(row)
+        else:
+            source_missing.append(row)
+    for row in canonical_rows:
+        key = historical_semantic_key(row)
+        if key:
+            canonical_by_key.setdefault(key, []).append(row)
+        else:
+            canonical_missing.append(row)
+
+    def identity(key):
+        fields = ("course_code", "year", "term", "professor", "course_name", "is_average")
+        return dict(zip(fields, key, strict=True))
+
+    rows = []
+    for key in sorted(set(source_by_key) | set(canonical_by_key)):
+        source = source_by_key.get(key, [])
+        canonical = canonical_by_key.get(key, [])
+        source_ids = sorted(str(row.get("id")) for row in source)
+        canonical_ids = sorted(str(row.get("id")) for row in canonical)
+        if len(source) == len(canonical) == 1:
+            status = "exact_semantic_id_change" if source_ids != canonical_ids else "same_id"
+        elif source and canonical:
+            status = "ambiguous_semantic_key"
+        elif source:
+            status = "source_only_semantic_key"
+        else:
+            status = "canonical_only_semantic_key"
+        rows.append({
+            "status": status,
+            "identity": identity(key),
+            "source_ids": source_ids,
+            "canonical_ids": canonical_ids,
+        })
+
+    for row in source_missing:
+        rows.append({"status": "source_missing_identity_fields", "source_ids": [str(row.get("id"))], "canonical_ids": []})
+    for row in canonical_missing:
+        rows.append({"status": "canonical_missing_identity_fields", "source_ids": [], "canonical_ids": [str(row.get("id"))]})
+    return sorted(rows, key=lambda row: (row["status"], row.get("source_ids", []), row.get("canonical_ids", [])))
+
+
+def write_semantic_reconciliation_review(path, source_rows, canonical_rows):
+    """Write a local-only review export; this function never contacts Supabase."""
+    destination = Path(path)
+    if not destination.is_absolute():
+        raise ValueError("Review-report path must be absolute to avoid accidental repository output.")
+    payload = {
+        "purpose": "review_only_no_automatic_id_rewrites",
+        "rows": semantic_reconciliation_review_rows(source_rows, canonical_rows),
+    }
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def require_historical_source_parity(source_rows, canonical_rows):
     """Stop a future promotion before writes when its history differs from the live website."""
     result = historical_source_parity(source_rows, canonical_rows)
@@ -224,7 +295,13 @@ def audit_catalogue(offerings, historical_rows, aliases, canonical_rows=None):
     return report
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Read-only Supabase catalogue parity audit.")
+    parser.add_argument(
+        "--review-report",
+        help="absolute local JSON path for a non-committed, operator-review reconciliation export",
+    )
+    args = parser.parse_args(argv)
     url = os.environ.get("SUPABASE_URL", "").strip()
     key = os.environ.get("SUPABASE_KEY", "").strip()
     if not url or not key:
@@ -243,6 +320,9 @@ def main():
             sort_keys=True,
         )
     )
+    if args.review_report:
+        write_semantic_reconciliation_review(args.review_report, historical_rows, canonical_rows)
+        print("Wrote local reconciliation review report.")
 
 
 if __name__ == "__main__":
