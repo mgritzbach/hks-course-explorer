@@ -17,6 +17,7 @@ import {
   TALLY_FORM_ID,
 } from './lib/appConstants.js'
 import { buildCourseMeta } from './lib/courseMeta.js'
+import { csvCell } from './lib/csvExport.js'
 import { fetchAllCourses } from './lib/courseDataLoader.js'
 import { capture } from './lib/analytics.js'
 import {
@@ -488,8 +489,8 @@ export default function App() {
       const note = notes[c.course_code_base] || ''
       return [
         c.course_code || '',
-        (c.course_name || '').replace(/,/g, ';'),
-        (c.professor_display || c.professor || '').replace(/,/g, ';'),
+        c.course_name || '',
+        c.professor_display || c.professor || '',
         c.year || '',
         c.term || '',
         c.concentration || '',
@@ -500,8 +501,10 @@ export default function App() {
         c.metrics_pct?.Workload != null ? Math.round(c.metrics_pct.Workload) : '',
         c.n_respondents ?? '',
         c.last_bid_price ?? '',
-        note.replace(/,/g, ';').replace(/\n/g, ' '),
-      ].join(',')
+        note,
+      ]
+        .map(csvCell)
+        .join(',')
     })
     const csv = [headers.join(','), ...rows].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })

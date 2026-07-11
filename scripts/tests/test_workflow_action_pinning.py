@@ -14,6 +14,11 @@ ACTION_REFERENCE = re.compile(
 
 
 class WorkflowActionPinningTests(unittest.TestCase):
+    def test_deployment_cli_is_version_pinned_before_receiving_the_cloudflare_token(self):
+        deploy_workflow = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
+        self.assertIn("npm install -g wrangler@4.110.0", deploy_workflow)
+        self.assertNotIn("npm install -g wrangler@4\n", deploy_workflow)
+
     def test_all_official_actions_are_full_sha_pinned_with_a_readable_version(self):
         references = []
         for workflow in sorted(WORKFLOWS.glob("*.yml")):

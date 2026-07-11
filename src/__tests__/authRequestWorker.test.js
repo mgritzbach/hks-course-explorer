@@ -46,7 +46,10 @@ describe('OTP email request worker', () => {
 
   it('fails closed before storing an OTP when email delivery is unconfigured', async () => {
     const put = vi.fn()
-    const response = await onRequestPost({ request: request(), env: { HKS_KV: { put } } })
+    const response = await onRequestPost({
+      request: request(),
+      env: { HKS_KV: { get: vi.fn(), put, delete: vi.fn() } },
+    })
 
     expect(response.status).toBe(503)
     expect(put).not.toHaveBeenCalled()
@@ -59,14 +62,35 @@ describe('OTP email request worker', () => {
     try {
       const response = await onRequestPost({
         request: request(),
-        env: { HKS_KV: { put }, RESEND_API_KEY: 'resend-key' },
+        env: {
+          HKS_KV: { get: vi.fn().mockResolvedValue(null), put, delete: vi.fn() },
+          RESEND_API_KEY: 'resend-key',
+        },
       })
       expect(response.status).toBe(200)
+      expect(put).toHaveBeenCalledWith('otp-request:student@harvard.edu', '1', {
+        expirationTtl: 60,
+      })
       expect(put).toHaveBeenCalledWith('otp:student@harvard.edu', expect.any(String), {
         expirationTtl: 660,
       })
     } finally {
       globalThis.fetch = originalFetch
     }
+  })
+
+  it('enforces the same 60-second resend cooldown for direct API callers', async () => {
+    const get = vi.fn().mockResolvedValue('1')
+    const put = vi.fn()
+    const response = await onRequestPost({
+      request: request(),
+      env: { HKS_KV: { get, put, delete: vi.fn() }, RESEND_API_KEY: 'resend-key' },
+    })
+
+    expect(response.status).toBe(429)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Please wait one minute before requesting another code.',
+    })
+    expect(put).not.toHaveBeenCalled()
   })
 })

@@ -55,8 +55,8 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.DEPLOY_VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.DEPLOY_VITE_SUPABASE_ANON_KEY }}
 
-      - name: Install Wrangler v4
-        run: npm install -g wrangler@4
+      - name: Install pinned Wrangler
+        run: npm install -g wrangler@4.110.0
 
       - name: Deploy to Cloudflare Pages
         env:

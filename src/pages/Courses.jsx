@@ -18,6 +18,7 @@ import {
   withCourseFilterSearchParams,
   withCourseQuerySearchParams,
 } from '../lib/courseBrowserState.js'
+import { safeCourseLinks } from '../lib/externalUrl.js'
 import {
   buildCourseOptions,
   countActiveCourseFilters,
@@ -784,6 +785,7 @@ export default function Courses({
     }
     return course || null
   }, [courses, selectedId])
+  const selectedLinks = safeCourseLinks(selected)
 
   useEffect(() => {
     if (selected?.description) setDescOpen(true)
@@ -1622,9 +1624,9 @@ export default function Courses({
 
                   <div className="space-y-3 lg:col-span-2">
                     <div className="flex flex-wrap gap-3">
-                      {selected.course_url && (
+                      {selectedLinks.courseUrl && (
                         <a
-                          href={selected.course_url}
+                          href={selectedLinks.courseUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-details inline-block"
@@ -1638,9 +1640,9 @@ export default function Courses({
                           </span>
                         </a>
                       )}
-                      {selected.instructor_profile_url && (
+                      {selectedLinks.instructorProfileUrl && (
                         <a
-                          href={selected.instructor_profile_url}
+                          href={selectedLinks.instructorProfileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-block rounded-full border px-5 py-2.5 text-sm font-medium transition-colors hover:text-label"
