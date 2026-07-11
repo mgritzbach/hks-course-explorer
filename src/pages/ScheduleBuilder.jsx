@@ -33,6 +33,7 @@ import {
 } from '../lib/scheduleHistoryLinking.js'
 import { useFavorites } from '../useFavorites'
 import { useScheduleData } from '../hooks/useScheduleData.js'
+import { sectionCodeKey } from '../lib/sectionCatalogueIndexes.js'
 import CompletedCoursesPanel from '../components/CompletedCoursesPanel.jsx'
 import ManualCourseModal from '../components/ManualCourseModal.jsx'
 import SchedulePlanHeader from '../components/SchedulePlanHeader.jsx'
@@ -573,7 +574,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   const enrichedSearchResults = useMemo(() => {
     return searchResults.map((course) => {
       if (courseHasSchedule(course)) return course // already has time data (e.g. from Harvard API or DB)
-      const code = course.courseCode
+      const code = sectionCodeKey(course.courseCode)
       const meetings = sectionTimesMap.get(code)
       if (!meetings?.length) return course // genuinely no data
       const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
@@ -593,14 +594,14 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   const sectionMapStubs = useMemo(() => {
     if (sectionCanonicalCodes.size === 0 || sectionTimesLoading) return []
     const q = searchQ.trim().toLowerCase()
-    const existingCourseCodes = new Set(searchResults.map((r) => r.courseCode))
+    const existingCourseCodes = new Set(searchResults.map((r) => sectionCodeKey(r.courseCode)))
     const stubs = []
     // Build a quick lookup for historical course data by normalized code
     const histMap = new Map()
     ;(Array.isArray(courses) ? courses : [])
       .filter((c) => !c?.is_average)
       .forEach((c) => {
-        const key = c.course_code_base || c.course_code
+        const key = sectionCodeKey(c.course_code_base || c.course_code)
         if (!key) return
         const existing = histMap.get(key)
         if (!existing || Number(c.year || 0) > Number(existing.year || 0)) histMap.set(key, c)
@@ -881,7 +882,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         }
         // 2. Inject live section times if schedule not yet present
         if (courseHasSchedule(enriched)) return enriched
-        const eCode = enriched.courseCode
+        const eCode = sectionCodeKey(enriched.courseCode)
         const meetings = sectionTimesMap.get(eCode)
         if (!meetings?.length) return enriched
         const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
