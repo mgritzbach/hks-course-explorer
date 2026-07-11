@@ -22,6 +22,8 @@ const ALLOWED_DOMAINS = [
 
 const WHITELIST = ['mic.gritzbach@gmail.com']
 const DEFAULT_FROM = 'HKS Course Explorer <mgritzbach@hks.harvard.edu>'
+const OTP_TTL_SECONDS = 10 * 60
+const OTP_REQUEST_COOLDOWN_SECONDS = 60
 
 function json(request, status, body) {
   return new Response(JSON.stringify(body), {
@@ -103,19 +105,31 @@ export async function onRequestPost({ request, env }) {
     }
     if (!emailProvider(env))
       return json(request, 503, { error: 'Email delivery is not configured.' })
-    if (!env?.HKS_KV?.put) return json(request, 503, { error: 'Login storage is not configured.' })
+    if (!env?.HKS_KV?.get || !env.HKS_KV?.put || !env.HKS_KV?.delete)
+      return json(request, 503, { error: 'Login storage is not configured.' })
 
     const normalizedEmail = email.toLowerCase().trim()
+    const cooldownKey = `otp-request:${normalizedEmail}`
+    if (await env.HKS_KV.get(cooldownKey)) {
+      return json(request, 429, {
+        error: 'Please wait one minute before requesting another code.',
+      })
+    }
+
+    // This mirrors the client resend countdown at the enforcement boundary so
+    // direct API callers cannot repeatedly send mail or replace a valid code.
+    await env.HKS_KV.put(cooldownKey, '1', { expirationTtl: OTP_REQUEST_COOLDOWN_SECONDS })
     const otp = generateOTP()
-    const expires = Date.now() + 10 * 60 * 1000
+    const expires = Date.now() + OTP_TTL_SECONDS * 1000
     const delivery = await sendOtpEmail({ env, email: normalizedEmail, otp })
     if (!delivery.ok) {
+      await env.HKS_KV.delete(cooldownKey)
       console.error('OTP email delivery failed:', delivery.provider || 'unconfigured')
       return json(request, 502, { error: 'Failed to send email. Please try again.' })
     }
 
-    await env.HKS_KV.put(`otp:${normalizedEmail}`, JSON.stringify({ otp, expires }), {
-      expirationTtl: 660,
+    await env.HKS_KV.put(`otp:${normalizedEmail}`, JSON.stringify({ otp, expires, attempts: 0 }), {
+      expirationTtl: OTP_TTL_SECONDS + 60,
     })
     return json(request, 200, { ok: true, message: 'Check your inbox for a 6-digit code.' })
   } catch (error) {

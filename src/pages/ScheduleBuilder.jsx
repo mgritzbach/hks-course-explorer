@@ -33,6 +33,7 @@ import {
 } from '../lib/scheduleHistoryLinking.js'
 import { useFavorites } from '../useFavorites'
 import { useScheduleData } from '../hooks/useScheduleData.js'
+import { escapeIcsText } from '../lib/calendarText.js'
 import { sectionCodeKey } from '../lib/sectionCatalogueIndexes.js'
 import CompletedCoursesPanel from '../components/CompletedCoursesPanel.jsx'
 import ManualCourseModal from '../components/ManualCourseModal.jsx'
@@ -255,9 +256,7 @@ function buildIcs(courses, term = 'FULL', semester = 'Spring') {
       lines.push('BEGIN:VEVENT')
       lines.push(`UID:${course.courseCode}-${index}@hks-course-explorer`)
       lines.push(`DTSTAMP:${stamp}`)
-      lines.push(
-        `SUMMARY:${String(course.courseCode).replace(/,/g, '\\,')} ${String(course.title).replace(/,/g, '\\,')}`,
-      )
+      lines.push(`SUMMARY:${escapeIcsText(course.courseCode)} ${escapeIcsText(course.title)}`)
       lines.push(
         `DTSTART;TZID=America/New_York:${dateBase}T${String(start.hours).padStart(2, '0')}${String(start.minutes).padStart(2, '0')}00`,
       )
@@ -265,7 +264,7 @@ function buildIcs(courses, term = 'FULL', semester = 'Spring') {
         `DTEND;TZID=America/New_York:${dateBase}T${String(end.hours).padStart(2, '0')}${String(end.minutes).padStart(2, '0')}00`,
       )
       lines.push(`RRULE:FREQ=WEEKLY;BYDAY=${days.join(',')};COUNT=${weekCount}`)
-      if (course.location) lines.push(`LOCATION:${String(course.location).replace(/,/g, '\\,')}`)
+      if (course.location) lines.push(`LOCATION:${escapeIcsText(course.location)}`)
       lines.push('END:VEVENT')
     })
   lines.push('END:VCALENDAR')

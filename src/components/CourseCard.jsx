@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fmtShort } from '../utils/formatMetric.js'
+import { safeExternalUrl } from '../lib/externalUrl.js'
 
 function fmt12h(t) {
   if (!t) return ''
@@ -63,6 +64,7 @@ export default function CourseCard({
       ? course.description.slice(0, 180)
       : course.description
     : null
+  const courseUrl = safeExternalUrl(course.course_url)
   // meeting_days may be a string ('MON/WED') or legacy array — handle both
   const _mdRaw = course.meeting_days
   const _mdParts = Array.isArray(_mdRaw)
@@ -359,9 +361,9 @@ export default function CourseCard({
         >
           View Full Details
         </button>
-        {!compact && course.course_url && (
+        {!compact && courseUrl && (
           <a
-            href={course.course_url}
+            href={courseUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-medium transition-opacity hover:opacity-80 touch-manipulation"

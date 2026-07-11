@@ -96,6 +96,7 @@ export function useScheduleData(semesterYear, semester) {
   // Fetch course_sections whenever the selected semester changes.
   // Resets all section maps immediately so stale data never shows.
   useEffect(() => {
+    let cancelled = false
     setSectionTimesMap(new Map())
     setSectionCanonicalCodes(new Set())
     setSectionInfoMap(new Map())
@@ -103,7 +104,9 @@ export function useScheduleData(semesterYear, semester) {
 
     if (!isSupabaseConfigured) {
       setSectionTimesLoading(false)
-      return undefined
+      return () => {
+        cancelled = true
+      }
     }
 
     // Term format for course_sections: "2026Spring", "2026Fall", "2026January"
@@ -120,12 +123,19 @@ export function useScheduleData(semesterYear, semester) {
     )
       .then((rows) => {
         const indexes = buildSectionCatalogueIndexes(rows)
+        if (cancelled) return
         setSectionTimesMap(indexes.sectionTimesMap)
         setSectionCanonicalCodes(indexes.sectionCanonicalCodes)
         setSectionInfoMap(indexes.sectionInfoMap)
         setSectionTimesLoading(false)
       })
-      .catch(() => setSectionTimesLoading(false))
+      .catch(() => {
+        if (!cancelled) setSectionTimesLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [semesterYear, semester])
 
   return {
