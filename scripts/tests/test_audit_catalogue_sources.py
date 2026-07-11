@@ -87,6 +87,51 @@ class CatalogueAuditTests(unittest.TestCase):
         parity = self.audit.require_historical_source_parity(source, canonical)
         self.assertTrue(parity["historical_source_matches_canonical"])
 
+    def test_reports_exact_semantic_id_changes_without_authorising_rewrites(self):
+        source = [
+            {
+                "id": "legacy-id", "course_code_base": "API 101", "year": 2024,
+                "term": "Fall", "professor": "Example, Avery", "course_name": "Public Policy", "is_average": False,
+            },
+            {
+                "id": "legacy-ambiguous", "course_code_base": "API 102", "year": 2024,
+                "term": "Fall", "professor": "Example, Avery", "course_name": "Policy Analysis", "is_average": False,
+            },
+            {"id": "missing-fields"},
+        ]
+        canonical = [
+            {
+                "id": "generated-id", "course_code": "API-101", "year": "2024",
+                "term": "fall", "professor_display": "Avery Example", "course_name": "Public Policy", "is_average": False,
+            },
+            {
+                "id": "ambiguous-a", "course_code": "API-102", "year": "2024",
+                "term": "fall", "professor": "Avery Example", "course_name": "Policy Analysis", "is_average": False,
+            },
+            {
+                "id": "ambiguous-b", "course_code": "API-102", "year": "2024",
+                "term": "fall", "professor": "Avery Example", "course_name": "Policy Analysis", "is_average": False,
+            },
+        ]
+
+        report = self.audit.semantic_history_reconciliation(source, canonical)
+
+        self.assertEqual(report["semantic_exact_one_to_one_count"], 1)
+        self.assertEqual(report["semantic_ambiguous_shared_key_count"], 1)
+        self.assertEqual(report["semantic_source_missing_key_count"], 1)
+        self.assertEqual(report["semantic_changed_id_candidate_count"], 1)
+
+    def test_treats_year_zero_as_a_valid_aggregate_identity_component(self):
+        row = {
+            "id": "average", "course_code": "API-101", "year": 0, "term": "Fall",
+            "professor": "Average", "course_name": "Public Policy", "is_average": True,
+        }
+
+        key = self.audit.historical_semantic_key(row)
+
+        self.assertIsNotNone(key)
+        self.assertEqual(key[1], "0")
+
 
 if __name__ == "__main__":
     unittest.main()
