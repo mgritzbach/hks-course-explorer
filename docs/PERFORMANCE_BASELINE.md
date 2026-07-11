@@ -56,3 +56,11 @@ Tally (16 ms), plus a 1.9 MB Supabase transfer. DevTools did not attribute an
 LCP saving to those resources. Keep telemetry unchanged unless a product owner
 accepts the measurement tradeoff; revisit after collecting route interaction
 and real-user INP evidence.
+
+## Startup dependency policy
+
+The Home route must not statically import the Supabase browser client. The
+catalogue loader dynamically imports it only after the page has painted and a
+course read is needed; Schedule Builder continues to load it with its own lazy
+route. `npm run check:bundle-budget` rejects a future static Supabase dependency
+in the initial Home graph.

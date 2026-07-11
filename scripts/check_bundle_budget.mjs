@@ -40,6 +40,7 @@ const LAZY_ROUTES = [
   },
 ]
 const PLOTLY = /plotly/i
+const SUPABASE = /supabase/i
 
 function formatBytes(bytes) {
   return `${bytes.toLocaleString('en-US')} B (${(bytes / 1024).toFixed(1)} KiB)`
@@ -104,6 +105,11 @@ async function main() {
     .map(([, chunk]) => chunk.file)
     .filter(Boolean)
   const initialPlotlyChunks = allPlotlyChunks.filter((asset) => assets.has(asset))
+  const allSupabaseChunks = Object.entries(manifest)
+    .filter(([key, chunk]) => SUPABASE.test(key) || SUPABASE.test(chunk.file || ''))
+    .map(([, chunk]) => chunk.file)
+    .filter(Boolean)
+  const initialSupabaseChunks = allSupabaseChunks.filter((asset) => assets.has(asset))
   const violations = []
 
   if (!allPlotlyChunks.length)
@@ -121,6 +127,11 @@ async function main() {
   if (initialPlotlyChunks.length) {
     violations.push(
       `Plotly must be lazy-loaded, but is in the root-route graph: ${initialPlotlyChunks.join(', ')}`,
+    )
+  }
+  if (initialSupabaseChunks.length) {
+    violations.push(
+      `Supabase must load after the initial Home graph: ${initialSupabaseChunks.join(', ')}`,
     )
   }
 
@@ -168,6 +179,9 @@ async function main() {
   )
   console.log(
     `  Plotly: ${initialPlotlyChunks.length ? 'FAILED' : `lazy (${allPlotlyChunks.join(', ')})`}`,
+  )
+  console.log(
+    `  Supabase: ${initialSupabaseChunks.length ? 'FAILED' : `deferred (${allSupabaseChunks.join(', ')})`}`,
   )
   for (const report of lazyRouteReports) {
     console.log(`Lazy-route ('${report.route}') bundle budget`)

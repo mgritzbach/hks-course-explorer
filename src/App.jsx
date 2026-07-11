@@ -18,7 +18,6 @@ import {
 import { buildCourseMeta } from './lib/courseMeta.js'
 import { fetchAllCourses } from './lib/courseDataLoader.js'
 import { capture } from './lib/analytics.js'
-import { isSupabaseConfigured, supabase } from './lib/supabase.js'
 import {
   DESKTOP_NAV_ITEMS,
   MOBILE_MORE_NAV_ITEMS,
@@ -58,6 +57,9 @@ async function fetchAllCoursesWithCache(onProgress) {
   } catch (_e) {
     // Ignore cache read errors
   }
+  // Home does not need the database client to paint. Keep Supabase out of the
+  // startup graph and load it only when a catalogue request is actually made.
+  const { isSupabaseConfigured, supabase } = await import('./lib/supabase.js')
   if (!isSupabaseConfigured) {
     throw new Error(
       'Course data is not configured. Ask the site administrator to set the Supabase browser environment variables.',
