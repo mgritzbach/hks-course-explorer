@@ -1,18 +1,49 @@
 import { describe, expect, it } from 'vitest'
-import { assertDeployedEntrypoint, smokeDeployedSite } from './smoke_deployed_site.mjs'
+import {
+  assertDeployedEntrypoint,
+  assertFingerprintAsset,
+  assertSameFingerprintAsset,
+  extractFingerprintAssetPath,
+  FINGERPRINTED_ASSET_CACHE_CONTROL,
+  smokeDeployedSite,
+} from './smoke_deployed_site.mjs'
 
-function response({ ok = true, status = 200, contentType = 'text/html; charset=utf-8' } = {}) {
+function response({
+  ok = true,
+  status = 200,
+  contentType = 'text/html; charset=utf-8',
+  cacheControl = null,
+  body = '<!doctype html><script src="/assets/index-abc12345.js"></script><div id="root"></div>',
+} = {}) {
   return {
     ok,
     status,
-    headers: { get: () => contentType },
-    text: async () => '<!doctype html><div id="root"></div>',
+    headers: {
+      get: (name) => {
+        if (name === 'content-type') return contentType
+        if (name === 'cache-control') return cacheControl
+        return null
+      },
+    },
+    text: async () => body,
   }
 }
 
 describe('deployed site smoke check', () => {
   it('accepts a reachable HTML application entrypoint', async () => {
-    await expect(smokeDeployedSite({ fetchImpl: async () => response() })).resolves.toBeUndefined()
+    const responses = [
+      response(),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+    ]
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-abc12345.js',
+        fetchImpl: async () => responses.shift(),
+      }),
+    ).resolves.toBeUndefined()
   })
 
   it('rejects a non-success response', () => {
@@ -25,5 +56,75 @@ describe('deployed site smoke check', () => {
     expect(() =>
       assertDeployedEntrypoint(response(), '<h1>Oops</h1>', 'https://example.test'),
     ).toThrow('no application root')
+  })
+
+  it('extracts the fingerprinted Vite asset and requires its immutable cache policy', () => {
+    expect(
+      extractFingerprintAssetPath(
+        '<script type="module" src="/assets/index-abc12345.js"></script>',
+        'https://example.test/',
+      ),
+    ).toBe('/assets/index-abc12345.js')
+    expect(() =>
+      assertFingerprintAsset(response(), 'https://example.test/assets/index-abc12345.js'),
+    ).toThrow('lacks immutable cache policy')
+  })
+
+  it('rejects an unhashed or stale deployed entry asset', async () => {
+    expect(() =>
+      extractFingerprintAssetPath(
+        '<script type="module" src="/assets/index.js"></script>',
+        'https://example.test/',
+      ),
+    ).toThrow('no fingerprinted JavaScript asset')
+    expect(() =>
+      assertSameFingerprintAsset(
+        '/assets/index-current123.js',
+        '/assets/index-previous12.js',
+        'https://example.test/',
+      ),
+    ).toThrow('does not match this build')
+
+    const responses = [
+      response({
+        body: '<script src="/assets/index-previous12.js"></script><div id="root"></div>',
+      }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+    ]
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-current123.js',
+        fetchImpl: async () => responses.shift(),
+        maxAttempts: 1,
+      }),
+    ).rejects.toThrow('does not match this build')
+  })
+
+  it('waits for the exact build asset during short deployment propagation', async () => {
+    const responses = [
+      response({
+        body: '<script src="/assets/index-previous12.js"></script><div id="root"></div>',
+      }),
+      response({
+        body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+      }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+    ]
+    const waits = []
+
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-current123.js',
+        fetchImpl: async () => responses.shift(),
+        waitImpl: async (milliseconds) => waits.push(milliseconds),
+      }),
+    ).resolves.toBeUndefined()
+    expect(waits).toEqual([3_000])
   })
 })
