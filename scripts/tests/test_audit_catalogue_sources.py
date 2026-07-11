@@ -151,6 +151,63 @@ class CatalogueAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must be absolute"):
             self.audit.write_semantic_reconciliation_review("review.json", [], [])
 
+    def test_surfaces_only_nonaggregate_terminal_section_changes_for_manual_review(self):
+        review_rows = [
+            {
+                "status": "exact_semantic_id_change",
+                "identity": {"course_code": "DPI-820-M", "is_average": "false"},
+                "source_ids": ["DPI-820-M-A||2025||Fall||Example, Avery"],
+                "canonical_ids": ["DPI-820-M||2025||Fall||Example, Avery"],
+            },
+            {
+                "status": "exact_semantic_id_change",
+                "identity": {"course_code": "API-101", "is_average": "true"},
+                "source_ids": ["API-101||0||Average||Example, Avery"],
+                "canonical_ids": ["API-101||0||Average||Example, Avery||aggregate-digest"],
+            },
+            {
+                "status": "same_id",
+                "identity": {"course_code": "API-102", "is_average": "false"},
+                "source_ids": ["API-102||2025||Fall||Example, Avery"],
+                "canonical_ids": ["API-102||2025||Fall||Example, Avery"],
+            },
+        ]
+
+        queue = self.audit.manual_nonaggregate_section_code_change_review_rows(review_rows)
+
+        self.assertEqual(len(queue), 1)
+        self.assertEqual(queue[0]["status"], "needs_manual_provenance_review")
+        self.assertEqual(queue[0]["candidate_kind"], "terminal_section_token_removed")
+        self.assertEqual(queue[0]["source_course_code"], "DPI-820-M-A")
+        self.assertEqual(queue[0]["canonical_course_code"], "DPI-820-M")
+
+    def test_excludes_unrelated_code_changes_from_terminal_section_queue(self):
+        review_rows = [{
+            "status": "exact_semantic_id_change",
+            "identity": {"course_code": "API-101", "is_average": "false"},
+            "source_ids": ["API-101||2025||Fall||Example, Avery"],
+            "canonical_ids": ["DPI-202||2025||Fall||Example, Avery"],
+        }]
+
+        self.assertEqual(
+            self.audit.manual_nonaggregate_section_code_change_review_rows(review_rows),
+            [],
+        )
+
+    def test_includes_manual_code_change_count_without_authorising_a_mapping(self):
+        source = [{
+            "id": "DPI-820-M-A||2025||Fall||Example, Avery", "course_code_base": "DPI-820-M",
+            "year": 2025, "term": "Fall", "professor": "Example, Avery", "course_name": "Policy Memo", "is_average": False,
+        }]
+        canonical = [{
+            "id": "DPI-820-M||2025||Fall||Example, Avery", "course_code": "DPI-820-M",
+            "year": 2025, "term": "Fall", "professor": "Example, Avery", "course_name": "Policy Memo", "is_average": False,
+        }]
+
+        report = self.audit.audit_catalogue([], source, {}, canonical)
+
+        self.assertEqual(report["manual_nonaggregate_section_code_change_review_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
