@@ -212,7 +212,10 @@ export default function LandingSplash({ onDirect, onTutorial }) {
               You can go directly to the first page and skip all tutorial boxes, or you can begin
               with a short tutorial.
             </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <div
+              className="landing-splash-actions"
+              style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}
+            >
               <button
                 type="button"
                 aria-label="Continue directly and skip all tutorial boxes"
