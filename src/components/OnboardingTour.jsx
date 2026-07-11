@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useOptionalWelcomeEntry } from './WelcomeEntryProvider.jsx'
 
 /**
  * Lightweight spotlight tour.
@@ -18,6 +19,8 @@ export default function OnboardingTour({
   onDone,
   onStepChange,
 }) {
+  const welcomeEntry = useOptionalWelcomeEntry()
+  const isWelcomeDecisionPending = welcomeEntry?.isWelcomeDecisionPending ?? false
   const [index, setIndex] = useState(0)
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
@@ -41,6 +44,15 @@ export default function OnboardingTour({
   }, [storageKey])
 
   useEffect(() => {
+    // A first-visit landing page is the only dialog permitted until the
+    // visitor chooses Direct or Tutorial. This closes a route tour defensively
+    // if a route changes while the welcome decision is still pending.
+    if (isWelcomeDecisionPending) {
+      setVisible(false)
+      setFading(false)
+      return undefined
+    }
+
     const alreadySeen = localStorage.getItem(storageKey)
     if (autoStart || !alreadySeen) {
       const t = setTimeout(() => {
@@ -49,7 +61,7 @@ export default function OnboardingTour({
       return () => clearTimeout(t)
     }
     return undefined
-  }, [storageKey, autoStart])
+  }, [storageKey, autoStart, isWelcomeDecisionPending])
 
   useEffect(() => {
     if (visible) setIndex(0)

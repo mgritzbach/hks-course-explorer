@@ -35,6 +35,21 @@ test.describe('welcome landing page', () => {
     ).resolves.toBe(true)
   })
 
+  test('a direct route visit shows only the landing dialog before the visitor decides', async ({
+    page,
+  }) => {
+    await page.goto('/courses')
+
+    await expect(
+      page.getByRole('dialog', { name: 'Welcome to the HKS Course Explorer' }),
+    ).toBeVisible()
+    // Route-level and global tours use portals outside #root, so merely making
+    // the application inert is insufficient. The landing page must be the
+    // sole dialog after their delayed startup window has elapsed.
+    await page.waitForTimeout(600)
+    await expect(page.getByRole('dialog')).toHaveCount(1)
+  })
+
   test('Tutorial opens Course Explorer with the Home tutorial active', async ({ page }) => {
     // The guided path waits for the real Home view, including its deliberately
     // lazy chart. Keep a finite budget for slower parallel CI workers.
@@ -49,5 +64,6 @@ test.describe('welcome landing page', () => {
     await expect(page.getByRole('dialog', { name: 'Start with the Year' })).toBeVisible({
       timeout: 15_000,
     })
+    await expect(page.getByRole('dialog')).toHaveCount(1)
   })
 })

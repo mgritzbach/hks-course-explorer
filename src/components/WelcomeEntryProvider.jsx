@@ -41,6 +41,12 @@ export function WelcomeEntryProvider({ children }) {
     <WelcomeEntryContext.Provider
       value={{
         deferHomeOnboarding,
+        // The landing choice applies to every tutorial, not just the legacy
+        // Home tour. Route-level tours are mounted before data has loaded, so
+        // they must wait until the visitor has explicitly chosen Direct or
+        // Tutorial; otherwise a portal can escape the landing modal's inert
+        // application root.
+        isWelcomeDecisionPending: deferHomeOnboarding,
         homeTourRequest,
         consumeHomeTourRequest: () => setHomeTourRequest(null),
       }}
@@ -55,4 +61,12 @@ export function useWelcomeEntry() {
   const context = useContext(WelcomeEntryContext)
   if (!context) throw new Error('useWelcomeEntry must be used within WelcomeEntryProvider')
   return context
+}
+
+/**
+ * Optional form for reusable tutorial components, which also render in
+ * isolated unit tests outside the application entry provider.
+ */
+export function useOptionalWelcomeEntry() {
+  return useContext(WelcomeEntryContext)
 }
