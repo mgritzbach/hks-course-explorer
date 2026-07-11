@@ -8,16 +8,16 @@ release proceeds while any P0 goal is `0`.
 | ID | Priority | Canonical goal | Verified progress | Status | Evidence required to mark 1 |
 |---|---|---|---:|---:|---|
 | G01 | P0 | Foundations / governance | 80% | 0 | Protected release ownership, CI controls, fresh setup/review evidence, and final governance sign-off. |
-| G02 | P0 | Data integrity | 75% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
+| G02 | P0 | Data integrity | 80% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
 | G03 | P0 | Supabase reliability | 70% | 0 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
 | G04 | P0 | Security | 85% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
-| G05 | P1 | Navigation / usability | 70% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
+| G05 | P1 | Navigation / usability | 75% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
 | G06 | P1 | Accessibility | 85% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
 | G07 | P1 | Dependency security | 100% | 1 | Audited upgrade matrix, green complete suite, and documented residual risk. |
 | G08 | P1 | Performance | 75% | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
-| G09 | P1 | Regression safety | 85% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
+| G09 | P1 | Regression safety | 87% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
 | G10 | P1 | Maintainable architecture | 99% | 0 | Final independent manager review of bounded modules, contracts, and quality gates. |
-| G11 | P1 | Operations / deployment | 75% | 0 | Fresh setup, production deployment/smoke, rollback exercise, and on-call handover evidence. |
+| G11 | P1 | Operations / deployment | 78% | 0 | Fresh setup, production deployment/smoke, rollback exercise, and on-call handover evidence. |
 
 ## Required engineering loop
 
@@ -52,7 +52,7 @@ Production certification needs authorized access to Cloudflare Pages/Functions l
 | L15 | Admin workbook import rejects unsupported extensions, invalid/oversized files, invalid signatures, and first-sheet ranges above 10,000 data rows or 100 columns before row materialization; parser failures use safe UI-facing errors. | 1 | `src/__tests__/xlsxParser.test.js` (11/11 including legacy `.xls`), full JavaScript suite, build/browser regression, and controlling-SWE/manager review. |
 | L16 | Admin reads/writes use short-lived, scoped server sessions and server-only Supabase credentials; uploads and history are server-side allow-listed and bounded; expiry, future-token rejection, secret rotation, and session-header CORS behavior are covered. | 1 | Focused Admin/session suite (24/24), full JavaScript suite (65/65), build/browser gate, and controlling-SWE/manager review. |
 | L17 | Harvard catalogue search bounds Non-HKS fan-out to four concurrent schools within a whole-query deadline, separates fresh from short-lived last-known-good cache entries, labels stale/partial results without browser caching, and visibly warns users in Schedule Builder. | 1 | Harvard worker contracts (11/11), full JavaScript suite (72/72), browser flows (5/5), production build, and controlling-SWE/manager review. |
-| L18 | The scheduled sync aborts before database writes on any planned-source failure or insufficient unique results; rows not returned by the source are retained by default, and stale deletion is a documented explicit opt-in disabled in the scheduled workflow. | 1 | Python contracts (5/5), workflow default, configuration/runbook updates, and controlling-SWE/manager review. |
+| L18 | The scheduled sync aborts before database writes on any planned-source failure or insufficient unique results; rows not returned by the source are retained by default, and the deployed workflow rejects deletion requests before Harvard or database activity. | 1 | Python contracts, workflow default, configuration/runbook updates, and controlling-SWE/manager review. |
 | L19 | The chat proxy cancels an upstream SSE stream after 15 seconds without progress, emits a safe browser-readable error, and preserves the normal token and `[DONE]` protocol. | 1 | Chat Worker contracts (7/7), complete JavaScript suite (73/73), production build/bundle guard, and controlling-SWE/manager review. |
 | L20 | Mobile navigation exposes Home, Courses, Schedule, and Degree directly; Faculty, Compare, and Resources remain reachable through an accessible More disclosure that closes after either primary or secondary route navigation. | 1 | Mobile browser route/collapse coverage (3/3 focused; 6/6 complete suite), lint/build/bundle gate, and controlling-SWE/manager review. |
 | L21 | The mobile More disclosure supports keyboard dismissal with Escape and returns focus to its trigger, alongside route-close behavior. | 1 | Mobile browser E2E, lint, production build, bundle-budget gate, and controlling-SWE/manager review. |
@@ -82,3 +82,7 @@ Production certification needs authorized access to Cloudflare Pages/Functions l
 | L45 | The Home route has a reproducible local production-build performance baseline. | 1 | Chrome DevTools cold trace: 409 ms LCP, 0.00 CLS, and 8 ms local TTFB; no measurable render-blocking savings. Production mobile and RUM evidence remains required for G08. |
 | L46 | The first-visit landing page is a true focus-contained modal rather than a competing second main landmark. | 1 | Unit and built-browser checks prove a labelled modal, inert/hidden background, Tab containment, and unchanged Direct/Tutorial handoffs. |
 | L47 | The default branch has enforced, non-bypassable release governance. | 1 | GitHub ruleset `Production master protection` requires a pull request, resolved review threads, current `Quality gate`, and blocks deletion/non-fast-forward updates; zero approvals is intentional for the sole maintainer. |
+| L48 | Generated aggregate history records have deterministic provenance from their legacy source IDs without rewriting either historical source. | 1 | PR #21 (`85d05f3`), read-only comparator contracts, protected CI, and deployed smoke passed. This is review evidence only, not approval to alter historical identities. |
+| L49 | Non-aggregate terminal section-code changes are isolated in a local manual-provenance queue without auto-linking evaluation data. | 1 | PR #22 (`6dac43a`), controlled queue contracts, read-only parity evidence, protected CI, and deployed smoke passed. |
+| L50 | The daily sync cannot delete rows and records an aggregate retained-versus-current-source inventory after a successful atomic upsert. | 1 | PR #23 (`b833492`), no-delete/inventory contracts, protected CI/deploy, and successful production sync `29150410187`: 5,894 source offerings and 1,592 retained rows. Those rows remain reconciliation evidence, not a deletion set or rollback proof. |
+| L51 | The first-visit Direct and Tutorial actions remain fully reachable in a 1280 by 720 desktop viewport while preserving the complete landing copy and tutorial handoff. | 1 | PR #24 (`2e8a985`), full-rectangle browser regression, protected CI/deploy, and live Direct-path verification with no console errors. |
