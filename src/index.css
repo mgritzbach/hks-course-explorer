@@ -985,3 +985,60 @@ input:focus-visible {
 html[data-theme='hub'] .mobile-bottom-nav-pill {
   border-radius: 2px !important;
 }
+
+/* â”€â”€â”€ First-visit landing: keep the decision visible on short desktop screens â”€â”€â”€ */
+
+@media (min-width: 768px) and (max-height: 760px) {
+  .landing-splash-content {
+    align-items: flex-start !important;
+    padding: 22px 48px !important;
+  }
+
+  .landing-splash-accent {
+    margin-bottom: 16px !important;
+  }
+
+  .landing-splash-heading {
+    font-size: 42px !important;
+  }
+
+  .landing-splash-intro {
+    margin-top: 14px !important;
+    font-size: 17px !important;
+    line-height: 1.42 !important;
+  }
+
+  .landing-splash-credit {
+    margin-top: 8px !important;
+    font-size: 14px !important;
+    line-height: 1.4 !important;
+  }
+
+  .landing-splash-section.landing-splash-disclaimer {
+    margin-top: 16px !important;
+    padding-top: 12px !important;
+  }
+
+  .landing-splash-section.landing-splash-attention {
+    margin-top: 12px !important;
+    padding: 12px 16px !important;
+  }
+
+  .landing-splash-section p,
+  .landing-splash-continue p {
+    font-size: 14px !important;
+    line-height: 1.42 !important;
+  }
+
+  .landing-splash-continue {
+    margin-top: 18px !important;
+  }
+
+  .landing-splash-continue h2 {
+    font-size: 23px !important;
+  }
+
+  .landing-splash-continue p {
+    margin: 6px 0 12px !important;
+  }
+}

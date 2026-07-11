@@ -81,6 +81,7 @@ export default function LandingSplash({ onDirect, onTutorial }) {
   return createPortal(
     <div
       ref={pageRef}
+      className="landing-splash"
       role="dialog"
       aria-modal="true"
       aria-labelledby="welcome-heading"
@@ -99,6 +100,7 @@ export default function LandingSplash({ onDirect, onTutorial }) {
       }}
     >
       <div
+        className="landing-splash-content"
         style={{
           boxSizing: 'border-box',
           display: 'flex',
@@ -110,9 +112,13 @@ export default function LandingSplash({ onDirect, onTutorial }) {
         }}
       >
         <div style={{ width: '100%' }}>
-          <div style={{ width: 56, height: 5, marginBottom: 30, background: '#a51c30' }} />
+          <div
+            className="landing-splash-accent"
+            style={{ width: 56, height: 5, marginBottom: 30, background: '#a51c30' }}
+          />
           <h1
             id="welcome-heading"
+            className="landing-splash-heading"
             style={{
               maxWidth: 720,
               margin: 0,
@@ -127,6 +133,7 @@ export default function LandingSplash({ onDirect, onTutorial }) {
           </h1>
           <p
             id="welcome-description"
+            className="landing-splash-intro"
             style={{
               maxWidth: 720,
               margin: '30px 0 0',
@@ -137,12 +144,16 @@ export default function LandingSplash({ onDirect, onTutorial }) {
             This is a student-built initiative to help HKS students get the course experience they
             desire.
           </p>
-          <p style={{ maxWidth: 720, margin: '18px 0 0', fontSize: 16, lineHeight: 1.58 }}>
+          <p
+            className="landing-splash-credit"
+            style={{ maxWidth: 720, margin: '18px 0 0', fontSize: 16, lineHeight: 1.58 }}
+          >
             The code and maintenance are provided by Michael Gritzbach, MPA&apos;26, KSSG 2025/26.
           </p>
 
           <section
             aria-labelledby="disclaimer-heading"
+            className="landing-splash-section landing-splash-disclaimer"
             style={{
               maxWidth: 760,
               marginTop: 42,
@@ -165,6 +176,7 @@ export default function LandingSplash({ onDirect, onTutorial }) {
 
           <section
             aria-labelledby="attention-heading"
+            className="landing-splash-section landing-splash-attention"
             style={{
               maxWidth: 760,
               marginTop: 24,
@@ -185,7 +197,11 @@ export default function LandingSplash({ onDirect, onTutorial }) {
             </p>
           </section>
 
-          <section aria-labelledby="continue-heading" style={{ marginTop: 42 }}>
+          <section
+            className="landing-splash-continue"
+            aria-labelledby="continue-heading"
+            style={{ marginTop: 42 }}
+          >
             <h2
               id="continue-heading"
               style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: 27, fontWeight: 600 }}
