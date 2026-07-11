@@ -11,6 +11,8 @@ import { corsHeaders, handleOptions } from '../_shared/cors.js'
 
 const UPSTREAM_BASE = 'https://go.apis.huit.harvard.edu/ats/course/v2/search'
 const MAX_LIMIT = 50
+const MAX_QUERY_CHARS = 120
+const MAX_FILTER_VALUE_CHARS = 40
 const UPSTREAM_TIMEOUT_MS = 8_000
 const UPSTREAM_MAX_ATTEMPTS = 3
 const FRESH_CACHE_MAX_AGE_SECONDS = 300
@@ -390,11 +392,22 @@ async function fetchOneSchool(schoolCode, q, limit, passThrough, apiKey, cache, 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url)
   const q = url.searchParams.get('q')?.trim() ?? ''
-  const limit = Math.min(Number(url.searchParams.get('limit') ?? 25), MAX_LIMIT)
+  const requestedLimit = Number(url.searchParams.get('limit') ?? 25)
+  const limit =
+    Number.isInteger(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, MAX_LIMIT)
+      : 25
 
   // Allow single-char queries (needed for Non-HKS browse mode: q='a')
   if (!q || q.length < 1) {
     return jsonResp({ error: 'q must be at least 1 character', results: [] }, 400, request)
+  }
+  if (q.length > MAX_QUERY_CHARS) {
+    return jsonResp(
+      { error: `q must not exceed ${MAX_QUERY_CHARS} characters`, results: [] },
+      400,
+      request,
+    )
   }
 
   // Check for API key
@@ -413,6 +426,10 @@ export async function onRequestGet({ request, env }) {
   }
 
   const schoolParam = url.searchParams.get('school') ?? 'HKS'
+  const allowedSchools = new Set(['HKS', 'Non-HKS', 'All', '', ...NON_HKS_SCHOOLS])
+  if (!allowedSchools.has(schoolParam)) {
+    return jsonResp({ error: 'Unsupported school filter', results: [] }, 400, request)
+  }
   const PASS_THROUGH_KEYS = [
     'term',
     'session',
@@ -425,7 +442,12 @@ export async function onRequestGet({ request, env }) {
   const passThrough = {}
   for (const key of PASS_THROUGH_KEYS) {
     const val = url.searchParams.get(key)
-    if (val != null && val !== '') passThrough[key] = val
+    if (val != null && val !== '') {
+      if (val.length > MAX_FILTER_VALUE_CHARS) {
+        return jsonResp({ error: `${key} filter is too long`, results: [] }, 400, request)
+      }
+      passThrough[key] = val
+    }
   }
 
   const cache = caches.default

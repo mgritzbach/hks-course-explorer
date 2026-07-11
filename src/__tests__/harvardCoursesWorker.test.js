@@ -11,6 +11,19 @@ const url = 'https://example.test/search?q=api'
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Harvard catalogue Worker contract', () => {
+  it('bounds public proxy cache keys before an upstream request', async () => {
+    const fetchImpl = vi.fn()
+    vi.stubGlobal('fetch', fetchImpl)
+
+    const response = await onRequestGet({
+      request: new Request(`https://worker.test/api/harvard-courses?q=${'x'.repeat(121)}`),
+      env: { HARVARD_API_KEY: 'test-key' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
   it('normalises the list-shaped Harvard response contract', () => {
     const result = normalise([
       {
