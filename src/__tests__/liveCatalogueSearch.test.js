@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { findLiveCatalogueRows } from '../lib/liveCatalogueSearch.js'
+import { findLiveCatalogueRows, toScheduleSearchItem } from '../lib/liveCatalogueSearch.js'
 
 const rows = [
   {
@@ -45,6 +45,10 @@ describe('live catalogue search', () => {
     expect(
       findLiveCatalogueRows(rows, { year: '2026', semester: 'Spring', school: 'Non-HKS' }),
     ).toEqual([rows[1]])
+  })
+
+  it('keeps source-school metadata when a current offering enters scheduling', () => {
+    expect(toScheduleSearchItem(rows[1])).toMatchObject({ school: 'HBSD', is_hks: false })
   })
 
   it('keeps the Schedule Builder on the synced catalogue path', () => {

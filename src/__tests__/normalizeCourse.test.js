@@ -69,7 +69,16 @@ describe('schedule course normalization', () => {
       meeting_days: 'T/TH',
       time_start: '11:00',
       time_end: '12:15',
+      is_hks: undefined,
+      school: null,
       enrichment: { is_stem: true, is_core: false, metrics_pct: null },
+    })
+  })
+
+  it('keeps an explicit current-offering school classification', () => {
+    expect(normalizeCourse({ courseCode: 'API-101', school: 'HLS', is_hks: false })).toMatchObject({
+      school: 'HLS',
+      is_hks: false,
     })
   })
 

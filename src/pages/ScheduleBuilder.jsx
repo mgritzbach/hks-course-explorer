@@ -431,24 +431,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     if (liveBrowse && liveCoursesData.length > 0) {
       const rows =
         searchSource === 'Non-HKS' ? liveCoursesData.filter((r) => !r.is_hks) : liveCoursesData // All: show every school
-      const normalized = rows.map((r, i) =>
-        normalizeCourse(
-          {
-            courseCode: r.course_code || r.course_code_base,
-            title: r.title || '',
-            instructors: Array.isArray(r.instructors) ? r.instructors : [],
-            credits: r.credits,
-            sections: [],
-            meeting_days: r.meeting_days || null,
-            time_start: r.time_start || null,
-            time_end: r.time_end || null,
-            location: r.location || null,
-            term: r.term || null,
-            _fromLiveDB: true,
-          },
-          i,
-        ),
-      )
+      const normalized = rows.map((row, index) => normalizeCourse(toScheduleSearchItem(row), index))
       setApiMode('live')
       setSearchResults(normalized)
       setSearching(false)
@@ -748,22 +731,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         if (searchSession !== 'all') {
           liveRows = liveRows.filter((r) => r.session_description === searchSession)
         }
-        allResults = liveRows.map((r, i) => {
-          const norm = normalizeCourse(
-            {
-              courseCode: r.course_code || r.course_code_base,
-              title: r.title || '',
-              instructors: Array.isArray(r.instructors) ? r.instructors : [],
-              credits: r.credits,
-              sections: [],
-              meeting_days: r.meeting_days || null,
-              time_start: r.time_start || null,
-              time_end: r.time_end || null,
-              location: r.location || null,
-              term: r.term || null,
-            },
-            i,
-          )
+        allResults = liveRows.map((row, index) => {
+          const norm = normalizeCourse(toScheduleSearchItem(row), index)
           // Mark as having live times if schedule data exists (drives sort + UI badge)
           if (norm.meeting_days && norm.time_start) norm._hasLiveTimes = true
           return norm

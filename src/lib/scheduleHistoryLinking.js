@@ -42,6 +42,10 @@ function isBetterRating(candidate, current) {
  * must display no rating rather than borrow one from a related course.
  */
 export function findVerifiedHistoricalRating(course, ratingsByCode) {
+  // The reviewed evaluation history is HKS-only. Current non-HKS offerings
+  // remain scheduleable, but must never inherit a coincidental HKS rating.
+  if (course?.is_hks === false) return null
+
   const code = normaliseCourseCode(
     course?.courseCode || course?.course_code || course?.course_code_base,
   )

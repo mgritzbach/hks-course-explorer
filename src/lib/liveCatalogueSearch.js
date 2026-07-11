@@ -47,6 +47,10 @@ export function toScheduleSearchItem(row) {
     time_end: row?.time_end || null,
     location: row?.location || null,
     term: row?.term || null,
+    // Preserve the source classification through the scheduling path: only
+    // HKS offerings may be associated with the HKS-only historical dataset.
+    school: row?.school || null,
+    is_hks: row?.is_hks === true,
     _fromLiveDB: true,
   }
 }

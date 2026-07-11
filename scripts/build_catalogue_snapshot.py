@@ -133,7 +133,10 @@ def materialize_catalogue_snapshot(offerings, historical_rows, historical_code_m
         # read model for schedule building. The reviewed historical catalogue
         # is HKS-only, so never infer an evaluation, code alias, or review
         # candidate for a non-HKS offering.
-        if offering.get("school") and offering.get("school") != "HKS":
+        # Treat a missing/unknown school as current-only as well. The upstream
+        # source is authoritative for the HKS boundary; guessing would attach
+        # HKS evaluation history to an offering that has not proved its school.
+        if offering.get("school") != "HKS":
             snapshot.append(
                 {
                     "offering_id": str(offering["id"]),
