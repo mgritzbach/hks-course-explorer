@@ -65,6 +65,7 @@ function baseManifest({ home = {}, shell = {}, courses = {}, scheduleBuilder = {
       ...scheduleBuilder,
     },
     'node_modules/plotly.js-dist-min/plotly.js': { file: 'assets/vendor-plotly.js' },
+    'node_modules/@supabase/supabase-js/dist/main/index.js': { file: 'assets/vendor-supabase.js' },
   }
 }
 
@@ -78,6 +79,7 @@ const standardAssets = {
   'assets/index.css': 'body{}',
   'assets/shared.css': '.shared{}',
   'assets/vendor-plotly.js': 'plotly',
+  'assets/vendor-supabase.js': 'supabase',
 }
 
 describe('check_bundle_budget', () => {
@@ -145,6 +147,19 @@ describe('check_bundle_budget', () => {
 
     expect(result.code).toBe(0)
     expect(result.stdout).toContain('Plotly: lazy')
+  })
+
+  it('fails when Supabase is a static Home dependency', async () => {
+    const dist = await createFixture(
+      baseManifest({
+        home: { imports: ['node_modules/@supabase/supabase-js/dist/main/index.js'] },
+      }),
+      standardAssets,
+    )
+    const result = await runGuard(dist)
+
+    expect(result.code).not.toBe(0)
+    expect(result.stderr).toContain('Supabase must load after the initial Home graph')
   })
 
   it('fails when a direct-navigation lazy route exceeds its budget', async () => {
