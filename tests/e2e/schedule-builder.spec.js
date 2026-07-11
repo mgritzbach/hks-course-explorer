@@ -54,6 +54,40 @@ test.describe('Schedule Builder critical flows', () => {
     expect(harvardRequests).toBe(0)
   })
 
+  test('reads only the selected synced term and refetches when the term changes', async ({
+    page,
+  }) => {
+    const requestedTerms = []
+    await installMockBackend(page, {
+      onLiveCoursesRequest: (url) => requestedTerms.push(url.searchParams.get('term')),
+    })
+    await page.addInitScript(() => localStorage.setItem('hks-splash-shown', '1'))
+    await page.goto('/schedule-builder')
+
+    await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
+    await expect.poll(() => requestedTerms).toContain('eq.2026 Spring')
+
+    await page.getByLabel('Semester').selectOption('Fall')
+    await expect.poll(() => requestedTerms).toContain('eq.2026 Fall')
+  })
+
+  test('makes a failed synced-catalogue read visible for typed searches instead of showing empty results', async ({
+    page,
+  }) => {
+    await installMockBackend(page, { liveCoursesStatus: 503 })
+    await page.addInitScript(() => localStorage.setItem('hks-splash-shown', '1'))
+    await page.goto('/schedule-builder')
+
+    await page.getByLabel('School filter').selectOption('Non-HKS')
+    await page.getByLabel('Search courses and instructors').fill('policy')
+    await expect(page.getByRole('alert')).toContainText(
+      'Current catalogue is temporarily unavailable.',
+      {
+        timeout: 10_000,
+      },
+    )
+  })
+
   test('adds a missing cross-registration course through the manual form', async ({ page }) => {
     await page.goto('/schedule-builder')
     await page.getByLabel('School filter').selectOption('Non-HKS')

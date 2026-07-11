@@ -11,7 +11,12 @@ Current offerings:
     -> scripts/sync_live_courses.py
     -> service-only atomic Supabase RPC
     -> Supabase live_courses
-    -> Browser Schedule Builder
+    -> Browser Schedule Builder, scoped to the selected term
+
+The browser never searches the Harvard ATS API directly. The API is a trusted
+daily-ingestion source only. Student searches and browsing use the last
+successfully synced `live_courses` data, so a temporary upstream API failure
+cannot make an otherwise healthy browser search depend on the provider.
 
 Section meeting data:
   Harvard source/section import process
@@ -28,5 +33,6 @@ Safety rules:
   or failed page aborts the entire run before data can change.
 - A complete validated source payload is upserted in one database transaction;
   a database error leaves the previously served live catalogue intact.
-- Current database schema/RLS and data-retention setup still require a fully
-  versioned baseline migration before a clean environment is reproducible.
+- The future private `catalogue_snapshot_v1` contract remains disabled until
+  historical-source parity and rollback evidence have been accepted. It must
+  not replace the current browser reads early or infer evaluation history.

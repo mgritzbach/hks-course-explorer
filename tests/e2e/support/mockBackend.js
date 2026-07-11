@@ -148,7 +148,10 @@ function json(route, body, status = 200) {
  * real fetch, route, normalization, filtering, and rendering code; only the
  * mutable network boundary is replaced by a compact representative fixture.
  */
-export async function installMockBackend(page, { harvardResponse } = {}) {
+export async function installMockBackend(
+  page,
+  { harvardResponse, liveCoursesStatus = 200, onLiveCoursesRequest } = {},
+) {
   // The client requests catalogue pages in parallel. Returning the compact
   // fixture exactly once models a populated first page without coupling tests
   // to a transport-specific Range header spelling or request ordering.
@@ -162,7 +165,14 @@ export async function installMockBackend(page, { harvardResponse } = {}) {
       historicalPageServed = true
       return json(route, pageData)
     }
-    if (pathname.endsWith('/live_courses')) return json(route, liveCourses)
+    if (pathname.endsWith('/live_courses')) {
+      onLiveCoursesRequest?.(new URL(request.url()))
+      return json(
+        route,
+        liveCoursesStatus === 200 ? liveCourses : { error: 'unavailable' },
+        liveCoursesStatus,
+      )
+    }
     if (pathname.endsWith('/course_sections')) return json(route, [])
 
     return json(route, [])

@@ -2,7 +2,7 @@
  * useScheduleData
  *
  * Encapsulates all Supabase data-fetching for the Schedule Builder:
- *   - live_courses  (fetched once on mount — all terms, client-side filtered)
+ *   - live_courses  (fetched for the selected term only)
  *   - course_sections (re-fetched whenever semesterYear or semester changes)
  *
  * Keeping these two fetches isolated here means ScheduleBuilder.jsx can focus
@@ -25,20 +25,41 @@ import { fetchCataloguePages } from '../lib/cataloguePagination.js'
 import { buildSectionCatalogueIndexes } from '../lib/sectionCatalogueIndexes.js'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
+// A stalled browser read is not a valid empty catalogue. Bound it so the UI
+// can distinguish a temporary data problem from a term with no offerings.
+const LIVE_CATALOGUE_REQUEST_TIMEOUT_MS = 8_000
+
 export function useScheduleData(semesterYear, semester) {
   const [liveCoursesData, setLiveCoursesData] = useState([])
+  const [liveCoursesLoading, setLiveCoursesLoading] = useState(false)
+  const [liveCoursesError, setLiveCoursesError] = useState('')
   const [sectionTimesMap, setSectionTimesMap] = useState(new Map())
   const [sectionCanonicalCodes, setSectionCanonicalCodes] = useState(new Set())
   const [sectionInfoMap, setSectionInfoMap] = useState(new Map())
   const [sectionTimesLoading, setSectionTimesLoading] = useState(false)
 
-  // Fetch live_courses once — all terms loaded upfront, semester filtering
-  // happens client-side so switching semesters doesn't trigger a new fetch.
+  // Fetch only the current term. The daily sync is the sole upstream source;
+  // downloading every historical/future term makes the first Schedule Builder
+  // view slower and can briefly show the wrong term while a selector changes.
   useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+    const liveTerm = `${semesterYear} ${semester}`
+    const timeoutId = window.setTimeout(() => controller.abort(), LIVE_CATALOGUE_REQUEST_TIMEOUT_MS)
+
+    setLiveCoursesData([])
+    setLiveCoursesError('')
+    setLiveCoursesLoading(true)
     if (!isSupabaseConfigured) {
-      setLiveCoursesData([])
-      return undefined
+      setLiveCoursesLoading(false)
+      setLiveCoursesError('Current catalogue configuration is unavailable.')
+      return () => {
+        cancelled = true
+        window.clearTimeout(timeoutId)
+        controller.abort()
+      }
     }
+
     fetchCataloguePages(() =>
       supabase
         .from('live_courses')
@@ -49,12 +70,28 @@ export function useScheduleData(semesterYear, semester) {
         )
         // The ID tie-breaker makes page boundaries stable when many offerings
         // share a term, preventing duplicate or skipped rows across requests.
+        .abortSignal(controller.signal)
+        .eq('term', liveTerm)
         .order('term', { ascending: false })
         .order('id', { ascending: true }),
     )
-      .then((rows) => setLiveCoursesData(rows))
-      .catch(() => {})
-  }, []) // intentionally empty — see ADR-002
+      .then((rows) => {
+        if (!cancelled) setLiveCoursesData(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setLiveCoursesError('Current catalogue is temporarily unavailable.')
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId)
+        if (!cancelled) setLiveCoursesLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [semesterYear, semester])
 
   // Fetch course_sections whenever the selected semester changes.
   // Resets all section maps immediately so stale data never shows.
@@ -93,6 +130,8 @@ export function useScheduleData(semesterYear, semester) {
 
   return {
     liveCoursesData,
+    liveCoursesLoading,
+    liveCoursesError,
     sectionTimesMap,
     sectionCanonicalCodes,
     sectionInfoMap,
