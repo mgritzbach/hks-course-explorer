@@ -105,7 +105,6 @@ class FetchSchoolTests(unittest.TestCase):
             patch.object(self.sync, "WORKERS", 1),
             patch.object(self.sync, "fetch_school", side_effect=[success, failure]),
             patch.object(self.sync, "supabase_upsert") as upsert,
-            patch.object(self.sync, "supabase_delete_stale") as delete_stale,
             patch.object(self.sync, "write_github_summary") as write_summary,
         ):
             with self.assertRaises(SystemExit) as exit_context:
@@ -113,7 +112,6 @@ class FetchSchoolTests(unittest.TestCase):
 
         self.assertEqual(exit_context.exception.code, 1)
         upsert.assert_not_called()
-        delete_stale.assert_not_called()
         self.assertIn("aborted before database writes", write_summary.call_args.args[0])
 
     def test_atomic_promotion_failure_writes_a_failure_summary_before_raising(self):
@@ -125,31 +123,32 @@ class FetchSchoolTests(unittest.TestCase):
             patch.object(self.sync, "WORKERS", 1),
             patch.object(self.sync, "fetch_school", return_value=success),
             patch.object(self.sync, "supabase_upsert", side_effect=RuntimeError("database unavailable")),
+            patch.object(self.sync, "supabase_inventory_live_courses") as inventory,
             patch.object(self.sync, "write_github_summary") as write_summary,
         ):
             with self.assertRaisesRegex(RuntimeError, "database unavailable"):
                 self.sync.main()
 
         self.assertIn("atomic database promotion failed", write_summary.call_args.args[0])
+        inventory.assert_not_called()
 
-    def test_successful_sync_does_not_delete_stale_rows_without_explicit_opt_in(self):
+    def test_successful_sync_reports_retained_inventory_without_deleting_rows(self):
         success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
 
         with (
             patch.object(self.sync, "ALL_SCHOOLS", ["HKS"]),
             patch.object(self.sync, "SEED_QUERIES", ["a"]),
             patch.object(self.sync, "WORKERS", 1),
-            patch.object(self.sync, "ALLOW_STALE_DELETION", False),
             patch.object(self.sync, "fetch_school", return_value=success),
             patch.object(self.sync, "supabase_upsert") as upsert,
-            patch.object(self.sync, "supabase_delete_stale") as delete_stale,
+            patch.object(self.sync, "supabase_inventory_live_courses", return_value=[success.rows[0]]),
             patch.object(self.sync, "write_github_summary") as write_summary,
         ):
             self.sync.main()
 
         upsert.assert_called_once_with([success.rows[0]])
-        delete_stale.assert_not_called()
         self.assertIn("promoted atomically", write_summary.call_args.args[0])
+        self.assertIn("Retained rows absent from current source:** 0", write_summary.call_args.args[0])
 
     def test_minimum_unique_course_guard_prevents_writes_and_deletes(self):
         empty_success = self.sync.FetchResult("HKS", "a", [], True)
@@ -161,30 +160,30 @@ class FetchSchoolTests(unittest.TestCase):
             patch.object(self.sync, "MIN_UNIQUE_COURSES", 1),
             patch.object(self.sync, "fetch_school", return_value=empty_success),
             patch.object(self.sync, "supabase_upsert") as upsert,
-            patch.object(self.sync, "supabase_delete_stale") as delete_stale,
         ):
             with self.assertRaises(SystemExit) as exit_context:
                 self.sync.main()
 
         self.assertEqual(exit_context.exception.code, 1)
         upsert.assert_not_called()
-        delete_stale.assert_not_called()
 
-    def test_explicit_opt_in_allows_stale_deletion_after_successful_sync(self):
-        success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
+    def test_rejects_stale_deletion_request_before_harvard_or_database_activity(self):
+        with patch.dict(os.environ, {"SYNC_ALLOW_STALE_DELETE": "true"}, clear=False):
+            sync = load_sync_module()
+        fetch_school = Mock()
+        upsert = Mock()
 
         with (
-            patch.object(self.sync, "ALL_SCHOOLS", ["HKS"]),
-            patch.object(self.sync, "SEED_QUERIES", ["a"]),
-            patch.object(self.sync, "WORKERS", 1),
-            patch.object(self.sync, "ALLOW_STALE_DELETION", True),
-            patch.object(self.sync, "fetch_school", return_value=success),
-            patch.object(self.sync, "supabase_upsert"),
-            patch.object(self.sync, "supabase_delete_stale") as delete_stale,
+            patch.object(sync, "fetch_school", fetch_school),
+            patch.object(sync, "supabase_upsert", upsert),
+            patch.object(sync, "write_github_summary") as write_summary,
         ):
-            self.sync.main()
+            with self.assertRaisesRegex(SystemExit, "intentionally unsupported"):
+                sync.main()
 
-        delete_stale.assert_called_once()
+        fetch_school.assert_not_called()
+        upsert.assert_not_called()
+        self.assertIn("aborted before API/database activity", write_summary.call_args.args[0])
 
     def test_atomic_upsert_posts_one_complete_payload_and_verifies_row_count(self):
         response = Mock(ok=True)
@@ -212,6 +211,98 @@ class FetchSchoolTests(unittest.TestCase):
         with patch.object(self.sync.requests, "post", return_value=incomplete):
             with self.assertRaisesRegex(RuntimeError, "expected 1"):
                 self.sync.supabase_upsert([{"id": "one"}])
+
+    def test_inventory_paginates_all_rows_and_never_uses_a_delete_request(self):
+        records = [
+            {"id": str(index), "school": "HKS", "term": "2026 Fall"}
+            for index in range(1555)
+        ]
+        requests_seen = []
+
+        def request_get(url, headers, params, timeout):
+            requests_seen.append((headers["Range"], params))
+            start = int(headers["Range"].split("-")[0])
+            response = Mock(ok=True)
+            response.json.return_value = records[start : start + self.sync.INVENTORY_PAGE_SIZE]
+            return response
+
+        inventory = self.sync.supabase_inventory_live_courses(request_get)
+
+        self.assertEqual(inventory, records)
+        self.assertEqual(
+            requests_seen,
+            [
+                ("0-999", {"select": "id,school,term", "order": "id.asc"}),
+                ("1000-1999", {"select": "id,school,term", "order": "id.asc"}),
+            ],
+        )
+
+    def test_sync_source_has_no_delete_transport_or_cleanup_helper(self):
+        source = MODULE_PATH.read_text(encoding="utf-8")
+
+        self.assertNotIn("requests.delete(", source)
+        self.assertNotIn("supabase_delete_stale", source)
+
+    def test_inventory_rejects_malformed_and_duplicate_ids(self):
+        malformed = Mock(ok=True)
+        malformed.json.return_value = [{"school": "HKS", "term": "2026 Fall"}]
+        with self.assertRaisesRegex(RuntimeError, "without an ID"):
+            self.sync.supabase_inventory_live_courses(Mock(return_value=malformed))
+
+        first = Mock(ok=True)
+        first.json.return_value = [{"id": "same", "school": "HKS", "term": "2026 Fall"}]
+        second = Mock(ok=True)
+        second.json.return_value = [{"id": "same", "school": "HKS", "term": "2026 Fall"}]
+        with (
+            patch.object(self.sync, "INVENTORY_PAGE_SIZE", 1),
+            patch.object(self.sync, "MAX_INVENTORY_ROWS", 2),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "duplicate IDs"):
+                self.sync.supabase_inventory_live_courses(Mock(side_effect=[first, second]))
+
+    def test_inventory_rejects_a_result_that_reaches_the_safe_page_cap(self):
+        full_page = Mock(ok=True)
+        full_page.json.return_value = [{"id": "one", "school": "HKS", "term": "2026 Fall"}]
+        with (
+            patch.object(self.sync, "INVENTORY_PAGE_SIZE", 1),
+            patch.object(self.sync, "MAX_INVENTORY_ROWS", 1),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "safe 1 row inventory limit"):
+                self.sync.supabase_inventory_live_courses(Mock(return_value=full_page))
+
+    def test_inventory_comparison_reports_aggregate_retained_rows_only(self):
+        comparison = self.sync.compare_live_course_inventory(
+            [{"id": "current", "school": "HKS", "term": "2026 Fall"}],
+            [
+                {"id": "current", "school": "HKS", "term": "2026 Fall"},
+                {"id": "retained-a", "school": "HKS", "term": "2025 Fall"},
+                {"id": "retained-b", "school": "FAS", "term": "2024 Spring"},
+            ],
+        )
+
+        self.assertEqual(comparison["database_row_count"], 3)
+        self.assertEqual(comparison["retained_not_in_current_source_count"], 2)
+        self.assertEqual(comparison["current_source_missing_from_database_count"], 0)
+        self.assertEqual(comparison["retained_not_in_current_source_by_school"], {"FAS": 1, "HKS": 1})
+        self.assertEqual(comparison["retained_not_in_current_source_by_term"], {"2024 Spring": 1, "2025 Fall": 1})
+
+    def test_inventory_failure_is_reported_after_atomic_promotion_without_cleanup(self):
+        success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
+
+        with (
+            patch.object(self.sync, "ALL_SCHOOLS", ["HKS"]),
+            patch.object(self.sync, "SEED_QUERIES", ["a"]),
+            patch.object(self.sync, "WORKERS", 1),
+            patch.object(self.sync, "fetch_school", return_value=success),
+            patch.object(self.sync, "supabase_upsert") as upsert,
+            patch.object(self.sync, "supabase_inventory_live_courses", side_effect=RuntimeError("inventory unavailable")),
+            patch.object(self.sync, "write_github_summary") as write_summary,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "inventory unavailable"):
+                self.sync.main()
+
+        upsert.assert_called_once_with([success.rows[0]])
+        self.assertIn("atomic promotion succeeded; retained-inventory audit failed; no cleanup attempted", write_summary.call_args.args[0])
 
     def test_summary_reports_coverage_without_course_content_or_credentials(self):
         summary = self.sync.build_sync_summary(

@@ -71,14 +71,13 @@ HTTP_MAX_ATTEMPTS = 5
 RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
 
 # A sync can safely add/update records after every planned source request has
-# succeeded.  It cannot, however, prove that an upstream search returned the
-# entire catalogue: a valid HTTP 200 with a truncated result set is
-# indistinguishable from a complete response without a documented upstream
-# completeness contract.  Retain historical rows by default instead of
-# risking destructive cleanup.  Operators may enable cleanup only after
-# verifying their API coverage and database `synced_at` trigger.
-ALLOW_STALE_DELETION = os.environ.get("SYNC_ALLOW_STALE_DELETE", "false").lower() == "true"
+# succeeded. It cannot prove that an upstream search was exhaustive, so this
+# workflow never deletes rows. A separately approved, backed-up reconciliation
+# is required before any production removal is contemplated.
+STALE_DELETE_REQUESTED = os.environ.get("SYNC_ALLOW_STALE_DELETE", "false").lower() == "true"
 MIN_UNIQUE_COURSES = int(os.environ.get("SYNC_MIN_UNIQUE_COURSES", "1"))
+INVENTORY_PAGE_SIZE = 1000
+MAX_INVENTORY_ROWS = 10000
 
 
 @dataclass
@@ -104,6 +103,7 @@ def build_sync_summary(
     planned_request_count: int,
     rows: list[dict],
     failures: list[FetchResult] | None = None,
+    inventory: dict | None = None,
 ) -> str:
     """Build a non-sensitive daily-sync audit summary for GitHub Actions.
 
@@ -134,6 +134,26 @@ def build_sync_summary(
             "- **Offerings by term:** "
             + ", ".join(f"{term}: {count}" for term, count in sorted(by_term.items()))
         )
+    if inventory is not None:
+        lines.extend(
+            [
+                f"- **Database rows inventoried after upsert:** {inventory['database_row_count']}",
+                f"- **Retained rows absent from current source:** {inventory['retained_not_in_current_source_count']}",
+                f"- **Current-source rows missing from database:** {inventory['current_source_missing_from_database_count']}",
+            ]
+        )
+        retained_by_school = inventory["retained_not_in_current_source_by_school"]
+        retained_by_term = inventory["retained_not_in_current_source_by_term"]
+        if retained_by_school:
+            lines.append(
+                "- **Retained rows absent from current source by school:** "
+                + ", ".join(f"{school}: {count}" for school, count in retained_by_school.items())
+            )
+        if retained_by_term:
+            lines.append(
+                "- **Retained rows absent from current source by term:** "
+                + ", ".join(f"{term}: {count}" for term, count in retained_by_term.items())
+            )
     lines.append("")
     return "\n".join(lines)
 
@@ -386,6 +406,15 @@ def _sb_headers():
     }
 
 
+def _sb_read_headers():
+    """Return service-only headers for an inventory read, never a write."""
+    return {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Accept": "application/json",
+    }
+
+
 def supabase_upsert(rows: list[dict]) -> None:
     """Apply the complete fetched catalogue in one database transaction.
 
@@ -413,25 +442,83 @@ def supabase_upsert(rows: list[dict]) -> None:
     log.info("  atomically upserted %d rows", updated_rows)
 
 
-def supabase_delete_stale(synced_before: str) -> None:
-    """Delete rows NOT updated in this run (dropped / expired courses)."""
-    headers = {**_sb_headers(), "Prefer": ""}
-    resp = requests.delete(
-        f"{SUPABASE_URL}/rest/v1/live_courses",
-        headers=headers,
-        params={"synced_at": f"lt.{synced_before}"},
-        timeout=30,
-    )
-    if resp.ok:
-        log.info("Removed stale rows (synced_at < %s)", synced_before)
-    else:
-        log.warning("Stale-row cleanup failed: %s %s", resp.status_code, resp.text[:200])
+def supabase_inventory_live_courses(request_get=requests.get):
+    """Read the complete live table for post-promotion reconciliation evidence.
+
+    This intentionally uses full pagination rather than a client-clock
+    ``synced_at`` predicate. It returns only the identifier and aggregation
+    fields required to count retained rows; it never deletes or logs an ID.
+    """
+    rows = []
+    seen_ids = set()
+    endpoint = f"{SUPABASE_URL}/rest/v1/live_courses"
+    for start in range(0, MAX_INVENTORY_ROWS, INVENTORY_PAGE_SIZE):
+        response = request_get(
+            endpoint,
+            headers={
+                **_sb_read_headers(),
+                "Range-Unit": "items",
+                "Range": f"{start}-{start + INVENTORY_PAGE_SIZE - 1}",
+            },
+            params={"select": "id,school,term", "order": "id.asc"},
+            timeout=30,
+        )
+        if not response.ok:
+            raise RuntimeError(f"Live-course inventory failed: HTTP {response.status_code}")
+        page = response.json()
+        if not isinstance(page, list):
+            raise RuntimeError("Live-course inventory returned a non-list response")
+        for row in page:
+            if not isinstance(row, dict) or not str(row.get("id") or "").strip():
+                raise RuntimeError("Live-course inventory returned a row without an ID")
+            row_id = str(row["id"])
+            if row_id in seen_ids:
+                raise RuntimeError("Live-course inventory returned duplicate IDs")
+            seen_ids.add(row_id)
+            rows.append(row)
+        if len(page) < INVENTORY_PAGE_SIZE:
+            return rows
+    raise RuntimeError(f"live_courses exceeds the safe {MAX_INVENTORY_ROWS} row inventory limit")
+
+
+def compare_live_course_inventory(source_rows, database_rows):
+    """Return aggregate-only differences; neither side is treated as a deletion list."""
+    source_ids = {str(row.get("id") or "") for row in source_rows}
+    if "" in source_ids or len(source_ids) != len(source_rows):
+        raise RuntimeError("Current-source inventory must contain unique non-empty IDs")
+    database_ids = {str(row["id"]) for row in database_rows}
+    retained = [row for row in database_rows if str(row["id"]) not in source_ids]
+    return {
+        "database_row_count": len(database_rows),
+        "current_source_count": len(source_ids),
+        "retained_not_in_current_source_count": len(retained),
+        "current_source_missing_from_database_count": len(source_ids - database_ids),
+        "retained_not_in_current_source_by_school": dict(
+            sorted(Counter(summary_label(row.get("school")) for row in retained).items())
+        ),
+        "retained_not_in_current_source_by_term": dict(
+            sorted(Counter(summary_label(row.get("term")) for row in retained).items())
+        ),
+    }
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     sync_start = datetime.now(timezone.utc).isoformat()
+    if STALE_DELETE_REQUESTED:
+        write_github_summary(
+            build_sync_summary(
+                outcome="aborted before API/database activity: stale deletion is not supported",
+                sync_start=sync_start,
+                planned_request_count=0,
+                rows=[],
+            )
+        )
+        sys.exit(
+            "SYNC_ALLOW_STALE_DELETE is intentionally unsupported. Run a separately approved, "
+            "backed-up reconciliation instead."
+        )
     log.info("Sync started at %s", sync_start)
     log.info("Schools: %s", ALL_SCHOOLS)
     log.info("Seed queries: %s  Workers: %d", SEED_QUERIES, WORKERS)
@@ -478,7 +565,7 @@ def main():
                 failures=failures,
             )
         )
-        log.error("Aborting sync: %d of %d Harvard requests failed. No Supabase writes or stale-row deletion will run. Failed calls: %s", len(failures), len(tasks), failed_calls)
+        log.error("Aborting sync: %d of %d Harvard requests failed. No Supabase write or inventory read will run. Failed calls: %s", len(failures), len(tasks), failed_calls)
         sys.exit(1)
 
     if len(all_rows) < MIN_UNIQUE_COURSES:
@@ -513,26 +600,32 @@ def main():
         )
         raise
 
-    if ALLOW_STALE_DELETION:
-        log.warning(
-            "SYNC_ALLOW_STALE_DELETE=true: removing rows not refreshed in this run. "
-            "This requires verified complete upstream coverage and a working synced_at database trigger."
+    try:
+        inventory = compare_live_course_inventory(rows_list, supabase_inventory_live_courses())
+    except Exception:
+        write_github_summary(
+            build_sync_summary(
+                outcome="atomic promotion succeeded; retained-inventory audit failed; no cleanup attempted",
+                sync_start=sync_start,
+                planned_request_count=len(tasks),
+                rows=rows_list,
+            )
         )
-        supabase_delete_stale(sync_start)
-    else:
-        log.info(
-            "Stale-row deletion is disabled. Set SYNC_ALLOW_STALE_DELETE=true only after "
-            "verifying complete upstream coverage and the live_courses synced_at trigger."
-        )
+        raise
     write_github_summary(
         build_sync_summary(
             outcome="promoted atomically",
             sync_start=sync_start,
             planned_request_count=len(tasks),
             rows=rows_list,
+            inventory=inventory,
         )
     )
-    log.info("Done. %d courses in live_courses.", len(rows_list))
+    log.info(
+        "Done. %d current-source courses promoted; %d retained database rows were absent from this source.",
+        len(rows_list),
+        inventory["retained_not_in_current_source_count"],
+    )
 
 
 if __name__ == "__main__":

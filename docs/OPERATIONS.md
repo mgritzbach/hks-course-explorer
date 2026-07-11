@@ -93,21 +93,22 @@ scheduled run's atomic promotion. Do not cancel an in-progress sync solely to
 start another one; wait for its summary and start the follow-up only if needed.
 
 The sync will upsert data only when every planned Harvard request succeeds and
-the configured minimum unique-course count is reached. Stale-row deletion is
-disabled by default (`SYNC_ALLOW_STALE_DELETE=false`): a successful API
-response alone does not prove the upstream search returned a complete
-catalogue. Enable deletion only after an operator has verified both complete
-upstream coverage and the `live_courses.synced_at` database trigger in the
-target environment. This protects existing catalogue data when an upstream
-response is incomplete.
+the configured minimum unique-course count is reached. It never deletes
+`live_courses` rows: `SYNC_ALLOW_STALE_DELETE=true` is rejected before any
+Harvard or database activity. A successful API response alone does not prove
+the upstream search returned a complete catalogue, so deletion requires a
+separate, reviewed reconciliation with a tested backup and restore path.
 
-- Any failed Harvard source request causes a non-zero exit before database writes
-  or stale-row deletion.
-- Review row counts and per-school/term coverage before enabling stale cleanup
-  in a new environment.
-- `SYNC_MIN_UNIQUE_COURSES=1` is only a non-empty guard. Before deletion is
-  ever enabled, set and validate per-school/term thresholds against a
-  last-known-good run; do not infer complete coverage from an HTTP success.
+- Any failed Harvard source request causes a non-zero exit before database writes.
+- After a successful atomic upsert, the job reads every `live_courses` ID and
+  reports only aggregate counts: database rows, retained rows absent from the
+  current source, and source rows missing from the database, plus retained
+  school/term coverage. It never emits a deletion list or course content.
+- An inventory-read failure is a non-zero post-promotion incident: the upsert
+  has succeeded, but no cleanup has been attempted and the run is not
+  reconciliation-ready.
+- `SYNC_MIN_UNIQUE_COURSES=1` is only a non-empty guard. Do not infer complete
+  coverage or a deletion authorization from an HTTP success or the inventory.
 - Keep the last verified catalogue/data version available for rollback.
 - Treat a partial run as an incident, not as an empty current catalogue.
 - Each scheduled run writes a compact GitHub Actions summary with its outcome,

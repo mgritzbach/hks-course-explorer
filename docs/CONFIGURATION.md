@@ -40,7 +40,7 @@ Pages too if Pages can create builds outside this workflow.
 | `SUPABASE_KEY` | Yes | Supabase service-role/secret key for trusted scripts only. |
 | `HARVARD_API_KEY` | Yes | Harvard ATS API key used by the sync script. |
 | `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated results required before the sync writes. Script default: `1`; the production workflow uses the reviewed `1200` floor against its 1,555-offering baseline. |
-| `SYNC_ALLOW_STALE_DELETE` | No | Enables destructive deletion of rows not refreshed by a successful sync. Default: `false`; enable only with verified complete upstream coverage and a tested `live_courses.synced_at` trigger. |
+| `SYNC_ALLOW_STALE_DELETE` | No | Retired safety flag. Any `true` value makes the sync fail before Harvard or database activity; this workflow never deletes rows. |
 
 The sync job fails closed if any required source request fails or the minimum
 course guard is not met. It requests Harvard's documented 1,000-record pages
@@ -50,7 +50,11 @@ server-only `sync_live_courses_atomically(jsonb)` RPC, which validates IDs and
 upserts in one Postgres transaction. It must run with a service account
 restricted to the minimum required database privileges. The default schedule
 does not delete historical rows, because a 200 response alone does not prove
-an upstream search was complete.
+an upstream search was complete. After each successful atomic promotion it
+inventories the entire `live_courses` table with a service-only, paginated read
+and reports aggregate retained-versus-current source counts. That evidence does
+not authorize deletion; any reconciliation requires a separately reviewed
+backup and restore plan.
 
 ## Cloudflare Pages Functions
 

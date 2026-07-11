@@ -35,8 +35,9 @@ jobs:
           HARVARD_API_KEY: ${{ secrets.HARVARD_API_KEY }}
           SUPABASE_URL:    ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY:    ${{ secrets.SUPABASE_KEY }}
-          # Destructive stale-row deletion remains disabled unless production
-          # coverage and the database synced_at trigger are independently verified.
+          # This workflow rejects deletion requests. Retained rows are counted
+          # after each successful atomic upsert for a separately reviewed,
+          # backed-up reconciliation; the sync itself never deletes data.
           SYNC_ALLOW_STALE_DELETE: 'false'
           # Production contains 1,555 offerings as of the established baseline.
           # Reject a materially incomplete upstream response before it can
