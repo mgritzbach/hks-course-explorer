@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   assertDeployedEntrypoint,
   assertFingerprintAsset,
+  assertDeployedSpaRoute,
   assertSameFingerprintAsset,
   DEPLOYED_ASSET_MAX_ATTEMPTS,
+  DEPLOYED_SPA_ROUTE_PATHS,
   extractFingerprintAssetPath,
   FINGERPRINTED_ASSET_CACHE_CONTROL,
   smokeDeployedSite,
+  smokeDeployedSpaRoutes,
 } from './smoke_deployed_site.mjs'
 
 function response({
@@ -33,6 +36,16 @@ function response({
 describe('deployed site smoke check', () => {
   it('keeps a bounded propagation window for the exact deployed fingerprint', () => {
     expect(DEPLOYED_ASSET_MAX_ATTEMPTS).toBe(20)
+  })
+
+  it('covers each primary direct SPA navigation route', () => {
+    expect(DEPLOYED_SPA_ROUTE_PATHS).toEqual([
+      '/courses',
+      '/faculty',
+      '/compare',
+      '/schedule-builder',
+      '/requirements',
+    ])
   })
 
   it('accepts a reachable HTML application entrypoint', async () => {
@@ -157,5 +170,31 @@ describe('deployed site smoke check', () => {
       }),
     ).resolves.toBeUndefined()
     expect(waits).toEqual([3_000])
+  })
+
+  it('rejects a primary route that does not serve the exact deployed SPA build', async () => {
+    await expect(
+      smokeDeployedSpaRoutes({
+        expectedAssetPath: '/assets/index-current123.js',
+        routes: ['/courses'],
+        fetchImpl: async () =>
+          response({
+            body: '<script src="/assets/index-stale12345.js"></script><div id="root"></div>',
+          }),
+      }),
+    ).rejects.toThrow('does not match this build')
+  })
+
+  it('accepts a primary route serving the exact deployed SPA build', () => {
+    expect(() =>
+      assertDeployedSpaRoute(
+        response({
+          body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+        }),
+        '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+        '/assets/index-current123.js',
+        'https://example.test/schedule-builder',
+      ),
+    ).not.toThrow()
   })
 })
