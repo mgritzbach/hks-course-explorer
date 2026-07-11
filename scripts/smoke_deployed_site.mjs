@@ -3,7 +3,10 @@ import { pathToFileURL } from 'node:url'
 
 const DEFAULT_DEPLOYED_SITE_URL = 'https://hks-course-explorer.pages.dev/'
 export const FINGERPRINTED_ASSET_CACHE_CONTROL = 'public, max-age=31556952, immutable'
-const DEPLOYED_ASSET_MAX_ATTEMPTS = 10
+// Cloudflare's default Pages hostname can briefly retain a prior entrypoint
+// after Wrangler reports success. Keep the check strict, but allow a bounded
+// 57-second propagation window before declaring the verified deployment bad.
+export const DEPLOYED_ASSET_MAX_ATTEMPTS = 20
 const DEPLOYED_ASSET_RETRY_MS = 3_000
 
 export function assertDeployedEntrypoint(response, body, targetUrl) {

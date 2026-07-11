@@ -3,6 +3,7 @@ import {
   assertDeployedEntrypoint,
   assertFingerprintAsset,
   assertSameFingerprintAsset,
+  DEPLOYED_ASSET_MAX_ATTEMPTS,
   extractFingerprintAssetPath,
   FINGERPRINTED_ASSET_CACHE_CONTROL,
   smokeDeployedSite,
@@ -30,6 +31,10 @@ function response({
 }
 
 describe('deployed site smoke check', () => {
+  it('keeps a bounded propagation window for the exact deployed fingerprint', () => {
+    expect(DEPLOYED_ASSET_MAX_ATTEMPTS).toBe(20)
+  })
+
   it('accepts a reachable HTML application entrypoint', async () => {
     const responses = [
       response(),
