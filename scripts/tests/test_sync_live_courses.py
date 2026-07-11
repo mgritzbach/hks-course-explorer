@@ -47,52 +47,24 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.rows, [])
 
-    def test_uses_documented_page_size_and_follows_every_scroll_page(self):
-        scroll_url = f"{self.sync.HARVARD_API_BASE}/scroll/test-cursor"
-        first = Mock(ok=True)
-        first.json.return_value = {
-            "results": [{"courseID": "one", "courseNumber": "API 101", "courseTitle": "One"}],
-            "next": scroll_url,
-        }
-        second = Mock(ok=True)
-        second.json.return_value = {
-            "results": [{"courseID": "two", "courseNumber": "API 102", "courseTitle": "Two"}]
+    def test_uses_proven_limit_based_search_contract(self):
+        response = Mock(ok=True)
+        response.json.return_value = {
+            "results": [{"courseID": "one", "courseNumber": "API 101", "courseTitle": "One"}]
         }
         session = Mock()
-        session.get.side_effect = [first, second]
+        session.get.return_value = response
 
         result = self.sync.fetch_school("HKS", "api", session)
 
         self.assertTrue(result.success)
-        self.assertEqual([row["id"] for row in result.rows], ["one", "two"])
-        first_call, second_call = session.get.call_args_list
-        self.assertEqual(first_call.args[0], self.sync.HARVARD_API_BASE)
+        self.assertEqual([row["id"] for row in result.rows], ["one"])
+        call = session.get.call_args
+        self.assertEqual(call.args[0], self.sync.HARVARD_API_BASE)
         self.assertEqual(
-            first_call.kwargs["params"],
-            {"q": "api", "catalogSchool": "HKS", "size": 1000, "scroll": "true"},
+            call.kwargs["params"],
+            {"q": "api", "catalogSchool": "HKS", "limit": 50},
         )
-        self.assertEqual(second_call.args[0], scroll_url)
-        self.assertIsNone(second_call.kwargs["params"])
-
-    def test_rejects_untrusted_or_looping_scroll_urls_without_partial_rows(self):
-        external = Mock(ok=True)
-        external.json.return_value = {"results": [], "next": "https://example.com/scroll"}
-        with self.assertRaisesRegex(ValueError, "invalid Harvard scroll URL"):
-            self.sync._decode_course_page(external.json())
-
-        scroll_url = f"{self.sync.HARVARD_API_BASE}/scroll/repeated"
-        first = Mock(ok=True)
-        first.json.return_value = {"results": [], "next": scroll_url}
-        repeated = Mock(ok=True)
-        repeated.json.return_value = {"results": [], "next": scroll_url}
-        session = Mock()
-        session.get.side_effect = [first, repeated]
-
-        result = self.sync.fetch_school("HKS", "api", session)
-
-        self.assertFalse(result.success)
-        self.assertEqual(result.rows, [])
-        self.assertIn("cursor loop", result.error)
 
     def test_partial_failure_performs_no_database_writes_or_deletes(self):
         success = self.sync.FetchResult("HKS", "a", [], True)
