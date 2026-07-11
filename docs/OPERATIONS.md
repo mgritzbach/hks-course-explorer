@@ -105,14 +105,20 @@ response is incomplete.
   last-known-good run; do not infer complete coverage from an HTTP success.
 - Keep the last verified catalogue/data version available for rollback.
 - Treat a partial run as an incident, not as an empty current catalogue.
+- Each scheduled run writes a compact GitHub Actions summary with its outcome,
+  source-request count, unique offering count, and school/term coverage. It
+  intentionally contains no course content, API key, or database credential.
+  Retain that summary with the release/incident record; it is operational
+  evidence, not a replacement for a database backup or rollback exercise.
 
-### Remaining transaction boundary
+### Remaining production evidence
 
-`live_courses` is upserted in 500-row REST batches. If Supabase rejects a
-later batch, earlier batches may already be committed. The script exits
-non-zero, but it cannot roll those batches back. Until the database owner
-provides a staged/run-versioned promotion (or proves a tested rollback), this
-is a release blocker for G02 in `GOAL_STATUS.md`; do not claim an atomic sync.
+`live_courses` is promoted through the service-only
+`sync_live_courses_atomically(jsonb)` Postgres RPC. A rejected payload or
+database error therefore leaves the prior live catalogue intact. This does not
+by itself prove production recovery: a database owner must still provide and
+test backup/restore, and the future versioned catalogue path must prove a
+staged rollback before G02 can be marked complete.
 
 ### Schedule-plan persistence
 

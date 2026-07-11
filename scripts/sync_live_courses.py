@@ -20,6 +20,7 @@ import sys
 import re
 import time
 import logging
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -88,6 +89,69 @@ class FetchResult:
     rows: list[dict]
     success: bool
     error: str = ""
+
+
+def summary_label(value: object) -> str:
+    """Keep upstream labels to one bounded, single-line Actions-summary value."""
+    label = " ".join(str(value or "unknown").split())
+    return label[:80] or "unknown"
+
+
+def build_sync_summary(
+    *,
+    outcome: str,
+    sync_start: str,
+    planned_request_count: int,
+    rows: list[dict],
+    failures: list[FetchResult] | None = None,
+) -> str:
+    """Build a non-sensitive daily-sync audit summary for GitHub Actions.
+
+    This is observability only: it records source coverage and the attempted
+    outcome without copying course descriptions, API keys, or database
+    credentials into the workflow summary.
+    """
+    rows = rows or []
+    failures = failures or []
+    by_school = Counter(summary_label(row.get("school")) for row in rows)
+    by_term = Counter(summary_label(row.get("term")) for row in rows)
+    lines = [
+        "## Live-course sync",
+        "",
+        f"- **Outcome:** {outcome}",
+        f"- **Started:** {sync_start}",
+        f"- **Planned Harvard requests:** {planned_request_count}",
+        f"- **Unique offerings collected:** {len(rows)} (minimum: {MIN_UNIQUE_COURSES})",
+        f"- **Failed source requests:** {len(failures)}",
+    ]
+    if by_school:
+        lines.append(
+            "- **Offerings by school:** "
+            + ", ".join(f"{school}: {count}" for school, count in sorted(by_school.items()))
+        )
+    if by_term:
+        lines.append(
+            "- **Offerings by term:** "
+            + ", ".join(f"{term}: {count}" for term, count in sorted(by_term.items()))
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_github_summary(summary: str) -> None:
+    """Append an audit summary when running inside GitHub Actions.
+
+    A summary-write failure must not hide the sync's actual result or cause an
+    otherwise complete catalogue promotion to be treated as failed.
+    """
+    destination = os.environ.get("GITHUB_STEP_SUMMARY", "").strip()
+    if not destination:
+        return
+    try:
+        with open(destination, "a", encoding="utf-8") as handle:
+            handle.write(summary)
+    except OSError as exc:
+        log.warning("Could not write GitHub Actions sync summary: %s", exc)
 
 
 # ── Harvard API helpers ───────────────────────────────────────────────────────
@@ -405,10 +469,27 @@ def main():
 
     if failures:
         failed_calls = ", ".join(f"{result.school}/{result.query} ({result.error})" for result in failures)
+        write_github_summary(
+            build_sync_summary(
+                outcome="aborted before database writes",
+                sync_start=sync_start,
+                planned_request_count=len(tasks),
+                rows=list(all_rows.values()),
+                failures=failures,
+            )
+        )
         log.error("Aborting sync: %d of %d Harvard requests failed. No Supabase writes or stale-row deletion will run. Failed calls: %s", len(failures), len(tasks), failed_calls)
         sys.exit(1)
 
     if len(all_rows) < MIN_UNIQUE_COURSES:
+        write_github_summary(
+            build_sync_summary(
+                outcome="aborted before database writes: minimum unique-course guard",
+                sync_start=sync_start,
+                planned_request_count=len(tasks),
+                rows=list(all_rows.values()),
+            )
+        )
         log.error(
             "Only %d unique courses were fetched (minimum required: %d) — aborting to protect existing data",
             len(all_rows),
@@ -419,7 +500,18 @@ def main():
     rows_list = list(all_rows.values())
     terms = sorted({r["term"] for r in rows_list if r["term"]})
     log.info("Upserting %d unique courses (terms: %s)…", len(rows_list), terms)
-    supabase_upsert(rows_list)
+    try:
+        supabase_upsert(rows_list)
+    except Exception:
+        write_github_summary(
+            build_sync_summary(
+                outcome="atomic database promotion failed",
+                sync_start=sync_start,
+                planned_request_count=len(tasks),
+                rows=rows_list,
+            )
+        )
+        raise
 
     if ALLOW_STALE_DELETION:
         log.warning(
@@ -432,6 +524,14 @@ def main():
             "Stale-row deletion is disabled. Set SYNC_ALLOW_STALE_DELETE=true only after "
             "verifying complete upstream coverage and the live_courses synced_at trigger."
         )
+    write_github_summary(
+        build_sync_summary(
+            outcome="promoted atomically",
+            sync_start=sync_start,
+            planned_request_count=len(tasks),
+            rows=rows_list,
+        )
+    )
     log.info("Done. %d courses in live_courses.", len(rows_list))
 
 

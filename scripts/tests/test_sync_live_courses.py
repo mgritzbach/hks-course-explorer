@@ -3,6 +3,7 @@
 import importlib.util
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -105,6 +106,7 @@ class FetchSchoolTests(unittest.TestCase):
             patch.object(self.sync, "fetch_school", side_effect=[success, failure]),
             patch.object(self.sync, "supabase_upsert") as upsert,
             patch.object(self.sync, "supabase_delete_stale") as delete_stale,
+            patch.object(self.sync, "write_github_summary") as write_summary,
         ):
             with self.assertRaises(SystemExit) as exit_context:
                 self.sync.main()
@@ -112,6 +114,23 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertEqual(exit_context.exception.code, 1)
         upsert.assert_not_called()
         delete_stale.assert_not_called()
+        self.assertIn("aborted before database writes", write_summary.call_args.args[0])
+
+    def test_atomic_promotion_failure_writes_a_failure_summary_before_raising(self):
+        success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
+
+        with (
+            patch.object(self.sync, "ALL_SCHOOLS", ["HKS"]),
+            patch.object(self.sync, "SEED_QUERIES", ["a"]),
+            patch.object(self.sync, "WORKERS", 1),
+            patch.object(self.sync, "fetch_school", return_value=success),
+            patch.object(self.sync, "supabase_upsert", side_effect=RuntimeError("database unavailable")),
+            patch.object(self.sync, "write_github_summary") as write_summary,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "database unavailable"):
+                self.sync.main()
+
+        self.assertIn("atomic database promotion failed", write_summary.call_args.args[0])
 
     def test_successful_sync_does_not_delete_stale_rows_without_explicit_opt_in(self):
         success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
@@ -124,11 +143,13 @@ class FetchSchoolTests(unittest.TestCase):
             patch.object(self.sync, "fetch_school", return_value=success),
             patch.object(self.sync, "supabase_upsert") as upsert,
             patch.object(self.sync, "supabase_delete_stale") as delete_stale,
+            patch.object(self.sync, "write_github_summary") as write_summary,
         ):
             self.sync.main()
 
         upsert.assert_called_once_with([success.rows[0]])
         delete_stale.assert_not_called()
+        self.assertIn("promoted atomically", write_summary.call_args.args[0])
 
     def test_minimum_unique_course_guard_prevents_writes_and_deletes(self):
         empty_success = self.sync.FetchResult("HKS", "a", [], True)
@@ -191,6 +212,49 @@ class FetchSchoolTests(unittest.TestCase):
         with patch.object(self.sync.requests, "post", return_value=incomplete):
             with self.assertRaisesRegex(RuntimeError, "expected 1"):
                 self.sync.supabase_upsert([{"id": "one"}])
+
+    def test_summary_reports_coverage_without_course_content_or_credentials(self):
+        summary = self.sync.build_sync_summary(
+            outcome="promoted atomically",
+            sync_start="2026-07-11T00:00:00+00:00",
+            planned_request_count=2,
+            rows=[
+                {"id": "one", "school": "HKS", "term": "2026 Fall", "title": "Sensitive title"},
+                {
+                    "id": "two",
+                    "school": "FAS",
+                    "term": "2026 Fall\nmalformed continuation",
+                    "description": "Sensitive text",
+                },
+            ],
+        )
+
+        self.assertIn("**Outcome:** promoted atomically", summary)
+        self.assertIn("**Planned Harvard requests:** 2", summary)
+        self.assertIn("**Offerings by school:** FAS: 1, HKS: 1", summary)
+        self.assertIn("**Offerings by term:** 2026 Fall: 1, 2026 Fall malformed continuation: 1", summary)
+        self.assertNotIn("Sensitive", summary)
+        self.assertNotIn("SUPABASE_KEY", summary)
+        self.assertNotIn("\nmalformed continuation", summary)
+        failed_summary = self.sync.build_sync_summary(
+            outcome="aborted before database writes",
+            sync_start="2026-07-11T00:00:00+00:00",
+            planned_request_count=1,
+            rows=[],
+            failures=[self.sync.FetchResult("HKS", "a", [], False, "secret diagnostic detail")],
+        )
+        self.assertIn("**Failed source requests:** 1", failed_summary)
+        self.assertNotIn("secret diagnostic detail", failed_summary)
+
+    def test_summary_writer_is_optional_and_does_not_raise_for_a_missing_path(self):
+        with patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": ""}, clear=False):
+            self.sync.write_github_summary("ignored")
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "summary.md"
+            with patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(path)}, clear=False):
+                self.sync.write_github_summary("## Live-course sync\n")
+            self.assertEqual(path.read_text(encoding="utf-8"), "## Live-course sync\n")
 
 
 if __name__ == "__main__":
