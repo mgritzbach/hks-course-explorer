@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/wrangler@4.86.0/config-schema.json",
+  "name": "hks-course-explorer-rate-limiter",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-11",
+  "durable_objects": {
+    "bindings": [{ "name": "CHAT_RATE_LIMITER", "class_name": "ChatRateLimiter" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ChatRateLimiter"] }],
+}

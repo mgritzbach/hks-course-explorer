@@ -17,6 +17,7 @@ const MAX_SHORTLISTED_COURSES = 30
 const MAX_SHORTLISTED_NAME_CHARS = 200
 const UPSTREAM_TIMEOUT_MS = 20_000
 const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 15_000
+const CHAT_COOLDOWN_MS = 60_000
 
 const COURSE_STRING_FIELDS = new Set([
   'code',
@@ -54,6 +55,29 @@ function jsonResponse(body, status, request) {
     status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
   })
+}
+
+export async function chatRateLimitKey(request) {
+  // Cloudflare supplies this header at the trusted edge. Hash it so neither
+  // the Pages Function nor the limiter object persists a raw client address.
+  const client = request.headers.get('CF-Connecting-IP') || 'unknown-client'
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(client))
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export async function enforceChatRateLimit(request, env, now = Date.now()) {
+  if (!env?.CHAT_RATE_LIMITER?.getByName) {
+    throw new UpstreamError('Chat rate limiter is not configured', 503)
+  }
+
+  const decision = await env.CHAT_RATE_LIMITER.getByName(await chatRateLimitKey(request)).consume(
+    now,
+    CHAT_COOLDOWN_MS,
+  )
+  if (!decision || typeof decision.allowed !== 'boolean') {
+    throw new UpstreamError('Chat rate limiter returned an invalid response', 503)
+  }
+  return decision
 }
 
 function isPlainObject(value) {
@@ -351,6 +375,17 @@ export async function onRequestPost({ request, env }) {
     const { message, history, courses, shortlisted } = validateChatPayload(
       await readJsonBody(request),
     )
+    const admission = await enforceChatRateLimit(request, env)
+    if (!admission.allowed) {
+      return jsonResponse(
+        {
+          error: 'Please wait one minute before sending another chat message.',
+          retry_after_seconds: Math.ceil(Number(admission.retryAfterMs || CHAT_COOLDOWN_MS) / 1000),
+        },
+        429,
+        request,
+      )
+    }
     const response = await fetchFromOpenRouter(apiKey, {
       models: FREE_MODELS,
       route: 'fallback',
