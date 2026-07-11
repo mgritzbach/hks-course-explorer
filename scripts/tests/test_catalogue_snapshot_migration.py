@@ -6,12 +6,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "supabase" / "migrations" / "20260710134500_catalog_snapshot_v1.sql"
 RENUMBERING_MIGRATION = ROOT / "supabase" / "migrations" / "20260710234500_catalogue_renumbering_review.sql"
+NON_HKS_MIGRATION = ROOT / "supabase" / "migrations" / "20260711185312_allow_non_hks_current_only.sql"
 
 
 class CatalogueSnapshotMigrationTests(unittest.TestCase):
     def setUp(self):
         self.sql = MIGRATION.read_text(encoding="utf-8").lower()
         self.renumbering_sql = RENUMBERING_MIGRATION.read_text(encoding="utf-8").lower()
+        self.non_hks_sql = NON_HKS_MIGRATION.read_text(encoding="utf-8").lower()
 
     def test_creates_new_snapshot_boundaries_without_replacing_existing_sources(self):
         self.assertIn("create table if not exists public.catalogue_sync_runs", self.sql)
@@ -55,6 +57,17 @@ class CatalogueSnapshotMigrationTests(unittest.TestCase):
         self.assertIn("suspected_renumbering_same_professor_title", self.renumbering_sql)
         self.assertIn("suspected_section_split_and_renumbering", self.renumbering_sql)
         self.assertIn("canonical_course_code is null", self.renumbering_sql)
+
+    def test_allows_current_only_non_hks_rows_without_broadening_browser_access(self):
+        self.assertIn("drop constraint if exists catalogue_snapshot_v1_match_method_check", self.non_hks_sql)
+        self.assertIn("drop constraint if exists catalogue_snapshot_v1_match_state_check", self.non_hks_sql)
+        self.assertIn("'not_applicable'", self.non_hks_sql)
+        self.assertIn("'non_hks_current_only'", self.non_hks_sql)
+        self.assertIn("canonical_course_code is null", self.non_hks_sql)
+        self.assertNotIn("grant", self.non_hks_sql)
+        self.assertNotIn("create policy", self.non_hks_sql)
+        self.assertNotIn("alter table public.live_courses", self.non_hks_sql)
+        self.assertNotIn("delete from", self.non_hks_sql)
 
 
 if __name__ == "__main__":
