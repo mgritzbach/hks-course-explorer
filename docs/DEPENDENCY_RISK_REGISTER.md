@@ -14,7 +14,7 @@ This register records the production dependency audit on 2026-07-11. It is a rel
 ## Audit evidence
 
 - Before: `npm audit --omit=dev` reported 18 findings: 1 critical (`protobufjs`), 2 high (`ws`, `xlsx`), and 15 moderate.
-- After: `npm audit --omit=dev --audit-level=moderate` reports zero production findings. CI retains the high-severity production threshold as a minimum release gate.
+- After: `npm audit --omit=dev --audit-level=moderate` reports zero production findings, and CI enforces that same threshold on every change.
 - A clean npm 10 install and the full Python, unit, built-artifact browser, and production-audit checks passed. The repository declares npm `10.9.8` because npm 11's peer resolver rewrites this established lockfile extensively; any package-manager upgrade requires its own reviewed lockfile diff.
 
 ## Moderate-finding disposition
