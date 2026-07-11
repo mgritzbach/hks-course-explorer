@@ -3,6 +3,16 @@ import { pathToFileURL } from 'node:url'
 
 const DEFAULT_DEPLOYED_SITE_URL = 'https://hks-course-explorer.pages.dev/'
 export const FINGERPRINTED_ASSET_CACHE_CONTROL = 'public, max-age=31556952, immutable'
+// These direct SPA routes cover each primary visitor navigation destination.
+// Verify them against the same build fingerprint as `/` so a healthy landing
+// page cannot hide a broken redirect or stale route cache after deployment.
+export const DEPLOYED_SPA_ROUTE_PATHS = Object.freeze([
+  '/courses',
+  '/faculty',
+  '/compare',
+  '/schedule-builder',
+  '/requirements',
+])
 // Cloudflare's default Pages hostname can briefly retain a prior entrypoint
 // after Wrangler reports success. Keep the check strict, but allow a bounded
 // 57-second propagation window before declaring the verified deployment bad.
@@ -52,6 +62,34 @@ export function assertFingerprintAsset(response, assetUrl) {
   }
 }
 
+export function assertDeployedSpaRoute(response, body, expectedAssetPath, targetUrl) {
+  assertDeployedEntrypoint(response, body, targetUrl)
+  assertSameFingerprintAsset(
+    expectedAssetPath,
+    extractFingerprintAssetPath(body, targetUrl),
+    targetUrl,
+  )
+}
+
+export async function smokeDeployedSpaRoutes({
+  fetchImpl = fetch,
+  targetUrl = process.env.DEPLOY_SMOKE_URL || DEFAULT_DEPLOYED_SITE_URL,
+  expectedAssetPath,
+  routes = DEPLOYED_SPA_ROUTE_PATHS,
+} = {}) {
+  if (!expectedAssetPath)
+    throw new Error('Deployed route smoke check requires an expected build asset.')
+  for (const route of routes) {
+    const routeUrl = new URL(route, targetUrl).toString()
+    const response = await fetchImpl(routeUrl, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(30_000),
+    })
+    const body = await response.text()
+    assertDeployedSpaRoute(response, body, expectedAssetPath, routeUrl)
+  }
+}
+
 export async function smokeDeployedSite({
   fetchImpl = fetch,
   readFileImpl = readFile,
@@ -59,6 +97,8 @@ export async function smokeDeployedSite({
   buildHtmlPath = process.env.DEPLOY_BUILD_HTML || 'dist/index.html',
   expectedAssetPath,
   maxAttempts = DEPLOYED_ASSET_MAX_ATTEMPTS,
+  spaRoutes = DEPLOYED_SPA_ROUTE_PATHS,
+  verifySpaRoutes = false,
   waitImpl = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 } = {}) {
   // Cloudflare can briefly serve the previous deployment after a successful
@@ -104,13 +144,32 @@ export async function smokeDeployedSite({
       }
       assertFingerprintAsset(assetResponse, assetUrl)
     }
+    if (verifySpaRoutes) {
+      try {
+        await smokeDeployedSpaRoutes({
+          fetchImpl,
+          targetUrl,
+          expectedAssetPath: expectedAsset,
+          routes: spaRoutes,
+        })
+      } catch (error) {
+        // Route caches can lag the root entrypoint for a few seconds. Keep the
+        // route check in the same bounded propagation window rather than
+        // failing an otherwise healthy deployment on a transient stale route.
+        if (attempt < maxAttempts) {
+          await waitImpl(DEPLOYED_ASSET_RETRY_MS)
+          continue
+        }
+        throw error
+      }
+    }
     return
   }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    await smokeDeployedSite()
+    await smokeDeployedSite({ verifySpaRoutes: true })
     console.log(
       `Deployed site smoke check passed: ${process.env.DEPLOY_SMOKE_URL || DEFAULT_DEPLOYED_SITE_URL}`,
     )
