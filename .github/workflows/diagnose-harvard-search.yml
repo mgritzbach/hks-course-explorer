@@ -1,0 +1,45 @@
+name: Diagnose Harvard Course API cursor
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Inspect a read-only paginated response
+        env:
+          HARVARD_API_KEY: ${{ secrets.HARVARD_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          import requests
+
+          response = requests.get(
+              'https://go.apis.huit.harvard.edu/ats/course/v2/search',
+              params={'q': 'a', 'catalogSchool': 'HKS', 'size': 1000, 'scroll': 'true'},
+              headers={'X-Api-Key': os.environ['HARVARD_API_KEY'], 'Accept': 'application/json'},
+              timeout=30,
+          )
+          print(f'status={response.status_code}')
+          response.raise_for_status()
+          payload = response.json()
+          print(f'payload_type={type(payload).__name__}')
+          if isinstance(payload, dict):
+              print(f'keys={sorted(payload.keys())}')
+              rows = payload.get('results') or payload.get('courses') or []
+              print(f'rows={len(rows) if isinstance(rows, list) else "invalid"}')
+              next_value = payload.get('next')
+              print(f'next_type={type(next_value).__name__}')
+              if isinstance(next_value, str):
+                  parsed = urlparse(next_value)
+                  print(f'next_scheme={parsed.scheme!r}')
+                  print(f'next_host={parsed.netloc!r}')
+                  print(f'next_path={parsed.path!r}')
+                  print(f'next_query_present={bool(parsed.query)}')
+          PY
