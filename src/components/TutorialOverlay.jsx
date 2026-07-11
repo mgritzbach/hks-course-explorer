@@ -18,6 +18,7 @@ import {
   TOUR_NAMES,
 } from '../lib/tourIds.js'
 import config from '../school.config.js'
+import { useOptionalWelcomeEntry } from './WelcomeEntryProvider.jsx'
 
 const TOUR_STORAGE_PREFIX = 'hks-tour-seen-'
 const SPOTLIGHT_PADDING = 8
@@ -177,6 +178,8 @@ function readHasSeen(tourName) {
 }
 
 export function TourProvider({ children }) {
+  const welcomeEntry = useOptionalWelcomeEntry()
+  const isWelcomeDecisionPending = welcomeEntry?.isWelcomeDecisionPending ?? false
   const [activeTour, setActiveTour] = useState(null)
   const [stepIndex, setStepIndex] = useState(0)
 
@@ -197,10 +200,15 @@ export function TourProvider({ children }) {
   }, [])
 
   useEffect(() => {
+    if (isWelcomeDecisionPending) {
+      closeTour()
+      return
+    }
+
     const currentTour = getCurrentPageTour()
     if (!currentTour || readHasSeen(currentTour)) return
     startTour(currentTour)
-  }, [startTour])
+  }, [closeTour, isWelcomeDecisionPending, startTour])
 
   const value = useMemo(
     () => ({
