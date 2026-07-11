@@ -60,7 +60,7 @@ backup and restore plan.
 
 | Name/binding | Required by | Purpose |
 |---|---|---|
-| `HARVARD_API_KEY` | `/api/harvard-courses` | Server-side Harvard API proxy. |
+| `HARVARD_API_KEY` | Legacy `/api/harvard-courses` endpoint | Retained temporarily for a separately reviewed retirement; the deployed browser must not call it. Daily GitHub Actions sync is the only supported Harvard API consumer. |
 | `HKS_KV` binding | Auth and `/api/courses` | One-time passwords and protected catalogue payloads. |
 | `JWT_SECRET` | Auth and protected catalogue | HMAC signing/verification. Rotate on a defined schedule. |
 | `RESEND_API_KEY` | Auth request | Preferred one-time-password delivery provider. |

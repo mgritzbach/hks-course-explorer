@@ -5,7 +5,7 @@
 ```
 Browser (React/Vite)
   |-- Supabase read client: historical courses, live courses, sections
-  |-- Cloudflare Pages Functions: Harvard proxy, auth, protected catalogue, chat
+  |-- Cloudflare Pages Functions: auth, protected catalogue, chat
   |-- Static assets: courses.json, sim_coords.json, Guide, SPA routes
   '-- Local browser storage: plans, shortlist, notes, UI preferences
 
@@ -31,7 +31,10 @@ provider keys, OTP delivery, and JWT signing run outside the browser.
 
 ## Reliability contracts
 
-- A Harvard API failure is distinguishable from an empty search result.
+- The Harvard ATS API is a daily ingestion dependency, not a browser search
+  dependency. A failed sync preserves the last successfully synced catalogue.
+- The deployed legacy Harvard proxy is not called by the browser and is kept
+  only until a separately reviewed external-consumer retirement decision.
 - Live-sync writes are skipped entirely if any upstream source request fails.
 - After upstream validation, one service-only Postgres RPC validates and
   upserts the entire fetched catalogue in a single transaction. A database

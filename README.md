@@ -184,7 +184,7 @@ hks-course-explorer/
 │   ├── components/
 │   └── lib/
 │       ├── supabase.js            Supabase client
-│       └── harvardApi.js          Harvard ATS API proxy
+│       └── harvardApi.js          Legacy Harvard proxy client (not imported by the deployed browser)
 ├── scripts/
 │   ├── build_data.py              CSV -> courses.json + sim_coords.json
 │   ├── sync_live_courses.py       Harvard ATS API -> Supabase live_courses
