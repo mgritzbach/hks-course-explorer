@@ -56,7 +56,9 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.DEPLOY_VITE_SUPABASE_ANON_KEY }}
 
       - name: Install pinned Wrangler
-        run: npm install -g wrangler@4.110.0
+        # 4.86.0 is the newest reviewed v4 release compatible with the
+        # repository's pinned Node 20 deployment runner.
+        run: npm install -g wrangler@4.86.0
 
       - name: Deploy to Cloudflare Pages
         env:
