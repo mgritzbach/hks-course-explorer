@@ -13,6 +13,12 @@ class SyncWorkflowConfigTests(unittest.TestCase):
         self.assertIn("SYNC_ALLOW_STALE_DELETE: 'false'", workflow)
         self.assertIn("SYNC_MIN_UNIQUE_COURSES: '1200'", workflow)
 
+    def test_production_sync_serializes_manual_and_scheduled_promotions(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("group: hks-live-courses-production-sync", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+        self.assertIn("permissions:\n  contents: read", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

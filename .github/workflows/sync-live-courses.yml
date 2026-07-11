@@ -5,6 +5,16 @@ on:
     - cron: '0 7 * * *'   # 07:00 UTC daily (3am ET / before Harvard business day)
   workflow_dispatch:        # allow manual trigger from GitHub UI
 
+# A manual recovery run must not overlap the scheduled run: both would read
+# the same upstream catalogue and race to promote it. Keep the earlier run
+# intact and queue one follow-up instead of cancelling a valid promotion.
+concurrency:
+  group: hks-live-courses-production-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   sync:
     runs-on: ubuntu-latest
