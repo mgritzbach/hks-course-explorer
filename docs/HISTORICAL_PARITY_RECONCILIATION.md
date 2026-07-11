@@ -4,6 +4,37 @@ The `courses` table and generated `public/courses.json` remain independent
 historical sources until their immutable IDs are reconciled. Do not delete,
 overwrite, or automatically map either source to make their counts match.
 
+## Verified production baseline — 2026-07-11
+
+The protected, read-only [Catalogue parity audit](https://github.com/mgritzbach/hks-course-explorer/actions/runs/29138370719)
+completed against production at commit `db5a769`. It made no schema, policy,
+or data changes. Its results are the current release baseline:
+
+| Evidence | Observed count | Interpretation |
+| --- | ---: | --- |
+| Current offerings | 6,553 | Complete paginated `live_courses` read used for a future snapshot. |
+| Historical database rows | 5,812 | Existing `courses` source remains immutable during reconciliation. |
+| Browser canonical history rows | 5,580 | Generated `public/courses.json` served by the current application. |
+| Exact semantic one-to-one history rows | 5,163 | Candidates with matching normalized evidence, not automatic ID rewrites. |
+| Semantic ID-change candidates | 1,261 | Require controlled reconciliation; do not treat as approved mappings. |
+| Ambiguous semantic keys | 178 | Must be decided by an operator with source evidence. |
+| Current HKS offerings | 229 | One record per raw Harvard offering identity. |
+| Verified same-professor history links | 102 | May carry professor-specific evaluation context in a future snapshot. |
+| Course-only links | 21 | May show prior-offering context, never a current-professor rating. |
+| Needs-review / unmatched links | 53 / 53 | Must remain explicitly labelled, never guessed. |
+
+The historical ID parity gate is still **false**: 1,525 database-only IDs and
+1,293 canonical-only IDs remain. Snapshot publication therefore remains
+disabled by design. Do not set `CATALOGUE_SNAPSHOT_ENABLED=true` or
+`CATALOGUE_API_ENABLED=true` on the basis of this audit.
+
+The 1,261 semantic candidates are evidence for review, not permission to
+rewrite IDs. The next controlled step is to generate the local review report
+below with a trusted service key, review ambiguous and missing-identity rows
+against authoritative course records, then make separately reviewed source
+corrections. This repository intentionally does not upload that report from
+GitHub Actions or write it into source control.
+
 ## Read-only operator review
 
 Run the audit with service-role credentials only in a controlled operator
