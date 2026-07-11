@@ -9,6 +9,7 @@ import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import SkeletonCard from './components/SkeletonCard.jsx'
 import WelcomeHome from './components/WelcomeHome.jsx'
+import { useWelcomeEntry } from './components/WelcomeEntryProvider.jsx'
 import {
   COURSES_CACHE_KEY,
   COURSES_CACHE_TTL,
@@ -193,6 +194,7 @@ function NavResourcesSection() {
 
 export default function App() {
   const location = useLocation()
+  const { isWelcomeDecisionPending } = useWelcomeEntry()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadCount, setLoadCount] = useState(0)
@@ -294,6 +296,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (isWelcomeDecisionPending) return
     fetch('/sim_coords.json')
       .then((r) => r.json())
       .then((coords) => {
@@ -311,9 +314,13 @@ export default function App() {
         setSimIndex(map)
       })
       .catch(() => {})
-  }, [])
+  }, [isWelcomeDecisionPending])
 
   useEffect(() => {
+    // A first-visit landing page must be a real decision boundary. Loading
+    // the full historical catalogue and graph while it covers the app wastes
+    // bandwidth and CPU before a visitor has chosen to enter.
+    if (isWelcomeDecisionPending) return
     setLoading(true)
     setError(null)
     setLoadCount(0)
@@ -336,7 +343,7 @@ export default function App() {
         setError(err.message)
         setLoading(false)
       })
-  }, [retryKey])
+  }, [isWelcomeDecisionPending, retryKey])
 
   if (loading) {
     return (

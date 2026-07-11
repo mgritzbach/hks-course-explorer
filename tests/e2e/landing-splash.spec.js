@@ -50,6 +50,25 @@ test.describe('welcome landing page', () => {
     await expect(page.getByRole('dialog')).toHaveCount(1)
   })
 
+  test('does not request the historical catalogue before the visitor chooses to continue', async ({
+    page,
+  }) => {
+    const catalogueRequests = []
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname.endsWith('/rest/v1/courses')) {
+        catalogueRequests.push(request.url())
+      }
+    })
+
+    await page.goto('/')
+    await expect(
+      page.getByRole('dialog', { name: 'Welcome to the HKS Course Explorer' }),
+    ).toBeVisible()
+    await page.waitForTimeout(600)
+
+    expect(catalogueRequests).toEqual([])
+  })
+
   test('Tutorial opens Course Explorer with the Home tutorial active', async ({ page }) => {
     // The guided path waits for the real Home view, including its deliberately
     // lazy chart. Keep a finite budget for slower parallel CI workers.
