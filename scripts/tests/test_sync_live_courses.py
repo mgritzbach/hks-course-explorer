@@ -47,6 +47,53 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.rows, [])
 
+    def test_uses_documented_page_size_and_follows_every_scroll_page(self):
+        scroll_url = f"{self.sync.HARVARD_API_BASE}/scroll/test-cursor"
+        first = Mock(ok=True)
+        first.json.return_value = {
+            "results": [{"courseID": "one", "courseNumber": "API 101", "courseTitle": "One"}],
+            "next": scroll_url,
+        }
+        second = Mock(ok=True)
+        second.json.return_value = {
+            "results": [{"courseID": "two", "courseNumber": "API 102", "courseTitle": "Two"}]
+        }
+        session = Mock()
+        session.get.side_effect = [first, second]
+
+        result = self.sync.fetch_school("HKS", "api", session)
+
+        self.assertTrue(result.success)
+        self.assertEqual([row["id"] for row in result.rows], ["one", "two"])
+        first_call, second_call = session.get.call_args_list
+        self.assertEqual(first_call.args[0], self.sync.HARVARD_API_BASE)
+        self.assertEqual(
+            first_call.kwargs["params"],
+            {"q": "api", "catalogSchool": "HKS", "size": 1000, "scroll": "true"},
+        )
+        self.assertEqual(second_call.args[0], scroll_url)
+        self.assertIsNone(second_call.kwargs["params"])
+
+    def test_rejects_untrusted_or_looping_scroll_urls_without_partial_rows(self):
+        external = Mock(ok=True)
+        external.json.return_value = {"results": [], "next": "https://example.com/scroll"}
+        with self.assertRaisesRegex(ValueError, "invalid Harvard scroll URL"):
+            self.sync._decode_course_page(external.json())
+
+        scroll_url = f"{self.sync.HARVARD_API_BASE}/scroll/repeated"
+        first = Mock(ok=True)
+        first.json.return_value = {"results": [], "next": scroll_url}
+        repeated = Mock(ok=True)
+        repeated.json.return_value = {"results": [], "next": scroll_url}
+        session = Mock()
+        session.get.side_effect = [first, repeated]
+
+        result = self.sync.fetch_school("HKS", "api", session)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.rows, [])
+        self.assertIn("cursor loop", result.error)
+
     def test_partial_failure_performs_no_database_writes_or_deletes(self):
         success = self.sync.FetchResult("HKS", "a", [], True)
         failure = self.sync.FetchResult("HKS", "e", [], False, "HTTP 503")
@@ -117,6 +164,33 @@ class FetchSchoolTests(unittest.TestCase):
             self.sync.main()
 
         delete_stale.assert_called_once()
+
+    def test_atomic_upsert_posts_one_complete_payload_and_verifies_row_count(self):
+        response = Mock(ok=True)
+        response.json.return_value = 2
+        rows = [{"id": "one"}, {"id": "two"}]
+
+        with patch.object(self.sync.requests, "post", return_value=response) as post:
+            self.sync.supabase_upsert(rows)
+
+        post.assert_called_once_with(
+            "https://example.supabase.co/rest/v1/rpc/sync_live_courses_atomically",
+            headers=self.sync._sb_headers(),
+            json={"p_rows": rows},
+            timeout=120,
+        )
+
+    def test_atomic_upsert_rejects_failed_or_incomplete_database_results(self):
+        failed = Mock(ok=False, status_code=500, text="database error")
+        with patch.object(self.sync.requests, "post", return_value=failed):
+            with self.assertRaisesRegex(RuntimeError, "Atomic live-course sync failed"):
+                self.sync.supabase_upsert([{"id": "one"}])
+
+        incomplete = Mock(ok=True)
+        incomplete.json.return_value = 0
+        with patch.object(self.sync.requests, "post", return_value=incomplete):
+            with self.assertRaisesRegex(RuntimeError, "expected 1"):
+                self.sync.supabase_upsert([{"id": "one"}])
 
 
 if __name__ == "__main__":

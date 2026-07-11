@@ -28,4 +28,8 @@ jobs:
           # Destructive stale-row deletion remains disabled unless production
           # coverage and the database synced_at trigger are independently verified.
           SYNC_ALLOW_STALE_DELETE: 'false'
+          # Production contains 1,555 offerings as of the established baseline.
+          # Reject a materially incomplete upstream response before it can
+          # refresh the catalogue. Revisit this only with audited term data.
+          SYNC_MIN_UNIQUE_COURSES: '1200'
         run: python scripts/sync_live_courses.py

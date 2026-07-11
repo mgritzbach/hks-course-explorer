@@ -23,6 +23,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 
 import requests
 
@@ -48,8 +49,8 @@ HKS_SCHOOL = "HKS"
 # then read the term field from each returned course.
 SEED_QUERIES = ["a", "e", "i", "o", "s", "the", "pol", "eco", "law", "med"]
 
-API_LIMIT    = 50    # Harvard ATS API max per request
-BATCH_SIZE   = 500   # Supabase upsert batch size
+API_PAGE_SIZE = 1000  # Harvard ATS Course API documented maximum page size
+MAX_PAGES_PER_QUERY = 1000  # Fail closed if the provider's scroll cursor loops
 WORKERS      = 3     # Low parallelism to avoid 429s
 REQUEST_DELAY = 0.2  # seconds between requests per worker
 HTTP_MAX_ATTEMPTS = 3
@@ -177,14 +178,45 @@ def normalise_course(c: dict, school: str) -> dict:
 
 # ── Sync safety helpers ───────────────────────────────────────────────────────
 
-def fetch_school(school: str, query: str, session: requests.Session) -> FetchResult:
-    """Fetch one school/query safely and report failures distinctly from empty results.
+def _valid_scroll_url(value: object) -> bool:
+    """Accept only provider-issued HTTPS scroll URLs before sending the API key."""
+    if not isinstance(value, str):
+        return False
+    parsed = urlparse(value)
+    base = urlparse(HARVARD_API_BASE)
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc == base.netloc
+        and parsed.path.startswith("/ats/course/v2/search/scroll/")
+    )
 
-    A failed request must never look like an empty result: main aborts before
-    any writes or stale-row deletion if even one source request is incomplete.
-    """
-    time.sleep(REQUEST_DELAY)
-    params = {"q": query, "catalogSchool": school, "limit": API_LIMIT}
+
+def _decode_course_page(raw: object) -> tuple[list[dict], str | None]:
+    """Extract one documented Course API page and its optional next cursor."""
+    if isinstance(raw, list):
+        return raw, None
+    if not isinstance(raw, dict):
+        raise ValueError("response was not a JSON object or list")
+    items = raw.get("results") or raw.get("courses") or []
+    if not isinstance(items, list):
+        raise ValueError("response did not contain a course list")
+    next_url = raw.get("next")
+    if next_url in (None, ""):
+        return items, None
+    if not _valid_scroll_url(next_url):
+        raise ValueError("response contained an invalid Harvard scroll URL")
+    return items, next_url
+
+
+def _fetch_course_page(
+    session: requests.Session,
+    url: str,
+    *,
+    params: dict | None,
+    school: str,
+    query: str,
+) -> tuple[list[dict] | None, str | None, str]:
+    """Fetch and decode one page with bounded retries."""
     headers = {
         "x-api-key": HARVARD_API_KEY,
         "Accept": "application/json",
@@ -193,18 +225,10 @@ def fetch_school(school: str, query: str, session: requests.Session) -> FetchRes
     last_error = "unknown error"
     for attempt in range(HTTP_MAX_ATTEMPTS):
         try:
-            response = session.get(HARVARD_API_BASE, params=params, timeout=25, headers=headers)
+            response = session.get(url, params=params, timeout=25, headers=headers)
             if response.ok:
-                raw = response.json()
-                if isinstance(raw, list):
-                    items = raw
-                elif isinstance(raw, dict):
-                    items = raw.get("results") or raw.get("courses") or []
-                else:
-                    raise ValueError("response was not a JSON object or list")
-                if not isinstance(items, list):
-                    raise ValueError("response did not contain a course list")
-                return FetchResult(school, query, [normalise_course(course, school) for course in items], True)
+                items, next_url = _decode_course_page(response.json())
+                return items, next_url, ""
 
             last_error = f"HTTP {response.status_code}"
             if response.status_code not in RETRYABLE_STATUS_CODES:
@@ -217,8 +241,64 @@ def fetch_school(school: str, query: str, session: requests.Session) -> FetchRes
             log.warning("  %s q=%-6s failed (%s); retrying in %ss (%d/%d)", school, query, last_error, delay, attempt + 1, HTTP_MAX_ATTEMPTS)
             time.sleep(delay)
 
-    log.error("  %s q=%-6s failed after %d attempts: %s", school, query, HTTP_MAX_ATTEMPTS, last_error)
-    return FetchResult(school, query, [], False, last_error)
+    return None, None, last_error
+
+
+def fetch_school(school: str, query: str, session: requests.Session) -> FetchResult:
+    """Fetch every documented scroll page for one school/query safely.
+
+    A failed or malformed page must never look like an empty result: main
+    aborts before any writes or stale-row deletion if even one source request
+    is incomplete.
+    """
+    time.sleep(REQUEST_DELAY)
+    params = {
+        "q": query,
+        "catalogSchool": school,
+        "size": API_PAGE_SIZE,
+        "scroll": "true",
+    }
+    page_url = HARVARD_API_BASE
+    seen_scroll_urls = set()
+    raw_rows: list[dict] = []
+
+    for page_number in range(1, MAX_PAGES_PER_QUERY + 1):
+        items, next_url, error = _fetch_course_page(
+            session,
+            page_url,
+            params=params,
+            school=school,
+            query=query,
+        )
+        if items is None:
+            log.error(
+                "  %s q=%-6s page %d failed after %d attempts: %s",
+                school,
+                query,
+                page_number,
+                HTTP_MAX_ATTEMPTS,
+                error,
+            )
+            return FetchResult(school, query, [], False, error)
+
+        raw_rows.extend(items)
+        if not next_url:
+            return FetchResult(school, query, [normalise_course(course, school) for course in raw_rows], True)
+        if next_url in seen_scroll_urls:
+            return FetchResult(school, query, [], False, "Harvard scroll cursor loop detected")
+
+        seen_scroll_urls.add(next_url)
+        page_url = next_url
+        params = None
+        time.sleep(REQUEST_DELAY)
+
+    return FetchResult(
+        school,
+        query,
+        [],
+        False,
+        f"Harvard pagination exceeded {MAX_PAGES_PER_QUERY} pages",
+    )
 # ── Supabase helpers ──────────────────────────────────────────────────────────
 
 def _sb_headers():
@@ -231,14 +311,30 @@ def _sb_headers():
 
 
 def supabase_upsert(rows: list[dict]) -> None:
-    url = f"{SUPABASE_URL}/rest/v1/live_courses"
-    for i in range(0, len(rows), BATCH_SIZE):
-        batch = rows[i : i + BATCH_SIZE]
-        resp  = requests.post(url, headers=_sb_headers(), json=batch, timeout=30)
-        if not resp.ok:
-            log.error("Supabase upsert failed: %s %s", resp.status_code, resp.text[:400])
-            sys.exit(1)
-        log.info("  upserted rows %d–%d", i + 1, i + len(batch))
+    """Apply the complete fetched catalogue in one database transaction.
+
+    The service-only RPC validates the payload and executes its upsert inside
+    Postgres. Unlike REST batches, a database failure cannot expose a partly
+    refreshed catalogue to the website.
+    """
+    response = requests.post(
+        f"{SUPABASE_URL}/rest/v1/rpc/sync_live_courses_atomically",
+        headers=_sb_headers(),
+        json={"p_rows": rows},
+        timeout=120,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Atomic live-course sync failed: HTTP {response.status_code} {response.text[:400]}")
+
+    try:
+        updated_rows = response.json()
+    except ValueError as exc:
+        raise RuntimeError("Atomic live-course sync returned invalid JSON.") from exc
+    if updated_rows != len(rows):
+        raise RuntimeError(
+            f"Atomic live-course sync reported {updated_rows!r} rows; expected {len(rows)}."
+        )
+    log.info("  atomically upserted %d rows", updated_rows)
 
 
 def supabase_delete_stale(synced_before: str) -> None:

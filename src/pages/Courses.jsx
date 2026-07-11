@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useDeferredValue, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useDeferredValue,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import { fmtShort, modeUnit } from '../utils/formatMetric.js'
 import { DEFAULT_PLAN, loadPlan, savePlan } from '../lib/scheduleStorage.js'
@@ -24,6 +24,8 @@ import {
   filterCourseOptions,
 } from '../lib/courseCatalogPresentation.js'
 import config from '../school.config.js'
+
+const BiddingTrendChart = lazy(() => import('../components/BiddingTrendChart.jsx'))
 
 const COURSES_TOUR_STEPS = [
   {
@@ -532,34 +534,6 @@ function FilterSidebar({
   )
 }
 
-function BiddingTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null
-  const point = payload[0].payload
-
-  return (
-    <div
-      className="rounded-lg px-3 py-2 text-xs shadow-xl"
-      style={{ background: 'var(--panel-strong)', border: '1px solid var(--line)' }}
-    >
-      <p className="mb-1 font-semibold text-label">{point.label}</p>
-      {point.price != null && (
-        <p style={{ color: 'var(--accent-strong)' }}>
-          Clearing price: <span className="font-bold">{point.price} pts</span>
-        </p>
-      )}
-      {point.bids != null && (
-        <p className="text-muted">
-          Bids: {point.bids}
-          {point.cap != null ? ` / ${point.cap} seats` : ''}
-        </p>
-      )}
-      {point.over != null && point.over > 0 && (
-        <p style={{ color: 'var(--warning)' }}>+{point.over} oversubscribed</p>
-      )}
-    </div>
-  )
-}
-
 function BiddingTab({ biddingHistory, selected, navigate }) {
   if (biddingHistory.length === 0) {
     return (
@@ -569,10 +543,6 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
     )
   }
 
-  const tickColor =
-    document.documentElement.getAttribute('data-theme') === 'light'
-      ? 'rgba(0,0,0,0.45)'
-      : 'rgba(243,233,226,0.5)'
   const termOrder = { Spring: 0, January: 1, Fall: 2 }
   const chartData = [...biddingHistory]
     .filter((row) => row.bid_clearing_price != null)
@@ -620,37 +590,18 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             Clearing Price Trend
           </p>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={trendData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-              <XAxis
-                dataKey="label"
-                tick={{ fill: tickColor, fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                tick={{ fill: tickColor, fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-                domain={['auto', 'auto']}
-                tickFormatter={(value) => `${value}`}
-                width={36}
-              />
-              <RechartsTooltip
-                content={<BiddingTooltip />}
-                cursor={{ stroke: 'var(--accent-strong)', strokeWidth: 1, strokeDasharray: '3 3' }}
-              />
-              <Line
-                type="monotone"
-                dataKey="price"
-                stroke="var(--accent-strong)"
-                strokeWidth={2}
-                dot={{ r: 4, fill: 'var(--accent-strong)', strokeWidth: 0 }}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <Suspense
+            fallback={
+              <div
+                className="flex h-[180px] items-center justify-center text-xs text-muted"
+                role="status"
+              >
+                Loading bidding trend…
+              </div>
+            }
+          >
+            <BiddingTrendChart trendData={trendData} />
+          </Suspense>
         </div>
       )}
 

@@ -38,8 +38,8 @@ jobs:
       - name: Verify vendored production dependencies
         run: npm run check:vendor-integrity
 
-      - name: Block high-severity production dependency findings
-        run: npm audit --omit=dev --audit-level=high
+      - name: Block moderate-or-higher production dependency findings
+        run: npm audit --omit=dev --audit-level=moderate
 
       - name: Lint
         run: npm run lint

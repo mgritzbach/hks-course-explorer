@@ -33,14 +33,21 @@ when it ran, rather than a different course by themselves.
 
 Do not match by title similarity, code prefix, or by removing a course suffix.
 A same-professor A/B/C-style terminal suffix can propose a section-split review
-item, but must never publish another course's ratings automatically. A course
-with the same code but a different professor retains course history separately;
-it does not inherit the earlier professor's ratings as its own.
+item. An exact normalized title with the same professor but a different code
+can propose a suspected-renumbering review item. Neither may publish another
+course's ratings automatically. A course with the same code but a different
+professor retains course history separately; it does not inherit the earlier
+professor's ratings as its own.
 
 ## Proposed read contract
 
 `catalog_snapshot_v1` is an additive, versioned read model. One row represents
 one current Harvard offering, even when two offerings share a code and term.
+
+`GET /api/catalogue` is the server-only public boundary for the promoted view.
+It remains disabled until `CATALOGUE_API_ENABLED=true` is set after the parity
+and rollback gates below. The browser must not query the private snapshot or
+receive a service-role credential.
 
 Required fields:
 
@@ -48,8 +55,8 @@ Required fields:
 - `canonical_course_code` when linked;
 - current instructor identity keys and a professor-specific teaching-lineage;
 - `match_status`: `verified`, `course_only`, `needs_review`, or `unmatched`;
-- `match_method`: exact/approved-alias same-professor, other-professor, or
-  suspected section split;
+- `match_method`: exact/approved-alias same-professor, other-professor,
+  suspected section split, or suspected same-professor renumbering;
 - `historical_course_codes`, evaluation summary, and observed evaluation years;
 - `source_synced_at` and `catalogue_version`.
 
@@ -103,6 +110,11 @@ for the existing public tables.
 1. Correct paginated reads and capture source-count baselines.
 2. Run `scripts/audit_catalogue_sources.py` against the existing project to
    capture paginated source counts and the verified/unmatched HKS baseline.
+   Its ID-level parity fields must confirm that the historical `courses` table
+   exactly matches generated `public/courses.json`; a count match is not
+   sufficient. The publisher refuses to write a snapshot while this is false.
+   The trusted historical loader also exits non-zero on a source/database count
+   mismatch and never deletes stale rows implicitly.
 3. Materialise and validate the snapshot without serving it.
 4. Review all non-exact aliases and unmatched current HKS offerings.
 5. Run old and new catalogues in parallel and compare results.

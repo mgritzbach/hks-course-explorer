@@ -5,7 +5,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
@@ -56,6 +56,7 @@ class PublishCatalogueSnapshotTests(unittest.TestCase):
                     "historical_records": [{"id": "history-1"}],
                     "course_history_records": [{"id": "history-1"}],
                     "review_candidates": [],
+                    "renumbering_review_candidates": [],
                 }
             ],
             {"live-1": {"id": "live-1", "raw": "source"}},
@@ -63,6 +64,35 @@ class PublishCatalogueSnapshotTests(unittest.TestCase):
         self.assertEqual(rows[0]["sync_run_id"], "run-1")
         self.assertEqual(rows[0]["current_offering"], {"id": "live-1", "raw": "source"})
         self.assertEqual(rows[0]["match_method"], "exact_code_same_professor")
+        self.assertEqual(rows[0]["renumbering_review_candidates"], [])
+
+    def test_history_parity_failure_happens_before_any_snapshot_write(self):
+        offerings = [{"id": "live-1", "school": "HKS", "course_code_base": "API-101"}]
+        historical_rows = [{"id": "stale-history"}]
+        post_json = Mock()
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "CATALOGUE_SNAPSHOT_ENABLED": "true",
+                    "SUPABASE_URL": "https://example.supabase.co",
+                    "SUPABASE_KEY": "service-key",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.publisher,
+                "fetch_all_supabase_rows",
+                side_effect=[offerings, historical_rows],
+            ),
+            patch.object(self.publisher, "load_canonical_history_rows", return_value=[{"id": "canonical"}]),
+            patch.object(self.publisher, "post_json", post_json),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "does not exactly match canonical courses.json"):
+                self.publisher.main()
+
+        post_json.assert_not_called()
 
 
 if __name__ == "__main__":

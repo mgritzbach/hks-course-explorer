@@ -39,14 +39,18 @@ Pages too if Pages can create builds outside this workflow.
 | `SUPABASE_URL` | Yes | REST/client endpoint for trusted data-sync scripts. |
 | `SUPABASE_KEY` | Yes | Supabase service-role/secret key for trusted scripts only. |
 | `HARVARD_API_KEY` | Yes | Harvard ATS API key used by the sync script. |
-| `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated results required before the sync writes. Default: `1`; set an environment-specific guardrail only after establishing a trustworthy baseline. |
+| `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated results required before the sync writes. Script default: `1`; the production workflow uses the reviewed `1200` floor against its 1,555-offering baseline. |
 | `SYNC_ALLOW_STALE_DELETE` | No | Enables destructive deletion of rows not refreshed by a successful sync. Default: `false`; enable only with verified complete upstream coverage and a tested `live_courses.synced_at` trigger. |
 
 The sync job fails closed if any required source request fails or the minimum
-course guard is not met. It must run with a service account restricted to the
-minimum required database privileges. The default schedule does not delete
-historical rows, because a 200 response alone does not prove an upstream search
-was complete.
+course guard is not met. It requests Harvard's documented 1,000-record pages
+and follows only provider-issued HTTPS scroll links; an invalid, repeated, or
+failed page aborts the whole run. It passes the complete validated payload to the
+server-only `sync_live_courses_atomically(jsonb)` RPC, which validates IDs and
+upserts in one Postgres transaction. It must run with a service account
+restricted to the minimum required database privileges. The default schedule
+does not delete historical rows, because a 200 response alone does not prove
+an upstream search was complete.
 
 ## Cloudflare Pages Functions
 
@@ -63,6 +67,7 @@ was complete.
 | `ADMIN_SESSION_SECRET` | Admin endpoints | Distinct, randomly generated HMAC secret (at least 32 characters) for 15-minute admin data sessions. Rotate it to invalidate all outstanding Admin sessions. |
 | `SUPABASE_URL` | Admin upload/history | Server-only Supabase REST endpoint used by Pages Functions. It must not use the `VITE_` prefix. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin upload/history | Server-only service-role/secret key. It is never bundled or returned by Pages Functions. |
+| `CATALOGUE_API_ENABLED` | `/api/catalogue` | Explicit `true` switch for the private, promoted `catalogue_current_v1` read contract. Keep `false` until the parity and rollback gates in `UNIFIED_CATALOGUE_ROLLOUT.md` have passed. |
 
 ### Admin data Functions
 

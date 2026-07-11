@@ -13,7 +13,13 @@ from pathlib import Path
 
 import requests
 
-from audit_catalogue_sources import audit_catalogue, fetch_all_supabase_rows, supabase_headers
+from audit_catalogue_sources import (
+    audit_catalogue,
+    fetch_all_supabase_rows,
+    load_canonical_history_rows,
+    require_historical_source_parity,
+    supabase_headers,
+)
 from build_catalogue_snapshot import materialize_catalogue_snapshot
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,6 +53,7 @@ def snapshot_database_rows(sync_run_id, snapshot, offerings_by_id):
             "historical_records": row["historical_records"],
             "course_history_records": row["course_history_records"],
             "review_candidates": row["review_candidates"],
+            "renumbering_review_candidates": row["renumbering_review_candidates"],
         }
         for row in snapshot
     ]
@@ -87,7 +94,9 @@ def main():
 
     offerings = fetch_all_supabase_rows(base_url, key, "live_courses")
     historical_rows = fetch_all_supabase_rows(base_url, key, "courses")
-    report = audit_catalogue(offerings, historical_rows, aliases)
+    canonical_rows = load_canonical_history_rows()
+    require_historical_source_parity(historical_rows, canonical_rows)
+    report = audit_catalogue(offerings, historical_rows, aliases, canonical_rows)
     snapshot = materialize_catalogue_snapshot(offerings, historical_rows, aliases)
     source_snapshot_at = datetime.now(timezone.utc).isoformat()
 

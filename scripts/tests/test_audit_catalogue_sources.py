@@ -69,6 +69,24 @@ class CatalogueAuditTests(unittest.TestCase):
         self.assertEqual(report["hks_unmatched_history_count"], 1)
         self.assertEqual(report["unmatched_hks_codes"], ["DPI-802-M-D"])
 
+    def test_reports_and_rejects_history_id_drift_before_snapshot_promotion(self):
+        source = [{"id": "history-a"}, {"id": "stale-history"}]
+        canonical = [{"id": "history-a"}, {"id": "canonical-history"}]
+
+        parity = self.audit.historical_source_parity(source, canonical)
+        self.assertFalse(parity["historical_source_matches_canonical"])
+        self.assertEqual(parity["historical_source_only_count"], 1)
+        self.assertEqual(parity["canonical_history_only_count"], 1)
+        with self.assertRaisesRegex(RuntimeError, "does not exactly match canonical courses.json"):
+            self.audit.require_historical_source_parity(source, canonical)
+
+    def test_accepts_only_exact_unique_history_id_sets(self):
+        source = [{"id": "history-b"}, {"id": "history-a"}]
+        canonical = [{"id": "history-a"}, {"id": "history-b"}]
+
+        parity = self.audit.require_historical_source_parity(source, canonical)
+        self.assertTrue(parity["historical_source_matches_canonical"])
+
 
 if __name__ == "__main__":
     unittest.main()

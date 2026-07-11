@@ -27,8 +27,13 @@ import {
   removeCourseFromPlan,
 } from '../lib/schedulePlanMutations.js'
 import { isHksCourseCode as isHksCourse } from '../lib/hksCourseCodes.js'
+import {
+  buildHistoricalRatingsByCode,
+  findVerifiedHistoricalRating,
+} from '../lib/scheduleHistoryLinking.js'
 import { useFavorites } from '../useFavorites'
 import { useScheduleData } from '../hooks/useScheduleData.js'
+import { sectionCodeKey } from '../lib/sectionCatalogueIndexes.js'
 import CompletedCoursesPanel from '../components/CompletedCoursesPanel.jsx'
 import ManualCourseModal from '../components/ManualCourseModal.jsx'
 import SchedulePlanHeader from '../components/SchedulePlanHeader.jsx'
@@ -168,15 +173,6 @@ function inferSchool(courseCode) {
   // Handle MIT numerical sub-codes like "MIT-6.036" → prefix "MIT"
   if (prefix === 'MIT' || String(courseCode || '').startsWith('MIT-')) return 'MIT'
   return SCHOOL_BY_PREFIX[prefix] || null
-}
-
-// Normalise a course code to PREFIX-NUMBER for deduplication across code variants.
-// e.g. "DPI-802-M-D" → "DPI-802", "DPI-802M" → "DPI-802", "IGA-109" → "IGA-109"
-function getBaseCourseId(code) {
-  const parts = String(code || '').split('-')
-  if (parts.length < 2) return code
-  const numOnly = parts[1].replace(/[^0-9]/g, '') // strip letters: "802M" → "802"
-  return numOnly ? `${parts[0]}-${numOnly}` : code
 }
 
 const HIST_RATING_KEYS = ['Instructor_Rating', 'Course_Rating', 'Workload', 'Rigor']
@@ -578,11 +574,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   const enrichedSearchResults = useMemo(() => {
     return searchResults.map((course) => {
       if (courseHasSchedule(course)) return course // already has time data (e.g. from Harvard API or DB)
-      const code = course.courseCode
-      const meetings =
-        sectionTimesMap.get(code) ||
-        sectionTimesMap.get(code.replace(/-[A-Z]$/, '')) || // strip trailing -D/-E: DPI-802-M-D → DPI-802-M
-        sectionTimesMap.get(code.split('-').slice(0, 2).join('-')) // base: DPI-802
+      const code = sectionCodeKey(course.courseCode)
+      const meetings = sectionTimesMap.get(code)
       if (!meetings?.length) return course // genuinely no data
       const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
       return {
@@ -601,32 +594,26 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   const sectionMapStubs = useMemo(() => {
     if (sectionCanonicalCodes.size === 0 || sectionTimesLoading) return []
     const q = searchQ.trim().toLowerCase()
-    // Build base-ID set from DB results so DPI-802-M-D and DPI-802M both normalise to DPI-802
-    const existingBaseIds = new Set(searchResults.map((r) => getBaseCourseId(r.courseCode)))
+    const existingCourseCodes = new Set(searchResults.map((r) => sectionCodeKey(r.courseCode)))
     const stubs = []
     // Build a quick lookup for historical course data by normalized code
     const histMap = new Map()
-    const histMapByBase = new Map() // fallback: getBaseCourseId(key) → course
     ;(Array.isArray(courses) ? courses : [])
       .filter((c) => !c?.is_average)
       .forEach((c) => {
-        const key = c.course_code_base || c.course_code
+        const key = sectionCodeKey(c.course_code_base || c.course_code)
         if (!key) return
         const existing = histMap.get(key)
         if (!existing || Number(c.year || 0) > Number(existing.year || 0)) histMap.set(key, c)
-        const baseKey = getBaseCourseId(key)
-        const existingBase = histMapByBase.get(baseKey)
-        if (!existingBase || Number(c.year || 0) > Number(existingBase.year || 0))
-          histMapByBase.set(baseKey, c)
       })
     for (const code of sectionCanonicalCodes) {
-      if (existingBaseIds.has(getBaseCourseId(code))) continue // already covered by DB result
+      if (existingCourseCodes.has(code)) continue // already covered by the exact DB result
       const hks = isHksCourse(code)
       if (searchSource === 'HKS' && !hks) continue
       if (searchSource === 'Non-HKS' && hks) continue
       // Text query filter — match on course code or historical title
       if (q) {
-        const hist = histMap.get(code) || histMapByBase.get(getBaseCourseId(code))
+        const hist = histMap.get(code)
         const secInfo = sectionInfoMap.get(code)
         const codeMatch = code.toLowerCase().includes(q)
         const titleMatch = String(hist?.course_name || secInfo?.title || '')
@@ -644,7 +631,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       }
       const meetings = sectionTimesMap.get(code)
       if (!meetings?.length) continue
-      const hist = histMap.get(code) || histMapByBase.get(getBaseCourseId(code))
+      const hist = histMap.get(code)
       const secInfo = sectionInfoMap.get(code) // title/instructors stored from course_sections (key for non-HKS courses)
       const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
       stubs.push(
@@ -863,24 +850,9 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
 
   // Search results for the "Completed" section — searches all years for any HKS course
 
-  // Historical ratings map: course_code_base → metrics_pct from best available row
-  // Prefer is_average rows (multi-year aggregate), fall back to most recent year with actual rating values
-  const histRatingsMap = useMemo(() => {
-    const map = new Map()
-    ;(Array.isArray(courses) ? courses : []).forEach((c) => {
-      const key = c.course_code_base || c.course_code
-      if (!key || !hasMeaningfulRatings(c.metrics_pct)) return
-      const existing = map.get(key)
-      // Prefer is_average (aggregate) over single-year; among same type prefer newer
-      const isBetter =
-        !existing ||
-        (c.is_average && !existing._isAvg) ||
-        (!c.is_average && !existing._isAvg && Number(c.year || 0) > Number(existing._year || 0))
-      if (isBetter)
-        map.set(key, { metrics_pct: c.metrics_pct, _isAvg: !!c.is_average, _year: c.year })
-    })
-    return map
-  }, [courses])
+  // Exact-code and same-instructor evidence only. Related suffixes and
+  // unreviewed renumberings intentionally remain unrated.
+  const histRatingsMap = useMemo(() => buildHistoricalRatingsByCode(courses), [courses])
 
   const normalizedPlanCourses = useMemo(
     () =>
@@ -896,14 +868,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         let enriched = course
         // 1. Inject historical ratings if current enrichment has no meaningful ratings
         if (!hasMeaningfulRatings(enriched.enrichment?.metrics_pct)) {
-          // Try exact code → 3-part base (DPI-802-M) → 2-part base (DPI-802)
-          const parts = enriched.courseCode.split('-')
-          const threeBase = parts.slice(0, 3).join('-') // e.g. DPI-802-M
-          const twoBase = parts.slice(0, 2).join('-') // e.g. DPI-802
-          const hist =
-            histRatingsMap.get(enriched.courseCode) ||
-            histRatingsMap.get(threeBase) ||
-            histRatingsMap.get(twoBase)
+          const hist = findVerifiedHistoricalRating(enriched, histRatingsMap)
           if (hist) {
             enriched = {
               ...enriched,
@@ -917,11 +882,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         }
         // 2. Inject live section times if schedule not yet present
         if (courseHasSchedule(enriched)) return enriched
-        const eCode = enriched.courseCode
-        const meetings =
-          sectionTimesMap.get(eCode) ||
-          sectionTimesMap.get(eCode.replace(/-[A-Z]$/, '')) ||
-          sectionTimesMap.get(eCode.split('-').slice(0, 2).join('-'))
+        const eCode = sectionCodeKey(enriched.courseCode)
+        const meetings = sectionTimesMap.get(eCode)
         if (!meetings?.length) return enriched
         const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
         return {
@@ -1932,13 +1894,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                           const added = addedCourseCodes.has(course.courseCode)
                           const done = completedCourseCodes.has(course.courseCode)
                           const hks = isHksCourse(course.courseCode)
-                          const codeParts = course.courseCode.split('-')
-                          const baseCode = codeParts.slice(0, 2).join('-')
-                          const threeBase = codeParts.slice(0, 3).join('-')
-                          const histRating =
-                            histRatingsMap.get(course.courseCode) ||
-                            histRatingsMap.get(threeBase) ||
-                            histRatingsMap.get(baseCode)
+                          const histRating = findVerifiedHistoricalRating(course, histRatingsMap)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
                             <div
@@ -1990,10 +1946,10 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                     )}
                                     {histRating && (
                                       <a
-                                        href={`/courses?q=${encodeURIComponent(baseCode)}`}
+                                        href={`/courses?q=${encodeURIComponent(course.courseCode)}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        aria-label={`View ${baseCode} evaluations in Q-guide (opens in new tab)`}
+                                        aria-label={`View ${course.courseCode} evaluations in Q-guide (opens in new tab)`}
                                         title="View evaluations in Q-guide"
                                         className="text-[10px] font-semibold hover:underline"
                                         style={{ color: 'var(--accent)', textDecoration: 'none' }}
@@ -2196,13 +2152,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                           const added = addedCourseCodes.has(course.courseCode)
                           const done = completedCourseCodes.has(course.courseCode)
                           const hks = isHksCourse(course.courseCode)
-                          const codeParts = course.courseCode.split('-')
-                          const baseCode = codeParts.slice(0, 2).join('-')
-                          const threeBase = codeParts.slice(0, 3).join('-')
-                          const histRating =
-                            histRatingsMap.get(course.courseCode) ||
-                            histRatingsMap.get(threeBase) ||
-                            histRatingsMap.get(baseCode)
+                          const histRating = findVerifiedHistoricalRating(course, histRatingsMap)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
                           return (
                             <div
@@ -2254,10 +2204,10 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                     )}
                                     {histRating && (
                                       <a
-                                        href={`/courses?q=${encodeURIComponent(baseCode)}`}
+                                        href={`/courses?q=${encodeURIComponent(course.courseCode)}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        aria-label={`View ${baseCode} evaluations in Q-guide (opens in new tab)`}
+                                        aria-label={`View ${course.courseCode} evaluations in Q-guide (opens in new tab)`}
                                         title="View evaluations in Q-guide"
                                         className="text-[10px] font-semibold hover:underline"
                                         style={{ color: 'var(--accent)', textDecoration: 'none' }}
@@ -3007,12 +2957,9 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                             const inConflict = conflictSet.has(course.courseCode)
                             const hasRatings = hasMeaningfulRatings(course.enrichment?.metrics_pct)
                             const isHistorical = course.enrichment?._ratingFromHistory
-                            const codeParts = course.courseCode.split('-')
-                            const baseCode = codeParts.slice(0, 2).join('-')
-                            const inQGuide =
-                              histRatingsMap.has(course.courseCode) ||
-                              histRatingsMap.has(codeParts.slice(0, 3).join('-')) ||
-                              histRatingsMap.has(baseCode)
+                            const inQGuide = Boolean(
+                              findVerifiedHistoricalRating(course, histRatingsMap),
+                            )
                             return (
                               <div
                                 key={course.courseCode}
@@ -3033,7 +2980,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                       </p>
                                       {inQGuide && (
                                         <a
-                                          href={`/courses?q=${encodeURIComponent(baseCode)}`}
+                                          href={`/courses?q=${encodeURIComponent(course.courseCode)}`}
                                           target="_blank"
                                           rel="noopener noreferrer"
                                           title="View evaluations in Q-guide"

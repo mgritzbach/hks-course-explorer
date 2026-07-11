@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from 'react'
 import { fetchCataloguePages } from '../lib/cataloguePagination.js'
+import { buildSectionCatalogueIndexes } from '../lib/sectionCatalogueIndexes.js'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
 export function useScheduleData(semesterYear, semester) {
@@ -81,35 +82,10 @@ export function useScheduleData(semesterYear, semester) {
         .order('id', { ascending: true }),
     )
       .then((rows) => {
-        const map = new Map()
-        const canonical = new Set()
-        const infoMap = new Map()
-
-        rows.forEach((row) => {
-          if (!row.course_code_base || !Array.isArray(row.meetings) || !row.meetings.length) return
-
-          const { course_code_base: code, meetings, title, instructors, credits } = row
-          map.set(code, meetings)
-          canonical.add(code)
-
-          if (title || instructors?.length || credits != null) {
-            infoMap.set(code, {
-              title: title || null,
-              instructors: Array.isArray(instructors) ? instructors : [],
-              credits: credits != null ? Number(credits) : null,
-            })
-          }
-
-          // Also index common code variants so lookups hit regardless of format
-          const withDash = code.replace(/([0-9])([A-Z])/, '$1-$2')
-          if (withDash !== code) map.set(withDash, meetings)
-          const base = code.replace(/-?[A-Z]+$/, '')
-          if (base !== code && !map.has(base)) map.set(base, meetings)
-        })
-
-        setSectionTimesMap(map)
-        setSectionCanonicalCodes(canonical)
-        setSectionInfoMap(infoMap)
+        const indexes = buildSectionCatalogueIndexes(rows)
+        setSectionTimesMap(indexes.sectionTimesMap)
+        setSectionCanonicalCodes(indexes.sectionCanonicalCodes)
+        setSectionInfoMap(indexes.sectionInfoMap)
         setSectionTimesLoading(false)
       })
       .catch(() => setSectionTimesLoading(false))

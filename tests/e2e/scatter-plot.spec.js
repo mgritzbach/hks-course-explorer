@@ -12,18 +12,24 @@ test.describe('Scatter Plot built-artifact regression', () => {
   })
 
   test('loads the lazy Plotly path, changes an axis, and zooms the chart', async ({ page }) => {
+    // Plotly is deliberately a 4.7 MB lazy chunk. On a busy CI worker it can
+    // take longer than Playwright's default five-second assertion window;
+    // retain a finite budget while testing the real rendered chart.
+    test.slow()
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible()
 
     const chart = page.locator('.js-plotly-plot')
-    await expect(chart).toBeVisible()
+    await expect(chart).toBeVisible({ timeout: 15_000 })
     await expect
-      .poll(() =>
-        page.evaluate(() =>
-          performance
-            .getEntriesByType('resource')
-            .some((entry) => entry.name.includes('vendor-plotly')),
-        ),
+      .poll(
+        () =>
+          page.evaluate(() =>
+            performance
+              .getEntriesByType('resource')
+              .some((entry) => entry.name.includes('vendor-plotly')),
+          ),
+        { timeout: 15_000 },
       )
       .toBe(true)
 

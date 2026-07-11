@@ -75,6 +75,18 @@ class LoadToSupabaseConfigTests(unittest.TestCase):
         self.assertIsNone(loader.validate_prepared_rows(rows))
         self.assertEqual(rows, [{"id": "a"}, {"id": "b"}])
 
+    def test_database_count_mismatch_is_a_failed_promotion(self):
+        loader = load_module({})
+        with self.assertRaises(SystemExit) as missing_count:
+            loader.require_database_count(None, 2)
+        self.assertIn("did not return", str(missing_count.exception))
+
+        with self.assertRaises(SystemExit) as stale_count:
+            loader.require_database_count(3, 2)
+        self.assertIn("No stale rows were deleted automatically", str(stale_count.exception))
+
+        self.assertIsNone(loader.require_database_count(2, 2))
+
     def test_invalid_preflight_exits_before_creating_a_supabase_client(self):
         loader = load_module({"SUPABASE_URL": "https://target.supabase.co", "SUPABASE_KEY": "test-service-key"})
         fake_supabase = types.ModuleType("supabase")

@@ -2,6 +2,8 @@ import AxeBuilder from '@axe-core/playwright'
 import { test, expect } from '@playwright/test'
 import { installMockBackend } from './support/mockBackend.js'
 
+const SCHEDULE_READY_TIMEOUT_MS = 15_000
+
 async function expectNoSeriousOrCriticalAxeViolations(page) {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
   const blocking = results.violations.filter((violation) =>
@@ -37,14 +39,21 @@ test.describe('built accessibility checks', () => {
   })
 
   test('has no serious or critical WCAG A/AA violations in Schedule Builder', async ({ page }) => {
+    // Schedule Builder is a deliberately lazy route. Under parallel CI load,
+    // wait for its real heading instead of converting a slow chunk fetch into
+    // an unrelated accessibility failure.
+    test.slow()
     await page.goto('/schedule-builder')
-    await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible({
+      timeout: SCHEDULE_READY_TIMEOUT_MS,
+    })
     await expectNoSeriousOrCriticalAxeViolations(page)
   })
 
   test('has no serious or critical WCAG A/AA violations on the mobile primary flows', async ({
     page,
   }) => {
+    test.slow()
     await page.setViewportSize({ width: 390, height: 844 })
 
     await page.goto('/')
@@ -52,7 +61,9 @@ test.describe('built accessibility checks', () => {
     await expectNoSeriousOrCriticalAxeViolations(page)
 
     await page.goto('/schedule-builder')
-    await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible({
+      timeout: SCHEDULE_READY_TIMEOUT_MS,
+    })
     await expectNoSeriousOrCriticalAxeViolations(page)
   })
 })
