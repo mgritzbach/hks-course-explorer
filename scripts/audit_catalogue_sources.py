@@ -13,7 +13,12 @@ from pathlib import Path
 
 import requests
 
-from build_catalogue_snapshot import materialize_catalogue_snapshot
+from build_catalogue_snapshot import (
+    materialize_catalogue_snapshot,
+    normalise_course_code,
+    normalise_course_title,
+    normalise_instructor_name,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE_SIZE = 1000
@@ -83,6 +88,72 @@ def historical_source_parity(source_rows, canonical_rows):
     }
 
 
+def historical_semantic_key(row):
+    """Return a conservative historical identity independent of storage ID.
+
+    This is an audit-only fingerprint.  It identifies candidates whose legacy
+    and generated IDs differ but whose code, term, year, professor, title, and
+    aggregate/individual status agree exactly after presentation
+    normalisation.  It never authorises an ID rewrite or evaluation link.
+    """
+    if not isinstance(row, dict):
+        return None
+    code = normalise_course_code(row.get("course_code_base") or row.get("course_code"))
+    year = str(row.get("year") or "").strip()
+    term = str(row.get("term") or "").strip().casefold()
+    professor = normalise_instructor_name(row.get("professor") or row.get("professor_display"))
+    title = normalise_course_title(row.get("course_name"))
+    is_average = str(row.get("is_average", False)).strip().casefold()
+    if not all((code, year, term, professor, title)):
+        return None
+    return code, year, term, professor, title, is_average
+
+
+def semantic_history_reconciliation(source_rows, canonical_rows):
+    """Summarise exact non-ID historical matches without mutating either source."""
+    source_by_key = {}
+    canonical_by_key = {}
+    source_without_key = 0
+    canonical_without_key = 0
+
+    for row in source_rows:
+        key = historical_semantic_key(row)
+        if key is None:
+            source_without_key += 1
+            continue
+        source_by_key.setdefault(key, []).append(str(row.get("id")))
+    for row in canonical_rows:
+        key = historical_semantic_key(row)
+        if key is None:
+            canonical_without_key += 1
+            continue
+        canonical_by_key.setdefault(key, []).append(str(row.get("id")))
+
+    shared_keys = set(source_by_key) & set(canonical_by_key)
+    one_to_one_keys = [
+        key for key in shared_keys
+        if len(source_by_key[key]) == 1 and len(canonical_by_key[key]) == 1
+    ]
+    same_id = sum(
+        source_by_key[key][0] == canonical_by_key[key][0]
+        for key in one_to_one_keys
+    )
+    return {
+        "semantic_exact_one_to_one_count": len(one_to_one_keys),
+        "semantic_same_id_count": same_id,
+        "semantic_changed_id_candidate_count": len(one_to_one_keys) - same_id,
+        "semantic_ambiguous_shared_key_count": len(shared_keys) - len(one_to_one_keys),
+        "semantic_source_only_row_count": sum(
+            len(rows) for key, rows in source_by_key.items() if key not in canonical_by_key
+        ),
+        "semantic_canonical_only_row_count": sum(
+            len(rows) for key, rows in canonical_by_key.items() if key not in source_by_key
+        ),
+        "semantic_source_missing_key_count": source_without_key,
+        "semantic_canonical_missing_key_count": canonical_without_key,
+    }
+
+
 def require_historical_source_parity(source_rows, canonical_rows):
     """Stop a future promotion before writes when its history differs from the live website."""
     result = historical_source_parity(source_rows, canonical_rows)
@@ -148,6 +219,7 @@ def audit_catalogue(offerings, historical_rows, aliases, canonical_rows=None):
     }
     if canonical_rows is not None:
         report.update(historical_source_parity(historical_rows, canonical_rows))
+        report.update(semantic_history_reconciliation(historical_rows, canonical_rows))
     return report
 
 
