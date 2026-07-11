@@ -110,6 +110,9 @@ for the existing public tables.
 1. Correct paginated reads and capture source-count baselines.
 2. Run `scripts/audit_catalogue_sources.py` against the existing project to
    capture paginated source counts and the verified/unmatched HKS baseline.
+   Its ID-level parity fields must confirm that the historical `courses` table
+   exactly matches generated `public/courses.json`; a count match is not
+   sufficient. The publisher refuses to write a snapshot while this is false.
 3. Materialise and validate the snapshot without serving it.
 4. Review all non-exact aliases and unmatched current HKS offerings.
 5. Run old and new catalogues in parallel and compare results.
