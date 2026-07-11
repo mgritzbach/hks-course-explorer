@@ -490,7 +490,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
               stale: Boolean(remote?.stale),
               partial: Boolean(remote?.partial),
             })
-            // Proxy returns { results: [...], total: N } — extract .results array
+            // Keep the local-catalogue result contract explicit so a future
+            // change cannot quietly reintroduce an on-demand Harvard proxy.
             const remoteArr = Array.isArray(remote)
               ? remote
               : Array.isArray(remote?.results)

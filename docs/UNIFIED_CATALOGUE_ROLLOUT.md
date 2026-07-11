@@ -120,8 +120,11 @@ for the existing public tables.
 5. Run old and new catalogues in parallel and compare results.
 6. Switch one feature at a time to the snapshot: Schedule Builder, then course
    browsing and course detail pages.
-7. Retire browser use of `/api/harvard-courses` only after the daily sync and
-   snapshot promotions have demonstrated stable complete coverage.
+7. Browser use of `/api/harvard-courses` has already been retired: Schedule
+   Builder searches the daily-synced `live_courses` catalogue only. Do not
+   restore an on-demand Harvard search fallback. Retire the unused legacy
+   Pages Function and its Cloudflare secret only in a separately reviewed
+   change after platform logs establish that no external consumer remains.
 
 `scripts/publish_catalogue_snapshot.py` is deliberately disabled by default.
 It will not write unless `CATALOGUE_SNAPSHOT_ENABLED=true` is explicitly set
