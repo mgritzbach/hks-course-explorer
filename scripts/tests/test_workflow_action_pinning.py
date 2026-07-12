@@ -43,6 +43,36 @@ class WorkflowActionPinningTests(unittest.TestCase):
         self.assertIn("Smoke-test custom production domain", deploy_workflow)
         self.assertIn("DEPLOY_SMOKE_URL: https://hks-course-explorer.org/", deploy_workflow)
 
+    def test_deploy_gates_production_on_an_isolated_browser_tested_candidate(self):
+        deploy_workflow = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
+        candidate_deploy = deploy_workflow.index("Deploy isolated Pages release candidate")
+        candidate_static = deploy_workflow.index("Smoke-test exact release-candidate artifact")
+        browser_install = deploy_workflow.index("Install production smoke browser")
+        candidate_browser = deploy_workflow.index("Exercise release candidate in a real browser")
+        stale_guard = deploy_workflow.index("Refuse stale master promotion")
+        production_deploy = deploy_workflow.index("Deploy to Cloudflare Pages", candidate_browser)
+        production_static = deploy_workflow.index("Smoke-test custom production domain")
+        production_browser = deploy_workflow.index("Exercise production in a real browser")
+        record_commit = deploy_workflow.index("Record deployed commit")
+
+        self.assertLess(candidate_deploy, candidate_static)
+        self.assertLess(candidate_static, browser_install)
+        self.assertLess(browser_install, candidate_browser)
+        self.assertLess(candidate_browser, stale_guard)
+        self.assertLess(stale_guard, production_deploy)
+        self.assertLess(production_deploy, production_static)
+        self.assertLess(production_static, production_browser)
+        self.assertLess(production_browser, record_commit)
+        self.assertIn("npm run test:e2e:production", deploy_workflow)
+        self.assertIn("https://release-candidate.hks-course-explorer.pages.dev/", deploy_workflow)
+        self.assertEqual(deploy_workflow.count("DEPLOY_MIN_HKS_OFFERINGS: '285'"), 2)
+        self.assertIn("group: hks-production-release", deploy_workflow)
+        self.assertIn("cancel-in-progress: false", deploy_workflow)
+        self.assertIn("git rev-parse origin/master", deploy_workflow)
+        self.assertIn("github.event.workflow_run.head_sha", deploy_workflow)
+        self.assertIn("Refusing stale release", deploy_workflow)
+        self.assertIn("Retain production browser diagnostics", deploy_workflow)
+
     def test_all_official_actions_are_full_sha_pinned_with_a_readable_version(self):
         references = []
         for workflow in sorted(WORKFLOWS.glob("*.yml")):

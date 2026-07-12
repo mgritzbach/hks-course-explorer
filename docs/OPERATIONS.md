@@ -24,6 +24,24 @@ The E2E suite must target a locally built preview or controlled preview
 environment. A mutable production deployment is a smoke target, not a
 deterministic test fixture.
 
+Before production promotion, the deploy workflow uploads the exact CI commit to
+the serialized `release-candidate` Pages preview. Static fingerprint checks and
+`npm run test:e2e:production` must pass there before the production branch can
+change. Immediately before promotion, the workflow also fetches `origin/master`
+and refuses to deploy if a newer commit has superseded the tested candidate.
+The same browser suite then confirms the custom production domain after
+promotion. It executes the real React application, visits every visitor route,
+requires at least two non-empty HKS terms and the authoritative sync's
+285-offering safety floor, reconciles every advertised term/count with rendered
+rows and unique enabled controls, exercises browser-local add/remove boundaries,
+and verifies Plotly zoom/pan/reset and graph shortlisting. The browser blocks
+PostHog, Sentry, and Cloudflare browser-RUM writes and fails on any other
+non-read request, so it does not pollute telemetry, submit chat prompts, call an
+upstream catalogue API, or write to Supabase. A failure prevents promotion or
+leaves the production workflow red
+and retains Playwright diagnostics for seven days; do not treat the release as
+healthy until the failure is resolved or the prior deployment is restored.
+
 If port 4173 is intentionally occupied by another local preview, run the
 same isolated built-artifact suite on a different port, for example:
 
@@ -105,8 +123,10 @@ start another one; wait for its summary and start the follow-up only if needed.
 
 The non-HKS sync will upsert data only when every planned Harvard request
 succeeds and the configured minimum unique-course count is reached. Production
-uses a 4,300-row floor against the reviewed 4,826-row non-HKS source inventory
-from run `29186716529`. It never deletes
+uses a 5,000-row floor against the 5,607 non-HKS rows promoted by exact-master
+run `29189143811`, after the authoritative HKS ownership filter. The 89.2% floor
+preserves a bounded fluctuation margin while rejecting a material partial
+catalogue before any write. It never deletes
 `live_courses` rows: `SYNC_ALLOW_STALE_DELETE=true` is rejected before any
 Harvard or database activity. A successful API response alone does not prove
 the upstream search returned a complete catalogue, so deletion requires a
@@ -121,7 +141,7 @@ separate, reviewed reconciliation with a tested backup and restore path.
   has succeeded, but no cleanup has been attempted and the run is not
   reconciliation-ready.
 - The script default `SYNC_MIN_UNIQUE_COURSES=1` is only for unconfigured local
-  runs. Production must retain its reviewed 4,300 floor. Do not infer deletion
+  runs. Production must retain its reviewed 5,000 floor. Do not infer deletion
   authorization from an HTTP success or the inventory.
 - Keep the last verified catalogue/data version available for rollback.
 - Treat a partial run as an incident, not as an empty current catalogue.

@@ -211,9 +211,9 @@ Key decisions that are easy to get wrong — documented so forks don't repeat th
 |-----|---------|
 | [001](docs/decisions/ADR-001-no-import-meta-env-in-schedule-builder.md) | Supabase browser configuration is centralized, target-specific, and has no project fallback |
 | [002](docs/decisions/ADR-002-live-courses-isolated-useeffect.md) | `live_courses` fetched in isolated `useEffect([])` — never inside semester effect |
-| [003](docs/decisions/ADR-003-filteredsearchresults-usememo-source-of-truth.md) | `filteredSearchResults` useMemo is single source of truth for browse mode |
-| [004](docs/decisions/ADR-004-term-format-difference.md) | `live_courses` uses `"2026 Spring"` (space); `course_sections` uses `"2026Spring"` (no space) |
-| [005](docs/decisions/ADR-005-build-must-pass-before-commit.md) | Lint enforced locally; full build gate enforced by GitHub Actions CI |
+| [003](docs/decisions/ADR-003-filtered-search-results-usememo.md) | `filteredSearchResults` useMemo is single source of truth for browse mode |
+| [004](docs/decisions/ADR-004-term-format-differences.md) | `live_courses` uses `"2026 Spring"` (space); `course_sections` uses `"2026Spring"` (no space) |
+| [005](docs/decisions/ADR-005-agent-workflow-build-must-pass.md) | Lint enforced locally; full build gate enforced by GitHub Actions CI |
 | [006](docs/decisions/ADR-006-formatter-normalized-architecture-ratchet.md) | Prettier is canonical; architecture limits ratchet from the reviewed formatted baseline |
 
 For handover and operations, see [architecture](docs/ARCHITECTURE.md),

@@ -11,9 +11,9 @@ class SyncWorkflowConfigTests(unittest.TestCase):
     def test_production_sync_sets_a_reviewed_catalogue_floor(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("SYNC_ALLOW_STALE_DELETE: 'false'", workflow)
-        self.assertIn("SYNC_MIN_UNIQUE_COURSES: '4300'", workflow)
-        self.assertIn("4,826 distinct non-HKS ATS rows", workflow)
-        self.assertIn("29186716529", workflow)
+        self.assertIn("SYNC_MIN_UNIQUE_COURSES: '5000'", workflow)
+        self.assertIn("5,607 non-HKS ATS rows", workflow)
+        self.assertIn("29189143811", workflow)
 
     def test_production_sync_serializes_manual_and_scheduled_promotions(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
