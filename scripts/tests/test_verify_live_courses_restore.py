@@ -11,6 +11,7 @@ from pathlib import Path
 
 from scripts.live_courses_backup_format import BACKUP_FORMAT, canonical_payload_bytes
 from scripts.verify_live_courses_restore import (
+    MAX_RESTORED_PAYLOAD_CHARS,
     load_backup,
     read_restored_rows,
     verify_restored_rows,
@@ -95,16 +96,62 @@ class LiveCoursesRestoreVerificationTests(unittest.TestCase):
                 csv_rows = list(csv.reader(handle))
             self.assertEqual([row[1] for row in csv_rows], ["course-1", "course-2"])
 
-            restored_path = Path(directory) / "restored.ndjson"
-            restored_path.write_text(
-                "\n".join(json.dumps(row, sort_keys=True) for row in self.rows) + "\n",
-                encoding="utf-8",
-            )
+            restored_path = Path(directory) / "restored.csv"
+            with restored_path.open("x", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle, lineterminator="\n")
+                for row in self.rows:
+                    writer.writerow([json.dumps(row, sort_keys=True)])
             restored = read_restored_rows(restored_path)
             result = verify_restored_rows(backup, restored)
 
         self.assertEqual(result["row_count"], 2)
         self.assertEqual(result["payload_sha256"], self.payload["payload_sha256"])
+
+    def test_restored_csv_preserves_embedded_newlines_quotes_and_commas(self):
+        restored_row = self.live_course_row(
+            "course-special",
+            title='Institutions, "leadership"\nand evidence',
+            description="Line one\r\nLine two, with punctuation",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            restored_path = Path(directory) / "restored.csv"
+            with restored_path.open("x", encoding="utf-8", newline="") as handle:
+                csv.writer(handle, lineterminator="\n").writerow(
+                    [json.dumps(restored_row, sort_keys=True)]
+                )
+
+            self.assertEqual(read_restored_rows(restored_path), [restored_row])
+
+    def test_restored_csv_rejects_extra_columns(self):
+        with tempfile.TemporaryDirectory() as directory:
+            restored_path = Path(directory) / "restored.csv"
+            with restored_path.open("x", encoding="utf-8", newline="") as handle:
+                csv.writer(handle, lineterminator="\n").writerow(["{}", "unexpected"])
+
+            with self.assertRaisesRegex(ValueError, "exactly one JSON payload column"):
+                read_restored_rows(restored_path)
+
+    def test_restored_csv_accepts_valid_rows_larger_than_python_default(self):
+        restored_row = self.live_course_row("course-large", description="x" * 150_000)
+        with tempfile.TemporaryDirectory() as directory:
+            restored_path = Path(directory) / "restored.csv"
+            with restored_path.open("x", encoding="utf-8", newline="") as handle:
+                csv.writer(handle, lineterminator="\n").writerow([json.dumps(restored_row)])
+
+            self.assertEqual(read_restored_rows(restored_path), [restored_row])
+
+    def test_restored_csv_rejects_rows_above_reviewed_memory_bound(self):
+        restored_row = self.live_course_row(
+            "course-too-large",
+            description="x" * (MAX_RESTORED_PAYLOAD_CHARS + 1),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            restored_path = Path(directory) / "restored.csv"
+            with restored_path.open("x", encoding="utf-8", newline="") as handle:
+                csv.writer(handle, lineterminator="\n").writerow([json.dumps(restored_row)])
+
+            with self.assertRaisesRegex(ValueError, "exceeds the .*character limit"):
+                read_restored_rows(restored_path)
 
     def test_rejects_count_digest_duplicate_and_restored_payload_mismatches(self):
         with tempfile.TemporaryDirectory() as directory:

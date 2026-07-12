@@ -89,9 +89,10 @@ jobs:
             -c "\copy live_courses_restore_payloads (ordinal,id,payload) from '$RUNNER_TEMP/live-courses-restore.csv' with (format csv)"
           psql -h 127.0.0.1 -U restore_probe -d restore_probe \
             -f scripts/restore_live_courses_probe.sql
-          psql -h 127.0.0.1 -U restore_probe -d restore_probe -Atq \
-            -c "select (to_jsonb(restored) - 'ordinal')::text from live_courses_restore_probe as restored order by ordinal" \
-            > "$RUNNER_TEMP/live-courses-restored.ndjson"
+          # CSV framing preserves embedded newlines, quotes, and commas inside
+          # course text while retaining one exact JSON payload per restored row.
+          psql -h 127.0.0.1 -U restore_probe -d restore_probe -v ON_ERROR_STOP=1 \
+            -c "\copy (select (to_jsonb(restored) - 'ordinal')::text from live_courses_restore_probe as restored order by ordinal) to '$RUNNER_TEMP/live-courses-restored.csv' with (format csv)"
 
       - name: Verify exact restored row count and digest
         run: >-
@@ -99,7 +100,7 @@ jobs:
           --backup "$RUNNER_TEMP/live-courses-backup.json"
           --expected-project-url "https://cbtroatixvydpwoviezf.supabase.co"
           --minimum-rows 5000
-          --restored "$RUNNER_TEMP/live-courses-restored.ndjson"
+          --restored "$RUNNER_TEMP/live-courses-restored.csv"
 
       - name: Remove decrypted files and scratch table
         if: always()
@@ -108,6 +109,6 @@ jobs:
         run: |
           rm -f "$RUNNER_TEMP/live-courses-backup.json" \
             "$RUNNER_TEMP/live-courses-restore.csv" \
-            "$RUNNER_TEMP/live-courses-restored.ndjson"
+            "$RUNNER_TEMP/live-courses-restored.csv"
           psql -h 127.0.0.1 -U restore_probe -d restore_probe \
             -c "drop table if exists live_courses_restore_probe, live_courses_restore_payloads"
