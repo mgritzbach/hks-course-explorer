@@ -16,6 +16,7 @@ vi.mock('../lib/plotlyComponent.js', () => ({
         </button>
         <output data-testid="x-range">{layout.xaxis.range.join(',')}</output>
         <output data-testid="y-range">{layout.yaxis.range.join(',')}</output>
+        <output data-testid="left-margin">{layout.margin.l}</output>
       </div>
     )
   },
@@ -88,5 +89,6 @@ describe('ScatterPlot production regressions', () => {
 
     await waitFor(() => expect(screen.getByTestId('x-range').textContent).toBe('0,100'))
     expect(screen.getByTestId('y-range').textContent).toBe('0,100')
+    expect(Number(screen.getByTestId('left-margin').textContent)).toBeGreaterThanOrEqual(72)
   })
 })

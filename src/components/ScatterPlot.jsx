@@ -593,7 +593,9 @@ export default function ScatterPlot({
       // Plotly otherwise preserves an out-of-date internal pan range even
       // after React supplies a new controlled range.
       uirevision: `${xMetric}-${yMetric}-${metricMode}-${matchedViewKey}-${viewResetRevision}-${effectiveXDomain.join(':')}-${effectiveYDomain.join(':')}`,
-      margin: { t: 44, r: 18, b: 44, l: 54 },
+      // Leave enough room for vertical labels such as "Course Rating
+      // (percentile)" instead of letting them crowd the plot edge.
+      margin: { t: 44, r: 18, b: 44, l: 78 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       dragmode: 'pan',
