@@ -29,9 +29,9 @@ export function toCourseSummary(course) {
     instructor: course.professor_display || course.professor,
     concentration: course.concentration,
     term: course.term,
-    rating_pct: Math.round(coursesafe(course.metrics_pct?.Course_Rating)),
-    workload_pct: Math.round(coursesafe(course.metrics_pct?.Workload)),
-    instructor_pct: Math.round(coursesafe(course.metrics_pct?.Instructor_Rating)),
+    rating_pct: optionalRounded(course.metrics_pct?.Course_Rating),
+    workload_pct: optionalRounded(course.metrics_pct?.Workload),
+    instructor_pct: optionalRounded(course.metrics_pct?.Instructor_Rating),
     bid_price_pts: course.last_bid_price ?? null,
     // Older catalogue rows can contain 0/1, strings, or null. The Worker
     // accepts only a real boolean, so normalize known values and omit unknowns.
@@ -40,8 +40,8 @@ export function toCourseSummary(course) {
   }
 }
 
-function coursesafe(value) {
-  return Number.isFinite(value) ? value : 0
+function optionalRounded(value) {
+  return Number.isFinite(value) ? Math.round(value) : undefined
 }
 
 function rankCourse(course) {

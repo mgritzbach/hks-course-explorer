@@ -19,4 +19,16 @@ describe('chat course context', () => {
     expect(summary.is_core).toBeUndefined()
     expect(JSON.parse(JSON.stringify(summary))).not.toHaveProperty('is_core')
   })
+
+  it('omits missing evaluation metrics instead of reporting false zero percentiles', () => {
+    const summary = toCourseSummary({
+      course_code: 'IGA-550',
+      metrics_pct: { Course_Rating: null, Workload: undefined, Instructor_Rating: null },
+    })
+    const transmitted = JSON.parse(JSON.stringify(summary))
+
+    expect(transmitted).not.toHaveProperty('rating_pct')
+    expect(transmitted).not.toHaveProperty('workload_pct')
+    expect(transmitted).not.toHaveProperty('instructor_pct')
+  })
 })
