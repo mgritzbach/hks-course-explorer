@@ -217,7 +217,8 @@ Key decisions that are easy to get wrong — documented so forks don't repeat th
 | [006](docs/decisions/ADR-006-formatter-normalized-architecture-ratchet.md) | Prettier is canonical; architecture limits ratchet from the reviewed formatted baseline |
 
 For handover and operations, see [architecture](docs/ARCHITECTURE.md),
-[configuration](docs/CONFIGURATION.md), and the [operations runbook](docs/OPERATIONS.md).
+[configuration](docs/CONFIGURATION.md), [service ownership](docs/OWNERSHIP.md),
+and the [operations runbook](docs/OPERATIONS.md).
 
 ---
 

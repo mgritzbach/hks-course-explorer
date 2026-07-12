@@ -60,6 +60,109 @@ global API key. The policy control retries transient rate-limit, server, and
 network failures twice with bounded backoff; permission, target-validation, and
 read-back failures are never retried into a broader mutation.
 
+## Manual Cloudflare Pages rollback
+
+Use this only after a production promotion has occurred and a subsequent smoke
+or monitoring check proves the new deployment unsafe. Cloudflare accepts only a
+previously successful **production** deployment as a Pages rollback target;
+preview/release-candidate deployments are not valid targets. See Cloudflare's
+[Pages rollback documentation](https://developers.cloudflare.com/pages/configuration/rollbacks/).
+
+1. Freeze new merges and cancel or disable any queued production deployment.
+2. In **Cloudflare > Workers & Pages > hks-course-explorer > Deployments > All
+   deployments**, record the current production deployment ID/commit and the
+   last successful production deployment that passed both Pages and custom-
+   domain smoke. Do not select a preview deployment. Record the target ID,
+   commit, URL, and the evidence that made it last-known-good.
+3. Open the target's three-dot menu, choose **Rollback to this deployment**,
+   confirm, and record the resulting production deployment ID and timestamp.
+   The equivalent API operation requires only Pages Write and is useful when
+   the dashboard is unavailable:
+
+   ```powershell
+   $env:CLOUDFLARE_ACCOUNT_ID = '54cdc2ac5fbe86216672ccf2589cf9cb'
+   $env:CLOUDFLARE_PAGES_PROJECT = 'hks-course-explorer'
+   $env:ROLLBACK_DEPLOYMENT_ID = '<reviewed successful production deployment UUID>'
+   # CLOUDFLARE_API_TOKEN must be supplied as a secret environment variable.
+   $headers = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+   $uri = "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects/$env:CLOUDFLARE_PAGES_PROJECT/deployments/$env:ROLLBACK_DEPLOYMENT_ID/rollback"
+   $result = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers
+   if (-not $result.success) { throw 'Cloudflare Pages rollback was not accepted.' }
+   ```
+
+4. Verify from an isolated checkout of the **recorded rollback commit**. The
+   static smoke compares deployed asset fingerprints and bodies with local
+   `dist`, so running it from the failed/newer checkout would produce a false
+   mismatch. Keep the incident checkout and logs untouched; create a detached
+   worktree, rebuild with the production browser configuration, and run every
+   smoke from that exact target. `VITE_SUPABASE_ANON_KEY` must come from the
+   existing browser deployment secret and must never be printed:
+
+   ```powershell
+   $ErrorActionPreference = 'Stop'
+   $rollbackCommit = '<recorded 40-character rollback commit>'
+   if ($rollbackCommit -notmatch '^[0-9a-f]{40}$') { throw 'Invalid rollback commit.' }
+   if (-not $env:VITE_SUPABASE_ANON_KEY) { throw 'Production browser key is required.' }
+   $env:VITE_SUPABASE_URL = 'https://cbtroatixvydpwoviezf.supabase.co'
+   git fetch origin --prune
+   if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch the rollback commit.' }
+   git rev-parse --verify "${rollbackCommit}^{commit}"
+   if ($LASTEXITCODE -ne 0) { throw 'Rollback commit is not available locally.' }
+   $rollbackWorktree = Join-Path $env:TEMP "hks-course-explorer-rollback-$($rollbackCommit.Substring(0, 12))"
+   if (Test-Path -LiteralPath $rollbackWorktree) { throw "Rollback worktree path already exists: $rollbackWorktree" }
+   git worktree add --detach $rollbackWorktree $rollbackCommit
+   if ($LASTEXITCODE -ne 0) { throw 'Failed to create the isolated rollback worktree.' }
+   $verificationSucceeded = $false
+   $insideRollbackWorktree = $false
+   try {
+       Push-Location $rollbackWorktree
+       $insideRollbackWorktree = $true
+       npm ci --legacy-peer-deps
+       if ($LASTEXITCODE -ne 0) { throw 'Rollback dependency install failed.' }
+       npm run build
+       if ($LASTEXITCODE -ne 0) { throw 'Rollback build failed.' }
+       npx playwright install chromium
+       if ($LASTEXITCODE -ne 0) { throw 'Rollback browser install failed.' }
+       $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.pages.dev/'
+       node scripts/smoke_deployed_site.mjs
+       if ($LASTEXITCODE -ne 0) { throw 'Pages-domain rollback smoke failed.' }
+       $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.org/'
+       node scripts/smoke_deployed_site.mjs
+       if ($LASTEXITCODE -ne 0) { throw 'Custom-domain rollback smoke failed.' }
+       $env:DEPLOY_MIN_HKS_OFFERINGS = '285'
+       npm run test:e2e:production
+       if ($LASTEXITCODE -ne 0) { throw 'Rollback production browser suite failed.' }
+       $verificationSucceeded = $true
+   }
+   finally {
+       if ($insideRollbackWorktree) { Pop-Location }
+       if ($verificationSucceeded) {
+           git worktree remove $rollbackWorktree
+           if ($LASTEXITCODE -ne 0) { throw 'Rollback worktree cleanup failed.' }
+       }
+       else {
+           Write-Warning "Rollback verification failed; evidence retained at $rollbackWorktree"
+       }
+   }
+   ```
+
+   If verification fails, preserve the detached worktree until its output is
+   attached to the incident, then remove it explicitly. Do not switch or reset
+   the original incident checkout.
+5. Confirm the custom domain serves the recorded rollback deployment and retain
+   the smoke output with the incident. Re-enable promotion only after the
+   regression is fixed and the normal exact-commit release path passes again.
+
+A Pages rollback changes application/Function code only. It does **not** roll
+back Supabase data, migrations, KV contents, secrets, or Durable Object state.
+Do not perform a database restore unless its separately approved recovery plan
+requires it. If the failed release changed the `ChatRateLimiter` Worker, review
+binding/state compatibility before any response. This repository does not yet
+have an exercised Worker rollback procedure, so Worker rollback is not a
+routine operator action: keep the affected path failed closed and escalate to
+the platform owner rather than improvising a version or Durable Object change.
+Never assume the Pages rollback reverted that Worker.
+
 If port 4173 is intentionally occupied by another local preview, run the
 same isolated built-artifact suite on a different port, for example:
 
@@ -258,6 +361,10 @@ grants, backup/restore, Function secrets, and Cloudflare log retention require
 platform-owner evidence.
 
 ## Incident response
+
+Accountability, severity definitions, private/public intake, zero-cost limits,
+and the successor-team acceptance process are defined in
+[`OWNERSHIP.md`](OWNERSHIP.md).
 
 1. Stop promotion and preserve the failing release/data-sync logs.
 2. Classify the incident: browser UI, Pages Function, Harvard API, Supabase,
