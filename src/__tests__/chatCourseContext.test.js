@@ -106,6 +106,40 @@ describe('chat course context', () => {
     expect(context.some((course) => course.code === 'MLD-215-B')).toBe(false)
   })
 
+  it.each([
+    ['D. Freeland', 'MLD-101'],
+    ["Daniel D'Oca", 'DPI-201'],
+    ['L. David Brown', 'MLD-301'],
+    ["Meghan O'Sullivan", 'IGA-401'],
+    ["Timothy O'Brien", 'IGA-501'],
+  ])('matches the complete instructor name %s despite one-letter fragments', (instructor, code) => {
+    const courses = [
+      {
+        course_code: code,
+        course_code_base: code,
+        course_name: 'Named Instructor Seminar',
+        professor_display: instructor,
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'UNRELATED-1',
+        course_code_base: 'UNRELATED-1',
+        course_name: 'Unrelated Seminar',
+        professor_display: 'Another Professor',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+    ]
+
+    const context = condenseCourses(courses, `What does ${instructor} teach?`)
+
+    expect(context).toHaveLength(1)
+    expect(context[0]).toMatchObject({ code, instructor })
+  })
+
   it('keeps a second-turn professor question focused on the named instructor', () => {
     const courses = [
       {

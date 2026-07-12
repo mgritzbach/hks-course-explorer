@@ -60,6 +60,12 @@ function searchableTokens(value) {
   return new Set(searchableText(value).split(/\s+/).filter(Boolean))
 }
 
+function instructorNameTokens(value) {
+  return searchableText(value)
+    .split(/\s+/)
+    .filter((token) => token.length > 1)
+}
+
 export function normalizeOptionalBoolean(value) {
   if (typeof value === 'boolean') return value
   if (value === 1 || value === '1' || value === 'true') return true
@@ -102,7 +108,7 @@ function instructorIdentity(course) {
 }
 
 function hasCompleteInstructorName(course, keywords) {
-  const nameTokens = searchableTokens(course.professor_display || course.professor)
+  const nameTokens = new Set(instructorNameTokens(course.professor_display || course.professor))
   return nameTokens.size >= 2 && [...nameTokens].every((token) => keywords.includes(token))
 }
 
@@ -188,7 +194,7 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
 
   const scoredCourses = courses
     .map((c) => {
-      const instructorTokens = searchableTokens(c.professor_display || c.professor)
+      const instructorTokens = new Set(instructorNameTokens(c.professor_display || c.professor))
       const courseTokens = searchableTokens(
         [c.course_name, c.course_code, c.course_code_base, c.concentration].join(' '),
       )
