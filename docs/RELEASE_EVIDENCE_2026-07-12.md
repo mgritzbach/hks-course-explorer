@@ -71,12 +71,13 @@ binary complete. Percentages are not release waivers.
    path.
 4. Record manual production desktop/mobile/keyboard accessibility acceptance.
 5. Deploy the exact-master collector through the complete canonical workflow,
-   then retain and review a representative 28-day field window. Require mobile
-   traffic, at least 75 LCP and CLS samples, at least 30 INP interaction
-   samples, p75 LCP at or below 2,500 ms, p75 INP at or below 200 ms, p75 CLS at
-   or below 0.1, and representative catalogue/API latency results against
-   approved budgets. An empty or operator-only window is not acceptance
-   evidence.
+   then retain and review a representative 28-day field window split by device
+   type. Require the independent `Mobile` segment to have at least 75 LCP
+   samples, 75 CLS samples, and 30 INP interaction samples, with mobile p75 LCP
+   at or below 2,500 ms, mobile p75 INP at or below 200 ms, and mobile p75 CLS at
+   or below 0.1. Also require representative catalogue/API latency results
+   against approved budgets. An all-device aggregate, empty window, or
+   operator-only window is not mobile acceptance evidence.
 6. Complete the successor/on-call handover acceptance record.
 
 No item in this document authorizes a paid provider feature, destructive
