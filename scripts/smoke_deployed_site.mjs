@@ -18,6 +18,7 @@ export const DEPLOYED_SPA_ROUTE_PATHS = Object.freeze([
 // 57-second propagation window before declaring the verified deployment bad.
 export const DEPLOYED_ASSET_MAX_ATTEMPTS = 20
 const DEPLOYED_ASSET_RETRY_MS = 3_000
+export const MIN_DEPLOYED_SIMILARITY_ROWS = 1_000
 
 export function assertDeployedEntrypoint(response, body, targetUrl) {
   if (!response.ok) {
@@ -71,6 +72,42 @@ export function assertDeployedSpaRoute(response, body, expectedAssetPath, target
   )
 }
 
+export function assertSimilarityCoordinates(
+  response,
+  body,
+  expectedBody,
+  targetUrl,
+  minimumRows = MIN_DEPLOYED_SIMILARITY_ROWS,
+) {
+  if (!response.ok) {
+    throw new Error(
+      `Similarity-coordinate smoke check returned HTTP ${response.status}: ${targetUrl}`,
+    )
+  }
+  if (!(response.headers.get('content-type') || '').includes('application/json')) {
+    throw new Error(`Similarity-coordinate smoke check returned non-JSON content: ${targetUrl}`)
+  }
+  let actual
+  let expected
+  try {
+    actual = JSON.parse(body)
+    expected = JSON.parse(expectedBody)
+  } catch {
+    throw new Error(`Similarity-coordinate smoke check received malformed JSON: ${targetUrl}`)
+  }
+  if (!Array.isArray(expected) || expected.length < minimumRows) {
+    throw new Error(`Built similarity-coordinate artifact has fewer than ${minimumRows} rows`)
+  }
+  if (!Array.isArray(actual) || actual.length !== expected.length) {
+    throw new Error(
+      `Deployed similarity-coordinate count differs from this build: expected ${expected.length}, received ${Array.isArray(actual) ? actual.length : 'non-array'}: ${targetUrl}`,
+    )
+  }
+  if (body !== expectedBody) {
+    throw new Error(`Deployed similarity-coordinate artifact differs from this build: ${targetUrl}`)
+  }
+}
+
 export async function smokeDeployedSpaRoutes({
   fetchImpl = fetch,
   targetUrl = process.env.DEPLOY_SMOKE_URL || DEFAULT_DEPLOYED_SITE_URL,
@@ -99,6 +136,10 @@ export async function smokeDeployedSite({
   maxAttempts = DEPLOYED_ASSET_MAX_ATTEMPTS,
   spaRoutes = DEPLOYED_SPA_ROUTE_PATHS,
   verifySpaRoutes = false,
+  verifySimilarityCoordinates = false,
+  buildSimilarityPath = 'dist/sim_coords.json',
+  expectedSimilarityBody,
+  minimumSimilarityRows = MIN_DEPLOYED_SIMILARITY_ROWS,
   waitImpl = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 } = {}) {
   // Cloudflare can briefly serve the previous deployment after a successful
@@ -107,6 +148,9 @@ export async function smokeDeployedSite({
   const expectedAsset =
     expectedAssetPath ||
     extractFingerprintAssetPath(await readFileImpl(buildHtmlPath, 'utf8'), buildHtmlPath)
+  const expectedCoordinates = verifySimilarityCoordinates
+    ? expectedSimilarityBody || (await readFileImpl(buildSimilarityPath, 'utf8'))
+    : null
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
     throw new Error('Deployed site smoke check requires at least one asset verification attempt.')
   }
@@ -163,13 +207,36 @@ export async function smokeDeployedSite({
         throw error
       }
     }
+    if (verifySimilarityCoordinates) {
+      try {
+        const similarityUrl = new URL('/sim_coords.json', targetUrl).toString()
+        const similarityResponse = await fetchImpl(similarityUrl, {
+          redirect: 'follow',
+          signal: AbortSignal.timeout(30_000),
+        })
+        const similarityBody = await similarityResponse.text()
+        assertSimilarityCoordinates(
+          similarityResponse,
+          similarityBody,
+          expectedCoordinates,
+          similarityUrl,
+          minimumSimilarityRows,
+        )
+      } catch (error) {
+        if (attempt < maxAttempts) {
+          await waitImpl(DEPLOYED_ASSET_RETRY_MS)
+          continue
+        }
+        throw error
+      }
+    }
     return
   }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    await smokeDeployedSite({ verifySpaRoutes: true })
+    await smokeDeployedSite({ verifySpaRoutes: true, verifySimilarityCoordinates: true })
     console.log(
       `Deployed site smoke check passed: ${process.env.DEPLOY_SMOKE_URL || DEFAULT_DEPLOYED_SITE_URL}`,
     )

@@ -108,6 +108,10 @@ test.describe('Schedule Builder critical flows', () => {
     await expect.poll(() => requestedTerms).toContain('eq.2027 Spring')
     await expect(results).toContainText('IGA-299-A')
     await expect(results).toContainText('1 live course')
+
+    await page.getByLabel('Search courses and instructors').fill('January Policy')
+    await expect(results).toContainText('IGA-299-A')
+    await expect(results).toContainText('1 live course')
   })
 
   test('does not claim schedule-pending courses match explicit day filters', async ({ page }) => {

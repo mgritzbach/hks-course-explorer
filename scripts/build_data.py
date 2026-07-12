@@ -10,7 +10,15 @@ import math
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_CSV = ROOT / "data" / "canonical_courses_enriched.csv"
 OUTPUT_JSON = ROOT / "public" / "courses.json"
-SIM_HASH_FILE = ROOT / "public" / ".sim_coords_hash"
+SIM_HASH_FILE = ROOT / "data" / "sim_coords_source.md5"
+SIM_COORDINATE_FIELDS = (
+    "sim_x",
+    "sim_y",
+    "sim_x_ratings",
+    "sim_y_ratings",
+    "sim_x_text",
+    "sim_y_text",
+)
 
 # Load school-specific config from data/school_config.json
 # Forks replace that file — no changes to this script needed.
@@ -473,6 +481,52 @@ def compute_all_similarity_coords(courses):
     }
 
 
+def validate_similarity_cache(entries, courses):
+    """Validate the committed graph artifact before a production build uses it.
+
+    The cache is deliberately checked against every current evaluation record.
+    A missing, empty, stale, or numerically invalid graph is a build failure,
+    never a reason to publish an empty replacement.
+    """
+    if not isinstance(entries, list) or not entries:
+        raise RuntimeError("Similarity coordinate cache is empty or malformed")
+
+    expected_ids = {
+        course["id"]
+        for course in courses
+        if course.get("has_eval")
+        and not course.get("is_average")
+        and course.get("year")
+        and course["year"] > 0
+    }
+    by_id = {}
+    coordinate_values = {}
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("id"):
+            raise RuntimeError("Similarity coordinate cache contains a row without an id")
+        values = []
+        for field in SIM_COORDINATE_FIELDS:
+            value = entry.get(field)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise RuntimeError(
+                    f"Similarity coordinate cache has invalid {field} for {entry['id']}"
+                )
+            values.append(float(value))
+        coordinate_tuple = tuple(values)
+        if entry["id"] in coordinate_values and coordinate_values[entry["id"]] != coordinate_tuple:
+            raise RuntimeError(f"Similarity coordinate cache conflicts for duplicate id {entry['id']}")
+        coordinate_values[entry["id"]] = coordinate_tuple
+        by_id[entry["id"]] = entry
+
+    actual_ids = set(by_id)
+    if actual_ids != expected_ids:
+        raise RuntimeError(
+            "Similarity coordinate cache does not match the current catalogue: "
+            f"missing={len(expected_ids - actual_ids)}, extra={len(actual_ids - expected_ids)}"
+        )
+    return by_id
+
+
 def build_course(row, latest_bid_lookup):
     course_code = clean_text(row.get("course_code"))
     course_code_base = clean_text(row.get("course_code_base")) or course_code
@@ -704,15 +758,35 @@ def main():
 
     csv_hash = hashlib.md5(SOURCE_CSV.read_bytes()).hexdigest()
     cached_hash = SIM_HASH_FILE.read_text(encoding="utf-8").strip() if SIM_HASH_FILE.exists() else ""
-    sim_coords_cached = SIM_JSON.exists() and csv_hash == cached_hash
+    sim_coords_cached = SIM_JSON.exists() and SIM_SRC.exists() and csv_hash == cached_hash
 
     if sim_coords_cached:
         print("Similarity coords up-to-date (source unchanged) — loading from cache")
         existing = json.loads(SIM_JSON.read_text(encoding="utf-8"))
-        sim_coords = {entry["id"]: {"x": entry["sim_x"], "y": entry["sim_y"]} for entry in existing}
+        source_copy = json.loads(SIM_SRC.read_text(encoding="utf-8"))
+        if existing != source_copy:
+            raise RuntimeError("Public and source similarity coordinate caches differ")
+        validated = validate_similarity_cache(existing, courses)
+        sim_coords = {
+            course_id: {
+                "x": entry["sim_x"],
+                "y": entry["sim_y"],
+                "x_ratings": entry["sim_x_ratings"],
+                "y_ratings": entry["sim_y_ratings"],
+                "x_text": entry["sim_x_text"],
+                "y_text": entry["sim_y_text"],
+            }
+            for course_id, entry in validated.items()
+        }
     else:
         print("Computing similarity map coordinates (combined / ratings / text)...")
         sim_coords = compute_all_similarity_coords(courses)
+        if not sim_coords:
+            raise RuntimeError(
+                "Similarity coordinate recomputation produced no data; refusing to overwrite "
+                "the committed graph artifacts. Install the data-science dependencies and "
+                "regenerate them before changing the canonical source."
+            )
         sim_slim = [
             {
                 "id":            course["id"],
@@ -731,6 +805,7 @@ def main():
             for course in courses
             if (c := sim_coords.get(course["id"]))
         ]
+        validate_similarity_cache(sim_slim, courses)
         sim_json_str = json.dumps(sim_slim, ensure_ascii=False, separators=(",", ":"))
         SIM_JSON.write_text(sim_json_str, encoding="utf-8")
         SIM_SRC.parent.mkdir(parents=True, exist_ok=True)

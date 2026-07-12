@@ -4,6 +4,7 @@ import {
   assertFingerprintAsset,
   assertDeployedSpaRoute,
   assertSameFingerprintAsset,
+  assertSimilarityCoordinates,
   DEPLOYED_ASSET_MAX_ATTEMPTS,
   DEPLOYED_SPA_ROUTE_PATHS,
   extractFingerprintAssetPath,
@@ -196,6 +197,64 @@ describe('deployed site smoke check', () => {
         'https://example.test/schedule-builder',
       ),
     ).not.toThrow()
+  })
+
+  it('rejects empty or stale deployed similarity-coordinate data', async () => {
+    const expectedCoordinates = JSON.stringify([{ id: 'a', sim_x: 1, sim_y: 2 }])
+    expect(() =>
+      assertSimilarityCoordinates(
+        response({ contentType: 'application/json', body: '[]' }),
+        '[]',
+        expectedCoordinates,
+        'https://example.test/sim_coords.json',
+        1,
+      ),
+    ).toThrow('count differs')
+
+    const responses = [
+      response({
+        body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+      }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+      response({ contentType: 'application/json', body: '[]' }),
+    ]
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-current123.js',
+        expectedSimilarityBody: expectedCoordinates,
+        minimumSimilarityRows: 1,
+        verifySimilarityCoordinates: true,
+        fetchImpl: async () => responses.shift(),
+        maxAttempts: 1,
+      }),
+    ).rejects.toThrow('count differs')
+  })
+
+  it('accepts the exact nonempty similarity-coordinate artifact', async () => {
+    const coordinates = JSON.stringify([{ id: 'a', sim_x: 1, sim_y: 2 }])
+    const responses = [
+      response({
+        body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+      }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+      response({ contentType: 'application/json', body: coordinates }),
+    ]
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-current123.js',
+        expectedSimilarityBody: coordinates,
+        minimumSimilarityRows: 1,
+        verifySimilarityCoordinates: true,
+        fetchImpl: async () => responses.shift(),
+        maxAttempts: 1,
+      }),
+    ).resolves.toBeUndefined()
   })
 
   it('waits for a direct route cache to serve the exact deployed build', async () => {

@@ -84,5 +84,10 @@ jobs:
       - name: Smoke-test deployed Pages entrypoint
         run: node scripts/smoke_deployed_site.mjs
 
+      - name: Smoke-test custom production domain
+        env:
+          DEPLOY_SMOKE_URL: https://hks-course-explorer.org/
+        run: node scripts/smoke_deployed_site.mjs
+
       - name: Record deployed commit
         run: echo "Deployed verified commit ${{ github.event.workflow_run.head_sha }}"

@@ -1,3 +1,5 @@
+import { getLiveCatalogueTerm } from './scheduleCatalogueOptions.js'
+
 function searchText(value) {
   return typeof value === 'string' ? value.trim().toLocaleLowerCase() : ''
 }
@@ -12,7 +14,7 @@ function matchesSchool(row, school) {
 
 /** Search only the daily-synced current-offering catalogue. */
 export function findLiveCatalogueRows(rows, { query = '', year, semester, school = 'HKS' } = {}) {
-  const expectedTerm = year && semester ? `${year} ${semester}` : null
+  const expectedTerm = year && semester ? getLiveCatalogueTerm(year, semester) : null
   const needle = searchText(query)
 
   return (Array.isArray(rows) ? rows : []).filter((row) => {
