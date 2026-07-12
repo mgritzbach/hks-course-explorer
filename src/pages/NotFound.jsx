@@ -1,4 +1,6 @@
 import { useNavigate } from 'react-router-dom'
+import { useDocumentTitle } from '../lib/useDocumentTitle.js'
+import config from '../school.config.js'
 
 function JFKIllustration() {
   return (
@@ -215,6 +217,7 @@ function JFKIllustration() {
 }
 
 export default function NotFound() {
+  useDocumentTitle(`${config.appTitle} - Page Not Found`)
   const navigate = useNavigate()
 
   return (
@@ -225,7 +228,7 @@ export default function NotFound() {
       {/* 404 label */}
       <p
         className="mb-2 font-mono text-sm font-bold tracking-widest uppercase"
-        style={{ color: 'var(--accent)', opacity: 0.5 }}
+        style={{ color: 'var(--accent)' }}
       >
         Error 404
       </p>
@@ -280,7 +283,7 @@ export default function NotFound() {
       </div>
 
       {/* Tiny footer note */}
-      <p className="mt-10 text-[11px]" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
+      <p className="mt-10 text-[11px]" style={{ color: 'var(--text-muted)' }}>
         HKS Course Explorer · Page not found
       </p>
     </div>

@@ -25,6 +25,7 @@ import {
   filterCourseOptions,
 } from '../lib/courseCatalogPresentation.js'
 import config from '../school.config.js'
+import { useDocumentTitle } from '../lib/useDocumentTitle.js'
 
 const BiddingTrendChart = lazy(() => import('../components/BiddingTrendChart.jsx'))
 
@@ -307,6 +308,7 @@ function FilterSidebar({
         <label className="filter-label mb-1 block">Year:</label>
         <div className="select-wrap">
           <select
+            aria-label="Academic year"
             value={filters.year}
             onChange={(event) =>
               update({
@@ -375,6 +377,7 @@ function FilterSidebar({
         <label className="filter-label mb-1 block">Concentration:</label>
         <div className="select-wrap">
           <select
+            aria-label="Concentration"
             value={filters.concentration}
             onChange={(event) => update({ concentration: event.target.value })}
           >
@@ -393,6 +396,7 @@ function FilterSidebar({
           <label className="filter-label mb-1 block">Academic Area:</label>
           <div className="select-wrap">
             <select
+              aria-label="Academic area"
               value={filters.academicArea}
               onChange={(event) => update({ academicArea: event.target.value })}
             >
@@ -411,6 +415,7 @@ function FilterSidebar({
         <label className="filter-label mb-1 block">Core Courses:</label>
         <div className="select-wrap">
           <select
+            aria-label="Core courses"
             value={filters.coreFilter}
             onChange={(event) => update({ coreFilter: event.target.value })}
           >
@@ -425,6 +430,7 @@ function FilterSidebar({
         <label className="filter-label mb-1 block">Min Instructor Rating:</label>
         <div className="select-wrap">
           <select
+            aria-label="Minimum instructor rating"
             value={filters.minInstructorPct}
             onChange={(event) => update({ minInstructorPct: event.target.value })}
           >
@@ -440,6 +446,7 @@ function FilterSidebar({
         <label className="filter-label mb-1 block">STEM Group:</label>
         <div className="select-wrap">
           <select
+            aria-label="STEM group"
             value={filters.stemGroup}
             onChange={(event) => update({ stemGroup: event.target.value })}
           >
@@ -791,9 +798,7 @@ export default function Courses({
     if (selected?.description) setDescOpen(true)
   }, [selected])
 
-  useEffect(() => {
-    document.title = config.appTitle
-  }, [])
+  useDocumentTitle(`${config.appTitle} - Courses`)
 
   const allOptions = useMemo(() => buildCourseOptions(courses), [courses])
 
@@ -942,12 +947,12 @@ export default function Courses({
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="kicker mb-2">Deep dive</p>
-            <h2
+            <h1
               className="serif-display text-3xl font-semibold md:text-[2.4rem]"
               style={{ color: 'var(--text)' }}
             >
               Course Explorer
-            </h2>
+            </h1>
             <p className="mt-2 text-xs text-muted md:text-sm">
               Search one course at a time, then browse detail, performance, and bidding history.
             </p>

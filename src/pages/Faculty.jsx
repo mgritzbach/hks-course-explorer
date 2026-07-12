@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import { fmtShort, modeSubLabel, modeUnit } from '../utils/formatMetric.js'
 import config from '../school.config.js'
+import { useDocumentTitle } from '../lib/useDocumentTitle.js'
 
 const FACULTY_TOUR_STEPS = [
   {
@@ -187,6 +188,7 @@ function FacultySidebar({
             <p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Sort</p>
             <div className="select-wrap">
               <select
+                aria-label="Sort faculty"
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value)}
                 style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
@@ -203,6 +205,7 @@ function FacultySidebar({
             <p className="mb-1 text-[10px] uppercase tracking-wider text-muted">Concentration</p>
             <div className="select-wrap">
               <select
+                aria-label="Faculty concentration"
                 value={concentration}
                 onChange={(event) => setConcentration(event.target.value)}
                 style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
@@ -222,6 +225,7 @@ function FacultySidebar({
             </p>
             <div className="select-wrap">
               <select
+                aria-label="Minimum instructor rating"
                 value={minRating}
                 onChange={(event) => setMinRating(event.target.value)}
                 style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
@@ -239,6 +243,7 @@ function FacultySidebar({
             </p>
             <div className="select-wrap">
               <select
+                aria-label="Minimum courses taught"
                 value={minCourses}
                 onChange={(event) => setMinCourses(event.target.value)}
                 style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
@@ -257,6 +262,7 @@ function FacultySidebar({
             </p>
             <div className="select-wrap">
               <select
+                aria-label="Last active year"
                 value={taughtSinceYear}
                 onChange={(e) => setTaughtSinceYear(e.target.value)}
                 style={{ fontSize: 11, padding: '3px 24px 3px 6px' }}
@@ -412,9 +418,7 @@ export default function Faculty({
     const professor = searchParams.get('prof')
     if (professor) setSelectedProf(professor)
   }, [searchParams])
-  useEffect(() => {
-    document.title = config.schoolCode + ' Faculty Explorer'
-  }, [])
+  useDocumentTitle(`${config.appTitle} - Faculty`)
 
   // "/" shortcut to focus faculty search
   const facultySearchRef = useRef(null)
@@ -707,12 +711,12 @@ export default function Faculty({
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="kicker mb-2">Teaching lens</p>
-            <h2
+            <h1
               className="serif-display text-3xl font-semibold md:text-[2.4rem]"
               style={{ color: 'var(--text)' }}
             >
               Faculty Explorer
-            </h2>
+            </h1>
             <p className="mt-2 text-xs text-muted md:text-sm">
               Browse teaching history and weighted rating averages for {config.schoolCode}{' '}
               instructors.

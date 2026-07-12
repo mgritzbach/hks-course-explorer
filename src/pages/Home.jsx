@@ -13,6 +13,7 @@ import CourseCard from '../components/CourseCard.jsx'
 import ErrorBoundary from '../components/ErrorBoundary.jsx'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import Sidebar from '../components/Sidebar.jsx'
+import { useDocumentTitle } from '../lib/useDocumentTitle.js'
 
 // Lazy-load ScatterPlot so the 4.8 MB Plotly bundle is only fetched
 // when the user opens the "Course Comparisons" tab — not on initial load.
@@ -376,9 +377,7 @@ export default function Home({
     return latestTerm ? `${latestTerm} ${maxYear}` : `${maxYear}`
   }, [courses])
 
-  useEffect(() => {
-    document.title = pageTitle(filters)
-  }, [filters])
+  useDocumentTitle(pageTitle(filters))
 
   useEffect(() => {
     if (!sidebarOpen) return undefined

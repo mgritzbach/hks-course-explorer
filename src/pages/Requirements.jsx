@@ -8,6 +8,8 @@ import {
   saveCompleted,
 } from '../lib/scheduleStorage.js'
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
+import { useDocumentTitle } from '../lib/useDocumentTitle.js'
+import config from '../school.config.js'
 
 const PROGRAM_STORAGE_KEY = 'hks_req_program'
 const PAC_AREA_STORAGE_KEY = 'hks_pac_area'
@@ -54,6 +56,7 @@ function getPlanCourses(planName = DEFAULT_PLAN) {
 }
 
 export default function Requirements({ courses = [] }) {
+  useDocumentTitle(`${config.appTitle} - My Degree`)
   const getCourseCode = useCallback(
     (course) =>
       course?.course_code_base || course?.course_code || course?.courseCode || course?.code || null,
@@ -734,7 +737,7 @@ export default function Requirements({ courses = [] }) {
                   <button
                     type="button"
                     aria-expanded={showSuggestions}
-                    aria-controls={`suggestions-${category.id}`}
+                    aria-controls={showSuggestions ? `suggestions-${category.id}` : undefined}
                     onClick={() => {
                       setOpenSuggestions((current) => ({
                         ...current,
