@@ -7,7 +7,12 @@ import { TourProvider } from './components/TutorialOverlay.jsx'
 import { useWelcomeEntry, WelcomeEntryProvider } from './components/WelcomeEntryProvider.jsx'
 import { initializeAnalytics } from './lib/analytics.js'
 import { SENTRY_REPLAY_OPTIONS } from './lib/sentryReplayConfig.js'
+import { installStaleAssetRecovery } from './lib/staleAssetRecovery.js'
 import './index.css'
+
+// An open tab can outlive a deployment and request a lazy chunk that belonged
+// to the previous release. Refresh once so it adopts the current asset map.
+installStaleAssetRecovery()
 
 // Sentry — error monitoring and performance tracking
 Sentry.init({
