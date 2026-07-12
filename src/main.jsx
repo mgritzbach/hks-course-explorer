@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import App from './App.jsx'
 import { TourProvider } from './components/TutorialOverlay.jsx'
-import { WelcomeEntryProvider } from './components/WelcomeEntryProvider.jsx'
+import { useWelcomeEntry, WelcomeEntryProvider } from './components/WelcomeEntryProvider.jsx'
 import { initializeAnalytics } from './lib/analytics.js'
 import { SENTRY_REPLAY_OPTIONS } from './lib/sentryReplayConfig.js'
 import './index.css'
@@ -27,18 +27,26 @@ Sentry.init({
 const POSTHOG_KEY =
   import.meta.env.VITE_POSTHOG_KEY ||
   (import.meta.env.PROD ? 'phc_uhzvPmZ8B6jUEhX2ymp6QL75dkcuyt5HS8VA4zcgYiyx' : null)
-if (POSTHOG_KEY) {
-  initializeAnalytics(POSTHOG_KEY, {
-    api_host: 'https://us.i.posthog.com',
-    defaults: '2026-01-30',
-    person_profiles: 'identified_only',
-  })
+function AnalyticsBootstrap() {
+  const { isWelcomeDecisionPending } = useWelcomeEntry()
+
+  React.useEffect(() => {
+    if (!POSTHOG_KEY || isWelcomeDecisionPending) return
+    initializeAnalytics(POSTHOG_KEY, {
+      api_host: 'https://us.i.posthog.com',
+      defaults: '2026-01-30',
+      person_profiles: 'identified_only',
+    })
+  }, [isWelcomeDecisionPending])
+
+  return null
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <WelcomeEntryProvider>
+        <AnalyticsBootstrap />
         <TourProvider>
           <App />
         </TourProvider>

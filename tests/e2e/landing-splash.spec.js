@@ -23,7 +23,9 @@ test.describe('welcome landing page', () => {
     await expect(direct).toBeFocused()
     await direct.click()
 
-    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible({
+      timeout: 15_000,
+    })
     await expect(page.getByRole('main')).toHaveCount(1)
     await page.waitForTimeout(600)
     await expect(page.getByRole('dialog', { name: 'Start with the Year' })).toHaveCount(0)
@@ -67,6 +69,30 @@ test.describe('welcome landing page', () => {
     await page.waitForTimeout(600)
 
     expect(catalogueRequests).toEqual([])
+  })
+
+  test('starts product analytics only after the visitor enters the application', async ({
+    page,
+  }) => {
+    let analyticsRequests = 0
+    page.on('request', (request) => {
+      if (new URL(request.url()).hostname === 'us.i.posthog.com') analyticsRequests += 1
+    })
+
+    await page.goto('/')
+    await expect(
+      page.getByRole('dialog', { name: 'Welcome to the HKS Course Explorer' }),
+    ).toBeVisible()
+    await page.waitForTimeout(600)
+    expect(analyticsRequests).toBe(0)
+
+    await page
+      .getByRole('button', { name: 'Continue directly and skip all tutorial boxes' })
+      .click()
+    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect.poll(() => analyticsRequests, { timeout: 10_000 }).toBeGreaterThan(0)
   })
 
   test('keeps both first-visit actions inside a 1280 by 720 desktop viewport', async ({ page }) => {

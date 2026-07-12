@@ -137,6 +137,7 @@ test.describe('read-only production acceptance', () => {
     const runtimeErrors = captureRuntimeErrors(page)
     const requestAudit = await protectProductionFromWrites(page)
     const authoritativeIdsByTerm = new Map()
+    const authoritativeIdsByTermSession = new Map()
     const catalogueResponseReads = []
     page.on('response', (response) => {
       const url = new URL(response.url())
@@ -156,6 +157,13 @@ test.describe('read-only production acceptance', () => {
               authoritativeIdsByTerm.set(row.term, new Set())
             }
             authoritativeIdsByTerm.get(row.term).add(row.id)
+            if (typeof row.session_description === 'string' && row.session_description) {
+              const sessionKey = JSON.stringify([row.term, row.session_description])
+              if (!authoritativeIdsByTermSession.has(sessionKey)) {
+                authoritativeIdsByTermSession.set(sessionKey, new Set())
+              }
+              authoritativeIdsByTermSession.get(sessionKey).add(row.id)
+            }
           }
         })
         .catch(() => undefined)
@@ -256,6 +264,47 @@ test.describe('read-only production acceptance', () => {
 
       await exerciseLocalPlanControl(results, addControls.first())
       if (term.count > 1) await exerciseLocalPlanControl(results, addControls.last())
+
+      const advertisedSessionOptions = await sessionFilter
+        .locator('option')
+        .evaluateAll((options) =>
+          options.map((option) => option.value).filter((value) => value && value !== 'all'),
+        )
+      const dataSessions = [...authoritativeIdsByTermSession.keys()]
+        .map((key) => JSON.parse(key))
+        .filter(([catalogueTerm]) => catalogueTerm === term.value)
+        .map(([, session]) => session)
+        .sort()
+      expect(dataSessions.length).toBeGreaterThan(0)
+      expect(advertisedSessionOptions).toEqual(expect.arrayContaining(dataSessions))
+      const sessionUnion = new Set()
+      for (const session of dataSessions) {
+        const sessionKey = JSON.stringify([term.value, session])
+        const expectedSessionIds = authoritativeIdsByTermSession.get(sessionKey)
+        for (const offeringId of expectedSessionIds) {
+          expect(sessionUnion.has(offeringId), `${offeringId} belongs to multiple sessions`).toBe(
+            false,
+          )
+          sessionUnion.add(offeringId)
+        }
+
+        await sessionFilter.selectOption(session)
+        await expect(results).toContainText(
+          `${expectedSessionIds.size} live course${expectedSessionIds.size === 1 ? '' : 's'}`,
+          { timeout: 20_000 },
+        )
+        for (;;) {
+          const showMore = results.getByRole('button', { name: /^Show more/ })
+          if ((await showMore.count()) === 0) break
+          await showMore.click()
+        }
+        const renderedSessionIds = await results
+          .getByRole('listitem')
+          .evaluateAll((items) => items.map((item) => item.getAttribute('data-offering-id')))
+        expect([...renderedSessionIds].sort()).toEqual([...expectedSessionIds].sort())
+      }
+      expect([...sessionUnion].sort()).toEqual([...authoritativeIdsByTerm.get(term.value)].sort())
+      await sessionFilter.selectOption('all')
     }
 
     expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([])

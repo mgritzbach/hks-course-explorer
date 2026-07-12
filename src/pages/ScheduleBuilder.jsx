@@ -1825,7 +1825,9 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                 <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                   Searching…
                 </div>
-              ) : filteredSearchResults.length > 0 ? (
+              ) : filteredSearchResults.length > 0 &&
+                !catalogueCoverageError &&
+                !catalogueReadError ? (
                 <div role="list" aria-label="Course search results" className="space-y-3">
                   {(() => {
                     const withTime = filteredSearchResults.filter(

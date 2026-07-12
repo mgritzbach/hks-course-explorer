@@ -1,0 +1,113 @@
+name: Verify live-course backup restore
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_run_id:
+        description: Successful Backup live courses workflow run ID
+        required: true
+        type: string
+      confirm_restore:
+        description: Decrypt and restore only into the ephemeral PostgreSQL service
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-restore:
+    if: ${{ inputs.confirm_restore }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.24@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        env:
+          POSTGRES_DB: restore_probe
+          POSTGRES_USER: restore_probe
+          POSTGRES_PASSWORD: restore_probe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U restore_probe -d restore_probe"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout reviewed recovery code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Download encrypted backup artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: live-courses-backup-${{ inputs.backup_run_id }}
+          path: ${{ runner.temp }}/encrypted-backup
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.backup_run_id }}
+
+      - name: Decrypt private backup
+        env:
+          BACKUP_ARTIFACT_PASSPHRASE: ${{ secrets.BACKUP_ARTIFACT_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_ARTIFACT_PASSPHRASE" ]; then
+            echo "BACKUP_ARTIFACT_PASSPHRASE is required for restore verification." >&2
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+            -in "$RUNNER_TEMP/encrypted-backup/live-courses-backup.json.enc" \
+            -out "$RUNNER_TEMP/live-courses-backup.json" \
+            -pass env:BACKUP_ARTIFACT_PASSPHRASE
+
+      - name: Validate backup and prepare scratch restore
+        run: >-
+          python scripts/verify_live_courses_restore.py prepare
+          --backup "$RUNNER_TEMP/live-courses-backup.json"
+          --expected-project-url "https://cbtroatixvydpwoviezf.supabase.co"
+          --minimum-rows 5000
+          --csv "$RUNNER_TEMP/live-courses-restore.csv"
+
+      - name: Restore into a schema-compatible ephemeral PostgreSQL 17 table
+        env:
+          PGPASSWORD: restore_probe
+        run: |
+          psql -h 127.0.0.1 -U restore_probe -d restore_probe -v ON_ERROR_STOP=1 <<'SQL'
+          create table live_courses_restore_payloads (
+            ordinal bigint primary key,
+            id text not null unique,
+            payload jsonb not null
+          );
+          SQL
+          psql -h 127.0.0.1 -U restore_probe -d restore_probe -v ON_ERROR_STOP=1 \
+            -c "\copy live_courses_restore_payloads (ordinal,id,payload) from '$RUNNER_TEMP/live-courses-restore.csv' with (format csv)"
+          psql -h 127.0.0.1 -U restore_probe -d restore_probe \
+            -f scripts/restore_live_courses_probe.sql
+          psql -h 127.0.0.1 -U restore_probe -d restore_probe -Atq \
+            -c "select (to_jsonb(restored) - 'ordinal')::text from live_courses_restore_probe as restored order by ordinal" \
+            > "$RUNNER_TEMP/live-courses-restored.ndjson"
+
+      - name: Verify exact restored row count and digest
+        run: >-
+          python scripts/verify_live_courses_restore.py verify
+          --backup "$RUNNER_TEMP/live-courses-backup.json"
+          --expected-project-url "https://cbtroatixvydpwoviezf.supabase.co"
+          --minimum-rows 5000
+          --restored "$RUNNER_TEMP/live-courses-restored.ndjson"
+
+      - name: Remove decrypted files and scratch table
+        if: always()
+        env:
+          PGPASSWORD: restore_probe
+        run: |
+          rm -f "$RUNNER_TEMP/live-courses-backup.json" \
+            "$RUNNER_TEMP/live-courses-restore.csv" \
+            "$RUNNER_TEMP/live-courses-restored.ndjson"
+          psql -h 127.0.0.1 -U restore_probe -d restore_probe \
+            -c "drop table if exists live_courses_restore_probe, live_courses_restore_payloads"

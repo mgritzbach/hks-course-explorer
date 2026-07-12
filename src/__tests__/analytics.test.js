@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const init = vi.fn()
 const posthogCapture = vi.fn()
@@ -13,6 +13,12 @@ async function loadAnalytics() {
 }
 
 describe('analytics adapter', () => {
+  beforeEach(() => {
+    init.mockClear()
+    posthogCapture.mockClear()
+    vi.unstubAllGlobals()
+  })
+
   it('does nothing when analytics has no configured key', async () => {
     const analytics = await loadAnalytics()
     analytics.initializeAnalytics('', {})
@@ -36,5 +42,38 @@ describe('analytics adapter', () => {
     await vi.waitFor(() =>
       expect(posthogCapture).toHaveBeenCalledWith('course_shortlisted', { course_code: 'API-101' }),
     )
+  })
+
+  it('waits for two paints and an idle boundary before loading the client', async () => {
+    const animationFrames = []
+    const idleCallbacks = []
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback) => {
+        animationFrames.push(callback)
+        return animationFrames.length
+      }),
+    )
+    vi.stubGlobal(
+      'requestIdleCallback',
+      vi.fn((callback) => {
+        idleCallbacks.push(callback)
+        return idleCallbacks.length
+      }),
+    )
+    const analytics = await loadAnalytics()
+
+    analytics.initializeAnalytics('public-key', {})
+    await Promise.resolve()
+    expect(init).not.toHaveBeenCalled()
+
+    animationFrames.shift()(0)
+    expect(init).not.toHaveBeenCalled()
+    animationFrames.shift()(16)
+    expect(init).not.toHaveBeenCalled()
+    expect(idleCallbacks).toHaveLength(1)
+
+    idleCallbacks.shift()({ didTimeout: false, timeRemaining: () => 10 })
+    await vi.waitFor(() => expect(init).toHaveBeenCalledWith('public-key', {}))
   })
 })
