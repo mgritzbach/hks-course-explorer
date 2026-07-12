@@ -4,9 +4,13 @@
 // spend, latency, or an oversized prompt.
 import { corsHeaders, handleOptions } from '../_shared/cors.js'
 
-// Top 3 free models on OpenRouter (April 2026). Update this list if models go offline.
-// OpenRouter route:fallback tries each in order — max 3 allowed.
-const FREE_MODELS = ['google/gemma-4-31b-it:free', 'minimax/minimax-m2.5:free', 'openrouter/free']
+// Current zero-cost instruction models. Update this list if OpenRouter retires one.
+// OpenRouter tries the three entries in order when a provider returns an error.
+const FREE_MODELS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'qwen/qwen3-next-80b-a3b-instruct:free',
+  'google/gemma-4-31b-it:free',
+]
 
 const MAX_REQUEST_BYTES = 64 * 1024
 const MAX_MESSAGE_CHARS = 4_000
@@ -250,6 +254,61 @@ function buildSystemPrompt(courses, shortlisted) {
 Give 2–3 specific recommendations. For each: course code, name, instructor, one sentence why it fits. When citing metrics always say e.g. "workload: 68th percentile", never "68 hours". Be brief and direct.${courseList}`
 }
 
+export function buildCourseDataFallback(courses, message) {
+  const wantsLightWorkload =
+    /\b(light|lighter|low|lowest)\b.*\b(workload|load)\b|\bworkload\b.*\b(light|lighter|low|lowest)\b/i.test(
+      message,
+    )
+  const wantsRatings =
+    /\b(best|top|good|great|high|highest)\b.*\b(rated|rating|course)\b|\brating\b/i.test(message)
+  const unique = []
+  const seen = new Set()
+
+  for (const course of courses) {
+    if (!course?.code || seen.has(course.code)) continue
+    seen.add(course.code)
+    unique.push(course)
+  }
+
+  const numberOr = (value, fallback) => (Number.isFinite(value) ? value : fallback)
+  unique.sort((left, right) => {
+    if (wantsLightWorkload) {
+      return (
+        numberOr(left.workload_pct, 101) - numberOr(right.workload_pct, 101) ||
+        numberOr(right.rating_pct, -1) - numberOr(left.rating_pct, -1)
+      )
+    }
+    if (wantsRatings) {
+      return (
+        numberOr(right.rating_pct, -1) - numberOr(left.rating_pct, -1) ||
+        numberOr(left.workload_pct, 101) - numberOr(right.workload_pct, 101)
+      )
+    }
+    const score = (course) =>
+      numberOr(course.rating_pct, 0) + (100 - numberOr(course.workload_pct, 100))
+    return score(right) - score(left)
+  })
+
+  const recommendations = unique.slice(0, 3)
+  if (recommendations.length === 0) {
+    return 'The course advisor is temporarily unavailable. Please try again in a moment.'
+  }
+
+  const lines = recommendations.map((course) => {
+    const metrics = []
+    if (Number.isFinite(course.rating_pct))
+      metrics.push(`rating: ${course.rating_pct}th percentile`)
+    if (Number.isFinite(course.workload_pct)) {
+      metrics.push(`workload: ${course.workload_pct}th percentile`)
+    }
+    return `- ${course.code}: ${course.name}${course.instructor ? ` — ${course.instructor}` : ''}${
+      metrics.length ? `. ${metrics.join('; ')}.` : '.'
+    }`
+  })
+
+  return `Based on the available course data, consider:\n${lines.join('\n')}`
+}
+
 export async function fetchFromOpenRouter(
   apiKey,
   requestBody,
@@ -292,7 +351,7 @@ function readWithIdleTimeout(reader, idleTimeoutMs) {
 
 export function createSseStream(
   response,
-  { idleTimeoutMs = UPSTREAM_STREAM_IDLE_TIMEOUT_MS } = {},
+  { idleTimeoutMs = UPSTREAM_STREAM_IDLE_TIMEOUT_MS, fallbackText = '' } = {},
 ) {
   const { readable, writable } = new TransformStream()
   const writer = writable.getWriter()
@@ -304,6 +363,12 @@ export function createSseStream(
       if (!response.body) throw new Error('Chat provider returned no stream')
       const reader = response.body.getReader()
       let buffer = ''
+      let wroteToken = false
+      const writeFallbackIfNeeded = async () => {
+        if (wroteToken || !fallbackText) return
+        await writer.write(encoder.encode(`data: ${JSON.stringify({ token: fallbackText })}\n\n`))
+        wroteToken = true
+      }
       try {
         while (true) {
           const next = await readWithIdleTimeout(reader, idleTimeoutMs)
@@ -320,6 +385,7 @@ export function createSseStream(
             if (!line.startsWith('data: ')) continue
             const payload = line.slice(6).trim()
             if (payload === '[DONE]') {
+              await writeFallbackIfNeeded()
               await writer.write(encoder.encode('data: [DONE]\n\n'))
               return
             }
@@ -328,12 +394,14 @@ export function createSseStream(
               const token = parsed.choices?.[0]?.delta?.content
               if (typeof token === 'string' && token) {
                 await writer.write(encoder.encode(`data: ${JSON.stringify({ token })}\n\n`))
+                wroteToken = true
               }
             } catch {
               // Ignore malformed provider chunks; a later valid token can still arrive.
             }
           }
         }
+        await writeFallbackIfNeeded()
         await writer.write(encoder.encode('data: [DONE]\n\n'))
       } finally {
         reader.releaseLock()
@@ -412,14 +480,17 @@ export async function onRequestPost({ request, env }) {
       )
     }
 
-    return new Response(createSseStream(response), {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        'X-Accel-Buffering': 'no',
-        ...corsHeaders(request),
+    return new Response(
+      createSseStream(response, { fallbackText: buildCourseDataFallback(courses, message) }),
+      {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          'X-Accel-Buffering': 'no',
+          ...corsHeaders(request),
+        },
       },
-    })
+    )
   } catch (error) {
     if (error instanceof RequestValidationError || error instanceof UpstreamError) {
       return jsonResponse({ error: error.message }, error.status, request)

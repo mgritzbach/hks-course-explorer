@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  buildCourseDataFallback,
   createSseStream,
   enforceChatRateLimit,
   fetchFromOpenRouter,
@@ -99,6 +100,36 @@ describe('Chat Pages Function contract', () => {
       stream: true,
       messages: expect.arrayContaining([{ role: 'user', content: validPayload.message }]),
     })
+  })
+
+  it('falls back to deterministic course data when a free provider returns an empty stream', async () => {
+    const fallback = buildCourseDataFallback(
+      [
+        {
+          code: 'API-101',
+          name: 'Policy Analysis',
+          instructor: 'Ada Example',
+          rating_pct: 80,
+          workload_pct: 65,
+        },
+        {
+          code: 'DPI-200',
+          name: 'Public Leadership',
+          instructor: 'Grace Example',
+          rating_pct: 70,
+          workload_pct: 12,
+        },
+      ],
+      'Suggest a light workload course',
+    )
+
+    expect(fallback).toContain('DPI-200: Public Leadership')
+    const body = await new Response(
+      createSseStream(new Response('data: [DONE]\n\n'), { fallbackText: fallback }),
+    ).text()
+
+    expect(body).toContain(JSON.stringify({ token: fallback }))
+    expect(body.endsWith('data: [DONE]\n\n')).toBe(true)
   })
 
   it('uses the Durable Object decision as the atomic admission boundary', async () => {
