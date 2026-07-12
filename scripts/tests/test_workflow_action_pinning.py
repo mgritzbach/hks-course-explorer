@@ -18,6 +18,8 @@ class WorkflowActionPinningTests(unittest.TestCase):
         deploy_workflow = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
         self.assertIn("npm install -g wrangler@4.86.0", deploy_workflow)
         self.assertNotIn("npm install -g wrangler@4\n", deploy_workflow)
+        self.assertNotIn("actions/setup-python", deploy_workflow)
+        self.assertNotIn("pip install", deploy_workflow)
 
     def test_deployment_accepts_only_a_trusted_master_push(self):
         deploy_workflow = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
