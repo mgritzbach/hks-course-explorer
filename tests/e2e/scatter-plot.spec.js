@@ -52,6 +52,18 @@ test.describe('Scatter Plot built-artifact regression', () => {
         y: [...element._fullLayout.yaxis.range],
       }))
 
+    // At the full domain there is nowhere to pan, so dragging must leave the
+    // rendered range at 0-100 instead of moving it outside the valid domain.
+    const fullRangeBox = await chart.boundingBox()
+    expect(fullRangeBox).not.toBeNull()
+    const fullStartX = fullRangeBox.x + fullRangeBox.width * 0.58
+    const fullStartY = fullRangeBox.y + fullRangeBox.height * 0.48
+    await page.mouse.move(fullStartX, fullStartY)
+    await page.mouse.down()
+    await page.mouse.move(fullStartX - fullRangeBox.width * 0.2, fullStartY)
+    await page.mouse.up()
+    await expect.poll(renderedRanges).toEqual({ x: [0, 100], y: [0, 100] })
+
     // Repeatedly zoom and pan the rendered Plotly canvas before resetting.
     // Checking `_fullLayout` catches the failure where React requested 0-100
     // but Plotly continued showing a stale, cropped internal range.

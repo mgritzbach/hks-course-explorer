@@ -604,7 +604,7 @@ export default function ScatterPlot({
       margin: { t: 44, r: 18, b: 44, l: 108 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
-      dragmode: 'pan',
+      dragmode: isZoomed ? 'pan' : false,
       hovermode: 'closest',
       shapes,
       xaxis: {
