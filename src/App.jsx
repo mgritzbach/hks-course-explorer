@@ -10,16 +10,12 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 import SkeletonCard from './components/SkeletonCard.jsx'
 import WelcomeHome from './components/WelcomeHome.jsx'
 import { useWelcomeEntry } from './components/WelcomeEntryProvider.jsx'
-import {
-  COURSES_CACHE_KEY,
-  COURSES_CACHE_TTL,
-  STORAGE_VERSION,
-  TALLY_FORM_ID,
-} from './lib/appConstants.js'
+import { COURSES_CACHE_KEY, STORAGE_VERSION, TALLY_FORM_ID } from './lib/appConstants.js'
 import { buildCourseMeta } from './lib/courseMeta.js'
 import { csvCell } from './lib/csvExport.js'
-import { fetchAllCourses } from './lib/courseDataLoader.js'
+import { fetchAllCoursesWithCache } from './lib/courseDataCache.js'
 import { capture } from './lib/analytics.js'
+import { buildCatalogueReadyProperties } from './lib/performanceTelemetry.js'
 import {
   DESKTOP_NAV_ITEMS,
   MOBILE_MORE_NAV_ITEMS,
@@ -33,48 +29,6 @@ const Compare = lazy(() => import('./pages/Compare.jsx'))
 const Courses = lazy(() => import('./pages/Courses.jsx'))
 const Faculty = lazy(() => import('./pages/Faculty.jsx'))
 const Resources = lazy(() => import('./pages/Resources.jsx'))
-
-/* Legacy loader behavior removed in favor of courseDataLoader.js:
- * 6× round-trip latency. MAX_PAGES gives headroom if the table grows.
- */
-async function fetchAllCoursesWithCache(onProgress) {
-  // Use sessionStorage: same-tab cache that survives navigation but not a new tab.
-  // localStorage hits the ~5 MB browser limit on the full 14 MB payload and silently
-  // fails every time, making the cache a no-op. sessionStorage is more lenient.
-  try {
-    const raw = sessionStorage.getItem(COURSES_CACHE_KEY)
-    if (raw) {
-      const cached = JSON.parse(raw)
-      if (
-        cached &&
-        cached.ts &&
-        Date.now() - cached.ts < COURSES_CACHE_TTL &&
-        Array.isArray(cached.data) &&
-        cached.data.length > 1000
-      ) {
-        if (onProgress) onProgress(cached.data.length)
-        return cached.data
-      }
-    }
-  } catch (_e) {
-    // Ignore cache read errors
-  }
-  // Home does not need the database client to paint. Keep Supabase out of the
-  // startup graph and load it only when a catalogue request is actually made.
-  const { isSupabaseConfigured, supabase } = await import('./lib/supabase.js')
-  if (!isSupabaseConfigured) {
-    throw new Error(
-      'Course data is not configured. Ask the site administrator to set the Supabase browser environment variables.',
-    )
-  }
-  const courses = await fetchAllCourses(supabase, onProgress)
-  try {
-    sessionStorage.setItem(COURSES_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: courses }))
-  } catch (_e) {
-    // Ignore cache write errors (quota exceeded etc.)
-  }
-  return courses
-}
 
 function NavResourcesSection() {
   const [open, setOpen] = useState(false)
@@ -331,10 +285,18 @@ export default function App() {
     // the full historical catalogue and graph while it covers the app wastes
     // bandwidth and CPU before a visitor has chosen to enter.
     if (isWelcomeDecisionPending) return
+    const startedAt = performance.now()
+    let cacheStatus = 'miss'
+    const route = window.location.pathname
     setLoading(true)
     setError(null)
     setLoadCount(0)
-    fetchAllCoursesWithCache((n) => setLoadCount(n))
+    fetchAllCoursesWithCache(
+      (n) => setLoadCount(n),
+      (status) => {
+        cacheStatus = status
+      },
+    )
       .then((courses) => {
         courses.forEach((c) => {
           if (c.metrics_raw) {
@@ -348,10 +310,33 @@ export default function App() {
         })
         setData({ courses, meta: buildCourseMeta(courses) })
         setLoading(false)
+        capture(
+          'catalogue_ready',
+          buildCatalogueReadyProperties({
+            startedAt,
+            endedAt: performance.now(),
+            rowCount: courses.length,
+            cacheStatus,
+            route,
+            success: true,
+          }),
+        )
       })
       .catch((err) => {
         setError(err.message)
         setLoading(false)
+        capture(
+          'catalogue_ready',
+          buildCatalogueReadyProperties({
+            startedAt,
+            endedAt: performance.now(),
+            rowCount: 0,
+            cacheStatus,
+            route,
+            success: false,
+            error: err,
+          }),
+        )
       })
   }, [isWelcomeDecisionPending, retryKey])
 

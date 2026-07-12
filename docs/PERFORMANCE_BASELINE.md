@@ -64,3 +64,32 @@ catalogue loader dynamically imports it only after the page has painted and a
 course read is needed; Schedule Builder continues to load it with its own lazy
 route. `npm run check:bundle-budget` rejects a future static Supabase dependency
 in the initial Home graph.
+
+## 2026-07-12 custom-domain mobile trace and field instrumentation
+
+Target: `https://hks-course-explorer.org/`, Home route, 390 x 844 mobile
+viewport, Fast 4G network emulation, and 4x CPU throttling.
+
+| Metric | Observed value | Status |
+| --- | ---: | --- |
+| LCP | 1,389 ms | Good lab result |
+| CLS | 0.00 | Good lab result |
+| TTFB | 675 ms | Revalidate before certification |
+
+The LCP was text and spent 713 ms in render delay. DevTools reported 524 ms of
+PostHog main-thread work and a 31 ms forced reflow attributed to its recorder,
+but no estimated LCP saving from removing it. The Supabase response transferred
+about 1.9 MB. A production schema read-back confirmed that `metrics_score` is
+not stored or transferred; the browser already derives it from `metrics_raw`.
+
+Production now opts into PostHog's lightweight, non-attributed LCP, CLS, and INP
+collection and emits one bounded `catalogue_ready` event with duration, row
+count, cache hit/miss, route, and success state. No database response or error
+message is included. The connected project recorded 1,754 total analytics
+events and 370 pageviews in the preceding 30 days. The implementation adds one
+`catalogue_ready` event per catalogue load; PostHog aggregates Web Vitals when
+possible, and its published average is about 0.3 `$web_vitals` events per
+pageview. That volume remains far below PostHog's one-million-event monthly
+free allowance. This uses the existing analytics integration and adds no paid
+service. G08 remains incomplete until representative field data is available
+and reviewed; lab results alone are not production certification.
