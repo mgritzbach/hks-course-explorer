@@ -4,6 +4,10 @@ Status: applied to production on 2026-07-10 as
 `20260710230627_restrict_course_explorer_browser_writes`. This document is the
 release record and rollback reference for that scoped migration.
 
+Follow-up status: browser table-grant hardening is proven on the isolated free
+staging project and is not yet applied to production. The reviewed source is
+`20260712144500_revoke_course_explorer_browser_write_grants.sql`.
+
 ## Scope and evidence
 
 Read-only inspection on 2026-07-10 found:
@@ -13,8 +17,10 @@ Read-only inspection on 2026-07-10 found:
 - `public.schedules` has a public `ALL` policy with `USING (true)` and
   `WITH CHECK (true)`. There are 63 existing records over 52 old
   browser-generated identifiers.
-- The project is shared with other applications. This plan must not touch any
-  table, function, grant, or policy outside the two Course Explorer tables.
+- The project is shared with other applications. The initial policy migration
+  did not touch any table, function, grant, or policy outside the two Course
+  Explorer tables. The separately reviewed follow-up also includes the
+  read-only `courses` catalogue grant and changes no other object.
 
 The application change that removes browser writes to `schedules` must be
 deployed before the database policy change. Plans remain local-storage based;
@@ -100,8 +106,44 @@ migration:
 - both rows remained present; and
 - no `ALL` policy remained on either table.
 
-This is a staging proof only. The shared production project has not been
-modified.
+This staging proof preceded the production policy application recorded above.
+The policy migration is now applied to production; the later table-grant
+follow-up remains staging-only until its separate acceptance record is added.
+
+## Browser table-grant follow-up
+
+A read-only production audit on 2026-07-12 confirmed that RLS is enabled, only
+the intended `SELECT` policy remains on `courses` and `live_courses`, and
+`schedules` has no policy. It also found the default Supabase table grants still
+included `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES`, and `TRIGGER`
+for `anon` and `authenticated`. RLS blocked those unsupported operations, but
+leaving the underlying grants was unnecessary defense-in-depth debt.
+
+The follow-up migration fails closed if either required table is missing, RLS
+is disabled, a catalogue lacks a `SELECT` policy, an unexpected write policy
+returns, or `schedules` gains any policy. It then:
+
+- preserves `SELECT` on `courses` and `live_courses` for browser roles;
+- revokes all write-oriented table grants on both catalogues;
+- revokes every browser table privilege on the unsupported remote `schedules`
+  store; and
+- leaves `service_role`, rows, schemas, indexes, functions, and policies
+  unchanged.
+
+### Completed grant-hardening staging exercise
+
+The migration ran on `hks-course-explorer-staging` on 2026-07-12. Read-back
+proved that the retained `live_courses` and `schedules` rows remained present;
+`anon` and `authenticated` retained only `live_courses` `SELECT` and had no
+schedule privilege; `service_role` retained catalogue read/write/delete and
+schedule read/write authority. An explicit read-only transaction under the
+`anon` role still returned the active staging catalogue row.
+
+Production promotion is pending independent review, exact-head CI, and the
+same post-migration grant/policy/row-count read-back. Because the migration only
+revokes unsupported browser privileges, rollback must not broadly re-grant
+`ALL`; any successor browser write feature requires authenticated ownership and
+dedicated integration tests.
 
 ## Rollback and retention
 
