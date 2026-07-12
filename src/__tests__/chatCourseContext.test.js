@@ -207,4 +207,29 @@ describe('chat course context', () => {
     expect(context[0]).toMatchObject({ code: 'ENV-250', name: 'Climate Adaptation Policy' })
     expect(context.some((course) => course.code === 'ENV-250')).toBe(true)
   })
+
+  it('preserves every offering and metric in a multi-decade instructor history', () => {
+    const history = Array.from({ length: 36 }, (_, index) => ({
+      course_code: index % 2 === 0 ? 'MLD-220-M' : 'MLD-220-M-A',
+      course_code_base: 'MLD-220-M',
+      course_name: 'Management and Leadership',
+      professor_display: 'Brian Mandell',
+      year: 1990 + index,
+      term: index % 2 === 0 ? 'Fall' : 'Spring',
+      has_eval: true,
+      metrics_pct: {
+        Course_Rating: 50 + (index % 40),
+        Instructor_Rating: 55 + (index % 40),
+        Workload: 20 + (index % 60),
+      },
+    }))
+
+    const [context] = condenseCourses(history, 'What does Brian Mandell teach?')
+
+    expect(context.offering_history.length).toBeGreaterThan(1_200)
+    expect(context.offering_history.length).toBeLessThanOrEqual(4_000)
+    expect(context.offering_history).toMatch(/2025 Spring \(course 85 pct, instructor 90 pct/)
+    expect(context.offering_history).toMatch(/1990 Fall \(course 50 pct, instructor 55 pct/)
+    expect(context.offering_history).toContain('MLD-220-M-A')
+  })
 })

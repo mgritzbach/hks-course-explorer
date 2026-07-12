@@ -13,7 +13,7 @@ const MAX_HISTORY_MESSAGE_CHARS = 4_000
 const MAX_COURSES = 30
 const MAX_SHORTLISTED_COURSES = 30
 const MAX_SHORTLISTED_NAME_CHARS = 200
-const MAX_COURSE_HISTORY_CHARS = 1_200
+const MAX_COURSE_HISTORY_CHARS = 4_000
 const UPSTREAM_TIMEOUT_MS = 25_000
 // OpenRouter documents a 20-request/minute free-model limit. A three-second
 // client cooldown preserves normal multi-turn chat while staying within it.
