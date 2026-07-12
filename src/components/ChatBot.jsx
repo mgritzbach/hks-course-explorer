@@ -124,6 +124,63 @@ function priorInstructorIdentities(courses, history) {
   return new Set()
 }
 
+function compactInstructorHistory(courses) {
+  const groups = new Map()
+  for (const course of courses) {
+    const baseCode = course.course_code_base || course.course_code
+    const key = `${baseCode}|${instructorIdentity(course)}`
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(course)
+  }
+
+  return [...groups.values()]
+    .map((records) => {
+      const datedRecords = records.filter((course) => !course.is_average)
+      const representative = [...records].sort(
+        (left, right) =>
+          rankCourse(right) - rankCourse(left) || (right.year || 0) - (left.year || 0),
+      )[0]
+      const summary = toCourseSummary(representative)
+      const variants = [...new Set(records.map((course) => course.course_code).filter(Boolean))]
+      const offerings = [
+        ...new Set(
+          datedRecords
+            .filter((course) => course.year && course.term)
+            .sort((left, right) => (right.year || 0) - (left.year || 0))
+            .map((course) => {
+              const metrics = [
+                ['course', course.metrics_pct?.Course_Rating],
+                ['instructor', course.metrics_pct?.Instructor_Rating],
+                ['workload', course.metrics_pct?.Workload],
+              ]
+                .filter(([, value]) => Number.isFinite(value))
+                .map(([label, value]) => `${label} ${Math.round(value)} pct`)
+              return `${course.course_code} — ${course.year} ${course.term}${metrics.length > 0 ? ` (${metrics.join(', ')})` : ''}`
+            }),
+        ),
+      ]
+
+      summary.code = summary.base_code
+      summary.year = Math.max(...datedRecords.map((course) => course.year || 0), 0) || undefined
+      // A mean of percentile ranks is not itself an observed percentile. Keep
+      // only actual per-offering database values in offering_history.
+      summary.rating_pct = undefined
+      summary.workload_pct = undefined
+      summary.instructor_pct = undefined
+      summary.is_average = undefined
+      summary.offering_history = [
+        variants.length > 1 ? `Code variants: ${variants.join(', ')}.` : '',
+        offerings.length > 0 ? `Database offerings: ${offerings.join('; ')}.` : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+      return summary
+    })
+    .sort(
+      (left, right) => (right.year || 0) - (left.year || 0) || left.code.localeCompare(right.code),
+    )
+}
+
 export function condenseCourses(courses, query, shortlistedCodes = [], history = []) {
   if (!courses?.length) return []
   const keywords = meaningfulQueryTerms(query)
@@ -212,9 +269,12 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
     .slice(0, 25)
     .map((course) => ({ c: course }))
 
-  const keywordMatches = (relevantMatches.length > 0 ? relevantMatches : fallbackMatches).map(
-    ({ c }) => toCourseSummary(c),
-  )
+  const keywordMatches =
+    focusedInstructorMatches.length > 0
+      ? compactInstructorHistory(focusedInstructorMatches.map(({ c }) => c))
+      : (relevantMatches.length > 0 ? relevantMatches : fallbackMatches).map(({ c }) =>
+          toCourseSummary(c),
+        )
 
   const shortlistedCourses = courses
     .filter((course) => shortlistedSet.has(course.course_code_base || course.course_code))

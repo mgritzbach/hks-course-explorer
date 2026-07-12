@@ -94,8 +94,14 @@ describe('chat course context', () => {
     expect(new Set(context.map((course) => course.base_code))).toEqual(
       new Set(['DPI-851-M', 'DPI-852-M', 'DPI-853-M']),
     )
-    expect(context.map((course) => course.code)).toContain('DPI-851-M-B')
-    expect(context.map((course) => course.year)).toEqual(expect.arrayContaining([2024, 2025, 2026]))
+    expect(context).toHaveLength(3)
+    expect(context.find((course) => course.base_code === 'DPI-851-M')).toMatchObject({
+      code: 'DPI-851-M',
+      year: 2025,
+    })
+    expect(context.find((course) => course.base_code === 'DPI-851-M').offering_history).toMatch(
+      /DPI-851-M-B.*2025 Spring.*2024 Fall/,
+    )
     expect(context.every((course) => course.instructor === 'Hong Qu')).toBe(true)
     expect(context.some((course) => course.code === 'MLD-215-B')).toBe(false)
   })
@@ -200,5 +206,30 @@ describe('chat course context', () => {
     expect(context).toHaveLength(30)
     expect(context[0]).toMatchObject({ code: 'ENV-250', name: 'Climate Adaptation Policy' })
     expect(context.some((course) => course.code === 'ENV-250')).toBe(true)
+  })
+
+  it('preserves every offering and metric in a multi-decade instructor history', () => {
+    const history = Array.from({ length: 36 }, (_, index) => ({
+      course_code: index % 2 === 0 ? 'MLD-220-M' : 'MLD-220-M-A',
+      course_code_base: 'MLD-220-M',
+      course_name: 'Management and Leadership',
+      professor_display: 'Brian Mandell',
+      year: 1990 + index,
+      term: index % 2 === 0 ? 'Fall' : 'Spring',
+      has_eval: true,
+      metrics_pct: {
+        Course_Rating: 50 + (index % 40),
+        Instructor_Rating: 55 + (index % 40),
+        Workload: 20 + (index % 60),
+      },
+    }))
+
+    const [context] = condenseCourses(history, 'What does Brian Mandell teach?')
+
+    expect(context.offering_history.length).toBeGreaterThan(1_200)
+    expect(context.offering_history.length).toBeLessThanOrEqual(4_000)
+    expect(context.offering_history).toMatch(/2025 Spring \(course 85 pct, instructor 90 pct/)
+    expect(context.offering_history).toMatch(/1990 Fall \(course 50 pct, instructor 55 pct/)
+    expect(context.offering_history).toContain('MLD-220-M-A')
   })
 })

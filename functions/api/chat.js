@@ -13,6 +13,7 @@ const MAX_HISTORY_MESSAGE_CHARS = 4_000
 const MAX_COURSES = 30
 const MAX_SHORTLISTED_COURSES = 30
 const MAX_SHORTLISTED_NAME_CHARS = 200
+const MAX_COURSE_HISTORY_CHARS = 4_000
 const UPSTREAM_TIMEOUT_MS = 25_000
 // OpenRouter documents a 20-request/minute free-model limit. A three-second
 // client cooldown preserves normal multi-turn chat while staying within it.
@@ -23,6 +24,7 @@ const COURSE_STRING_FIELDS = new Set([
   'base_code',
   'name',
   'instructor',
+  'offering_history',
   'concentration',
   'term',
   'stem',
@@ -182,9 +184,12 @@ function sanitiseCourses(courses) {
     const summary = {}
     for (const field of COURSE_STRING_FIELDS) {
       if (course[field] === undefined || course[field] === null) continue
-      summary[field] = boundedString(course[field], `courses[${index}].${field}`, 300, {
-        allowEmpty: true,
-      })
+      summary[field] = boundedString(
+        course[field],
+        `courses[${index}].${field}`,
+        field === 'offering_history' ? MAX_COURSE_HISTORY_CHARS : 300,
+        { allowEmpty: true },
+      )
     }
     for (const field of COURSE_NUMBER_FIELDS) {
       if (course[field] === undefined || course[field] === null) continue
