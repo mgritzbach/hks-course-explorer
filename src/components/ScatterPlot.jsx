@@ -404,7 +404,10 @@ export default function ScatterPlot({
   const handlePlotRelayout = (event) => {
     if (!event) return
     if (event['xaxis.autorange'] || event['yaxis.autorange']) {
-      resetZoom()
+      // Plotly emits autorange while applying a new revision. Clear the
+      // controlled ranges without incrementing the revision again.
+      setZoomedX(null)
+      setZoomedY(null)
       return
     }
 
@@ -423,7 +426,8 @@ export default function ScatterPlot({
       isBaseOrWiderDomain(nextX, xMode.domain) &&
       isBaseOrWiderDomain(nextY, yMode.domain)
     ) {
-      resetZoom()
+      setZoomedX(null)
+      setZoomedY(null)
       return
     }
 
