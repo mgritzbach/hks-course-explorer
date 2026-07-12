@@ -16,32 +16,31 @@ export function installStaleAssetRecovery({
   reload = () => window.location.reload(),
   now = () => Date.now(),
 } = {}) {
-  let memoryReloadAt = Number.NaN
-
   const handlePreloadError = (event) => {
     const currentTime = now()
-    let previousReload = memoryReloadAt
+    let storedValue
     try {
-      const storedReload = Number(storage.getItem(PRELOAD_RELOAD_KEY))
-      if (Number.isFinite(storedReload)) previousReload = storedReload
+      storedValue = storage.getItem(PRELOAD_RELOAD_KEY)
     } catch {
-      // Some privacy modes disable sessionStorage. The in-memory guard still
-      // prevents duplicate reload requests during the current page lifetime.
+      // Without reload-persistent storage there is no safe way to distinguish
+      // a fresh recovery from a reload loop. Leave the event unprevented so the
+      // route ErrorBoundary can offer a visible manual retry.
+      return
     }
+    const previousReload = storedValue ? Number(storedValue) : Number.NaN
     if (Number.isFinite(previousReload) && currentTime - previousReload < RELOAD_COOLDOWN_MS) {
       // Do not swallow a repeated failure. The route ErrorBoundary remains
       // available while the cooldown protects the tab from a reload loop.
       return
     }
 
-    event.preventDefault()
-    memoryReloadAt = currentTime
     try {
       storage.setItem(PRELOAD_RELOAD_KEY, String(currentTime))
     } catch {
-      // Recovery is more important than persistence; the exact-asset deploy
-      // gate prevents a normal release from depending on repeated reloads.
+      // Do not reload unless the cooldown survived the navigation.
+      return
     }
+    event.preventDefault()
     reload()
   }
 

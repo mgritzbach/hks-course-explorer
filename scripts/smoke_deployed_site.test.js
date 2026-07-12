@@ -87,6 +87,13 @@ describe('deployed site smoke check', () => {
   it('accepts equivalent safe Pages cache directives in any order', () => {
     expect(hasSafePagesRevalidation('must-revalidate, public, max-age=0, no-transform')).toBe(true)
     expect(hasSafePagesRevalidation('public, max-age=31556952, immutable')).toBe(false)
+    expect(hasSafePagesRevalidation('public, max-age=0, must-revalidate, s-maxage=31556952')).toBe(
+      false,
+    )
+    expect(hasSafePagesRevalidation('public, max-age=0, max-age=60, must-revalidate')).toBe(false)
+    expect(
+      hasSafePagesRevalidation('public, max-age=0, must-revalidate, stale-if-error=3600'),
+    ).toBe(false)
   })
 
   it('rejects a non-success response', () => {

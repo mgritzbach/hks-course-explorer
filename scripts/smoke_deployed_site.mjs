@@ -75,17 +75,25 @@ export function assertFingerprintAsset(
 
 export function hasSafePagesRevalidation(cacheControl) {
   if (typeof cacheControl !== 'string') return false
-  const directives = new Set(
-    cacheControl
-      .split(',')
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean),
-  )
+  const directives = cacheControl
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+  const directiveNames = directives.map((value) => value.split('=', 1)[0])
+  const maxAges = directives.filter((value) => value.startsWith('max-age='))
+  const unsafeSharedCacheDirectives = new Set([
+    'immutable',
+    'private',
+    's-maxage',
+    'stale-if-error',
+    'stale-while-revalidate',
+  ])
   return (
-    directives.has('public') &&
-    directives.has('max-age=0') &&
-    directives.has('must-revalidate') &&
-    !directives.has('immutable')
+    directives.includes('public') &&
+    directives.includes('must-revalidate') &&
+    maxAges.length === 1 &&
+    maxAges[0] === 'max-age=0' &&
+    !directiveNames.some((name) => unsafeSharedCacheDirectives.has(name))
   )
 }
 

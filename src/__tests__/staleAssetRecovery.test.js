@@ -51,7 +51,7 @@ describe('stale deployment asset recovery', () => {
     expect(reload).toHaveBeenCalledTimes(2)
   })
 
-  it('still reloads safely when session storage is unavailable', () => {
+  it('leaves recovery visible when session storage is unavailable', () => {
     const eventTarget = new EventTarget()
     const reload = vi.fn()
     const storage = {
@@ -64,13 +64,32 @@ describe('stale deployment asset recovery', () => {
     }
     installStaleAssetRecovery({ eventTarget, storage, reload, now: () => 100_000 })
 
-    const firstError = new Event('vite:preloadError', { cancelable: true })
-    const cooldownError = new Event('vite:preloadError', { cancelable: true })
-    eventTarget.dispatchEvent(firstError)
-    eventTarget.dispatchEvent(cooldownError)
+    const preloadError = new Event('vite:preloadError', { cancelable: true })
+    eventTarget.dispatchEvent(preloadError)
 
-    expect(firstError.defaultPrevented).toBe(true)
-    expect(cooldownError.defaultPrevented).toBe(false)
-    expect(reload).toHaveBeenCalledTimes(1)
+    expect(preloadError.defaultPrevented).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('does not reload when the persistent cooldown cannot be written', () => {
+    const eventTarget = new EventTarget()
+    const reload = vi.fn()
+    installStaleAssetRecovery({
+      eventTarget,
+      storage: {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('storage write disabled')
+        },
+      },
+      reload,
+      now: () => 100_000,
+    })
+
+    const preloadError = new Event('vite:preloadError', { cancelable: true })
+    eventTarget.dispatchEvent(preloadError)
+
+    expect(preloadError.defaultPrevented).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
   })
 })
