@@ -76,6 +76,17 @@ describe('Chat Pages Function contract', () => {
     expect(() => validateChatPayload({ ...validPayload, message: 'x'.repeat(4_001) })).toThrow(
       /must not exceed 4000 characters/,
     )
+    const boundedHistory = validateChatPayload({
+      ...validPayload,
+      courses: [{ ...validPayload.courses[0], offering_history: 'x'.repeat(1_200) }],
+    })
+    expect(boundedHistory.courses[0].offering_history).toHaveLength(1_200)
+    expect(() =>
+      validateChatPayload({
+        ...validPayload,
+        courses: [{ ...validPayload.courses[0], offering_history: 'x'.repeat(1_201) }],
+      }),
+    ).toThrow(/offering_history must not exceed 1200 characters/)
   })
 
   it('fails explicitly without a provider secret and never manufactures an answer', async () => {
