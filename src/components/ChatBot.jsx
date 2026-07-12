@@ -155,7 +155,7 @@ function compactInstructorHistory(courses) {
               ]
                 .filter(([, value]) => Number.isFinite(value))
                 .map(([label, value]) => `${label} ${Math.round(value)} pct`)
-              return `${course.year} ${course.term}${metrics.length > 0 ? ` (${metrics.join(', ')})` : ''}`
+              return `${course.course_code} — ${course.year} ${course.term}${metrics.length > 0 ? ` (${metrics.join(', ')})` : ''}`
             }),
         ),
       ]
