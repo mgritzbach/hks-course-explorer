@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.export_live_courses_backup import BACKUP_FORMAT, canonical_payload_bytes
+from scripts.live_courses_backup_format import BACKUP_FORMAT, canonical_payload_bytes
 from scripts.verify_live_courses_restore import (
     load_backup,
     read_restored_rows,

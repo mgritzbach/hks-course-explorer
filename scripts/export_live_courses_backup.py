@@ -19,14 +19,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from audit_catalogue_sources import MAX_ROWS, fetch_all_supabase_rows
-
-
-BACKUP_FORMAT = "hks-live-courses-backup-v1"
-
-
-def canonical_payload_bytes(rows):
-    """Return stable bytes for the manifest digest without reordering rows."""
-    return json.dumps(rows, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+from live_courses_backup_format import BACKUP_FORMAT, canonical_payload_bytes
 
 
 def write_backup(destination, base_url, key, fetch_rows=fetch_all_supabase_rows, now=None):

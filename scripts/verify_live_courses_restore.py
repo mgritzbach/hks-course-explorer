@@ -12,9 +12,14 @@ import argparse
 import csv
 import hashlib
 import json
+import sys
 from pathlib import Path
 
-from export_live_courses_backup import BACKUP_FORMAT, canonical_payload_bytes
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from live_courses_backup_format import BACKUP_FORMAT, canonical_payload_bytes
 
 LIVE_COURSES_COLUMNS = frozenset(
     {
