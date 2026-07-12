@@ -85,6 +85,9 @@ not stored or transferred; the browser already derives it from `metrics_raw`.
 Production now opts into PostHog's lightweight, non-attributed LCP, CLS, and INP
 collection and emits one bounded `catalogue_ready` event with duration, row
 count, cache hit/miss, route, and success state. No database response or error
-message is included. This uses the existing free-tier analytics integration and
-adds no paid service. G08 remains incomplete until representative field data is
-available and reviewed; lab results alone are not production certification.
+message is included. The connected project recorded 1,754 total analytics
+events and 370 pageviews in the preceding 30 days; at most two additional
+events per entered page remain far below PostHog's one-million-event monthly
+free allowance. This uses the existing analytics integration and adds no paid
+service. G08 remains incomplete until representative field data is available
+and reviewed; lab results alone are not production certification.
