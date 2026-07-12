@@ -254,6 +254,14 @@ function buildSystemPrompt(courses, shortlisted) {
 Give 2–3 specific recommendations. For each: course code, name, instructor, one sentence why it fits. When citing metrics always say e.g. "workload: 68th percentile", never "68 hours". Be brief and direct.${courseList}`
 }
 
+function percentileLabel(value) {
+  const rounded = Math.round(value)
+  const remainder100 = rounded % 100
+  if (remainder100 >= 11 && remainder100 <= 13) return `${rounded}th percentile`
+  const suffix = { 1: 'st', 2: 'nd', 3: 'rd' }[rounded % 10] || 'th'
+  return `${rounded}${suffix} percentile`
+}
+
 export function buildCourseDataFallback(courses, message) {
   const wantsLightWorkload =
     /\b(light|lighter|low|lowest)\b.*\b(workload|load)\b|\bworkload\b.*\b(light|lighter|low|lowest)\b/i.test(
@@ -296,10 +304,11 @@ export function buildCourseDataFallback(courses, message) {
 
   const lines = recommendations.map((course) => {
     const metrics = []
-    if (Number.isFinite(course.rating_pct))
-      metrics.push(`rating: ${course.rating_pct}th percentile`)
+    if (Number.isFinite(course.rating_pct)) {
+      metrics.push(`rating: ${percentileLabel(course.rating_pct)}`)
+    }
     if (Number.isFinite(course.workload_pct)) {
-      metrics.push(`workload: ${course.workload_pct}th percentile`)
+      metrics.push(`workload: ${percentileLabel(course.workload_pct)}`)
     }
     return `- ${course.code}: ${course.name}${course.instructor ? ` — ${course.instructor}` : ''}${
       metrics.length ? `. ${metrics.join('; ')}.` : '.'
