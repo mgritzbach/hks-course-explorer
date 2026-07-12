@@ -239,6 +239,10 @@ remote project setting changes, preventing duplicate metrics. The custom
 collector loads after two paints and an idle boundary, binds metrics to the
 document's navigation route rather than a later SPA route, and sends at most 12
 measurements per document including back/forward-cache re-reports.
+Each measurement uses PostHog's immediate `sendBeacon` transport so final
+values emitted while a page is hidden or unloading are not left in the normal
+in-memory batch queue. The analytics adapter must preserve capture options for
+both already-initialized and temporarily queued events.
 
 Review a rolling 28-day window with this HogQL query:
 

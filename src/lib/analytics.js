@@ -85,8 +85,8 @@ export function initializeAnalytics(key, options) {
     .then((client) => {
       client.init(key, withPrivacyBoundary(options))
       initialized = true
-      for (const [event, properties] of pendingEvents.splice(0)) {
-        client.capture(event, properties)
+      for (const [event, properties, captureOptions] of pendingEvents.splice(0)) {
+        client.capture(event, properties, captureOptions)
       }
     })
     .catch(() => {
@@ -95,13 +95,13 @@ export function initializeAnalytics(key, options) {
     })
 }
 
-export function capture(event, properties) {
+export function capture(event, properties, captureOptions) {
   if (!enabled) return
   if (!initialized) {
-    pendingEvents.push([event, properties])
+    pendingEvents.push([event, properties, captureOptions])
     return
   }
   void loadClient()
-    .then((client) => client.capture(event, properties))
+    .then((client) => client.capture(event, properties, captureOptions))
     .catch(() => {})
 }

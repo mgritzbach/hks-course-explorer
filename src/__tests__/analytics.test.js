@@ -58,7 +58,58 @@ describe('analytics adapter', () => {
 
     analytics.capture('course_shortlisted', { course_code: 'API-101' })
     await vi.waitFor(() =>
-      expect(posthogCapture).toHaveBeenCalledWith('course_shortlisted', { course_code: 'API-101' }),
+      expect(posthogCapture).toHaveBeenCalledWith(
+        'course_shortlisted',
+        { course_code: 'API-101' },
+        undefined,
+      ),
+    )
+
+    const captureOptions = { transport: 'sendBeacon', send_instantly: true }
+    analytics.capture('app_web_vital', { metric: 'INP', value: 180 }, captureOptions)
+    await vi.waitFor(() =>
+      expect(posthogCapture).toHaveBeenCalledWith(
+        'app_web_vital',
+        { metric: 'INP', value: 180 },
+        captureOptions,
+      ),
+    )
+  })
+
+  it('preserves immediate beacon options while the analytics client is still loading', async () => {
+    const animationFrames = []
+    const idleCallbacks = []
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback) => {
+        animationFrames.push(callback)
+        return animationFrames.length
+      }),
+    )
+    vi.stubGlobal(
+      'requestIdleCallback',
+      vi.fn((callback) => {
+        idleCallbacks.push(callback)
+        return idleCallbacks.length
+      }),
+    )
+    const analytics = await loadAnalytics()
+    const captureOptions = { transport: 'sendBeacon', send_instantly: true }
+
+    analytics.initializeAnalytics('public-key', {})
+    analytics.capture('app_web_vital', { metric: 'LCP', value: 1400 }, captureOptions)
+    expect(posthogCapture).not.toHaveBeenCalled()
+
+    animationFrames.shift()(0)
+    animationFrames.shift()(16)
+    idleCallbacks.shift()({ didTimeout: false, timeRemaining: () => 10 })
+
+    await vi.waitFor(() =>
+      expect(posthogCapture).toHaveBeenCalledWith(
+        'app_web_vital',
+        { metric: 'LCP', value: 1400 },
+        captureOptions,
+      ),
     )
   })
 

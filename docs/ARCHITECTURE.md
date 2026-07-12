@@ -106,6 +106,10 @@ boundary. It removes query strings and fragments from SDK-enriched URL and
 referrer properties after enrichment, so intermediate custom-event sanitizing
 cannot be bypassed by the analytics client.
 
+The analytics adapter preserves optional PostHog capture options in its pending
+queue. Core Web Vitals use immediate `sendBeacon` delivery because their final
+callbacks often run while the document is becoming hidden or unloading.
+
 `src/components/SchedulePlanHeader.jsx` owns only the desktop plan-management
 controls. Schedule Builder retains all storage, import/export, and scheduling
 orchestration, passing explicit callbacks to keep the header independently

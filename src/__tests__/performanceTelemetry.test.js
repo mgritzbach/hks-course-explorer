@@ -4,6 +4,7 @@ import {
   buildWebVitalProperties,
   initializeWebVitalsTelemetry,
   POSTHOG_PERFORMANCE_OPTIONS,
+  WEB_VITAL_CAPTURE_OPTIONS,
   WEB_VITAL_EVENT,
 } from '../lib/performanceTelemetry.js'
 
@@ -86,27 +87,42 @@ describe('production performance telemetry', () => {
     handlers.LCP({ name: 'LCP', value: 3210, rating: 'poor', navigationType: 'unknown' })
 
     expect(captureMetric).toHaveBeenCalledTimes(3)
-    expect(captureMetric).toHaveBeenNthCalledWith(1, WEB_VITAL_EVENT, {
-      metric: 'CLS',
-      value: 0.0135,
-      rating: 'good',
-      navigation_type: 'reload',
-      route: '/compare',
-    })
-    expect(captureMetric).toHaveBeenNthCalledWith(2, WEB_VITAL_EVENT, {
-      metric: 'INP',
-      value: 220,
-      rating: 'needs-improvement',
-      navigation_type: 'other',
-      route: '/compare',
-    })
-    expect(captureMetric).toHaveBeenNthCalledWith(3, WEB_VITAL_EVENT, {
-      metric: 'LCP',
-      value: 3210,
-      rating: 'poor',
-      navigation_type: 'other',
-      route: '/compare',
-    })
+    expect(captureMetric).toHaveBeenNthCalledWith(
+      1,
+      WEB_VITAL_EVENT,
+      {
+        metric: 'CLS',
+        value: 0.0135,
+        rating: 'good',
+        navigation_type: 'reload',
+        route: '/compare',
+      },
+      WEB_VITAL_CAPTURE_OPTIONS,
+    )
+    expect(captureMetric).toHaveBeenNthCalledWith(
+      2,
+      WEB_VITAL_EVENT,
+      {
+        metric: 'INP',
+        value: 220,
+        rating: 'needs-improvement',
+        navigation_type: 'other',
+        route: '/compare',
+      },
+      WEB_VITAL_CAPTURE_OPTIONS,
+    )
+    expect(captureMetric).toHaveBeenNthCalledWith(
+      3,
+      WEB_VITAL_EVENT,
+      {
+        metric: 'LCP',
+        value: 3210,
+        rating: 'poor',
+        navigation_type: 'other',
+        route: '/compare',
+      },
+      WEB_VITAL_CAPTURE_OPTIONS,
+    )
 
     await initializeWebVitalsTelemetry(captureMetric, { loadVitals })
     expect(Object.keys(handlers)).toHaveLength(3)
@@ -138,13 +154,17 @@ describe('production performance telemetry', () => {
       })
     }
     expect(captureMetric).toHaveBeenCalledTimes(12)
-    expect(captureMetric).toHaveBeenLastCalledWith(WEB_VITAL_EVENT, {
-      metric: 'LCP',
-      value: 911,
-      rating: 'good',
-      navigation_type: 'back-forward-cache',
-      route: '/courses',
-    })
+    expect(captureMetric).toHaveBeenLastCalledWith(
+      WEB_VITAL_EVENT,
+      {
+        metric: 'LCP',
+        value: 911,
+        rating: 'good',
+        navigation_type: 'back-forward-cache',
+        route: '/courses',
+      },
+      WEB_VITAL_CAPTURE_OPTIONS,
+    )
   })
 
   it('binds metrics to the document route and retries after an optional chunk failure', async () => {

@@ -8,6 +8,10 @@ export const POSTHOG_PERFORMANCE_OPTIONS = Object.freeze({
 })
 
 export const WEB_VITAL_EVENT = 'app_web_vital'
+export const WEB_VITAL_CAPTURE_OPTIONS = Object.freeze({
+  transport: 'sendBeacon',
+  send_instantly: true,
+})
 
 const SUPPORTED_WEB_VITALS = new Set(['CLS', 'INP', 'LCP'])
 const SUPPORTED_RATINGS = new Set(['good', 'needs-improvement', 'poor'])
@@ -105,7 +109,7 @@ export function initializeWebVitalsTelemetry(
         const properties = buildWebVitalProperties(metric, navigationRoute)
         if (properties) {
           reportCount += 1
-          captureMetric(WEB_VITAL_EVENT, properties)
+          captureMetric(WEB_VITAL_EVENT, properties, WEB_VITAL_CAPTURE_OPTIONS)
         }
       }
       onCLS(report)
