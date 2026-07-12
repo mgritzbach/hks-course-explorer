@@ -6,6 +6,7 @@ import App from './App.jsx'
 import { TourProvider } from './components/TutorialOverlay.jsx'
 import { useWelcomeEntry, WelcomeEntryProvider } from './components/WelcomeEntryProvider.jsx'
 import { initializeAnalytics } from './lib/analytics.js'
+import { POSTHOG_PERFORMANCE_OPTIONS } from './lib/performanceTelemetry.js'
 import { SENTRY_REPLAY_OPTIONS } from './lib/sentryReplayConfig.js'
 import { installStaleAssetRecovery } from './lib/staleAssetRecovery.js'
 import './index.css'
@@ -41,6 +42,7 @@ function AnalyticsBootstrap() {
       api_host: 'https://us.i.posthog.com',
       defaults: '2026-01-30',
       person_profiles: 'identified_only',
+      ...POSTHOG_PERFORMANCE_OPTIONS,
     })
   }, [isWelcomeDecisionPending])
 
