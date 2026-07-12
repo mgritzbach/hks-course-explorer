@@ -59,6 +59,28 @@ function useDebounce(value, delay) {
   return debounced
 }
 
+function useMobileViewport() {
+  const query = '(max-width: 767px)'
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && Boolean(window.matchMedia?.(query).matches),
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined
+    const media = window.matchMedia(query)
+    const update = () => setIsMobile(media.matches)
+    update()
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', update)
+      return () => media.removeEventListener('change', update)
+    }
+    media.addListener?.(update)
+    return () => media.removeListener?.(update)
+  }, [])
+
+  return isMobile
+}
+
 // yearPreFiltered=true skips the year/avg check when the caller already pre-filtered by year
 function applyFilters(courses, filters, yearPreFiltered = false) {
   const {
@@ -260,6 +282,8 @@ export default function Home({
   )
   // Mobile: scatter plot is hidden by default to show course list immediately
   const [showPlotMobile, setShowPlotMobile] = useState(false)
+  const isMobileViewport = useMobileViewport()
+  const shouldRenderPlot = !isMobileViewport || showPlotMobile
 
   // The welcome page hands off an explicit tutorial request only once. Keeping
   // the active state here lets the tour continue after App consumes the
@@ -286,7 +310,10 @@ export default function Home({
   const handleTourStepChange = useCallback((stepIndex) => {
     // Step 0 targets 'year-filter' which lives in the sidebar drawer
     if (stepIndex === 0) setSidebarOpen(true)
-    else setSidebarOpen(false)
+    else {
+      setSidebarOpen(false)
+      if (stepIndex === 1) setShowPlotMobile(true)
+    }
   }, [])
 
   const _scrollToVisualization = () => {
@@ -791,62 +818,64 @@ export default function Home({
 
         {/* Scatter plot: always visible on desktop, toggle-controlled on mobile */}
         <div className={showPlotMobile ? '' : 'hidden md:block'}>
-          <Suspense
-            fallback={
-              <div
-                style={{
-                  height: 420,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--text-muted)',
-                  fontSize: 13,
-                }}
-              >
-                Loading chart…
-              </div>
-            }
-          >
-            <div data-tour="scatter-plot" style={{ position: 'relative' }}>
-              {isStale && (
+          {shouldRenderPlot && (
+            <Suspense
+              fallback={
                 <div
                   style={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 52,
-                    zIndex: 10,
-                    fontSize: 10,
+                    height: 420,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     color: 'var(--text-muted)',
-                    pointerEvents: 'none',
+                    fontSize: 13,
                   }}
                 >
-                  updating…
+                  Loading chart…
                 </div>
-              )}
-              <ErrorBoundary
-                fallback={
-                  <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>
-                    Chart unavailable - use the filters to browse courses below.
+              }
+            >
+              <div data-tour="scatter-plot" style={{ position: 'relative' }}>
+                {isStale && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 52,
+                      zIndex: 10,
+                      fontSize: 10,
+                      color: 'var(--text-muted)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    updating…
                   </div>
-                }
-              >
-                <ScatterPlot
-                  allCourses={yearEvalCourses}
-                  matchedCourses={filteredEval}
-                  biddingOnlyCourses={biddingOnlyCourses}
-                  xMetric={xMetric}
-                  yMetric={yMetric}
-                  metrics={meta.metrics}
-                  onXChange={setXMetric}
-                  onYChange={setYMetric}
-                  metricMode={metricMode}
-                  colorblindMode={colorblindMode}
-                  isLight={isLight}
-                  favs={favs}
-                />
-              </ErrorBoundary>
-            </div>
-          </Suspense>
+                )}
+                <ErrorBoundary
+                  fallback={
+                    <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>
+                      Chart unavailable - use the filters to browse courses below.
+                    </div>
+                  }
+                >
+                  <ScatterPlot
+                    allCourses={yearEvalCourses}
+                    matchedCourses={filteredEval}
+                    biddingOnlyCourses={biddingOnlyCourses}
+                    xMetric={xMetric}
+                    yMetric={yMetric}
+                    metrics={meta.metrics}
+                    onXChange={setXMetric}
+                    onYChange={setYMetric}
+                    metricMode={metricMode}
+                    colorblindMode={colorblindMode}
+                    isLight={isLight}
+                    favs={favs}
+                  />
+                </ErrorBoundary>
+              </div>
+            </Suspense>
+          )}
         </div>
 
         <div className="mt-6">

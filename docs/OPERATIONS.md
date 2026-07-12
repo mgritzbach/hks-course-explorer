@@ -183,6 +183,27 @@ The artifact is rollback evidence only: do not restore it automatically. A
 database owner must review and test any restore procedure before a destructive
 reconciliation is considered.
 
+### Non-production restore verification
+
+Use **Verify live-course backup restore** with the successful backup workflow
+run ID and explicit confirmation. The workflow downloads that run's encrypted
+artifact, decrypts it only on the ephemeral GitHub-hosted runner, validates the
+manifest, and
+restores every row into a schema-compatible `live_courses` scratch table on an
+ephemeral PostgreSQL 17 service. The probe validates the production project
+identity, a reviewed row-count floor, the complete column set, PostgreSQL column
+types, required `id`/`source`/`active` constraints, and unique identities. It
+then exports the scratch rows in original order and requires exact semantic row
+equality before dropping the scratch tables and deleting decrypted runner files.
+
+This is a no-cost, non-production restore proof: the workflow has no Supabase
+URL or key and cannot write to staging or production. It proves that the
+retained encrypted artifact is decryptable and structurally restorable. It
+does not recreate foreign keys, indexes, RLS policies, or the related catalogue
+run rows, and it does not authorize a production restore. A real incident still
+requires owner approval, a migration-created target, restoration of related
+tables, and post-restore application smoke tests.
+
 ### Schedule-plan persistence
 
 Schedule plans are intentionally browser-local. `savePlan` persists the plan in

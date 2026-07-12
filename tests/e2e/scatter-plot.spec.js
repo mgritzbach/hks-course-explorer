@@ -105,4 +105,36 @@ test.describe('Scatter Plot built-artifact regression', () => {
       await expect.poll(renderedRanges).toEqual({ x: [0, 100], y: [0, 100] })
     }
   })
+
+  test('loads Plotly on mobile only after the visitor asks to show the chart', async ({ page }) => {
+    test.slow()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible()
+    await expect(page.locator('.js-plotly-plot')).toHaveCount(0)
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          performance
+            .getEntriesByType('resource')
+            .some((entry) => entry.name.includes('vendor-plotly')),
+        ),
+      )
+      .toBe(false)
+
+    await page.getByRole('button', { name: 'Show chart' }).click()
+
+    await expect(page.locator('.js-plotly-plot')).toBeVisible({ timeout: 15_000 })
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() =>
+            performance
+              .getEntriesByType('resource')
+              .some((entry) => entry.name.includes('vendor-plotly')),
+          ),
+        { timeout: 15_000 },
+      )
+      .toBe(true)
+  })
 })

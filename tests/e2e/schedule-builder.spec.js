@@ -161,6 +161,8 @@ test.describe('Schedule Builder critical flows', () => {
     await expect(term.locator('option')).toHaveText(['Catalogue terms unavailable'])
     await expect(page.getByText(/current HKS offerings across/)).toHaveCount(0)
     await expect(page.getByText(/0 live courses match/)).toHaveCount(0)
+    await expect(page.getByRole('list', { name: 'Course search results' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Add .* to plan$/ })).toHaveCount(0)
   })
 
   test('keeps non-HKS-only catalogue terms visible and selectable', async ({ page }) => {

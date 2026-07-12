@@ -354,6 +354,43 @@ def fetch_active_hks_inventory(request_get=requests.get) -> dict[str, str]:
         offset += SUPABASE_PAGE_SIZE
 
 
+def fetch_active_hks_storage_inventory(request_get=requests.get) -> dict[str, str]:
+    """Read the exact stored active set, including a legacy ATS rollback baseline."""
+    inventory: dict[str, str] = {}
+    offset = 0
+    while True:
+        response = request_get(
+            f"{SUPABASE_URL}/rest/v1/live_courses",
+            headers=supabase_headers(),
+            params={
+                "select": "id,source",
+                "active": "eq.true",
+                "is_hks": "eq.true",
+                "order": "id.asc",
+                "limit": str(SUPABASE_PAGE_SIZE),
+                "offset": str(offset),
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, list) or any(not isinstance(row, dict) for row in payload):
+            raise RuntimeError("Supabase returned an invalid active HKS storage inventory")
+        for row in payload:
+            stored_id = row.get("id")
+            source = row.get("source")
+            if not isinstance(stored_id, str) or not stored_id:
+                raise RuntimeError("Supabase returned an active HKS row without a stored identity")
+            if stored_id in inventory:
+                raise RuntimeError("Supabase returned a duplicate active HKS stored identity")
+            inventory[stored_id] = source if isinstance(source, str) else ""
+        if len(inventory) > MAX_ACTIVE_HKS_ROWS:
+            raise RuntimeError("Active HKS storage inventory exceeds the safe verification limit")
+        if len(payload) < SUPABASE_PAGE_SIZE:
+            return inventory
+        offset += SUPABASE_PAGE_SIZE
+
+
 def verify_promoted_inventory(rows: list[dict], inventory: dict[str, str]) -> str:
     """Require exact upstream-to-production identity equality and return its audit digest."""
     expected_ids = {row.get("id") for row in rows}
@@ -421,7 +458,10 @@ def rollback(run_id: str) -> int:
 
 def promote_and_verify(rows: list[dict], run_id: str) -> tuple[int, str]:
     """Promote, verify exact identity, and restore the previous run on any mismatch."""
-    previous_inventory = fetch_active_hks_inventory()
+    # The first authoritative promotion may start from legacy ATS rows, which
+    # predate source_offering_id. Snapshot physical IDs for rollback proof;
+    # after promotion, verify the new my.harvard set by its stable upstream IDs.
+    previous_inventory = fetch_active_hks_storage_inventory()
     activated = promote(run_id)
     try:
         if activated != len(rows):
@@ -433,7 +473,7 @@ def promote_and_verify(rows: list[dict], run_id: str) -> tuple[int, str]:
     except Exception as verification_error:
         try:
             rollback(run_id)
-            restored_inventory = fetch_active_hks_inventory()
+            restored_inventory = fetch_active_hks_storage_inventory()
             if restored_inventory != previous_inventory:
                 raise RuntimeError(
                     "Rollback completed but did not restore the exact previous HKS inventory"

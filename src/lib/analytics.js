@@ -15,10 +15,34 @@ function loadClient() {
   return clientPromise
 }
 
+function loadClientAfterFirstPaint() {
+  const start = () => loadClient()
+
+  if (typeof window === 'undefined') return start()
+
+  return new Promise((resolve, reject) => {
+    const beginWhenIdle = () => {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(() => start().then(resolve, reject), { timeout: 3000 })
+      } else {
+        window.setTimeout(() => start().then(resolve, reject), 0)
+      }
+    }
+
+    // Give the entered application two paint opportunities before parsing a
+    // non-critical third-party analytics client on the main thread.
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(beginWhenIdle))
+    } else {
+      beginWhenIdle()
+    }
+  })
+}
+
 export function initializeAnalytics(key, options) {
   if (!key || initialized || enabled) return
   enabled = true
-  void loadClient()
+  void loadClientAfterFirstPaint()
     .then((client) => {
       client.init(key, options)
       initialized = true

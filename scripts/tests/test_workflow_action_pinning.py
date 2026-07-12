@@ -120,6 +120,27 @@ class WorkflowActionPinningTests(unittest.TestCase):
         self.assertIn("requests==", requirements)
         self.assertIn("--hash=sha256:", requirements)
 
+    def test_restore_probe_is_confirmation_gated_and_never_targets_supabase(self):
+        workflow = (WORKFLOWS / "verify-backup-restore.yml").read_text(encoding="utf-8")
+        self.assertIn("if: ${{ inputs.confirm_restore }}", workflow)
+        self.assertRegex(
+            workflow,
+            r"image: postgres:[^\s@]+@sha256:[0-9a-f]{64}",
+        )
+        for image in re.findall(r"^\s*image:\s*(\S+)", workflow, flags=re.MULTILINE):
+            self.assertRegex(image, r"^[^@\s]+@sha256:[0-9a-f]{64}$")
+        self.assertIn("restore_live_courses_probe.sql", workflow)
+        restore_sql = (ROOT / "scripts" / "restore_live_courses_probe.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("jsonb_to_record", restore_sql)
+        self.assertIn("sync_run_id uuid", restore_sql)
+        self.assertIn("--minimum-rows 5000", workflow)
+        self.assertIn("verify_live_courses_restore.py verify", workflow)
+        self.assertIn("drop table if exists live_courses_restore_probe", workflow)
+        self.assertNotIn("SUPABASE_URL", workflow)
+        self.assertNotIn("SUPABASE_KEY", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -138,6 +138,15 @@ class MyHarvardSyncTests(unittest.TestCase):
         self.assertEqual(inventory, {"myh|one": "myharvard", "myh|two": "myharvard"})
         self.assertEqual(request_get.call_args_list[1].kwargs["params"]["offset"], "1")
 
+    def test_reads_a_legacy_ats_rollback_baseline_without_upstream_identities(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = [{"id": "legacy-ats-row", "source": "ats"}]
+
+        inventory = self.sync.fetch_active_hks_storage_inventory(Mock(return_value=response))
+
+        self.assertEqual(inventory, {"legacy-ats-row": "ats"})
+
     def test_requires_exact_authoritative_upstream_to_production_identity_set(self):
         rows = self.sync.parse_cards(CARD)
         offering_id = rows[0]["id"]
@@ -154,10 +163,10 @@ class MyHarvardSyncTests(unittest.TestCase):
         rows = self.sync.parse_cards(CARD)
         previous = {"myh|previous": "myharvard"}
         mismatched = {"myh|unexpected": "myharvard"}
-        inventories = iter([previous, mismatched, previous])
 
         with (
-            patch.object(self.sync, "fetch_active_hks_inventory", side_effect=inventories),
+            patch.object(self.sync, "fetch_active_hks_storage_inventory", side_effect=[previous, previous]),
+            patch.object(self.sync, "fetch_active_hks_inventory", return_value=mismatched),
             patch.object(self.sync, "promote", return_value=1) as promote,
             patch.object(self.sync, "rollback", return_value=1) as rollback,
         ):
@@ -165,6 +174,53 @@ class MyHarvardSyncTests(unittest.TestCase):
                 self.sync.promote_and_verify(rows, "run-id")
 
         promote.assert_called_once_with("run-id")
+        rollback.assert_called_once_with("run-id")
+
+    def test_first_authoritative_promotion_accepts_a_legacy_ats_rollback_baseline(self):
+        rows = self.sync.parse_cards(CARD)
+        offering_id = rows[0]["id"]
+
+        with (
+            patch.object(
+                self.sync,
+                "fetch_active_hks_storage_inventory",
+                return_value={"legacy-ats-row": "ats"},
+            ),
+            patch.object(
+                self.sync,
+                "fetch_active_hks_inventory",
+                return_value={offering_id: "myharvard"},
+            ),
+            patch.object(self.sync, "promote", return_value=1),
+            patch.object(self.sync, "rollback") as rollback,
+        ):
+            activated, digest = self.sync.promote_and_verify(rows, "run-id")
+
+        self.assertEqual(activated, 1)
+        self.assertEqual(len(digest), 64)
+        rollback.assert_not_called()
+
+    def test_failed_first_promotion_restores_the_exact_legacy_ats_baseline(self):
+        rows = self.sync.parse_cards(CARD)
+        legacy = {"legacy-ats-row": "ats"}
+
+        with (
+            patch.object(
+                self.sync,
+                "fetch_active_hks_storage_inventory",
+                side_effect=[legacy, legacy],
+            ),
+            patch.object(
+                self.sync,
+                "fetch_active_hks_inventory",
+                return_value={"unexpected-offering": "myharvard"},
+            ),
+            patch.object(self.sync, "promote", return_value=1),
+            patch.object(self.sync, "rollback", return_value=1) as rollback,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "exact previous HKS catalogue was restored"):
+                self.sync.promote_and_verify(rows, "run-id")
+
         rollback.assert_called_once_with("run-id")
 
 
