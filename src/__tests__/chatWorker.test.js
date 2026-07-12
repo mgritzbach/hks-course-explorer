@@ -132,6 +132,26 @@ describe('Chat Pages Function contract', () => {
     expect(body.endsWith('data: [DONE]\n\n')).toBe(true)
   })
 
+  it.each([
+    ['an upstream HTTP failure', () => Promise.resolve(new Response('', { status: 502 }))],
+    ['an upstream network failure', () => Promise.reject(new Error('provider unavailable'))],
+  ])('returns course data for %s', async (_label, providerResult) => {
+    vi.stubGlobal('fetch', vi.fn(providerResult))
+    const CHAT_RATE_LIMITER = {
+      getByName: vi.fn().mockReturnValue({ consume: vi.fn().mockResolvedValue({ allowed: true }) }),
+    }
+
+    const response = await onRequestPost({
+      request: chatRequest(validPayload, { Origin: 'https://hks-course-explorer.pages.dev' }),
+      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER },
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      reply: expect.stringContaining('API-101: Policy Analysis'),
+    })
+  })
+
   it('uses the Durable Object decision as the atomic admission boundary', async () => {
     const consume = vi.fn().mockResolvedValue({ allowed: false, retryAfterMs: 45_000 })
     const decision = await enforceChatRateLimit(
