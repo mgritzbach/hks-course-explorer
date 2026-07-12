@@ -1,8 +1,8 @@
 /**
  * Free-tier production performance telemetry.
  *
- * Web Vitals are bundled into one PostHog event without DOM attribution. This
- * keeps payloads small and avoids retaining detached elements in the SPA.
+ * Web Vitals are aggregated when possible into PostHog `$web_vitals` events
+ * without DOM attribution. This avoids retaining detached elements in the SPA.
  */
 export const POSTHOG_PERFORMANCE_OPTIONS = Object.freeze({
   capture_performance: Object.freeze({

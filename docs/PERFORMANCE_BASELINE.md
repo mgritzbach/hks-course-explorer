@@ -86,8 +86,10 @@ Production now opts into PostHog's lightweight, non-attributed LCP, CLS, and INP
 collection and emits one bounded `catalogue_ready` event with duration, row
 count, cache hit/miss, route, and success state. No database response or error
 message is included. The connected project recorded 1,754 total analytics
-events and 370 pageviews in the preceding 30 days; at most two additional
-events per entered page remain far below PostHog's one-million-event monthly
+events and 370 pageviews in the preceding 30 days. The implementation adds one
+`catalogue_ready` event per catalogue load; PostHog aggregates Web Vitals when
+possible, and its published average is about 0.3 `$web_vitals` events per
+pageview. That volume remains far below PostHog's one-million-event monthly
 free allowance. This uses the existing analytics integration and adds no paid
 service. G08 remains incomplete until representative field data is available
 and reviewed; lab results alone are not production certification.
