@@ -38,12 +38,18 @@ Pages too if Pages can create builds outside this workflow.
 |---|---:|---|
 | `SUPABASE_URL` | Yes | REST/client endpoint for trusted data-sync scripts. |
 | `SUPABASE_KEY` | Yes | Supabase service-role/secret key for trusted scripts only. |
-| `HARVARD_API_KEY` | Yes | Harvard ATS API key used by the sync script. |
-| `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated results required before the sync writes. Script default: `1`; the production workflow uses the reviewed `1200` floor against its 1,555-offering baseline. |
+| `HARVARD_API_KEY` | Yes | Harvard ATS API key used by the non-HKS sync script. |
+| `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated non-HKS results required before the ATS sync writes. Script default: `1`; production uses `4300` against the reviewed 4,826-row source baseline from run `29186716529`. |
 | `SYNC_ALLOW_STALE_DELETE` | No | Retired safety flag. Any `true` value makes the sync fail before Harvard or database activity; this workflow never deletes rows. |
+| `MYHARVARD_MIN_HKS_OFFERINGS` | No | Minimum complete HKS offerings required before staging/promotion; production uses `285` against the current 297-row catalogue. |
+| `MYHARVARD_PROMOTE` | Yes in production | Must be `true` only in the trusted scheduled HKS promotion; defaults to staging without promotion. |
 
-The sync job fails closed if any required source request fails or the minimum
-course guard is not met. It requests Harvard's documented 1,000-record pages
+The ATS job fails closed if any required source request fails or the minimum
+course guard is not met. It accepts only the exact non-HKS school set in
+`GENERAL_SYNC_SCHOOLS`; before writing, it removes ATS course IDs present in
+the active authoritative my.harvard HKS set. The service-only RPC independently
+rejects both HKS-labelled rows and authoritative HKS course IDs, then explicitly
+activates accepted non-HKS rows. It requests Harvard's documented 1,000-record pages
 and follows only provider-issued HTTPS scroll links. It never follows a redirect
 after attaching the Harvard API key; an invalid, repeated, redirected, or failed
 page aborts the whole run. It passes the complete validated payload to the
@@ -56,6 +62,10 @@ inventories the entire `live_courses` table with a service-only, paginated read
 and reports aggregate retained-versus-current source counts. That evidence does
 not authorize deletion; any reconciliation requires a separately reviewed
 backup and restore plan.
+
+The separate my.harvard job stages every student-facing HKS offering under a
+run ID, verifies the upstream advertised count and configured minimum, then
+atomically deactivates the prior HKS set and promotes only the verified run.
 
 ## Cloudflare Pages Functions
 

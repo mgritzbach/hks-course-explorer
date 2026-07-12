@@ -1,8 +1,13 @@
 """
 sync_live_courses.py
 ====================
-Fetches current course offerings from the Harvard ATS API for ALL schools
-and upserts them into the Supabase `live_courses` table.
+Fetches current non-HKS course offerings from the Harvard ATS API and upserts
+them into the Supabase `live_courses` table.
+
+HKS is intentionally excluded. The public my.harvard catalogue is the
+authoritative student-facing HKS source and is promoted separately by
+``sync_myharvard_hks.py``. Keeping the source ownership disjoint prevents the
+general sync from briefly replacing or duplicating the complete HKS catalogue.
 
 Run manually:
     python scripts/sync_live_courses.py
@@ -45,11 +50,11 @@ SUPABASE_URL     = os.environ["SUPABASE_URL"].rstrip("/")
 SUPABASE_KEY     = os.environ["SUPABASE_KEY"]
 HARVARD_API_KEY  = os.environ["HARVARD_API_KEY"]
 
-ALL_SCHOOLS = [
+GENERAL_SYNC_SCHOOLS = (
     "FAS", "GSAS", "GSD", "HBSD", "HBSM",
-    "HDS", "HGSE", "HKS", "HLS", "HMS",
+    "HDS", "HGSE", "HLS", "HMS",
     "HSDM", "HSPH", "NONH",
-]
+)
 HKS_SCHOOL = "HKS"
 
 # Seed queries — broad enough to cover most course titles/codes.
@@ -513,6 +518,60 @@ def supabase_inventory_live_courses(request_get=requests.get):
     raise RuntimeError(f"live_courses exceeds the safe {MAX_INVENTORY_ROWS} row inventory limit")
 
 
+def supabase_active_hks_source_course_ids(request_get=requests.get):
+    """Return authoritative active-HKS course IDs before the ATS write.
+
+    ``catalogSchool`` is a search facet, not a trustworthy ownership field: an
+    HKS cross-list can also appear in a non-HKS query. my.harvard's stable
+    ``source_course_id`` is the authoritative ownership boundary, and it maps
+    to the ATS ``courseID`` stored in ``live_courses.id``.
+    """
+    ids = set()
+    endpoint = f"{SUPABASE_URL}/rest/v1/live_courses"
+    params = {
+        "select": "source_course_id",
+        "source": "eq.myharvard",
+        "active": "eq.true",
+        "is_hks": "eq.true",
+        "source_course_id": "not.is.null",
+        "order": "source_course_id.asc",
+    }
+    for start in range(0, MAX_INVENTORY_ROWS, INVENTORY_PAGE_SIZE):
+        response = request_get(
+            endpoint,
+            headers={
+                **_sb_read_headers(),
+                "Range-Unit": "items",
+                "Range": f"{start}-{start + INVENTORY_PAGE_SIZE - 1}",
+            },
+            params=params,
+            timeout=30,
+        )
+        if not response.ok:
+            raise RuntimeError(
+                f"Authoritative HKS identity read failed: HTTP {response.status_code}"
+            )
+        page = response.json()
+        if not isinstance(page, list):
+            raise RuntimeError("Authoritative HKS identity read returned a non-list response")
+        for row in page:
+            source_course_id = (
+                str(row.get("source_course_id") or "").strip()
+                if isinstance(row, dict)
+                else ""
+            )
+            if not source_course_id:
+                raise RuntimeError("Authoritative HKS identity read returned an empty ID")
+            ids.add(source_course_id)
+        if len(page) < INVENTORY_PAGE_SIZE:
+            if not ids:
+                raise RuntimeError("Authoritative HKS identity set is empty")
+            return ids
+    raise RuntimeError(
+        f"Authoritative HKS identity read exceeds the safe {MAX_INVENTORY_ROWS} row limit"
+    )
+
+
 def compare_live_course_inventory(source_rows, database_rows):
     """Return aggregate-only differences; neither side is treated as a deletion list."""
     source_ids = {str(row.get("id") or "") for row in source_rows}
@@ -552,13 +611,13 @@ def main():
             "backed-up reconciliation instead."
         )
     log.info("Sync started at %s", sync_start)
-    log.info("Schools: %s", ALL_SCHOOLS)
+    log.info("Non-HKS schools: %s", GENERAL_SYNC_SCHOOLS)
     log.info("Seed queries: %s  Workers: %d", SEED_QUERIES, WORKERS)
 
     all_rows: dict[str, dict] = {}  # id → row
 
     failures: list[FetchResult] = []
-    tasks = [(school, q) for school in ALL_SCHOOLS for q in SEED_QUERIES]
+    tasks = [(school, q) for school in GENERAL_SYNC_SCHOOLS for q in SEED_QUERIES]
     log.info("Total API calls planned: %d", len(tasks))
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
@@ -601,6 +660,31 @@ def main():
         )
         log.error("Aborting sync: %d of %d Harvard requests failed. No Supabase write or inventory read will run. Failed calls: %s", len(failures), len(tasks), failed_calls)
         sys.exit(1)
+
+    try:
+        authoritative_hks_ids = supabase_active_hks_source_course_ids()
+    except Exception:
+        write_github_summary(
+            build_sync_summary(
+                outcome="aborted before database writes: authoritative HKS identity read failed",
+                sync_start=sync_start,
+                planned_request_count=len(tasks),
+                rows=list(all_rows.values()),
+            )
+        )
+        raise
+
+    excluded_hks_cross_lists = authoritative_hks_ids.intersection(all_rows)
+    if excluded_hks_cross_lists:
+        all_rows = {
+            row_id: row
+            for row_id, row in all_rows.items()
+            if row_id not in authoritative_hks_ids
+        }
+        log.info(
+            "Excluded %d ATS cross-list identities owned by the authoritative HKS catalogue.",
+            len(excluded_hks_cross_lists),
+        )
 
     if len(all_rows) < MIN_UNIQUE_COURSES:
         write_github_summary(

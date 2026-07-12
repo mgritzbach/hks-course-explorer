@@ -6,12 +6,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "supabase" / "migrations" / "20260710235500_atomic_live_course_sync.sql"
 SERIALIZATION = ROOT / "supabase" / "migrations" / "20260712070000_serialize_and_guard_catalogue_promotions.sql"
+SOURCE_ISOLATION = ROOT / "supabase" / "migrations" / "20260712092831_isolate_non_hks_ats_activation.sql"
 
 
 class AtomicLiveCourseSyncMigrationTests(unittest.TestCase):
     def setUp(self):
         self.sql = MIGRATION.read_text(encoding="utf-8").lower()
         self.serialization = SERIALIZATION.read_text(encoding="utf-8").lower()
+        self.source_isolation = SOURCE_ISOLATION.read_text(encoding="utf-8").lower()
 
     def test_uses_one_service_only_atomic_function(self):
         self.assertIn("create or replace function public.sync_live_courses_atomically(p_rows jsonb)", self.sql)
@@ -32,6 +34,24 @@ class AtomicLiveCourseSyncMigrationTests(unittest.TestCase):
         self.assertEqual(self.serialization.count(lock), 2)
         self.assertIn("material catalogue drop rejected", self.serialization)
         self.assertIn("expected_rows < ceil(previous_rows * 0.95)", self.serialization)
+
+    def test_non_hks_sync_rejects_hks_and_reactivates_accepted_rows(self):
+        self.assertIn("general live-course sync accepts non-hks rows only", self.source_isolation)
+        self.assertIn("item.value -> 'is_hks' is distinct from 'false'::jsonb", self.source_isolation)
+        self.assertIn("upper(btrim(item.value ->> 'school')) = 'hks'", self.source_isolation)
+        self.assertIn("authoritative_hks.source = 'myharvard'", self.source_isolation)
+        self.assertIn(
+            "authoritative_hks.source_course_id = item.value ->> 'id'",
+            self.source_isolation,
+        )
+        self.assertIn("source, active", self.source_isolation)
+        self.assertIn("'ats', true", self.source_isolation)
+        self.assertIn("source = 'ats'", self.source_isolation)
+        self.assertIn("active = true", self.source_isolation)
+        self.assertIn(
+            "revoke all on function public.sync_live_courses_atomically(jsonb)",
+            self.source_isolation,
+        )
 
 
 if __name__ == "__main__":

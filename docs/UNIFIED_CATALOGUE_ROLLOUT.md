@@ -5,8 +5,9 @@
 The public application will read one versioned catalogue of currently offered
 courses. Each offering has either verified same-professor evaluation context, a
 course-only prior-offering record, a review candidate, or an explicit
-`unmatched` state. The Harvard API is a trusted daily ingestion source, not a
-browser search dependency.
+`unmatched` state. my.harvard is the authoritative HKS ingestion source and the
+Harvard ATS API supplies non-HKS offerings. Neither is a browser search
+dependency.
 
 This document is a rollout plan. It does not authorize a production database
 change by itself.
@@ -18,7 +19,8 @@ For the field-level identity, provenance, and operator-review rules, see
 
 | Source | Responsibility | Immutable identity |
 | --- | --- | --- |
-| Harvard daily sync | Current/future offering facts | Harvard offering `id` |
+| my.harvard HKS sync | Current/future HKS offering facts | my.harvard offering identity |
+| Harvard ATS non-HKS sync | Current/future non-HKS offering facts | Harvard offering `id` |
 | Historical `courses` data | Observed evaluations and bidding history | Existing historical row `id` |
 | Reviewed alias registry | Approved renumberings only | Exact old and new course codes |
 

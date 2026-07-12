@@ -23,6 +23,51 @@ test.describe('Schedule Builder critical flows', () => {
     await expect(page.getByText('5 current HKS offerings across 3 catalogue terms')).toBeVisible()
   })
 
+  test('reveals and allows selection of every current offering, including schedule-pending rows', async ({
+    page,
+  }) => {
+    const completeTerm = Array.from({ length: 30 }, (_, index) => {
+      const sequence = String(index + 1).padStart(3, '0')
+      return {
+        id: `myh|HKS|2026-Fall|api7${sequence}|1|001`,
+        course_code: `API-7${sequence}-001`,
+        course_code_base: `API-7${sequence}`,
+        title: `Complete catalogue course ${sequence}`,
+        term: '2026 Fall',
+        credits: 4,
+        instructors: [`Instructor ${sequence}`],
+        meeting_days: '',
+        time_start: '',
+        time_end: '',
+        location: '',
+        school: 'HKS',
+        is_hks: true,
+        session_code: 'FULLTERM',
+        session_description: 'Full Term',
+        cross_reg_eligible: 'YESXREG',
+        source: 'myharvard',
+        section_code: '001',
+        source_url: `https://my.harvard.edu/course/API7${sequence}/2026-Fall/001`,
+        active: true,
+      }
+    })
+    await installMockBackend(page, { liveCoursesResponse: completeTerm })
+    await page.goto('/schedule-builder')
+
+    const results = page.getByRole('list', { name: 'Course search results' })
+    await expect(results).toContainText('30 live courses · 0 scheduled · 30 schedule pending')
+    await expect(results.getByRole('listitem')).toHaveCount(25)
+
+    await results.getByRole('button', { name: 'Show more (5 remaining)' }).click()
+    await expect(results.getByRole('listitem')).toHaveCount(30)
+
+    const lastOffering = 'API-7030-001'
+    await results.getByRole('button', { name: `Add ${lastOffering} to plan` }).click()
+    await expect(
+      results.getByRole('button', { name: `Remove ${lastOffering} from plan` }),
+    ).toBeVisible()
+  })
+
   test('keeps non-HKS-only catalogue terms visible and selectable', async ({ page }) => {
     await page.goto('/schedule-builder')
     await page.getByLabel('School filter').selectOption('Non-HKS')

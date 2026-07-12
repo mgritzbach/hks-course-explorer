@@ -71,7 +71,11 @@ Choose the track that matches how much data you have.
    pip install requests supabase
    python scripts/sync_live_courses.py
    ```
-   This fetches current course listings from the Harvard ATS API for all schools.
+   This fetches non-HKS course listings from the Harvard ATS API. This
+   repository's HKS deployment separately runs `sync_myharvard_hks.py` because
+   my.harvard is the authoritative student-facing HKS catalogue. A fork should
+   define one authoritative source for its own school and keep source ownership
+   disjoint.
 
 7. Deploy through the versioned GitHub Actions workflow. Before pushing to
    `master`, configure `DEPLOY_VITE_SUPABASE_URL` as a GitHub variable and
@@ -162,7 +166,7 @@ Contact the original author if you want to discuss this — see attribution sect
 - Cloudflare Pages deployment
 - Supabase backend
 - GitHub Actions CI (lint + build gate)
-- Schedule builder (works for all Harvard schools via the Harvard ATS API)
+- Schedule builder (current HKS via my.harvard; other Harvard schools via the ATS API)
 - Similarity map (PCA-based, computed from your evaluation data)
 - All engineering improvements (caching, validation, hooks architecture)
 
