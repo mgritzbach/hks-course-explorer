@@ -42,6 +42,24 @@ leaves the production workflow red
 and retains Playwright diagnostics for seven days; do not treat the release as
 healthy until the failure is resolved or the prior deployment is restored.
 
+The production workflow also enforces the Cloudflare zone's **Browser Cache
+TTL** as **Respect Existing Headers** before it promotes the Pages candidate.
+Cloudflare represents that setting as `browser_cache_ttl = 0`. This prevents
+the zone's four-hour default from extending Pages' deployment-safe
+`Cache-Control: public, max-age=0, must-revalidate` policy. The control resolves
+exactly one active `hks-course-explorer.org` zone, refuses a non-editable or
+ambiguous target, applies only that setting, and requires a successful API
+read-back. The following custom-domain static smoke still validates every
+manifest asset's exact body, MIME type, and cache directives, so a separate
+Cache Rule override remains release-blocking.
+
+The repository secret `CLOUDFLARE_API_TOKEN` must grant **Zone Read** and
+**Zone Settings Write** only for the `hks-course-explorer.org` zone, in addition
+to the existing Pages/Workers deployment permissions. Do not replace it with a
+global API key. The policy control retries transient rate-limit, server, and
+network failures twice with bounded backoff; permission, target-validation, and
+read-back failures are never retried into a broader mutation.
+
 If port 4173 is intentionally occupied by another local preview, run the
 same isolated built-artifact suite on a different port, for example:
 
