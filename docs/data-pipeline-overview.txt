@@ -7,16 +7,20 @@ Historical evaluations:
     -> static CDN assets used by the React application
 
 Current offerings:
-  Harvard ATS API
+  my.harvard
+    -> scripts/sync_myharvard_hks.py
+    -> stage, count-verify, and atomically promote authoritative HKS rows
+  Harvard ATS API (non-HKS schools only)
     -> scripts/sync_live_courses.py
     -> service-only atomic Supabase RPC
     -> Supabase live_courses
     -> Browser Schedule Builder, scoped to the selected term
 
-The browser never searches the Harvard ATS API directly. The API is a trusted
-daily-ingestion source only. Student searches and browsing use the last
-successfully synced `live_courses` data, so a temporary upstream API failure
-cannot make an otherwise healthy browser search depend on the provider.
+The browser never searches my.harvard or the Harvard ATS API directly. Both
+are trusted daily-ingestion sources only. HKS and non-HKS source ownership is
+disjoint. Student searches and browsing use the last successfully synced
+`live_courses` data, so a temporary upstream failure cannot make an otherwise
+healthy browser search depend on either provider.
 
 Section meeting data:
   Harvard source/section import process
@@ -29,6 +33,8 @@ Safety rules:
   retain legacy last-write-wins behavior during loading and must be resolved
   before any controlled promotion.
 - Any failed source request aborts a live-sync run before upsert or stale deletion.
+- The general ATS sync excludes HKS; only a count-verified my.harvard run may
+  change the active HKS catalogue.
 - Harvard result pages use the documented scroll cursor. Any malformed, repeated,
   or failed page aborts the entire run before data can change.
 - A complete validated source payload is upserted in one database transaction;

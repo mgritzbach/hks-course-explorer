@@ -20,7 +20,7 @@ HKS Course Explorer gives students a single place to:
 - **Similarity map** — find courses similar to ones you already like via a PCA-based scatter plot
 - **AI advisor** — ask a chatbot trained on the course catalog to find the right course for your interests
 
-Data covers **5,581 HKS Q-guide evaluation records** across multiple years, plus current course listings synchronised daily from the Harvard ATS API for all schools. The browser searches that last verified catalogue; it does not call the upstream API while a student is using the site.
+Data covers **5,581 HKS Q-guide evaluation records** across multiple years, plus current course listings synchronised daily from two disjoint sources: my.harvard for the complete student-facing HKS catalogue and the Harvard ATS API for non-HKS schools. The browser searches that last verified catalogue; it does not call either upstream source while a student is using the site.
 
 ---
 
@@ -30,7 +30,7 @@ Data covers **5,581 HKS Q-guide evaluation records** across multiple years, plus
 |-------|------|
 | Frontend | React 18 + Vite, deployed on Cloudflare Pages |
 | Database | Supabase (PostgreSQL) |
-| Live data | Harvard ATS API (`go.apis.huit.harvard.edu`) |
+| Live data | my.harvard (authoritative HKS offerings) + Harvard ATS API (non-HKS offerings) |
 | CI/CD | GitHub Actions quality gate and exact-commit Wrangler deployment to Cloudflare Pages |
 | Monitoring | Sentry (error tracking, optional) |
 
@@ -80,7 +80,8 @@ Copy-Item .env.example .env
 #    src/school.config.js    <- branding (name, code, creator credit)
 #    data/school_config.json <- course codes, core requirements
 
-# 6. Populate live course data from the Harvard ATS API
+# 6. Populate non-HKS live course data from the Harvard ATS API.
+#    HKS production data is promoted separately by sync_myharvard_hks.py.
 python scripts/sync_live_courses.py
 
 # 7. Run locally
@@ -123,16 +124,17 @@ public/courses.json  +  public/sim_coords.json
        v
 Static files served from CDN globally
 
-Harvard ATS API  -->  scheduled scripts/sync_live_courses.py  -->  Supabase live_courses
-                                                                  -->  Supabase course_sections
-                                                                            |
-                                                                            v
-                                                        Browser Schedule Builder reads
-                                                        the selected synced term only
+my.harvard       -->  scheduled scripts/sync_myharvard_hks.py  -- authoritative HKS --+
+Harvard ATS API  -->  scheduled scripts/sync_live_courses.py   -- non-HKS schools -----+--> Supabase live_courses
+Harvard sections ---------------------------------------------------------------> Supabase course_sections
+                                                                                          |
+                                                                                          v
+                                                                      Browser Schedule Builder reads
+                                                                      the selected synced term only
 
-The Harvard API is an ingestion source, not a browser search dependency. A
-failed daily sync leaves the prior verified catalogue in place; a student
-search never falls back to an on-demand upstream request.
+Both upstream catalogues are ingestion sources, not browser search
+dependencies. A failed daily sync leaves the prior verified catalogue in
+place; a student search never falls back to an on-demand upstream request.
 ```
 
 Full pipeline documentation: [docs/data-pipeline-overview.txt](docs/data-pipeline-overview.txt)
@@ -187,7 +189,8 @@ hks-course-explorer/
 │       └── harvardApi.js          Legacy Harvard proxy client (not imported by the deployed browser)
 ├── scripts/
 │   ├── build_data.py              CSV -> courses.json + sim_coords.json
-│   ├── sync_live_courses.py       Harvard ATS API -> Supabase live_courses
+│   ├── sync_myharvard_hks.py      authoritative HKS -> Supabase live_courses
+│   ├── sync_live_courses.py       non-HKS ATS -> Supabase live_courses
 │   └── load_to_supabase.py        courses.json -> Supabase courses table
 ├── data/
 │   ├── school_config.json      <- fork here: course codes & core requirements

@@ -11,7 +11,8 @@ Browser (React/Vite)
 
 GitHub Actions
   |-- Build and test gates
-  '-- Scheduled trusted sync -> Harvard ATS API -> Supabase live_courses
+  |-- Scheduled authoritative HKS sync -> my.harvard -> Supabase live_courses
+  '-- Scheduled non-HKS sync -> Harvard ATS API -> Supabase live_courses
 ```
 
 The browser uses only the Supabase anon key. Trusted source synchronisation,
@@ -23,7 +24,9 @@ provider keys, OTP delivery, and JWT signing run outside the browser.
   input. `scripts/build_data.py` generates `public/courses.json` and
   `public/sim_coords.json`.
 - `live_courses` and `course_sections` are the current-offering sources.
-  A failed sync must preserve the previously served catalogue.
+  Active HKS rows are owned only by the my.harvard promotion; the general ATS
+  sync owns non-HKS rows. A failed sync must preserve the previously served
+  catalogue.
 - Browser local storage is a convenience copy for personal planning; it is not a
   substitute for a backed-up authenticated schedule service.
 - Term formats are intentionally different: live courses use `YYYY Semester`,
@@ -31,8 +34,10 @@ provider keys, OTP delivery, and JWT signing run outside the browser.
 
 ## Reliability contracts
 
-- The Harvard ATS API is a daily ingestion dependency, not a browser search
-  dependency. A failed sync preserves the last successfully synced catalogue.
+- my.harvard and the Harvard ATS API are daily ingestion dependencies, not
+  browser search dependencies. HKS and non-HKS ownership is disjoint so one
+  source cannot replace the other. A failed sync preserves the last
+  successfully synced catalogue.
 - The deployed legacy Harvard proxy is not called by the browser and is kept
   only until a separately reviewed external-consumer retirement decision.
 - Live-sync writes are skipped entirely if any upstream source request fails.

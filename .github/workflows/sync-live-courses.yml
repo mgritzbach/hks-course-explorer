@@ -1,4 +1,4 @@
-name: Sync live courses from Harvard API
+name: Sync non-HKS courses from Harvard API
 
 on:
   schedule:
@@ -39,8 +39,11 @@ jobs:
           # after each successful atomic upsert for a separately reviewed,
           # backed-up reconciliation; the sync itself never deletes data.
           SYNC_ALLOW_STALE_DELETE: 'false'
-          # Production contains 1,555 offerings as of the established baseline.
-          # Reject a materially incomplete upstream response before it can
-          # refresh the catalogue. Revisit this only with audited term data.
-          SYNC_MIN_UNIQUE_COURSES: '1200'
+          # HKS is owned by the separate authoritative my.harvard sync. This
+          # job protects all other Harvard-school offerings without changing
+          # which HKS rows are active.
+          # Run 29186716529 produced 4,826 distinct non-HKS ATS rows. Reject a
+          # drop below 4,300 (89% of that reviewed baseline) before any write.
+          # Recalibrate only from a successful, inventory-audited source run.
+          SYNC_MIN_UNIQUE_COURSES: '4300'
         run: python scripts/sync_live_courses.py

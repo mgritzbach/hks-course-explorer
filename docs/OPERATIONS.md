@@ -85,15 +85,28 @@ rationale.
 
 ## Live-course sync
 
-The scheduled GitHub Action runs `scripts/sync_live_courses.py`.
+Two scheduled GitHub Actions share one concurrency group:
+
+- `scripts/sync_myharvard_hks.py` stages, validates, and atomically promotes
+  the complete student-facing HKS catalogue.
+- `scripts/sync_live_courses.py` upserts non-HKS Harvard ATS offerings only.
+
+Do not add HKS to `GENERAL_SYNC_SCHOOLS`. Source ownership is intentionally
+disjoint so the broader ATS job cannot make HKS rows appear, disappear, or
+duplicate between runs. Because `catalogSchool` is a search facet rather than
+proof of ownership, the job also excludes every ATS `courseID` present in the
+active my.harvard HKS `source_course_id` set; the database function repeats
+that check inside the serialized write transaction.
 
 Scheduled and manually dispatched runs share one production concurrency group.
 GitHub will not run them simultaneously, so a recovery attempt cannot race the
 scheduled run's atomic promotion. Do not cancel an in-progress sync solely to
 start another one; wait for its summary and start the follow-up only if needed.
 
-The sync will upsert data only when every planned Harvard request succeeds and
-the configured minimum unique-course count is reached. It never deletes
+The non-HKS sync will upsert data only when every planned Harvard request
+succeeds and the configured minimum unique-course count is reached. Production
+uses a 4,300-row floor against the reviewed 4,826-row non-HKS source inventory
+from run `29186716529`. It never deletes
 `live_courses` rows: `SYNC_ALLOW_STALE_DELETE=true` is rejected before any
 Harvard or database activity. A successful API response alone does not prove
 the upstream search returned a complete catalogue, so deletion requires a
@@ -107,8 +120,9 @@ separate, reviewed reconciliation with a tested backup and restore path.
 - An inventory-read failure is a non-zero post-promotion incident: the upsert
   has succeeded, but no cleanup has been attempted and the run is not
   reconciliation-ready.
-- `SYNC_MIN_UNIQUE_COURSES=1` is only a non-empty guard. Do not infer complete
-  coverage or a deletion authorization from an HTTP success or the inventory.
+- The script default `SYNC_MIN_UNIQUE_COURSES=1` is only for unconfigured local
+  runs. Production must retain its reviewed 4,300 floor. Do not infer deletion
+  authorization from an HTTP success or the inventory.
 - Keep the last verified catalogue/data version available for rollback.
 - Treat a partial run as an incident, not as an empty current catalogue.
 - Each scheduled run writes a compact GitHub Actions summary with its outcome,

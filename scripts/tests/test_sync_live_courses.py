@@ -37,6 +37,17 @@ class FetchSchoolTests(unittest.TestCase):
         self.sync = load_sync_module()
         self.sync.REQUEST_DELAY = 0
 
+    def test_general_sync_never_queries_authoritative_hks_source(self):
+        self.assertEqual(
+            self.sync.GENERAL_SYNC_SCHOOLS,
+            (
+                "FAS", "GSAS", "GSD", "HBSD", "HBSM",
+                "HDS", "HGSE", "HLS", "HMS",
+                "HSDM", "HSPH", "NONH",
+            ),
+        )
+        self.assertNotIn(self.sync.HKS_SCHOOL, self.sync.GENERAL_SYNC_SCHOOLS)
+
     def test_accepts_valid_list_response(self):
         response = Mock(ok=True)
         response.json.return_value = []
@@ -143,7 +154,7 @@ class FetchSchoolTests(unittest.TestCase):
         failure = self.sync.FetchResult("HKS", "e", [], False, "HTTP 503")
 
         with (
-            patch.object(self.sync, "ALL_SCHOOLS", ["HKS"]),
+            patch.object(self.sync, "GENERAL_SYNC_SCHOOLS", ["HKS"]),
             patch.object(self.sync, "SEED_QUERIES", ["a", "e"]),
             patch.object(self.sync, "WORKERS", 1),
             patch.object(self.sync, "fetch_school", side_effect=[success, failure]),
@@ -161,10 +172,13 @@ class FetchSchoolTests(unittest.TestCase):
         success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
 
         with (
-            patch.object(self.sync, "ALL_SCHOOLS", ["HKS"]),
+            patch.object(self.sync, "GENERAL_SYNC_SCHOOLS", ["HKS"]),
             patch.object(self.sync, "SEED_QUERIES", ["a"]),
             patch.object(self.sync, "WORKERS", 1),
             patch.object(self.sync, "fetch_school", return_value=success),
+            patch.object(
+                self.sync, "supabase_active_hks_source_course_ids", return_value={"hks-owned"}
+            ),
             patch.object(self.sync, "supabase_upsert", side_effect=RuntimeError("database unavailable")),
             patch.object(self.sync, "supabase_inventory_live_courses") as inventory,
             patch.object(self.sync, "write_github_summary") as write_summary,
@@ -179,10 +193,13 @@ class FetchSchoolTests(unittest.TestCase):
         success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
 
         with (
-            patch.object(self.sync, "ALL_SCHOOLS", ["HKS"]),
+            patch.object(self.sync, "GENERAL_SYNC_SCHOOLS", ["HKS"]),
             patch.object(self.sync, "SEED_QUERIES", ["a"]),
             patch.object(self.sync, "WORKERS", 1),
             patch.object(self.sync, "fetch_school", return_value=success),
+            patch.object(
+                self.sync, "supabase_active_hks_source_course_ids", return_value={"hks-owned"}
+            ),
             patch.object(self.sync, "supabase_upsert") as upsert,
             patch.object(self.sync, "supabase_inventory_live_courses", return_value=[success.rows[0]]),
             patch.object(self.sync, "write_github_summary") as write_summary,
@@ -197,11 +214,14 @@ class FetchSchoolTests(unittest.TestCase):
         empty_success = self.sync.FetchResult("HKS", "a", [], True)
 
         with (
-            patch.object(self.sync, "ALL_SCHOOLS", ["HKS"]),
+            patch.object(self.sync, "GENERAL_SYNC_SCHOOLS", ["HKS"]),
             patch.object(self.sync, "SEED_QUERIES", ["a"]),
             patch.object(self.sync, "WORKERS", 1),
             patch.object(self.sync, "MIN_UNIQUE_COURSES", 1),
             patch.object(self.sync, "fetch_school", return_value=empty_success),
+            patch.object(
+                self.sync, "supabase_active_hks_source_course_ids", return_value={"hks-owned"}
+            ),
             patch.object(self.sync, "supabase_upsert") as upsert,
         ):
             with self.assertRaises(SystemExit) as exit_context:
@@ -280,6 +300,73 @@ class FetchSchoolTests(unittest.TestCase):
             ],
         )
 
+    def test_reads_and_deduplicates_authoritative_hks_course_ids(self):
+        records = [
+            {"source_course_id": "170000"},
+            {"source_course_id": "170000"},
+            {"source_course_id": "170001"},
+        ]
+        requests_seen = []
+
+        def request_get(url, headers, params, timeout):
+            requests_seen.append((headers["Range"], params))
+            start = int(headers["Range"].split("-")[0])
+            response = Mock(ok=True)
+            response.json.return_value = records[start : start + 2]
+            return response
+
+        with (
+            patch.object(self.sync, "INVENTORY_PAGE_SIZE", 2),
+            patch.object(self.sync, "MAX_INVENTORY_ROWS", 4),
+        ):
+            ids = self.sync.supabase_active_hks_source_course_ids(request_get)
+
+        self.assertEqual(ids, {"170000", "170001"})
+        self.assertEqual([request[0] for request in requests_seen], ["0-1", "2-3"])
+        self.assertEqual(requests_seen[0][1]["source"], "eq.myharvard")
+        self.assertEqual(requests_seen[0][1]["active"], "eq.true")
+        self.assertEqual(requests_seen[0][1]["is_hks"], "eq.true")
+
+    def test_rejects_an_empty_authoritative_hks_identity_set(self):
+        empty = Mock(ok=True)
+        empty.json.return_value = []
+        with self.assertRaisesRegex(RuntimeError, "identity set is empty"):
+            self.sync.supabase_active_hks_source_course_ids(Mock(return_value=empty))
+
+    def test_filters_authoritative_hks_cross_lists_before_upsert(self):
+        success = self.sync.FetchResult(
+            "FAS",
+            "policy",
+            [
+                {"id": "170000", "school": "FAS", "is_hks": False, "term": "2026 Fall"},
+                {"id": "fas-owned", "school": "FAS", "is_hks": False, "term": "2026 Fall"},
+            ],
+            True,
+        )
+
+        with (
+            patch.object(self.sync, "GENERAL_SYNC_SCHOOLS", ["FAS"]),
+            patch.object(self.sync, "SEED_QUERIES", ["policy"]),
+            patch.object(self.sync, "WORKERS", 1),
+            patch.object(self.sync, "MIN_UNIQUE_COURSES", 1),
+            patch.object(self.sync, "fetch_school", return_value=success),
+            patch.object(
+                self.sync, "supabase_active_hks_source_course_ids", return_value={"170000"}
+            ),
+            patch.object(self.sync, "supabase_upsert") as upsert,
+            patch.object(
+                self.sync,
+                "supabase_inventory_live_courses",
+                return_value=[{"id": "fas-owned", "school": "FAS", "term": "2026 Fall"}],
+            ),
+            patch.object(self.sync, "write_github_summary"),
+        ):
+            self.sync.main()
+
+        upsert.assert_called_once_with(
+            [{"id": "fas-owned", "school": "FAS", "is_hks": False, "term": "2026 Fall"}]
+        )
+
     def test_sync_source_has_no_delete_transport_or_cleanup_helper(self):
         source = MODULE_PATH.read_text(encoding="utf-8")
 
@@ -333,10 +420,13 @@ class FetchSchoolTests(unittest.TestCase):
         success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
 
         with (
-            patch.object(self.sync, "ALL_SCHOOLS", ["HKS"]),
+            patch.object(self.sync, "GENERAL_SYNC_SCHOOLS", ["HKS"]),
             patch.object(self.sync, "SEED_QUERIES", ["a"]),
             patch.object(self.sync, "WORKERS", 1),
             patch.object(self.sync, "fetch_school", return_value=success),
+            patch.object(
+                self.sync, "supabase_active_hks_source_course_ids", return_value={"hks-owned"}
+            ),
             patch.object(self.sync, "supabase_upsert") as upsert,
             patch.object(self.sync, "supabase_inventory_live_courses", side_effect=RuntimeError("inventory unavailable")),
             patch.object(self.sync, "write_github_summary") as write_summary,
