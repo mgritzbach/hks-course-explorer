@@ -5,6 +5,35 @@ const SESSION_OPTIONS = Object.freeze({
   Summer: Object.freeze(['Full Term']),
 })
 
+const CATALOGUE_SEMESTER_ORDER = Object.freeze({ Spring: 0, Summer: 1, Fall: 2 })
+
+/**
+ * Build the term selector from the active HKS catalogue itself. This prevents
+ * impossible year/semester pairs such as "2026 Spring" when the current
+ * academic catalogue contains Fall 2026 and Spring 2027.
+ */
+export function buildAvailableCatalogueTerms(rows) {
+  const counts = new Map()
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row || row.is_hks !== true || typeof row.term !== 'string') continue
+    const match = row.term.trim().match(/^(\d{4})\s+(Spring|Summer|Fall)$/)
+    if (!match) continue
+    const term = `${match[1]} ${match[2]}`
+    counts.set(term, (counts.get(term) || 0) + 1)
+  }
+
+  return [...counts.entries()]
+    .map(([term, count]) => {
+      const [year, semester] = term.split(' ')
+      return { term, year, semester, count, label: `${semester} ${year}` }
+    })
+    .sort(
+      (a, b) =>
+        Number(a.year) - Number(b.year) ||
+        CATALOGUE_SEMESTER_ORDER[a.semester] - CATALOGUE_SEMESTER_ORDER[b.semester],
+    )
+}
+
 /** Choose the current planning term without hard-coding an expired catalog. */
 export function getDefaultScheduleTerm(now = new Date()) {
   return {

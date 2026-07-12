@@ -37,6 +37,12 @@ class WorkflowActionPinningTests(unittest.TestCase):
         self.assertIn("git diff --quiet HEAD^ HEAD -- workers/chat-rate-limiter", deploy_workflow)
         self.assertIn("if: steps.rate-limiter.outputs.changed == 'true'", deploy_workflow)
 
+    def test_deploy_smokes_default_and_custom_production_domains(self):
+        deploy_workflow = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
+        self.assertIn("Smoke-test deployed Pages entrypoint", deploy_workflow)
+        self.assertIn("Smoke-test custom production domain", deploy_workflow)
+        self.assertIn("DEPLOY_SMOKE_URL: https://hks-course-explorer.org/", deploy_workflow)
+
     def test_all_official_actions_are_full_sha_pinned_with_a_readable_version(self):
         references = []
         for workflow in sorted(WORKFLOWS.glob("*.yml")):

@@ -2,6 +2,7 @@
 
 import importlib.util
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -95,6 +96,64 @@ class BuildDataContractTests(unittest.TestCase):
 
         self.assertEqual(merged_count, 0)
         self.assertEqual(rows, [first, conflicting])
+
+    def test_similarity_cache_must_cover_every_eligible_course(self):
+        build_data = load_module()
+        courses = [
+            {"id": "a", "has_eval": True, "is_average": False, "year": 2025},
+            {"id": "average", "has_eval": True, "is_average": True, "year": 0},
+        ]
+        entry = {
+            "id": "a",
+            "sim_x": 1.0,
+            "sim_y": 2.0,
+            "sim_x_ratings": 3.0,
+            "sim_y_ratings": 4.0,
+            "sim_x_text": 5.0,
+            "sim_y_text": 6.0,
+        }
+
+        self.assertEqual(set(build_data.validate_similarity_cache([entry], courses)), {"a"})
+        with self.assertRaisesRegex(RuntimeError, "empty"):
+            build_data.validate_similarity_cache([], courses)
+        with self.assertRaisesRegex(RuntimeError, "missing=1"):
+            build_data.validate_similarity_cache([{**entry, "id": "other"}], courses)
+
+    def test_similarity_cache_rejects_conflicting_duplicate_coordinates(self):
+        build_data = load_module()
+        course = {"id": "a", "has_eval": True, "is_average": False, "year": 2025}
+        entry = {
+            "id": "a",
+            "sim_x": 1.0,
+            "sim_y": 2.0,
+            "sim_x_ratings": 3.0,
+            "sim_y_ratings": 4.0,
+            "sim_x_text": 5.0,
+            "sim_y_text": 6.0,
+        }
+        with self.assertRaisesRegex(RuntimeError, "conflicts"):
+            build_data.validate_similarity_cache([entry, {**entry, "sim_x": 9.0}], [course])
+
+    def test_similarity_source_hash_is_tracked_and_matches_the_canonical_input(self):
+        build_data = load_module()
+        expected = build_data.stable_source_hash(build_data.SOURCE_CSV)
+
+        self.assertEqual(build_data.SIM_HASH_FILE, ROOT / "data" / "sim_coords_source.md5")
+        self.assertEqual(build_data.SIM_HASH_FILE.read_text(encoding="utf-8").strip(), expected)
+        self.assertNotIn("sim_coords_source.md5", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+
+    def test_similarity_source_hash_is_stable_across_line_endings(self):
+        build_data = load_module()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lf_path = Path(tmpdir) / "lf.csv"
+            crlf_path = Path(tmpdir) / "crlf.csv"
+            lf_path.write_bytes(b"id,title\n1,Course\n")
+            crlf_path.write_bytes(b"id,title\r\n1,Course\r\n")
+
+            self.assertEqual(
+                build_data.stable_source_hash(lf_path),
+                build_data.stable_source_hash(crlf_path),
+            )
 
 
 if __name__ == "__main__":

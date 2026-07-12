@@ -14,6 +14,16 @@ const rows = [
     is_hks: true,
   },
   {
+    id: 'january',
+    course_code: 'IGA-299-A',
+    title: 'January Policy Lab',
+    instructors: ['Jamie January'],
+    term: '2027 Spring',
+    session_description: 'January',
+    school: 'HKS',
+    is_hks: true,
+  },
+  {
     id: 'hbs',
     course_code: 'MBA-101',
     title: 'Business Strategy',
@@ -41,14 +51,24 @@ describe('live catalogue search', () => {
   it('applies selected-school rules without contacting a remote API', () => {
     expect(
       findLiveCatalogueRows(rows, { year: '2026', semester: 'Spring', school: 'HBS' }),
-    ).toEqual([rows[1]])
+    ).toEqual([rows[2]])
     expect(
       findLiveCatalogueRows(rows, { year: '2026', semester: 'Spring', school: 'Non-HKS' }),
+    ).toEqual([rows[2]])
+  })
+
+  it('searches J-Term inside the Spring source term', () => {
+    expect(
+      findLiveCatalogueRows(rows, {
+        query: 'january',
+        year: '2027',
+        semester: 'January',
+      }),
     ).toEqual([rows[1]])
   })
 
   it('keeps source-school metadata when a current offering enters scheduling', () => {
-    expect(toScheduleSearchItem(rows[1])).toMatchObject({ school: 'HBSD', is_hks: false })
+    expect(toScheduleSearchItem(rows[2])).toMatchObject({ school: 'HBSD', is_hks: false })
   })
 
   it('preserves current-offering identity and session metadata', () => {

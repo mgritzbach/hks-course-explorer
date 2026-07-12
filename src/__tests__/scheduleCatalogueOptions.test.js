@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildAvailableCatalogueTerms,
   getEffectiveScheduleSession,
   getDefaultScheduleTerm,
   getLiveCatalogueTerm,
@@ -8,6 +9,33 @@ import {
 } from '../lib/scheduleCatalogueOptions.js'
 
 describe('schedule catalogue term options', () => {
+  it('builds an availability-backed term list with complete HKS counts', () => {
+    expect(
+      buildAvailableCatalogueTerms([
+        { id: 'fall-a', term: '2026 Fall', is_hks: true },
+        { id: 'fall-b', term: '2026 Fall', is_hks: true },
+        { id: 'spring-a', term: '2027 Spring', is_hks: true },
+        { id: 'other-school', term: '2026 Fall', is_hks: false },
+        { id: 'invalid', term: 'unknown', is_hks: true },
+      ]),
+    ).toEqual([
+      {
+        term: '2026 Fall',
+        year: '2026',
+        semester: 'Fall',
+        count: 2,
+        label: 'Fall 2026',
+      },
+      {
+        term: '2027 Spring',
+        year: '2027',
+        semester: 'Spring',
+        count: 1,
+        label: 'Spring 2027',
+      },
+    ])
+  })
+
   it('defaults summer planning to the current Fall catalog', () => {
     expect(getDefaultScheduleTerm(new Date('2026-07-11T12:00:00Z'))).toEqual({
       year: '2026',
