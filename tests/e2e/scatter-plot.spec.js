@@ -17,7 +17,9 @@ test.describe('Scatter Plot built-artifact regression', () => {
     // retain a finite budget while testing the real rendered chart.
     test.slow()
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible({
+      timeout: 15_000,
+    })
 
     const chart = page.locator('.js-plotly-plot')
     await expect(chart).toBeVisible({ timeout: 15_000 })

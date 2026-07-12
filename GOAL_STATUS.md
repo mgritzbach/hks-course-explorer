@@ -7,17 +7,22 @@ release proceeds while any P0 goal is `0`.
 
 | ID | Priority | Canonical goal | Verified progress | Status | Evidence required to mark 1 |
 |---|---|---|---:|---:|---|
-| G01 | P0 | Foundations / governance | 80% | 0 | Protected release ownership, CI controls, fresh setup/review evidence, and final governance sign-off. |
-| G02 | P0 | Data integrity | 88% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
-| G03 | P0 | Supabase reliability | 70% | 0 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
-| G04 | P0 | Security | 85% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
-| G05 | P1 | Navigation / usability | 82% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
-| G06 | P1 | Accessibility | 93% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
+| G01 | P0 | Foundations / governance | 100% | 1 | Protected release ownership, CI controls, fresh setup/review evidence, and final governance sign-off. |
+| G02 | P0 | Data integrity | 90% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
+| G03 | P0 | Supabase reliability | 82% | 0 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
+| G04 | P0 | Security | 80% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
+| G05 | P1 | Navigation / usability | 90% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
+| G06 | P1 | Accessibility | 94% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
 | G07 | P1 | Dependency security | 100% | 1 | Audited upgrade matrix, green complete suite, and documented residual risk. |
 | G08 | P1 | Performance | 75% | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
-| G09 | P1 | Regression safety | 90% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
-| G10 | P1 | Maintainable architecture | 99% | 0 | Final independent manager review of bounded modules, contracts, and quality gates. |
-| G11 | P1 | Operations / deployment | 78% | 0 | Fresh setup, production deployment/smoke, rollback exercise, and on-call handover evidence. |
+| G09 | P1 | Regression safety | 92% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
+| G10 | P1 | Maintainable architecture | 100% | 1 | Final independent manager review of bounded modules, contracts, and quality gates. |
+| G11 | P1 | Operations / deployment | 82% | 0 | Fresh setup, production deployment/smoke, rollback exercise, and on-call handover evidence. |
+
+The exact evidence and conservative audit behind this snapshot are recorded in
+[`docs/RELEASE_EVIDENCE_2026-07-12.md`](docs/RELEASE_EVIDENCE_2026-07-12.md).
+The evidence-weighted total is approximately 90%; only G01, G07, and G10 are
+binary complete. Percentages are not release waivers.
 
 ## Required engineering loop
 
@@ -29,7 +34,11 @@ release proceeds while any P0 goal is `0`.
 
 ## Current external certification blockers
 
-Production certification needs authorized access to Cloudflare Pages/Functions logs and deployments, Supabase schema/data and backups, GitHub Actions settings/secrets, and monitoring/analytics. Local code changes and tests do not substitute for that evidence.
+Production certification remains blocked by the Cloudflare zone-policy gate,
+an exercised Pages and catalogue rollback, full Course Explorer recovery proof,
+manual production accessibility acceptance, representative field performance
+evidence, and successor/on-call handover acceptance. Local or release-candidate
+checks do not substitute for production evidence.
 
 ## Completed local increments (not release sign-off)
 
@@ -45,7 +54,7 @@ Production certification needs authorized access to Cloudflare Pages/Functions l
 | L08 | The deploy workflow checks out the successful CI run's exact commit. | 1 | Versioned `workflow_run` deployment workflow with `head_sha` checkout. |
 | L09 | Architecture, configuration, data-pipeline, and operations/rollback handover documentation are versioned. | 1 | `docs/ARCHITECTURE.md`, `docs/CONFIGURATION.md`, `docs/OPERATIONS.md`, and data-pipeline overview. |
 | L10 | Pages Functions grant CORS permission only to their same deployed origin or explicit local development origins; unapproved origins receive no browser permission headers. | 1 | `src/__tests__/cors.test.js` and independent controlling/manager review. |
-| L11 | Chat Function fails closed without its provider secret; bounds and schema-validates untrusted input before provider use; applies an upstream connection timeout; preserves the browser SSE token contract; and uses the shared CORS policy. | 1 | `src/__tests__/chatWorker.test.js` (6/6), full JavaScript suite (33/33), controlling-SWE and manager review. |
+| L11 | Chat Function bounds and schema-validates untrusted input before provider use; missing/broken rate limiting never permits an external request; missing, rejected, or unavailable free-model infrastructure degrades to bounded deterministic course-data recommendations; successful provider responses preserve the browser SSE contract; and the shared CORS policy remains enforced. | 1 | Chat Worker contracts (15/15), complete JavaScript suite (243/243), real-browser question serialization/rendering, controlling-SWE and manager review. |
 | L12 | CI enforces a deterministic root-route bundle budget covering the app shell, Home route, recursive static imports, and CSS; it fails if the route exceeds raw/gzip limits or eagerly loads Plotly. | 1 | Bundle-guard fixtures (5/5), fresh-build guard pass, CI integration, and controlling-SWE/manager review. |
 | L13 | A clean lockfile remediation removes the audited critical `protobufjs` chain, the `ws` high finding, and the React Router moderate finding; the residual production findings are explicitly triaged. | 1 | Fresh production audit (3 owned moderates; 0 critical, 0 high), clean install, regression gates, and controlling-SWE/manager review. |
 | L14 | Admin UI credential verification no longer ships or persists an admin secret/token; it requires the exact server `{ ok: true }` contract and fails closed for rejected, unconfigured, unavailable, and malformed verification responses. | 1 | Admin client/Function contracts (7/7), full JavaScript suite (45/45), source audit, browser regression, and controlling-SWE/manager review. |
@@ -53,7 +62,7 @@ Production certification needs authorized access to Cloudflare Pages/Functions l
 | L16 | Admin reads/writes use short-lived, scoped server sessions and server-only Supabase credentials; uploads and history are server-side allow-listed and bounded; expiry, future-token rejection, secret rotation, and session-header CORS behavior are covered. | 1 | Focused Admin/session suite (24/24), full JavaScript suite (65/65), build/browser gate, and controlling-SWE/manager review. |
 | L17 | Harvard catalogue search bounds Non-HKS fan-out to four concurrent schools within a whole-query deadline, separates fresh from short-lived last-known-good cache entries, labels stale/partial results without browser caching, and visibly warns users in Schedule Builder. | 1 | Harvard worker contracts (11/11), full JavaScript suite (72/72), browser flows (5/5), production build, and controlling-SWE/manager review. |
 | L18 | The scheduled sync aborts before database writes on any planned-source failure or insufficient unique results; rows not returned by the source are retained by default, and the deployed workflow rejects deletion requests before Harvard or database activity. | 1 | Python contracts, workflow default, configuration/runbook updates, and controlling-SWE/manager review. |
-| L19 | The chat proxy cancels an upstream SSE stream after 15 seconds without progress, emits a safe browser-readable error, and preserves the normal token and `[DONE]` protocol. | 1 | Chat Worker contracts (7/7), complete JavaScript suite (73/73), production build/bundle guard, and controlling-SWE/manager review. |
+| L19 | The chat proxy cancels an upstream SSE stream after 15 seconds without progress and replaces an empty or partial provider response with one complete deterministic course-data answer before a clean `[DONE]`; the client replaces partial text and never exposes provider/runtime internals. | 1 | Chat Worker contracts (15/15), complete JavaScript suite (243/243), built-browser JSON fallback rendering, strict deployed-response smoke contract, production build/bundle guard, and controlling-SWE/manager review. |
 | L20 | Mobile navigation exposes Home, Courses, Schedule, and Degree directly; Faculty, Compare, and Resources remain reachable through an accessible More disclosure that closes after either primary or secondary route navigation. | 1 | Mobile browser route/collapse coverage (3/3 focused; 6/6 complete suite), lint/build/bundle gate, and controlling-SWE/manager review. |
 | L21 | The mobile More disclosure supports keyboard dismissal with Escape and returns focus to its trigger, alongside route-close behavior. | 1 | Mobile browser E2E, lint, production build, bundle-budget gate, and controlling-SWE/manager review. |
 | L22 | Browser Supabase configuration has no project fallback; invalid or documented placeholder endpoints fail explicitly, and deployment validates required non-placeholder target values before building. | 1 | Supabase configuration contracts, negative deployment-validator check, no-legacy-identifier scan, deployment/Fork/README/ADR updates, and controlling-SWE/manager review. |

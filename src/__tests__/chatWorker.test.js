@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildCourseDataFallback,
+  chatRateLimitKey,
   createSseStream,
   enforceChatRateLimit,
   fetchFromOpenRouter,
@@ -43,18 +44,44 @@ describe('Chat Pages Function contract', () => {
     )
   })
 
-  it('fails closed when the provider secret is absent and uses the shared CORS policy', async () => {
+  it('uses course data without a provider secret and makes no external model request', async () => {
     const fetchImpl = vi.fn()
     vi.stubGlobal('fetch', fetchImpl)
+    const consume = vi.fn().mockResolvedValue({ allowed: true })
+    const CHAT_RATE_LIMITER = {
+      getByName: vi.fn().mockReturnValue({ consume }),
+    }
     const response = await onRequestPost({
       request: chatRequest(validPayload, { Origin: 'https://untrusted.example' }),
-      env: {},
+      env: { CHAT_RATE_LIMITER },
     })
 
-    expect(response.status).toBe(503)
-    await expect(response.json()).resolves.toMatchObject({ code: 'OPENROUTER_NOT_CONFIGURED' })
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      reply: expect.stringContaining('API-101: Policy Analysis'),
+      source: 'course-data-fallback',
+    })
     expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
     expect(response.headers.get('Vary')).toBe('Origin')
+    expect(consume).toHaveBeenCalledWith(expect.any(Number), 60_000)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('degrades to course data without calling a provider when the limiter is unavailable', async () => {
+    const fetchImpl = vi.fn()
+    vi.stubGlobal('fetch', fetchImpl)
+
+    const response = await onRequestPost({
+      request: chatRequest(validPayload),
+      env: { OPENROUTER_API_KEY: 'must-not-be-used' },
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      reply: expect.stringContaining('API-101: Policy Analysis'),
+      source: 'course-data-fallback',
+      degraded: 'rate-limiter-unavailable',
+    })
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
@@ -149,10 +176,11 @@ describe('Chat Pages Function contract', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       reply: expect.stringContaining('API-101: Policy Analysis'),
+      source: 'course-data-fallback',
     })
   })
 
-  it('does not hide a non-transient provider configuration error', async () => {
+  it('keeps course-data recommendations available for a provider credential error', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -170,8 +198,11 @@ describe('Chat Pages Function contract', () => {
       env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER },
     })
 
-    expect(response.status).toBe(502)
-    await expect(response.json()).resolves.toMatchObject({ error: 'Invalid provider credentials' })
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      reply: expect.stringContaining('API-101: Policy Analysis'),
+      source: 'course-data-fallback',
+    })
   })
 
   it('uses the Durable Object decision as the atomic admission boundary', async () => {
@@ -184,6 +215,23 @@ describe('Chat Pages Function contract', () => {
 
     expect(decision).toEqual({ allowed: false, retryAfterMs: 45_000 })
     expect(consume).toHaveBeenCalledWith(100, 60_000)
+  })
+
+  it('keeps release-candidate and production rate-limit admission independent', async () => {
+    const headers = { 'CF-Connecting-IP': '203.0.113.7' }
+    const previewKey = await chatRateLimitKey(
+      new Request('https://release-candidate.hks-course-explorer.pages.dev/api/chat', { headers }),
+    )
+    const productionKey = await chatRateLimitKey(
+      new Request('https://hks-course-explorer.org/api/chat', { headers }),
+    )
+
+    expect(previewKey).not.toBe(productionKey)
+
+    const pagesProductionKey = await chatRateLimitKey(
+      new Request('https://hks-course-explorer.pages.dev/api/chat', { headers }),
+    )
+    expect(pagesProductionKey).toBe(productionKey)
   })
 
   it('maps an aborted upstream request to a bounded gateway-timeout failure', async () => {
@@ -201,9 +249,15 @@ describe('Chat Pages Function contract', () => {
     ).rejects.toMatchObject({ status: 504, message: 'Chat provider timed out' })
   })
 
-  it('ends an upstream stream that becomes idle with a safe browser-readable error', async () => {
+  it('replaces a partial upstream stream that becomes idle with complete course data', async () => {
     let cancelReason
+    const encoder = new TextEncoder()
     const stalledStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode('data: {"choices":[{"delta":{"content":"Partial"}}]}\n\n'),
+        )
+      },
       pull() {
         return new Promise(() => {})
       },
@@ -213,10 +267,29 @@ describe('Chat Pages Function contract', () => {
     })
 
     const response = new Response(stalledStream, { status: 200 })
-    const body = await new Response(createSseStream(response, { idleTimeoutMs: 1 })).text()
+    const body = await new Response(
+      createSseStream(response, { idleTimeoutMs: 1, fallbackText: 'Use API-101 instead.' }),
+    ).text()
 
-    expect(body).toBe('data: {"error":"Chat provider stream interrupted"}\n\n')
+    expect(body).toContain('data: {"token":"Partial"}\n\n')
+    expect(body).toContain('data: {"replace":"Use API-101 instead."}\n\n')
+    expect(body.endsWith('data: [DONE]\n\n')).toBe(true)
+    expect(body).not.toContain('"error"')
     expect(cancelReason).toBe('Chat provider stream idle timeout')
+  })
+
+  it('replaces a partial upstream stream that reaches EOF without provider completion', async () => {
+    const response = new Response('data: {"choices":[{"delta":{"content":"Partial"}}]}\n\n', {
+      status: 200,
+    })
+    const body = await new Response(
+      createSseStream(response, { fallbackText: 'Use API-101 instead.' }),
+    ).text()
+
+    expect(body).toContain('data: {"token":"Partial"}\n\n')
+    expect(body).toContain('data: {"replace":"Use API-101 instead."}\n\n')
+    expect(body.endsWith('data: [DONE]\n\n')).toBe(true)
+    expect(body).not.toContain('"error"')
   })
 
   it('uses the shared CORS preflight response', async () => {

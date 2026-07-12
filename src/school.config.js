@@ -31,7 +31,7 @@ const schoolConfig = {
   // ── Chatbot ─────────────────────────────────────────────────────────────────
   chatWelcome:
     "Hi! I'm your HKS course advisor. Tell me what you're looking for — topic, workload, instructor, bidding pressure — and I'll find the best matches from the course catalog.",
-  chatFootnote: 'AI · HKS course data · free',
+  chatFootnote: 'HKS course data · free AI when available',
 
   // ── Tutorial copy ────────────────────────────────────────────────────────────
   tutorialSourceHint:
