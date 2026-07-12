@@ -1,20 +1,34 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { onRequestOptions, onRequestPost } from '../../functions/api/admin-verify.js'
 import { requireAdminSession } from '../../functions/_shared/adminSession.js'
-
-const env = {
-  ADMIN_PASSWORD: 'configured password',
-  ADMIN_SESSION_SECRET: 'a-long-random-admin-session-secret-value',
-}
 
 const endpoint = 'https://hks-course-explorer.pages.dev/api/admin-verify'
 
 function adminRequest(body, origin = 'https://hks-course-explorer.pages.dev') {
   return new Request(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: origin },
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: origin,
+      'CF-Connecting-IP': '203.0.113.7',
+    },
     body: JSON.stringify(body),
   })
+}
+
+function adminEnv(admission = { allowed: true }) {
+  const attempts = {
+    recordAdminAttempt: vi.fn().mockResolvedValue(admission),
+    resetAdminAttempts: vi.fn().mockResolvedValue(undefined),
+  }
+  return {
+    attempts,
+    env: {
+      ADMIN_PASSWORD: 'configured password',
+      ADMIN_SESSION_SECRET: 'a-long-random-admin-session-secret-value',
+      CHAT_RATE_LIMITER: { getByName: vi.fn().mockReturnValue(attempts) },
+    },
+  }
 }
 
 describe('admin verification Pages Function', () => {
@@ -29,6 +43,7 @@ describe('admin verification Pages Function', () => {
   })
 
   it('rejects an incorrect password and returns only the success contract', async () => {
+    const { env, attempts } = adminEnv()
     const rejected = await onRequestPost({ request: adminRequest({ password: 'wrong' }), env })
     expect(rejected.status).toBe(401)
     await expect(rejected.json()).resolves.toEqual({ ok: false })
@@ -40,15 +55,24 @@ describe('admin verification Pages Function', () => {
     expect(accepted.status).toBe(200)
     const payload = await accepted.json()
     expect(payload).toEqual({ ok: true, session: expect.any(String) })
-    const protectedRequest = new Request(
-      'https://hks-course-explorer.pages.dev/api/admin-history',
-      {
-        headers: { 'X-Admin-Session': payload.session },
-      },
-    )
-    await expect(requireAdminSession(protectedRequest, env)).resolves.toEqual(
-      expect.objectContaining({ scope: 'admin:data' }),
-    )
+    await expect(
+      requireAdminSession(
+        new Request('https://hks-course-explorer.pages.dev/api/admin-history', {
+          headers: { 'X-Admin-Session': payload.session },
+        }),
+        env,
+      ),
+    ).resolves.toEqual(expect.objectContaining({ scope: 'admin:data' }))
+    expect(attempts.resetAdminAttempts).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a client after the atomic attempt window is exhausted', async () => {
+    const { env, attempts } = adminEnv({ allowed: false, retryAfterMs: 1 })
+    const response = await onRequestPost({ request: adminRequest({ password: 'wrong' }), env })
+
+    expect(response.status).toBe(429)
+    await expect(response.json()).resolves.toEqual({ ok: false })
+    expect(attempts.resetAdminAttempts).not.toHaveBeenCalled()
   })
 
   it('rejects invalid JSON and keeps untrusted origins out of the CORS allow-list', async () => {
@@ -58,7 +82,7 @@ describe('admin verification Pages Function', () => {
         headers: { Origin: 'https://untrusted.example' },
         body: 'not json',
       }),
-      env,
+      env: adminEnv().env,
     })
 
     expect(malformed.status).toBe(400)

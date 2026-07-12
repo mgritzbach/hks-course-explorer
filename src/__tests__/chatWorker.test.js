@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createSseStream,
+  enforceChatRateLimit,
   fetchFromOpenRouter,
   onRequestOptions,
   onRequestPost,
@@ -74,10 +75,13 @@ describe('Chat Pages Function contract', () => {
       'data: {"choices":[{"delta":{"content":"Try API-101."}}]}\n\ndata: [DONE]\n\n'
     const fetchImpl = vi.fn().mockResolvedValue(new Response(upstreamSse, { status: 200 }))
     vi.stubGlobal('fetch', fetchImpl)
+    const CHAT_RATE_LIMITER = {
+      getByName: vi.fn().mockReturnValue({ consume: vi.fn().mockResolvedValue({ allowed: true }) }),
+    }
 
     const response = await onRequestPost({
       request: chatRequest(validPayload, { Origin: 'https://hks-course-explorer.pages.dev' }),
-      env: { OPENROUTER_API_KEY: 'test-key' },
+      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER },
     })
 
     expect(response.status).toBe(200)
@@ -95,6 +99,18 @@ describe('Chat Pages Function contract', () => {
       stream: true,
       messages: expect.arrayContaining([{ role: 'user', content: validPayload.message }]),
     })
+  })
+
+  it('uses the Durable Object decision as the atomic admission boundary', async () => {
+    const consume = vi.fn().mockResolvedValue({ allowed: false, retryAfterMs: 45_000 })
+    const decision = await enforceChatRateLimit(
+      chatRequest(validPayload, { 'CF-Connecting-IP': '203.0.113.7' }),
+      { CHAT_RATE_LIMITER: { getByName: vi.fn().mockReturnValue({ consume }) } },
+      100,
+    )
+
+    expect(decision).toEqual({ allowed: false, retryAfterMs: 45_000 })
+    expect(consume).toHaveBeenCalledWith(100, 60_000)
   })
 
   it('maps an aborted upstream request to a bounded gateway-timeout failure', async () => {

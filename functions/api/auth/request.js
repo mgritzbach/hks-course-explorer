@@ -4,6 +4,8 @@
 // through the configured transactional email provider.
 
 import { corsHeaders, handleOptions } from '../../_shared/cors.js'
+import { hashedLimiterKey, limiterStub } from '../../_shared/rateLimit.js'
+import { readBoundedJson } from '../../_shared/adminData.js'
 
 const ALLOWED_DOMAINS = [
   'harvard.edu',
@@ -24,6 +26,7 @@ const WHITELIST = ['mic.gritzbach@gmail.com']
 const DEFAULT_FROM = 'HKS Course Explorer <mgritzbach@hks.harvard.edu>'
 const OTP_TTL_SECONDS = 10 * 60
 const OTP_REQUEST_COOLDOWN_SECONDS = 60
+const MAX_OTP_REQUEST_BYTES = 4 * 1024
 
 function json(request, status, body) {
   return new Response(JSON.stringify(body), {
@@ -97,7 +100,10 @@ export async function sendOtpEmail({ env, email, otp, fetchImpl = fetch }) {
 
 export async function onRequestPost({ request, env }) {
   try {
-    const { email } = await request.json()
+    const parsed = await readBoundedJson(request, MAX_OTP_REQUEST_BYTES)
+    if (!parsed.ok) return json(request, parsed.status, { error: parsed.error })
+
+    const { email } = parsed.value ?? {}
     if (!isAllowed(email)) {
       return json(request, 403, {
         error: 'Only Harvard email addresses (or whitelisted emails) are allowed.',
@@ -105,32 +111,43 @@ export async function onRequestPost({ request, env }) {
     }
     if (!emailProvider(env))
       return json(request, 503, { error: 'Email delivery is not configured.' })
-    if (!env?.HKS_KV?.get || !env.HKS_KV?.put || !env.HKS_KV?.delete)
-      return json(request, 503, { error: 'Login storage is not configured.' })
-
     const normalizedEmail = email.toLowerCase().trim()
-    const cooldownKey = `otp-request:${normalizedEmail}`
-    if (await env.HKS_KV.get(cooldownKey)) {
+    const otpState = await limiterStub(env, 'otp', normalizedEmail)
+    if (!otpState) return json(request, 503, { error: 'Login storage is not configured.' })
+
+    const now = Date.now()
+    const requestId = crypto.randomUUID()
+    const admission = await otpState.startOtpRequest(
+      now,
+      requestId,
+      OTP_REQUEST_COOLDOWN_SECONDS * 1000,
+    )
+    if (!admission || typeof admission.allowed !== 'boolean') {
+      return json(request, 503, { error: 'Login storage is not configured.' })
+    }
+    if (!admission.allowed) {
       return json(request, 429, {
         error: 'Please wait one minute before requesting another code.',
       })
     }
 
-    // This mirrors the client resend countdown at the enforcement boundary so
-    // direct API callers cannot repeatedly send mail or replace a valid code.
-    await env.HKS_KV.put(cooldownKey, '1', { expirationTtl: OTP_REQUEST_COOLDOWN_SECONDS })
     const otp = generateOTP()
-    const expires = Date.now() + OTP_TTL_SECONDS * 1000
     const delivery = await sendOtpEmail({ env, email: normalizedEmail, otp })
     if (!delivery.ok) {
-      await env.HKS_KV.delete(cooldownKey)
+      await otpState.cancelOtpRequest(requestId)
       console.error('OTP email delivery failed:', delivery.provider || 'unconfigured')
       return json(request, 502, { error: 'Failed to send email. Please try again.' })
     }
 
-    await env.HKS_KV.put(`otp:${normalizedEmail}`, JSON.stringify({ otp, expires, attempts: 0 }), {
-      expirationTtl: OTP_TTL_SECONDS + 60,
-    })
+    const confirmed = await otpState.confirmOtpRequest(
+      Date.now(),
+      requestId,
+      await hashedLimiterKey(otp),
+      OTP_TTL_SECONDS * 1000,
+    )
+    if (!confirmed?.confirmed) {
+      return json(request, 503, { error: 'Failed to store login code. Please try again.' })
+    }
     return json(request, 200, { ok: true, message: 'Check your inbox for a 6-digit code.' })
   } catch (error) {
     console.error('OTP request failed:', error instanceof Error ? error.message : 'unknown error')
