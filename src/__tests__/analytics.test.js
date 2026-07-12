@@ -32,11 +32,29 @@ describe('analytics adapter', () => {
   it('initializes the lazy client and forwards captures after it is ready', async () => {
     const analytics = await loadAnalytics()
     analytics.initializeAnalytics('public-key', { api_host: 'https://analytics.example.test' })
-    await vi.waitFor(() =>
-      expect(init).toHaveBeenCalledWith('public-key', {
-        api_host: 'https://analytics.example.test',
+    await vi.waitFor(() => expect(init).toHaveBeenCalledOnce())
+    const [key, options] = init.mock.calls[0]
+    expect(key).toBe('public-key')
+    expect(options.api_host).toBe('https://analytics.example.test')
+    expect(
+      options.before_send({
+        event: 'course_shortlisted',
+        properties: {
+          $current_url: 'https://hks-course-explorer.org/?favs=private#results',
+          $referrer: 'https://example.edu/search?student=private',
+          $initial_referrer: '$direct',
+          course_code: 'API-101',
+        },
       }),
-    )
+    ).toEqual({
+      event: 'course_shortlisted',
+      properties: {
+        $current_url: 'https://hks-course-explorer.org/',
+        $referrer: 'https://example.edu/search',
+        $initial_referrer: '$direct',
+        course_code: 'API-101',
+      },
+    })
 
     analytics.capture('course_shortlisted', { course_code: 'API-101' })
     await vi.waitFor(() =>
@@ -74,6 +92,8 @@ describe('analytics adapter', () => {
     expect(idleCallbacks).toHaveLength(1)
 
     idleCallbacks.shift()({ didTimeout: false, timeRemaining: () => 10 })
-    await vi.waitFor(() => expect(init).toHaveBeenCalledWith('public-key', {}))
+    await vi.waitFor(() => expect(init).toHaveBeenCalledOnce())
+    expect(init.mock.calls[0][0]).toBe('public-key')
+    expect(init.mock.calls[0][1]).toMatchObject({ before_send: expect.any(Function) })
   })
 })

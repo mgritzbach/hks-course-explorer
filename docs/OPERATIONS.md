@@ -222,6 +222,49 @@ limits. Treat a budget failure as a release-blocking regression. Do not loosen
 a limit without a measured performance review and an approved documented
 rationale.
 
+## Production performance evidence
+
+After a visitor enters the application, `src/lib/performanceTelemetry.js`
+dynamically loads Google's standard `web-vitals` build and sends bounded
+`app_web_vital` events through the existing PostHog adapter. The standard build
+contains no DOM attribution. Custom properties are limited to `metric`,
+`value`, `rating`, `navigation_type`, and a query-free navigation `route`; do
+not add DOM nodes, catalogue records, or user-entered values. The analytics
+adapter's final `before_send` boundary removes query strings and fragments from
+PostHog-added URL/referrer properties for every event. Analytics failure must
+remain a no-op for the application.
+
+PostHog's built-in Web Vitals collector is explicitly disabled even if its
+remote project setting changes, preventing duplicate metrics. The custom
+collector loads after two paints and an idle boundary, binds metrics to the
+document's navigation route rather than a later SPA route, and sends at most 12
+measurements per document including back/forward-cache re-reports.
+
+Review a rolling 28-day window with this HogQL query:
+
+```sql
+SELECT
+  properties.metric AS metric,
+  count() AS samples,
+  quantile(0.75)(toFloat(properties.value)) AS p75,
+  quantile(0.9)(toFloat(properties.value)) AS p90
+FROM events
+WHERE event = 'app_web_vital'
+  AND timestamp >= now() - INTERVAL 28 DAY
+  AND properties.metric IN ('LCP', 'INP', 'CLS')
+GROUP BY metric
+ORDER BY metric
+```
+
+Use Google's Core Web Vitals p75 "good" thresholds as release budgets: LCP at
+or below 2,500 ms, INP at or below 200 ms, and CLS at or below 0.1. Do not call
+the field result representative until LCP and CLS each have at least 75
+samples, INP has at least 30 interaction samples, mobile traffic is present,
+and the 28-day window includes normal student usage rather than only operator
+smoke tests. Record the query output and time window in the release evidence.
+An empty result immediately after deployment proves only that collection needs
+time; it is not a passing performance result.
+
 ## Live-course sync
 
 Two scheduled GitHub Actions share one concurrency group:
