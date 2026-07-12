@@ -478,6 +478,15 @@ export async function onRequestPost({ request, env }) {
       await readJsonBody(request),
     )
     const fallbackReply = buildCourseDataFallback(courses, message)
+
+    // The deterministic course-data advisor is local, bounded, and free. It
+    // must remain available even when the optional model provider is not
+    // configured, so do not make its availability depend on the external-call
+    // rate limiter.
+    if (!apiKey) {
+      return jsonResponse({ reply: fallbackReply, source: 'course-data-fallback' }, 200, request)
+    }
+
     let admission
     try {
       admission = await enforceChatRateLimit(request, env)
@@ -499,10 +508,11 @@ export async function onRequestPost({ request, env }) {
     if (!admission.allowed) {
       return jsonResponse(
         {
-          error: 'Please wait one minute before sending another chat message.',
-          retry_after_seconds: Math.ceil(Number(admission.retryAfterMs || CHAT_COOLDOWN_MS) / 1000),
+          reply: fallbackReply,
+          source: 'course-data-fallback',
+          degraded: 'provider-rate-limited',
         },
-        429,
+        200,
         request,
       )
     }
@@ -511,9 +521,6 @@ export async function onRequestPost({ request, env }) {
     // browser already supplies a bounded, validated set of matching courses,
     // so return deterministic course-data recommendations without making any
     // external request. The same fallback is used for transient model errors.
-    if (!apiKey) {
-      return jsonResponse({ reply: fallbackReply, source: 'course-data-fallback' }, 200, request)
-    }
     let response
     try {
       response = await fetchFromOpenRouter(apiKey, {

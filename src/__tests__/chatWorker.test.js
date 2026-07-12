@@ -63,6 +63,29 @@ describe('Chat Pages Function contract', () => {
     })
     expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
     expect(response.headers.get('Vary')).toBe('Origin')
+    expect(consume).not.toHaveBeenCalled()
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('falls back to course data instead of failing when provider admission is rate-limited', async () => {
+    const fetchImpl = vi.fn()
+    vi.stubGlobal('fetch', fetchImpl)
+    const consume = vi.fn().mockResolvedValue({ allowed: false, retryAfterMs: 45_000 })
+    const CHAT_RATE_LIMITER = {
+      getByName: vi.fn().mockReturnValue({ consume }),
+    }
+
+    const response = await onRequestPost({
+      request: chatRequest(validPayload),
+      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER },
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      reply: expect.stringContaining('API-101: Policy Analysis'),
+      source: 'course-data-fallback',
+      degraded: 'provider-rate-limited',
+    })
     expect(consume).toHaveBeenCalledWith(expect.any(Number), 60_000)
     expect(fetchImpl).not.toHaveBeenCalled()
   })
