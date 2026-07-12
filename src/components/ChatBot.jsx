@@ -154,7 +154,16 @@ function compactInstructorHistory(courses) {
           datedRecords
             .filter((course) => course.year && course.term)
             .sort((left, right) => (right.year || 0) - (left.year || 0))
-            .map((course) => `${course.year} ${course.term}`),
+            .map((course) => {
+              const metrics = [
+                ['course', course.metrics_pct?.Course_Rating],
+                ['instructor', course.metrics_pct?.Instructor_Rating],
+                ['workload', course.metrics_pct?.Workload],
+              ]
+                .filter(([, value]) => Number.isFinite(value))
+                .map(([label, value]) => `${label} ${Math.round(value)} pct`)
+              return `${course.year} ${course.term}${metrics.length > 0 ? ` (${metrics.join(', ')})` : ''}`
+            }),
         ),
       ]
 
@@ -176,7 +185,7 @@ function compactInstructorHistory(courses) {
       ]
         .filter(Boolean)
         .join(' ')
-        .slice(0, 300)
+        .slice(0, 1200)
       return summary
     })
     .sort(
