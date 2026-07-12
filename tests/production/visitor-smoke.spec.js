@@ -131,21 +131,37 @@ test.describe('read-only production acceptance', () => {
     expectNoProductionWrites(requestAudit)
   })
 
-  test('returns a usable course-advisor response without requiring a paid provider', async ({
+  test('returns a verified zero-cost OpenRouter answer grounded in course data', async ({
     request,
   }) => {
     const response = await request.post('/api/chat', {
       data: {
-        message: 'Suggest a light workload course',
+        message: 'What are Hong Qu’s courses?',
         history: [],
         courses: [
           {
-            code: 'API-101',
-            name: 'Policy Analysis',
-            instructor: 'Example Instructor',
-            rating_pct: 75,
-            workload_pct: 20,
-            is_core: true,
+            code: 'DPI-851-M',
+            base_code: 'DPI-851-M',
+            name: 'Data and Information Visualization',
+            instructor: 'Hong Qu',
+            year: 2025,
+            term: 'Fall',
+          },
+          {
+            code: 'DPI-852-M',
+            base_code: 'DPI-852-M',
+            name: 'Advanced Data and Information Visualization',
+            instructor: 'Hong Qu',
+            year: 2025,
+            term: 'Spring',
+          },
+          {
+            code: 'DPI-853-M',
+            base_code: 'DPI-853-M',
+            name: 'Data Visualization: Storytelling Strategies',
+            instructor: 'Hong Qu',
+            year: 2026,
+            term: 'Spring',
           },
         ],
         context: { shortlisted: [] },
@@ -153,30 +169,16 @@ test.describe('read-only production acceptance', () => {
     })
 
     expect(response.status()).toBe(200)
-    const contentType = response.headers()['content-type'] || ''
-    if (contentType.includes('text/event-stream')) {
-      const events = (await response.text())
-        .split('\n')
-        .filter((line) => line.startsWith('data: '))
-        .map((line) => line.slice(6).trim())
-      expect(events).toContain('[DONE]')
-      const payloads = events
-        .filter((event) => event !== '[DONE]')
-        .map((event) => JSON.parse(event))
-      expect(payloads.every((payload) => !payload.error)).toBe(true)
-      expect(
-        payloads.some(
-          (payload) =>
-            (typeof payload.token === 'string' && payload.token.trim()) ||
-            (typeof payload.replace === 'string' && payload.replace.includes('API-101')),
-        ),
-      ).toBe(true)
-      return
-    }
-    await expect(response.json()).resolves.toMatchObject({
-      reply: expect.stringContaining('API-101: Policy Analysis'),
-      source: 'course-data-fallback',
+    const body = await response.json()
+    expect(body).toMatchObject({
+      source: 'openrouter',
+      cost: 0,
+      model: expect.stringMatching(/:free$/),
+      reply: expect.any(String),
     })
+    expect(body.reply.trim().length).toBeGreaterThan(0)
+    expect(body.reply).toMatch(/Hong Qu/i)
+    expect(body.reply).not.toMatch(/Robert Wilkinson|MLD-215-B/i)
   })
 
   test('proves every advertised HKS catalogue row is selectable', async ({ page }) => {

@@ -7,12 +7,48 @@ function dedupeCourseSummaries(items, limit = 30) {
   const seen = new Set()
   const deduped = []
   for (const item of items) {
-    if (!item?.code || seen.has(item.code)) continue
-    seen.add(item.code)
+    if (!item?.code) continue
+    const key = [item.code, item.instructor, item.year, item.term, item.is_average].join('|')
+    if (seen.has(key)) continue
+    seen.add(key)
     deduped.push(item)
     if (deduped.length >= limit) break
   }
   return deduped
+}
+
+const QUERY_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'are',
+  'course',
+  'courses',
+  'does',
+  'for',
+  'instructor',
+  'professor',
+  's',
+  'teach',
+  'teaches',
+  'the',
+  'what',
+  'which',
+  'who',
+])
+
+function searchableText(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function meaningfulQueryTerms(query) {
+  return searchableText(query)
+    .split(/\s+/)
+    .filter((term) => term.length > 1 && !QUERY_STOP_WORDS.has(term))
 }
 
 export function normalizeOptionalBoolean(value) {
@@ -25,10 +61,12 @@ export function normalizeOptionalBoolean(value) {
 export function toCourseSummary(course) {
   return {
     code: course.course_code,
+    base_code: course.course_code_base || course.course_code,
     name: course.course_name,
     instructor: course.professor_display || course.professor,
     concentration: course.concentration,
     term: course.term,
+    year: Number.isFinite(course.year) ? course.year : undefined,
     rating_pct: optionalRounded(course.metrics_pct?.Course_Rating),
     workload_pct: optionalRounded(course.metrics_pct?.Workload),
     instructor_pct: optionalRounded(course.metrics_pct?.Instructor_Rating),
@@ -36,6 +74,7 @@ export function toCourseSummary(course) {
     // Older catalogue rows can contain 0/1, strings, or null. The Worker
     // accepts only a real boolean, so normalize known values and omit unknowns.
     is_core: normalizeOptionalBoolean(course.is_core),
+    is_average: normalizeOptionalBoolean(course.is_average),
     stem: course.stem_group ?? null,
   }
 }
@@ -49,39 +88,68 @@ function rankCourse(course) {
   return course.year || 0
 }
 
-function condenseCourses(courses, query, shortlistedCodes = []) {
+export function condenseCourses(courses, query, shortlistedCodes = []) {
   if (!courses?.length) return []
-  const keywords = query
-    .toLowerCase()
-    .split(/\W+/)
-    .filter((w) => w.length > 2)
+  const keywords = meaningfulQueryTerms(query)
   const shortlistedSet = new Set(shortlistedCodes)
 
-  // Use the most recent year with eval data for keyword matching
+  const scoredCourses = courses
+    .map((c) => {
+      const instructor = searchableText(c.professor_display || c.professor)
+      const courseText = searchableText(
+        [c.course_name, c.course_code, c.course_code_base, c.concentration].join(' '),
+      )
+      const instructorHits = keywords.filter((keyword) => instructor.includes(keyword)).length
+      const courseHits = keywords.filter((keyword) => courseText.includes(keyword)).length
+      const exactInstructor = keywords.length >= 2 && instructorHits === keywords.length
+      return {
+        c,
+        exactInstructor,
+        score: instructorHits * 20 + courseHits * 5,
+      }
+    })
+    .sort(
+      (a, b) =>
+        Number(b.exactInstructor) - Number(a.exactInstructor) ||
+        b.score - a.score ||
+        rankCourse(b.c) - rankCourse(a.c) ||
+        (b.c.year || 0) - (a.c.year || 0),
+    )
+
+  // A named-faculty question needs the complete matching history, not rows
+  // from only the catalogue's globally newest year. Supplying unrelated rows
+  // in this case caused the model/fallback to pad factual answers.
+  const exactInstructorMatches = scoredCourses.filter(({ exactInstructor }) => exactInstructor)
+  const relevantMatches =
+    exactInstructorMatches.length > 0
+      ? exactInstructorMatches
+      : scoredCourses.filter(({ score }) => score > 0).slice(0, 25)
+
   const recentYear = Math.max(
-    ...courses.filter((c) => !c.is_average && c.has_eval && c.year).map((c) => c.year),
+    ...courses
+      .filter((course) => !course.is_average && course.has_eval && course.year)
+      .map((course) => course.year),
     0,
   )
-
-  const keywordMatches = courses
-    .filter((c) => !c.is_average && c.year === recentYear)
-    .map((c) => {
-      const haystack = [c.course_name, c.course_code, c.professor_display, c.concentration]
-        .join(' ')
-        .toLowerCase()
-      const score = keywords.reduce((s, kw) => s + (haystack.includes(kw) ? 1 : 0), 0)
-      return { c, score }
-    })
-    .sort((a, b) => b.score - a.score)
+  const fallbackMatches = courses
+    .filter((course) => !course.is_average && course.year === recentYear)
+    .sort((left, right) => rankCourse(right) - rankCourse(left))
     .slice(0, 25)
-    .map(({ c }) => toCourseSummary(c))
+    .map((course) => ({ c: course }))
+
+  const keywordMatches = (relevantMatches.length > 0 ? relevantMatches : fallbackMatches).map(
+    ({ c }) => toCourseSummary(c),
+  )
 
   const shortlistedCourses = courses
     .filter((course) => shortlistedSet.has(course.course_code_base || course.course_code))
     .sort((a, b) => rankCourse(b) - rankCourse(a) || (b.year || 0) - (a.year || 0))
     .map((course) => toCourseSummary(course))
 
-  return dedupeCourseSummaries([...shortlistedCourses, ...keywordMatches], 30)
+  return dedupeCourseSummaries(
+    exactInstructorMatches.length > 0 ? keywordMatches : [...keywordMatches, ...shortlistedCourses],
+    30,
+  )
 }
 
 // Routes where the ChatBot FAB would collide with UI elements
@@ -156,12 +224,17 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         )
         .filter(Boolean)
 
+      const history = next
+        .slice(0, -1)
+        .filter((message) => message.role === 'user' || message.kind === 'ai')
+        .slice(-4)
+        .map((message) => ({ role: message.role, content: message.content }))
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg,
-          history: next.slice(-4).map((m) => ({ role: m.role, content: m.content })),
+          history,
           courses: condenseCourses(courses, userMsg, shortlistedCodes),
           context: { shortlisted: shortlistedNames },
         }),
@@ -171,86 +244,46 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         const data = await res.json().catch(() => ({}))
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `Error: ${data.error || res.status}` },
+          {
+            role: 'assistant',
+            kind: 'error',
+            content: data.error || 'The free AI course advisor is temporarily unavailable.',
+          },
         ])
         return
       }
 
       const contentType = res.headers.get('content-type') || ''
-      const isStream = contentType.includes('text/event-stream')
-
-      if (!isStream) {
-        // Fallback: plain JSON response
-        const data = await res.json().catch(() => ({}))
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: data.reply || `Error: ${data.error || 'No response'}` },
-        ])
-        return
+      if (!contentType.includes('application/json')) {
+        throw new Error('Unexpected AI response type')
       }
-
-      // Stream tokens in as they arrive
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let reply = ''
-      setLoading(false)
-      setMessages((prev) => [...prev, { role: 'assistant', content: '…' }])
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop()
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const payload = line.slice(6).trim()
-          if (payload === '[DONE]') break
-          try {
-            const { token, replace, error } = JSON.parse(payload)
-            if (error) {
-              reply = `Error: ${error}`
-              break
-            }
-            if (typeof replace === 'string' && replace) {
-              reply = replace
-              setMessages((prev) => {
-                const updated = [...prev]
-                updated[updated.length - 1] = { role: 'assistant', content: reply }
-                return updated
-              })
-              continue
-            }
-            if (token) {
-              reply += token
-              setMessages((prev) => {
-                const updated = [...prev]
-                updated[updated.length - 1] = { role: 'assistant', content: reply }
-                return updated
-              })
-            }
-          } catch {
-            // Ignore stream parsing errors
-          }
-        }
+      const data = await res.json().catch(() => ({}))
+      if (
+        data.source !== 'openrouter' ||
+        !data.reply ||
+        data.cost !== 0 ||
+        typeof data.model !== 'string' ||
+        !data.model.endsWith(':free')
+      ) {
+        throw new Error('Unverified AI response')
       }
-
-      // If stream ended with nothing, surface an error
-      if (!reply) {
-        setMessages((prev) => {
-          const updated = [...prev]
-          updated[updated.length - 1] = {
-            role: 'assistant',
-            content: 'No response received. Please try again.',
-          }
-          return updated
-        })
-      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          kind: 'ai',
+          content: data.reply,
+          provenance: { model: data.model, cost: data.cost },
+        },
+      ])
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Connection error. Please try again.' },
+        {
+          role: 'assistant',
+          kind: 'error',
+          content: 'The free AI response could not be verified. Please try again.',
+        },
       ])
     } finally {
       setLoading(false)
@@ -335,8 +368,9 @@ export default function ChatBot({ courses, favs, isLight = false }) {
             }}
           >
             <p style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              ⚠️ Course-data suggestions may use free AI models when available — use as orientation
-              only, not a reliable source of truth.
+              ⚠️ Answers come from a free OpenRouter LLM grounded in selected course-database
+              records. If the model is unavailable, no automatic recommendation is substituted. Use
+              responses as orientation, not as an official source.
             </p>
           </div>
 
@@ -378,6 +412,32 @@ export default function ChatBot({ courses, favs, isLight = false }) {
                   }}
                 >
                   {msg.content}
+                  {msg.kind === 'ai' && msg.provenance && (
+                    <p
+                      style={{
+                        marginTop: 8,
+                        paddingTop: 6,
+                        borderTop: '1px solid var(--line)',
+                        color: 'var(--text-muted)',
+                        fontSize: 10,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      Free AI response · {msg.provenance.model} · verified cost $0.00
+                    </p>
+                  )}
+                  {msg.kind === 'error' && (
+                    <p
+                      style={{
+                        marginTop: 8,
+                        color: 'var(--accent-strong)',
+                        fontSize: 10,
+                        fontWeight: 700,
+                      }}
+                    >
+                      No AI answer was accepted
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

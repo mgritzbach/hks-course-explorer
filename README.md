@@ -165,6 +165,7 @@ VITE_SUPABASE_URL=        # your Supabase project URL
 VITE_SUPABASE_ANON_KEY=   # public anon key (safe to expose in frontend)
 SUPABASE_KEY=             # service role key (scripts only — never commit this)
 HARVARD_API_KEY=          # Harvard ATS API key
+OPENROUTER_API_KEY=       # server-only key; restrict to free models and $0 spend
 VITE_SENTRY_DSN=          # optional — Sentry error tracking DSN
 ```
 

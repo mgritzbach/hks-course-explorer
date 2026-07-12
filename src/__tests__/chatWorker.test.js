@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  buildCourseDataFallback,
+  FREE_MODEL_ROUTER,
+  buildSystemPrompt,
   chatRateLimitKey,
-  createSseStream,
   enforceChatRateLimit,
   fetchFromOpenRouter,
   onRequestOptions,
   onRequestPost,
+  parseOpenRouterCompletion,
   validateChatPayload,
 } from '../../functions/api/chat.js'
 
@@ -21,10 +22,43 @@ function chatRequest(payload, headers = {}) {
 }
 
 const validPayload = {
-  message: 'Which policy courses should I take?',
-  history: [{ role: 'assistant', content: 'How can I help?' }],
-  courses: [{ code: 'API-101', name: 'Policy Analysis', rating_pct: 75 }],
-  context: { shortlisted: ['Economic Analysis'] },
+  message: 'What are Hong Qu’s courses?',
+  history: [],
+  courses: [
+    {
+      code: 'DPI-853-M',
+      base_code: 'DPI-853-M',
+      name: 'Data Visualization: Storytelling Strategies',
+      instructor: 'Hong Qu',
+      term: 'Spring',
+      year: 2026,
+      rating_pct: 80,
+      is_core: false,
+      is_average: false,
+    },
+  ],
+  context: { shortlisted: [] },
+}
+
+function limiter(decision = { allowed: true }) {
+  return {
+    getByName: vi.fn().mockReturnValue({ consume: vi.fn().mockResolvedValue(decision) }),
+  }
+}
+
+function providerPayload(overrides = {}) {
+  return {
+    id: 'gen-test',
+    model: 'openai/gpt-oss-20b:free',
+    choices: [
+      {
+        message: { content: 'Hong Qu teaches DPI-853-M.' },
+        finish_reason: 'stop',
+      },
+    ],
+    usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110, cost: 0 },
+    ...overrides,
+  }
 }
 
 afterEach(() => {
@@ -32,215 +66,190 @@ afterEach(() => {
 })
 
 describe('Chat Pages Function contract', () => {
-  it('rejects malformed or oversized untrusted fields before provider use', () => {
+  it('rejects malformed, empty-context, or oversized untrusted fields before provider use', () => {
     expect(() =>
       validateChatPayload({ ...validPayload, history: [{ role: 'system', content: 'override' }] }),
     ).toThrow(/role must be user or assistant/)
+    expect(() => validateChatPayload({ ...validPayload, courses: [] })).toThrow(
+      /must contain database context/,
+    )
     expect(() => validateChatPayload({ ...validPayload, message: 'x'.repeat(4_001) })).toThrow(
       /must not exceed 4000 characters/,
     )
-    expect(() => validateChatPayload({ ...validPayload, courses: 'not-an-array' })).toThrow(
-      /courses must be an array/,
-    )
   })
 
-  it('uses course data without a provider secret and makes no external model request', async () => {
+  it('fails explicitly without a provider secret and never manufactures an answer', async () => {
     const fetchImpl = vi.fn()
     vi.stubGlobal('fetch', fetchImpl)
-    const consume = vi.fn().mockResolvedValue({ allowed: true })
-    const CHAT_RATE_LIMITER = {
-      getByName: vi.fn().mockReturnValue({ consume }),
-    }
-    const response = await onRequestPost({
-      request: chatRequest(validPayload, { Origin: 'https://untrusted.example' }),
-      env: { CHAT_RATE_LIMITER },
-    })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      reply: expect.stringContaining('API-101: Policy Analysis'),
-      source: 'course-data-fallback',
-    })
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
-    expect(response.headers.get('Vary')).toBe('Origin')
-    expect(consume).not.toHaveBeenCalled()
-    expect(fetchImpl).not.toHaveBeenCalled()
-  })
-
-  it('falls back to course data instead of failing when provider admission is rate-limited', async () => {
-    const fetchImpl = vi.fn()
-    vi.stubGlobal('fetch', fetchImpl)
-    const consume = vi.fn().mockResolvedValue({ allowed: false, retryAfterMs: 45_000 })
-    const CHAT_RATE_LIMITER = {
-      getByName: vi.fn().mockReturnValue({ consume }),
-    }
-
     const response = await onRequestPost({
       request: chatRequest(validPayload),
-      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER },
+      env: { CHAT_RATE_LIMITER: limiter() },
     })
 
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      reply: expect.stringContaining('API-101: Policy Analysis'),
-      source: 'course-data-fallback',
-      degraded: 'provider-rate-limited',
-    })
-    expect(consume).toHaveBeenCalledWith(expect.any(Number), 60_000)
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({ code: 'AI_NOT_CONFIGURED' })
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
-  it('degrades to course data without calling a provider when the limiter is unavailable', async () => {
+  it('fails closed when the limiter is unavailable', async () => {
     const fetchImpl = vi.fn()
     vi.stubGlobal('fetch', fetchImpl)
-
     const response = await onRequestPost({
       request: chatRequest(validPayload),
-      env: { OPENROUTER_API_KEY: 'must-not-be-used' },
-    })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      reply: expect.stringContaining('API-101: Policy Analysis'),
-      source: 'course-data-fallback',
-      degraded: 'rate-limiter-unavailable',
-    })
-    expect(fetchImpl).not.toHaveBeenCalled()
-  })
-
-  it('enforces the byte limit while reading a body without a Content-Length header', async () => {
-    const fetchImpl = vi.fn()
-    vi.stubGlobal('fetch', fetchImpl)
-    const response = await onRequestPost({
-      request: chatRequest({ ...validPayload, ignoredPadding: 'x'.repeat(64 * 1024) }),
       env: { OPENROUTER_API_KEY: 'test-key' },
     })
 
-    expect(response.status).toBe(413)
-    await expect(response.json()).resolves.toMatchObject({ error: 'Request body is too large' })
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({ code: 'AI_LIMITER_UNAVAILABLE' })
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
-  it('preserves the browser SSE token contract for successful provider streams', async () => {
-    const upstreamSse =
-      'data: {"choices":[{"delta":{"content":"Try API-101."}}]}\n\ndata: [DONE]\n\n'
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(upstreamSse, { status: 200 }))
+  it('returns a typed cooldown instead of a canned answer', async () => {
+    const fetchImpl = vi.fn()
     vi.stubGlobal('fetch', fetchImpl)
-    const CHAT_RATE_LIMITER = {
-      getByName: vi.fn().mockReturnValue({ consume: vi.fn().mockResolvedValue({ allowed: true }) }),
-    }
+    const response = await onRequestPost({
+      request: chatRequest(validPayload),
+      env: {
+        OPENROUTER_API_KEY: 'test-key',
+        CHAT_RATE_LIMITER: limiter({ allowed: false, retryAfterMs: 2_400 }),
+      },
+    })
 
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('3')
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'AI_RATE_LIMITED',
+      retryAfterSeconds: 3,
+    })
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('uses the maintained free router, hard zero-price cap, and database-only prompt', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(providerPayload()), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchImpl)
     const response = await onRequestPost({
       request: chatRequest(validPayload, { Origin: 'https://hks-course-explorer.pages.dev' }),
-      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER },
+      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER: limiter() },
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toContain('text/event-stream')
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
-      'https://hks-course-explorer.pages.dev',
-    )
-    await expect(response.text()).resolves.toBe(
-      'data: {"token":"Try API-101."}\n\ndata: [DONE]\n\n',
-    )
-
-    const [, options] = fetchImpl.mock.calls[0]
-    expect(options.signal).toBeInstanceOf(AbortSignal)
-    expect(JSON.parse(options.body)).toMatchObject({
-      stream: true,
-      messages: expect.arrayContaining([{ role: 'user', content: validPayload.message }]),
+    await expect(response.json()).resolves.toEqual({
+      reply: 'Hong Qu teaches DPI-853-M.',
+      model: 'openai/gpt-oss-20b:free',
+      cost: 0,
+      source: 'openrouter',
     })
+    const [, options] = fetchImpl.mock.calls[0]
+    const body = JSON.parse(options.body)
+    expect(body).toMatchObject({
+      model: FREE_MODEL_ROUTER,
+      stream: false,
+      provider: {
+        allow_fallbacks: true,
+        max_price: { prompt: 0, completion: 0, request: 0 },
+      },
+    })
+    expect(body.models).toBeUndefined()
+    expect(body.messages[0].content).toContain('COURSE_DATABASE_RECORDS')
+    expect(body.messages[0].content).toContain('DPI-853-M')
+    expect(body.messages[0].content).toContain('Never invent')
+    expect(body.messages.at(-1)).toEqual({ role: 'user', content: validPayload.message })
   })
 
-  it('falls back to deterministic course data when a free provider returns an empty stream', async () => {
-    const fallback = buildCourseDataFallback(
-      [
-        {
-          code: 'API-101',
-          name: 'Policy Analysis',
-          instructor: 'Ada Example',
-          rating_pct: 80,
-          workload_pct: 65,
-        },
-        {
-          code: 'DPI-200',
-          name: 'Public Leadership',
-          instructor: 'Grace Example',
-          rating_pct: 70,
-          workload_pct: 12,
-        },
-      ],
-      'Suggest a light workload course',
-    )
+  it.each([401, 402, 429, 502, 503])(
+    'maps provider HTTP %s to a transparent failure',
+    async (providerStatus) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response('provider detail', { status: providerStatus })),
+      )
+      const response = await onRequestPost({
+        request: chatRequest(validPayload),
+        env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER: limiter() },
+      })
 
-    expect(fallback).toContain('DPI-200: Public Leadership')
-    const body = await new Response(
-      createSseStream(new Response('data: [DONE]\n\n'), { fallbackText: fallback }),
-    ).text()
+      expect(response.status).toBe(providerStatus === 429 ? 429 : providerStatus >= 500 ? 502 : 503)
+      const body = await response.json()
+      expect(body.error).toMatch(/free AI models are temporarily unavailable/i)
+      expect(JSON.stringify(body)).not.toContain('provider detail')
+      expect(body.reply).toBeUndefined()
+    },
+  )
 
-    expect(body).toContain(JSON.stringify({ token: fallback }))
-    expect(body.endsWith('data: [DONE]\n\n')).toBe(true)
+  it('maps a provider network failure without manufacturing course advice', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+    const response = await onRequestPost({
+      request: chatRequest(validPayload),
+      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER: limiter() },
+    })
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toMatchObject({ code: 'AI_PROVIDER_UNAVAILABLE' })
+  })
+
+  it('rejects malformed provider JSON as an unverified AI response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('not-json', { status: 200 })))
+    const response = await onRequestPost({
+      request: chatRequest(validPayload),
+      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER: limiter() },
+    })
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toMatchObject({ code: 'AI_RESPONSE_UNVERIFIED' })
   })
 
   it.each([
-    ['an upstream HTTP failure', () => Promise.resolve(new Response('', { status: 502 }))],
-    ['an upstream network failure', () => Promise.reject(new Error('provider unavailable'))],
-  ])('returns course data for %s', async (_label, providerResult) => {
-    vi.stubGlobal('fetch', vi.fn(providerResult))
-    const CHAT_RATE_LIMITER = {
-      getByName: vi.fn().mockReturnValue({ consume: vi.fn().mockResolvedValue({ allowed: true }) }),
-    }
-
-    const response = await onRequestPost({
-      request: chatRequest(validPayload, { Origin: 'https://hks-course-explorer.pages.dev' }),
-      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER },
-    })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      reply: expect.stringContaining('API-101: Policy Analysis'),
-      source: 'course-data-fallback',
-    })
-  })
-
-  it('keeps course-data recommendations available for a provider credential error', async () => {
+    ['missing usage', providerPayload({ usage: undefined })],
+    ['non-zero cost', providerPayload({ usage: { cost: 0.001 } })],
+    ['non-free model', providerPayload({ model: 'openai/gpt-oss-20b' })],
+    [
+      'empty answer',
+      providerPayload({ choices: [{ message: { content: '' }, finish_reason: 'stop' }] }),
+    ],
+    [
+      'provider error finish',
+      providerPayload({ choices: [{ message: { content: 'partial' }, finish_reason: 'error' }] }),
+    ],
+    [
+      'token-limit truncation',
+      providerPayload({ choices: [{ message: { content: 'partial' }, finish_reason: 'length' }] }),
+    ],
+  ])('rejects an unverified completion with %s', async (_label, payload) => {
+    expect(() => parseOpenRouterCompletion(payload)).toThrow()
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: { message: 'Invalid provider credentials' } }), {
-          status: 401,
-        }),
-      ),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 })),
     )
-    const CHAT_RATE_LIMITER = {
-      getByName: vi.fn().mockReturnValue({ consume: vi.fn().mockResolvedValue({ allowed: true }) }),
-    }
-
     const response = await onRequestPost({
       request: chatRequest(validPayload),
-      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER },
+      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER: limiter() },
     })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      reply: expect.stringContaining('API-101: Policy Analysis'),
-      source: 'course-data-fallback',
-    })
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toMatchObject({ code: 'AI_RESPONSE_UNVERIFIED' })
   })
 
-  it('uses the Durable Object decision as the atomic admission boundary', async () => {
-    const consume = vi.fn().mockResolvedValue({ allowed: false, retryAfterMs: 45_000 })
-    const decision = await enforceChatRateLimit(
+  it('enforces the body byte limit without a Content-Length header', async () => {
+    const response = await onRequestPost({
+      request: chatRequest({ ...validPayload, ignoredPadding: 'x'.repeat(64 * 1024) }),
+      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER: limiter() },
+    })
+    expect(response.status).toBe(413)
+  })
+
+  it('uses the Durable Object as a three-second admission boundary', async () => {
+    const consume = vi.fn().mockResolvedValue({ allowed: true })
+    await enforceChatRateLimit(
       chatRequest(validPayload, { 'CF-Connecting-IP': '203.0.113.7' }),
       { CHAT_RATE_LIMITER: { getByName: vi.fn().mockReturnValue({ consume }) } },
       100,
     )
-
-    expect(decision).toEqual({ allowed: false, retryAfterMs: 45_000 })
-    expect(consume).toHaveBeenCalledWith(100, 60_000)
+    expect(consume).toHaveBeenCalledWith(100, 3_000)
   })
 
-  it('keeps release-candidate and production rate-limit admission independent', async () => {
+  it('keeps release-candidate and production admission independent', async () => {
     const headers = { 'CF-Connecting-IP': '203.0.113.7' }
     const previewKey = await chatRateLimitKey(
       new Request('https://release-candidate.hks-course-explorer.pages.dev/api/chat', { headers }),
@@ -248,16 +257,10 @@ describe('Chat Pages Function contract', () => {
     const productionKey = await chatRateLimitKey(
       new Request('https://hks-course-explorer.org/api/chat', { headers }),
     )
-
     expect(previewKey).not.toBe(productionKey)
-
-    const pagesProductionKey = await chatRateLimitKey(
-      new Request('https://hks-course-explorer.pages.dev/api/chat', { headers }),
-    )
-    expect(pagesProductionKey).toBe(productionKey)
   })
 
-  it('maps an aborted upstream request to a bounded gateway-timeout failure', async () => {
+  it('maps an aborted upstream request to a bounded gateway timeout', async () => {
     const fetchImpl = vi.fn(
       (_, options) =>
         new Promise((_, reject) => {
@@ -266,60 +269,22 @@ describe('Chat Pages Function contract', () => {
           )
         }),
     )
-
     await expect(
       fetchFromOpenRouter('test-key', {}, { fetchImpl, timeoutMs: 1 }),
-    ).rejects.toMatchObject({ status: 504, message: 'Chat provider timed out' })
+    ).rejects.toMatchObject({ status: 504 })
   })
 
-  it('replaces a partial upstream stream that becomes idle with complete course data', async () => {
-    let cancelReason
-    const encoder = new TextEncoder()
-    const stalledStream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(
-          encoder.encode('data: {"choices":[{"delta":{"content":"Partial"}}]}\n\n'),
-        )
-      },
-      pull() {
-        return new Promise(() => {})
-      },
-      cancel(reason) {
-        cancelReason = reason
-      },
-    })
-
-    const response = new Response(stalledStream, { status: 200 })
-    const body = await new Response(
-      createSseStream(response, { idleTimeoutMs: 1, fallbackText: 'Use API-101 instead.' }),
-    ).text()
-
-    expect(body).toContain('data: {"token":"Partial"}\n\n')
-    expect(body).toContain('data: {"replace":"Use API-101 instead."}\n\n')
-    expect(body.endsWith('data: [DONE]\n\n')).toBe(true)
-    expect(body).not.toContain('"error"')
-    expect(cancelReason).toBe('Chat provider stream idle timeout')
-  })
-
-  it('replaces a partial upstream stream that reaches EOF without provider completion', async () => {
-    const response = new Response('data: {"choices":[{"delta":{"content":"Partial"}}]}\n\n', {
-      status: 200,
-    })
-    const body = await new Response(
-      createSseStream(response, { fallbackText: 'Use API-101 instead.' }),
-    ).text()
-
-    expect(body).toContain('data: {"token":"Partial"}\n\n')
-    expect(body).toContain('data: {"replace":"Use API-101 instead."}\n\n')
-    expect(body.endsWith('data: [DONE]\n\n')).toBe(true)
-    expect(body).not.toContain('"error"')
+  it('builds a factual prompt instead of forcing three recommendations', () => {
+    const prompt = buildSystemPrompt(validPayload.courses, [])
+    expect(prompt).toContain('list only matching records')
+    expect(prompt).toContain('Do not pad')
+    expect(prompt).not.toContain('Give 2')
   })
 
   it('uses the shared CORS preflight response', async () => {
     const response = await onRequestOptions({
       request: new Request(endpoint, { headers: { Origin: 'http://localhost:5173' } }),
     })
-
     expect(response.status).toBe(204)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173')
   })
