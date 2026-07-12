@@ -325,6 +325,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     liveCoursesLoading,
     liveCoursesError,
     availableHksTerms,
+    availableHksTermsLoading,
+    availableHksTermsError,
     sectionTimesMap,
     sectionInfoMap,
     sectionTimesLoading,
@@ -373,6 +375,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   // the legacy fallback-search message so an unavailable catalogue can never
   // look like a trustworthy empty current result.
   const catalogueReadError = searchMode === 'live' ? liveCoursesError : ''
+  const catalogueCoverageError =
+    searchMode === 'live' && searchSource === 'HKS' ? availableHksTermsError : ''
   const sessionOptions = useMemo(() => getSessionOptions(semester), [semester])
   const selectedCatalogueTerm = getLiveCatalogueTerm(semesterYear, semester)
   const totalCurrentHksOfferings = useMemo(
@@ -1375,6 +1379,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                   {searchSource === 'HKS' ? (
                     <select
                       value={selectedCatalogueTerm}
+                      disabled={availableHksTermsLoading || Boolean(availableHksTermsError)}
                       onChange={(e) => {
                         const option = availableHksTerms.find(
                           (item) => item.term === e.target.value,
@@ -1392,10 +1397,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                       }}
                       aria-label="Catalogue term"
                     >
-                      {!availableHksTerms.length && (
-                        <option
-                          value={selectedCatalogueTerm}
-                        >{`${semester} ${semesterYear}`}</option>
+                      {availableHksTermsLoading && (
+                        <option value={selectedCatalogueTerm}>Loading catalogue terms…</option>
+                      )}
+                      {!availableHksTermsLoading && availableHksTermsError && (
+                        <option value={selectedCatalogueTerm}>Catalogue terms unavailable</option>
                       )}
                       {availableHksTerms.map((option) => (
                         <option key={option.term} value={option.term}>
@@ -1739,26 +1745,32 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                   style={{ color: 'var(--text-muted)' }}
                 >
                   <p>
-                    {catalogueReadError
-                      ? 'Current catalogue unavailable — see notice below.'
-                      : liveCoursesLoading
-                        ? 'Loading current catalog…'
-                        : liveCoursesData.length > 0
-                          ? `Browsing ${semester} ${semesterYear} catalog — type to narrow`
-                          : `No synced courses are available for ${semester} ${semesterYear}.`}
+                    {catalogueCoverageError
+                      ? 'Current HKS catalogue coverage unavailable — see notice below.'
+                      : availableHksTermsLoading
+                        ? 'Loading HKS catalogue terms…'
+                        : catalogueReadError
+                          ? 'Current catalogue unavailable — see notice below.'
+                          : liveCoursesLoading
+                            ? 'Loading current catalog…'
+                            : liveCoursesData.length > 0
+                              ? `Browsing ${semester} ${semesterYear} catalog — type to narrow`
+                              : `No synced courses are available for ${semester} ${semesterYear}.`}
                   </p>
-                  {searchSource === 'HKS' && totalCurrentHksOfferings > 0 && (
-                    <p>
-                      {totalCurrentHksOfferings} current HKS offerings across{' '}
-                      {availableHksTerms.length} catalogue terms
-                    </p>
-                  )}
+                  {searchSource === 'HKS' &&
+                    !catalogueCoverageError &&
+                    totalCurrentHksOfferings > 0 && (
+                      <p>
+                        {totalCurrentHksOfferings} current HKS offerings across{' '}
+                        {availableHksTerms.length} catalogue terms
+                      </p>
+                    )}
                 </div>
               ) : null}
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-              {(liveSearchError || catalogueReadError) && (
+              {(liveSearchError || catalogueReadError || catalogueCoverageError) && (
                 <p
                   role="alert"
                   className="mb-3 rounded-xl border px-3 py-2 text-xs leading-5"
@@ -1768,8 +1780,10 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     color: 'var(--text)',
                   }}
                 >
-                  {catalogueReadError || 'Synced catalogue search is unavailable.'} Please try again
-                  shortly.
+                  {catalogueCoverageError ||
+                    catalogueReadError ||
+                    'Synced catalogue search is unavailable.'}{' '}
+                  Please try again shortly.
                 </p>
               )}
               {(liveSearchStatus.stale || liveSearchStatus.partial) && (
@@ -1793,6 +1807,9 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
               {!searching &&
                 !liveSearchError &&
                 !catalogueReadError &&
+                !catalogueCoverageError &&
+                !liveCoursesLoading &&
+                !availableHksTermsLoading &&
                 filteredSearchResults.length === 0 &&
                 searchMode === 'live' && (
                   <p
@@ -1849,6 +1866,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                             <div
                               key={`with-${course.courseCode}-${index}`}
                               role="listitem"
+                              data-offering-id={searchMode === 'live' ? course.id : undefined}
                               className="rounded-[24px] border p-4"
                               style={{
                                 background: hks ? 'var(--panel-soft)' : 'var(--panel)',
@@ -2123,6 +2141,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                             <div
                               key={`without-${course.courseCode}-${index}`}
                               role="listitem"
+                              data-offering-id={searchMode === 'live' ? course.id : undefined}
                               className="rounded-[24px] border p-4"
                               style={{
                                 background: hks ? 'var(--panel-soft)' : 'var(--panel)',
@@ -2349,7 +2368,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                 ) : sectionTimesLoading ? (
                                   <Chip tone="default">Times loading</Chip>
                                 ) : (
-                                  <Chip tone="muted">Historical / no schedule</Chip>
+                                  <Chip tone="muted">
+                                    {searchMode === 'live'
+                                      ? 'Schedule pending'
+                                      : 'Historical / no schedule'}
+                                  </Chip>
                                 )}
                                 {instrPct != null && (
                                   <Chip tone="gold">★ {Math.round(instrPct)}th instr</Chip>
@@ -2386,7 +2409,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                   })()}
                 </div>
               ) : /* No results — show shortlist if available, otherwise a browse prompt */
-              shortlistedSuggestions.length > 0 && !searchQ.trim() ? (
+              !liveCoursesLoading &&
+                !availableHksTermsLoading &&
+                !catalogueReadError &&
+                !catalogueCoverageError &&
+                shortlistedSuggestions.length > 0 &&
+                !searchQ.trim() ? (
                 <div>
                   <p
                     className="mb-3 text-[11px] font-semibold uppercase tracking-[0.1em]"
@@ -2431,7 +2459,14 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     ))}
                   </div>
                 </div>
-              ) : searchSource === 'Non-HKS' && !searchQ.trim() && searchMode === 'history' ? (
+              ) : liveCoursesLoading || availableHksTermsLoading ? (
+                <div role="status" className="py-8 text-center text-sm text-muted">
+                  Loading current catalogue…
+                </div>
+              ) : catalogueCoverageError || catalogueReadError ? null : searchSource ===
+                  'Non-HKS' &&
+                !searchQ.trim() &&
+                searchMode === 'history' ? (
                 <div className="flex flex-col items-center gap-3 py-10 text-center">
                   <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
                     No cross-reg history

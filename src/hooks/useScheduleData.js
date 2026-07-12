@@ -32,12 +32,15 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 // A stalled browser read is not a valid empty catalogue. Bound it so the UI
 // can distinguish a temporary data problem from a term with no offerings.
 const LIVE_CATALOGUE_REQUEST_TIMEOUT_MS = 8_000
+const HKS_TERM_INVENTORY_TIMEOUT_MS = 8_000
 
 export function useScheduleData(semesterYear, semester) {
   const [liveCoursesData, setLiveCoursesData] = useState([])
   const [liveCoursesLoading, setLiveCoursesLoading] = useState(false)
   const [liveCoursesError, setLiveCoursesError] = useState('')
   const [availableHksTerms, setAvailableHksTerms] = useState([])
+  const [availableHksTermsLoading, setAvailableHksTermsLoading] = useState(false)
+  const [availableHksTermsError, setAvailableHksTermsError] = useState('')
   const [sectionTimesMap, setSectionTimesMap] = useState(new Map())
   const [sectionCanonicalCodes, setSectionCanonicalCodes] = useState(new Set())
   const [sectionInfoMap, setSectionInfoMap] = useState(new Map())
@@ -49,8 +52,17 @@ export function useScheduleData(semesterYear, semester) {
   useEffect(() => {
     let cancelled = false
     const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), HKS_TERM_INVENTORY_TIMEOUT_MS)
 
-    if (!isSupabaseConfigured) return () => controller.abort()
+    setAvailableHksTerms([])
+    setAvailableHksTermsError('')
+    setAvailableHksTermsLoading(true)
+    if (!isSupabaseConfigured) {
+      window.clearTimeout(timeoutId)
+      setAvailableHksTermsLoading(false)
+      setAvailableHksTermsError('Current HKS catalogue terms are unavailable.')
+      return () => controller.abort()
+    }
 
     fetchCataloguePages(() =>
       supabase
@@ -63,15 +75,27 @@ export function useScheduleData(semesterYear, semester) {
         .order('id', { ascending: true }),
     )
       .then((rows) => {
-        if (!cancelled) setAvailableHksTerms(buildAvailableCatalogueTerms(rows))
+        if (cancelled) return
+        const terms = buildAvailableCatalogueTerms(rows)
+        setAvailableHksTerms(terms)
+        if (!terms.length) {
+          setAvailableHksTermsError('No active HKS catalogue terms are available.')
+        }
       })
       .catch(() => {
-        // Do not take down selected-term search if the coverage summary fails.
-        if (!cancelled) setAvailableHksTerms([])
+        if (!cancelled) {
+          setAvailableHksTerms([])
+          setAvailableHksTermsError('Current HKS catalogue terms are temporarily unavailable.')
+        }
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId)
+        if (!cancelled) setAvailableHksTermsLoading(false)
       })
 
     return () => {
       cancelled = true
+      window.clearTimeout(timeoutId)
       controller.abort()
     }
   }, [])
@@ -183,6 +207,8 @@ export function useScheduleData(semesterYear, semester) {
     liveCoursesLoading,
     liveCoursesError,
     availableHksTerms,
+    availableHksTermsLoading,
+    availableHksTermsError,
     sectionTimesMap,
     sectionCanonicalCodes,
     sectionInfoMap,

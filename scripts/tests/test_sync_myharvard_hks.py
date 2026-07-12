@@ -112,6 +112,60 @@ class MyHarvardSyncTests(unittest.TestCase):
         self.assertEqual((run_id, staged), ("run-id", 1))
         self.assertIn("live_catalogue_runs", post.call_args_list[0].args[0])
         self.assertIn("stage_myharvard_hks_offerings", post.call_args_list[1].args[0])
+        run_manifest = post.call_args_list[0].kwargs["json"]
+        self.assertEqual(len(run_manifest["identity_sha256"]), 64)
+        self.assertEqual(run_manifest["term_counts"], {"2026 Fall": 1})
+
+    def test_reads_every_active_hks_identity_with_stable_pagination(self):
+        self.sync.SUPABASE_PAGE_SIZE = 1
+        first = Mock()
+        first.raise_for_status.return_value = None
+        first.json.return_value = [
+            {"source_offering_id": "myh|one", "source": "myharvard"}
+        ]
+        second = Mock()
+        second.raise_for_status.return_value = None
+        second.json.return_value = [
+            {"source_offering_id": "myh|two", "source": "myharvard"}
+        ]
+        final = Mock()
+        final.raise_for_status.return_value = None
+        final.json.return_value = []
+        request_get = Mock(side_effect=[first, second, final])
+
+        inventory = self.sync.fetch_active_hks_inventory(request_get)
+
+        self.assertEqual(inventory, {"myh|one": "myharvard", "myh|two": "myharvard"})
+        self.assertEqual(request_get.call_args_list[1].kwargs["params"]["offset"], "1")
+
+    def test_requires_exact_authoritative_upstream_to_production_identity_set(self):
+        rows = self.sync.parse_cards(CARD)
+        offering_id = rows[0]["id"]
+
+        digest = self.sync.verify_promoted_inventory(rows, {offering_id: "myharvard"})
+
+        self.assertEqual(len(digest), 64)
+        with self.assertRaisesRegex(RuntimeError, "missing=1, extra=1"):
+            self.sync.verify_promoted_inventory(rows, {"myh|unexpected": "myharvard"})
+        with self.assertRaisesRegex(RuntimeError, "non_authoritative=1"):
+            self.sync.verify_promoted_inventory(rows, {offering_id: "ats"})
+
+    def test_post_promotion_mismatch_rolls_back_and_restores_exact_previous_inventory(self):
+        rows = self.sync.parse_cards(CARD)
+        previous = {"myh|previous": "myharvard"}
+        mismatched = {"myh|unexpected": "myharvard"}
+        inventories = iter([previous, mismatched, previous])
+
+        with (
+            patch.object(self.sync, "fetch_active_hks_inventory", side_effect=inventories),
+            patch.object(self.sync, "promote", return_value=1) as promote,
+            patch.object(self.sync, "rollback", return_value=1) as rollback,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "exact previous HKS catalogue was restored"):
+                self.sync.promote_and_verify(rows, "run-id")
+
+        promote.assert_called_once_with("run-id")
+        rollback.assert_called_once_with("run-id")
 
 
 if __name__ == "__main__":

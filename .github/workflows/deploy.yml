@@ -41,14 +41,29 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
+
+      - name: Install pinned verification dependencies
+        run: pip install --require-hashes -r requirements/workflows.txt
 
       - name: Validate target browser configuration
         env:
           VITE_SUPABASE_URL: ${{ vars.DEPLOY_VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.DEPLOY_VITE_SUPABASE_ANON_KEY }}
         run: node scripts/validate_supabase_browser_config.mjs
+
+      - name: Verify active HKS catalogue manifest and exact row parity
+        env:
+          SUPABASE_URL: ${{ vars.DEPLOY_VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.DEPLOY_VITE_SUPABASE_ANON_KEY }}
+          MAX_HKS_CATALOGUE_AGE_HOURS: '48'
+        run: python scripts/verify_live_hks_catalogue.py
 
       - name: Build exact CI commit
         run: npm run build
