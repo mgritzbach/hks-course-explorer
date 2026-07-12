@@ -52,12 +52,29 @@ test.describe('Scatter Plot built-artifact regression', () => {
         y: [...element._fullLayout.yaxis.range],
       }))
 
+    // At the full domain there is nowhere to pan, so dragging must leave the
+    // rendered range at 0-100 instead of moving it outside the valid domain.
+    const fullRangeBox = await chart.boundingBox()
+    expect(fullRangeBox).not.toBeNull()
+    const fullStartX = fullRangeBox.x + fullRangeBox.width * 0.58
+    const fullStartY = fullRangeBox.y + fullRangeBox.height * 0.48
+    await page.mouse.move(fullStartX, fullStartY)
+    await page.mouse.down()
+    await page.mouse.move(fullStartX - fullRangeBox.width * 0.2, fullStartY)
+    await page.mouse.up()
+    await expect.poll(renderedRanges).toEqual({ x: [0, 100], y: [0, 100] })
+
     // Repeatedly zoom and pan the rendered Plotly canvas before resetting.
     // Checking `_fullLayout` catches the failure where React requested 0-100
     // but Plotly continued showing a stale, cropped internal range.
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await page.getByRole('button', { name: 'Zoom in' }).click()
       await expect(page.getByText('Zoomed in', { exact: true })).toBeVisible()
+      const zoomedRanges = await renderedRanges()
+      const zoomedSpan = {
+        x: zoomedRanges.x[1] - zoomedRanges.x[0],
+        y: zoomedRanges.y[1] - zoomedRanges.y[0],
+      }
 
       const renderedBox = await chart.boundingBox()
       expect(renderedBox).not.toBeNull()
@@ -67,7 +84,21 @@ test.describe('Scatter Plot built-artifact regression', () => {
       await page.mouse.down()
       await page.mouse.move(startX - renderedBox.width * 0.2, startY + renderedBox.height * 0.2)
       await page.mouse.up()
-      await expect.poll(renderedRanges).not.toEqual({ x: [0, 100], y: [0, 100] })
+      await expect.poll(renderedRanges).not.toEqual(zoomedRanges)
+      await expect
+        .poll(async () => {
+          const pannedRanges = await renderedRanges()
+          const epsilon = 0.001
+          return (
+            Math.abs(pannedRanges.x[1] - pannedRanges.x[0] - zoomedSpan.x) < epsilon &&
+            Math.abs(pannedRanges.y[1] - pannedRanges.y[0] - zoomedSpan.y) < epsilon &&
+            pannedRanges.x[0] >= 0 &&
+            pannedRanges.x[1] <= 100 &&
+            pannedRanges.y[0] >= 0 &&
+            pannedRanges.y[1] <= 100
+          )
+        })
+        .toBe(true)
 
       await page.getByRole('button', { name: 'Reset axes' }).click()
       await expect(page.getByText('Zoomed in', { exact: true })).toHaveCount(0)
