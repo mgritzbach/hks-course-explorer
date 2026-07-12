@@ -454,19 +454,30 @@ export async function onRequestPost({ request, env }) {
         request,
       )
     }
-    const response = await fetchFromOpenRouter(apiKey, {
-      models: FREE_MODELS,
-      route: 'fallback',
-      max_tokens: 350,
-      stream: true,
-      messages: [
-        { role: 'system', content: buildSystemPrompt(courses, shortlisted) },
-        ...history,
-        { role: 'user', content: message },
-      ],
-    })
+    const fallbackReply = buildCourseDataFallback(courses, message)
+    let response
+    try {
+      response = await fetchFromOpenRouter(apiKey, {
+        models: FREE_MODELS,
+        route: 'fallback',
+        max_tokens: 350,
+        stream: true,
+        messages: [
+          { role: 'system', content: buildSystemPrompt(courses, shortlisted) },
+          ...history,
+          { role: 'user', content: message },
+        ],
+      })
+    } catch (error) {
+      if (error instanceof UpstreamError)
+        return jsonResponse({ reply: fallbackReply }, 200, request)
+      throw error
+    }
 
     if (!response.ok) {
+      if (response.status === 429 || response.status >= 500) {
+        return jsonResponse({ reply: fallbackReply }, 200, request)
+      }
       const data = await response.json().catch(() => ({}))
       return jsonResponse(
         {
@@ -480,17 +491,14 @@ export async function onRequestPost({ request, env }) {
       )
     }
 
-    return new Response(
-      createSseStream(response, { fallbackText: buildCourseDataFallback(courses, message) }),
-      {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache, no-transform',
-          'X-Accel-Buffering': 'no',
-          ...corsHeaders(request),
-        },
+    return new Response(createSseStream(response, { fallbackText: fallbackReply }), {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+        ...corsHeaders(request),
       },
-    )
+    })
   } catch (error) {
     if (error instanceof RequestValidationError || error instanceof UpstreamError) {
       return jsonResponse({ error: error.message }, error.status, request)
