@@ -19,8 +19,7 @@ class WorkflowActionPinningTests(unittest.TestCase):
         deploy_workflow = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
         self.assertIn("npm install -g wrangler@4.86.0", deploy_workflow)
         self.assertNotIn("npm install -g wrangler@4\n", deploy_workflow)
-        self.assertNotIn("actions/setup-python", deploy_workflow)
-        self.assertNotIn("pip install", deploy_workflow)
+        self.assertIn("pip install --require-hashes -r requirements/workflows.txt", deploy_workflow)
 
     def test_deployment_accepts_only_a_trusted_master_push(self):
         deploy_workflow = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
@@ -45,6 +44,10 @@ class WorkflowActionPinningTests(unittest.TestCase):
 
     def test_deploy_gates_production_on_an_isolated_browser_tested_candidate(self):
         deploy_workflow = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
+        catalogue_manifest = deploy_workflow.index(
+            "Verify active HKS catalogue manifest and exact row parity"
+        )
+        exact_build = deploy_workflow.index("Build exact CI commit")
         candidate_deploy = deploy_workflow.index("Deploy isolated Pages release candidate")
         candidate_static = deploy_workflow.index("Smoke-test exact release-candidate artifact")
         browser_install = deploy_workflow.index("Install production smoke browser")
@@ -55,6 +58,8 @@ class WorkflowActionPinningTests(unittest.TestCase):
         production_browser = deploy_workflow.index("Exercise production in a real browser")
         record_commit = deploy_workflow.index("Record deployed commit")
 
+        self.assertLess(catalogue_manifest, exact_build)
+        self.assertLess(exact_build, candidate_deploy)
         self.assertLess(candidate_deploy, candidate_static)
         self.assertLess(candidate_static, browser_install)
         self.assertLess(browser_install, candidate_browser)
@@ -72,6 +77,13 @@ class WorkflowActionPinningTests(unittest.TestCase):
         self.assertIn("github.event.workflow_run.head_sha", deploy_workflow)
         self.assertIn("Refusing stale release", deploy_workflow)
         self.assertIn("Retain production browser diagnostics", deploy_workflow)
+        self.assertIn("python scripts/verify_live_hks_catalogue.py", deploy_workflow)
+        self.assertIn("MAX_HKS_CATALOGUE_AGE_HOURS: '48'", deploy_workflow)
+        catalogue_step = deploy_workflow.split(
+            "- name: Verify active HKS catalogue manifest and exact row parity", 1
+        )[1].split("- name: Build exact CI commit", 1)[0]
+        self.assertIn("SUPABASE_ANON_KEY", catalogue_step)
+        self.assertNotIn("SUPABASE_KEY", catalogue_step)
 
     def test_all_official_actions_are_full_sha_pinned_with_a_readable_version(self):
         references = []
@@ -96,6 +108,7 @@ class WorkflowActionPinningTests(unittest.TestCase):
         for name in (
             "backup-live-courses.yml",
             "catalogue-parity-audit.yml",
+            "deploy.yml",
             "sync-live-courses.yml",
             "sync-myharvard-hks.yml",
         ):

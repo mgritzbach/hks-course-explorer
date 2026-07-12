@@ -238,6 +238,7 @@ export async function installMockBackend(
     harvardResponse,
     liveCoursesStatus = 200,
     liveCoursesResponse = liveCourses,
+    liveCoursesResponseResolver,
     onLiveCoursesRequest,
   } = {},
 ) {
@@ -255,7 +256,12 @@ export async function installMockBackend(
       return json(route, pageData)
     }
     if (pathname.endsWith('/live_courses')) {
-      onLiveCoursesRequest?.(new URL(request.url()))
+      const requestUrl = new URL(request.url())
+      onLiveCoursesRequest?.(requestUrl)
+      if (liveCoursesResponseResolver) {
+        const resolved = await liveCoursesResponseResolver(requestUrl, liveCoursesResponse)
+        return json(route, resolved?.body ?? [], resolved?.status ?? 200)
+      }
       return json(
         route,
         liveCoursesStatus === 200 ? liveCoursesResponse : { error: 'unavailable' },

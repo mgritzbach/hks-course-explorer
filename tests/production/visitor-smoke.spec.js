@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { MOBILE_MORE_NAV_ITEMS, MOBILE_PRIMARY_NAV_ITEMS } from '../../src/lib/visitorNavigation.js'
 
 const minimumHksOfferings = Number(process.env.DEPLOY_MIN_HKS_OFFERINGS)
 
@@ -80,6 +81,10 @@ async function exerciseLocalPlanControl(results, control) {
 }
 
 async function prepareReadOnlyBrowser(page) {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+}
+
+async function skipOnboarding(page) {
   await page.addInitScript(() => {
     localStorage.clear()
     localStorage.setItem('hks-splash-shown', '1')
@@ -87,7 +92,6 @@ async function prepareReadOnlyBrowser(page) {
     localStorage.setItem('hks-tour-courses', '1')
     localStorage.setItem('hks-tour-course-detail', '1')
   })
-  await page.setViewportSize({ width: 1440, height: 1000 })
 }
 
 test.describe('read-only production acceptance', () => {
@@ -97,6 +101,7 @@ test.describe('read-only production acceptance', () => {
 
   test('renders every visitor route without a client runtime error', async ({ page }) => {
     test.slow()
+    await skipOnboarding(page)
     const runtimeErrors = captureRuntimeErrors(page)
     const requestAudit = await protectProductionFromWrites(page)
     let chatRequests = 0
@@ -128,8 +133,34 @@ test.describe('read-only production acceptance', () => {
 
   test('proves every advertised HKS catalogue row is selectable', async ({ page }) => {
     test.slow()
+    await skipOnboarding(page)
     const runtimeErrors = captureRuntimeErrors(page)
     const requestAudit = await protectProductionFromWrites(page)
+    const authoritativeIdsByTerm = new Map()
+    const catalogueResponseReads = []
+    page.on('response', (response) => {
+      const url = new URL(response.url())
+      if (!url.pathname.endsWith('/rest/v1/live_courses')) return
+      const read = response
+        .json()
+        .then((rows) => {
+          for (const row of Array.isArray(rows) ? rows : []) {
+            if (
+              row?.is_hks !== true ||
+              typeof row.id !== 'string' ||
+              typeof row.term !== 'string'
+            ) {
+              continue
+            }
+            if (!authoritativeIdsByTerm.has(row.term)) {
+              authoritativeIdsByTerm.set(row.term, new Set())
+            }
+            authoritativeIdsByTerm.get(row.term).add(row.id)
+          }
+        })
+        .catch(() => undefined)
+      catalogueResponseReads.push(read)
+    })
     await page.goto('/schedule-builder', { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
 
@@ -154,6 +185,20 @@ test.describe('read-only production acceptance', () => {
       )
       .toBe(true)
     const terms = await readTermOptions()
+
+    await expect(page.getByLabel('School filter')).toHaveValue('HKS')
+    await expect(page.getByRole('button', { name: 'Live', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    const sessionFilter = page.getByLabel('Session filter')
+    await expect(sessionFilter).toHaveValue('all')
+    await expect(page.getByLabel('Filter by concentration')).toHaveValue('All')
+    await expect(page.getByLabel('Filter by STEM')).toHaveValue('all')
+    await expect(page.getByLabel('Minimum instructor rating percentile')).toHaveValue('')
+    await sessionFilter.selectOption({ index: 1 })
+    await page.getByRole('button', { name: 'Reset all filters' }).click()
+    await expect(sessionFilter).toHaveValue('all')
 
     const parsedTerms = terms.map(({ value, label }) => {
       const match = label.match(/^(.+) \((\d+) HKS\)$/)
@@ -183,6 +228,18 @@ test.describe('read-only production acceptance', () => {
       }
 
       await expect(results.getByRole('listitem')).toHaveCount(term.count)
+      await Promise.all(catalogueResponseReads)
+      await expect
+        .poll(() => authoritativeIdsByTerm.get(term.value)?.size || 0, { timeout: 20_000 })
+        .toBe(term.count)
+      const renderedOfferingIds = await results
+        .getByRole('listitem')
+        .evaluateAll((items) => items.map((item) => item.getAttribute('data-offering-id')))
+      expect(renderedOfferingIds.every(Boolean)).toBe(true)
+      expect(new Set(renderedOfferingIds).size).toBe(term.count)
+      expect([...renderedOfferingIds].sort()).toEqual(
+        [...authoritativeIdsByTerm.get(term.value)].sort(),
+      )
       const addControls = results.getByRole('button', { name: /^Add .* to plan$/ })
       await expect(addControls).toHaveCount(term.count)
       const controlState = await addControls.evaluateAll((controls) =>
@@ -207,10 +264,13 @@ test.describe('read-only production acceptance', () => {
 
   test('resets the rendered comparison graph after zooming and panning', async ({ page }) => {
     test.slow()
+    await skipOnboarding(page)
     const runtimeErrors = captureRuntimeErrors(page)
     const requestAudit = await protectProductionFromWrites(page)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible({
+      timeout: 20_000,
+    })
 
     const chart = page.locator('.js-plotly-plot')
     await expect(chart).toBeVisible({ timeout: 30_000 })
@@ -263,6 +323,79 @@ test.describe('read-only production acceptance', () => {
     await expect(removeFromShortlist).toBeVisible()
     await removeFromShortlist.click()
     await expect(addToShortlist).toBeVisible()
+    expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([])
+    expectNoProductionWrites(requestAudit)
+  })
+
+  test('keeps first-visit and primary navigation flows usable on mobile', async ({ page }) => {
+    test.slow()
+    await page.setViewportSize({ width: 390, height: 844 })
+    const runtimeErrors = captureRuntimeErrors(page)
+    const requestAudit = await protectProductionFromWrites(page)
+
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    const landing = page.getByRole('dialog', { name: 'Welcome to the HKS Course Explorer' })
+    const direct = landing.getByRole('button', {
+      name: 'Continue directly and skip all tutorial boxes',
+    })
+    const tutorial = landing.getByRole('button', { name: 'Continue with the guided tutorial' })
+    await expect(landing).toBeVisible()
+    for (const action of [tutorial, direct]) {
+      const bounds = await action.boundingBox()
+      expect(bounds).not.toBeNull()
+      expect(bounds.x).toBeGreaterThanOrEqual(0)
+      expect(bounds.y).toBeGreaterThanOrEqual(0)
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(390)
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(844)
+    }
+
+    await direct.click()
+    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible({
+      timeout: 20_000,
+    })
+    await expect(page.getByRole('dialog', { name: 'Start with the Year' })).toHaveCount(0)
+
+    const navigation = page.getByRole('navigation', { name: 'Mobile navigation' })
+    for (const item of MOBILE_PRIMARY_NAV_ITEMS) {
+      await expect(navigation.getByRole('link', { name: item.label, exact: true })).toBeVisible()
+    }
+
+    await navigation.getByRole('link', { name: 'Courses', exact: true }).click()
+    await expect(page).toHaveURL(/\/courses$/)
+    await expect(page.getByRole('heading', { name: 'Course Explorer' })).toBeVisible()
+    await expect(page.locator('#main-content')).toBeFocused()
+
+    const moreButton = navigation.getByRole('button', { name: 'More', exact: true })
+    await moreButton.click()
+    await expect(moreButton).toHaveAttribute('aria-expanded', 'true')
+    for (const item of MOBILE_MORE_NAV_ITEMS) {
+      await expect(page.getByRole('link', { name: item.label, exact: true })).toBeVisible()
+    }
+    await page.keyboard.press('Escape')
+    await expect(page.locator('#mobile-more-navigation')).toHaveCount(0)
+    await expect(moreButton).toBeFocused()
+
+    await moreButton.click()
+    await page.getByRole('link', { name: 'Resources', exact: true }).click()
+    await expect(page).toHaveURL(/\/resources$/)
+    await expect(page.getByRole('heading', { name: 'HKS Resources' })).toBeVisible()
+    await expect(page.locator('#mobile-more-navigation')).toHaveCount(0)
+
+    await navigation.getByRole('link', { name: 'Schedule Builder', exact: true }).click()
+    await expect(page).toHaveURL(/\/schedule-builder$/)
+    await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
+
+    await navigation.getByRole('link', { name: 'My Degree', exact: true }).click()
+    await expect(page).toHaveURL(/\/requirements(?:\?.*)?$/)
+    await expect(page.getByRole('heading', { name: 'Requirements Tracker' })).toBeVisible()
+
+    await page.evaluate(() => localStorage.clear())
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Continue with the guided tutorial' }).click()
+    await expect(page.getByRole('dialog', { name: 'Start with the Year' })).toBeVisible({
+      timeout: 20_000,
+    })
+
     expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([])
     expectNoProductionWrites(requestAudit)
   })

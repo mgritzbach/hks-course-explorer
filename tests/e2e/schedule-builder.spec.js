@@ -23,6 +23,47 @@ test.describe('Schedule Builder critical flows', () => {
     await expect(page.getByText('5 current HKS offerings across 3 catalogue terms')).toBeVisible()
   })
 
+  test('restores the complete live HKS baseline when every filter is reset', async ({ page }) => {
+    await page.goto('/schedule-builder')
+    const results = page.getByRole('list', { name: 'Course search results' })
+    const session = page.getByLabel('Session filter')
+    const concentration = page.getByLabel('Filter by concentration')
+    const stem = page.getByLabel('Filter by STEM')
+    const rating = page.getByLabel('Minimum instructor rating percentile')
+
+    await expect(page.getByLabel('School filter')).toHaveValue('HKS')
+    await expect(page.getByRole('button', { name: 'Live', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await expect(session).toHaveValue('all')
+    await expect(results).toContainText('2 live courses · 0 scheduled · 2 schedule pending')
+
+    await session.selectOption('Fall 1')
+    await stem.selectOption('stem')
+    await rating.selectOption('75')
+    await page.getByRole('button', { name: 'Mon', exact: true }).click()
+    await page.getByRole('button', { name: '4 cr', exact: true }).click()
+    await page.getByLabel('Start time from').fill('09:00')
+    await page.getByRole('button', { name: 'Reset all filters' }).click()
+
+    await expect(page.getByLabel('School filter')).toHaveValue('HKS')
+    await expect(session).toHaveValue('all')
+    await expect(concentration).toHaveValue('All')
+    await expect(stem).toHaveValue('all')
+    await expect(rating).toHaveValue('')
+    await expect(page.getByRole('button', { name: 'Mon', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    await expect(page.getByRole('button', { name: 'Any', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await expect(page.getByLabel('Start time from')).toHaveValue('')
+    await expect(results).toContainText('2 live courses · 0 scheduled · 2 schedule pending')
+  })
+
   test('reveals and allows selection of every current offering, including schedule-pending rows', async ({
     page,
   }) => {
@@ -60,12 +101,66 @@ test.describe('Schedule Builder critical flows', () => {
 
     await results.getByRole('button', { name: 'Show more (5 remaining)' }).click()
     await expect(results.getByRole('listitem')).toHaveCount(30)
+    const renderedOfferingIds = await results
+      .getByRole('listitem')
+      .evaluateAll((items) => items.map((item) => item.getAttribute('data-offering-id')))
+    expect(renderedOfferingIds.sort()).toEqual(completeTerm.map((course) => course.id).sort())
+    await expect(results.getByText('Schedule pending', { exact: true })).toHaveCount(30)
 
     const lastOffering = 'API-7030-001'
     await results.getByRole('button', { name: `Add ${lastOffering} to plan` }).click()
     await expect(
       results.getByRole('button', { name: `Remove ${lastOffering} from plan` }),
     ).toBeVisible()
+  })
+
+  test('never shows a false zero or shortlist fallback while a new term is loading', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => localStorage.setItem('hks_favorites', '["API-101"]'))
+    await installMockBackend(page, {
+      liveCoursesResponseResolver: async (url, rows) => {
+        if (url.searchParams.get('term') === 'eq.2027 Spring') {
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
+        return { body: rows }
+      },
+    })
+    await page.goto('/schedule-builder')
+    const term = page.getByLabel('Catalogue term')
+    await expect(term.locator('option')).toHaveCount(3)
+
+    await term.selectOption('2027 Spring')
+
+    await expect(page.getByText('Loading current catalogue…', { exact: true })).toBeVisible()
+    await expect(page.getByText(/0 live courses match/)).toHaveCount(0)
+    await expect(page.getByText('★ From your shortlist', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('list', { name: 'Course search results' })).toContainText(
+      '1 live course · 0 scheduled · 1 schedule pending',
+    )
+  })
+
+  test('fails closed when the HKS term inventory cannot be read', async ({ page }) => {
+    await installMockBackend(page, {
+      liveCoursesResponseResolver: async (url, rows) => {
+        const select = url.searchParams.get('select') || ''
+        const isTermInventory =
+          select.includes('term') && select.includes('is_hks') && !select.includes('course_code')
+        return isTermInventory ? { status: 503, body: { error: 'unavailable' } } : { body: rows }
+      },
+    })
+    await page.goto('/schedule-builder')
+
+    await expect(
+      page.getByRole('alert').filter({
+        hasText: 'Current HKS catalogue terms are temporarily unavailable.',
+      }),
+    ).toBeVisible({ timeout: 12_000 })
+    const term = page.getByLabel('Catalogue term')
+    await expect(term).toBeDisabled()
+    await expect(term.locator('option')).toHaveText(['Catalogue terms unavailable'])
+    await expect(page.getByText(/current HKS offerings across/)).toHaveCount(0)
+    await expect(page.getByText(/0 live courses match/)).toHaveCount(0)
   })
 
   test('keeps non-HKS-only catalogue terms visible and selectable', async ({ page }) => {
@@ -193,7 +288,10 @@ test.describe('Schedule Builder critical flows', () => {
     await installMockBackend(page, { liveCoursesResponse: [] })
     await page.goto('/schedule-builder')
 
-    await expect(page.getByText(/0 live courses match/)).toBeVisible()
+    await expect(page.getByRole('alert')).toContainText(
+      'No active HKS catalogue terms are available.',
+    )
+    await expect(page.getByText(/0 live courses match/)).toHaveCount(0)
     await expect(page.getByText(/Historical \/ no schedule/)).toHaveCount(0)
     await expect(page.getByRole('list', { name: 'Course search results' })).toHaveCount(0)
   })

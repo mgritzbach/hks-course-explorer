@@ -8,6 +8,7 @@ deleted; the previous ATS catalogue remains available for rollback.
 
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import os
@@ -23,6 +24,8 @@ import requests
 MYHARVARD_BASE = "https://my.harvard.edu/"
 MYHARVARD_SEARCH = urljoin(MYHARVARD_BASE, "search/")
 PAGE_SIZE = 15
+SUPABASE_PAGE_SIZE = 1_000
+MAX_ACTIVE_HKS_ROWS = 10_000
 DETAIL_WORKERS = 4
 MIN_HKS_OFFERINGS = int(os.environ.get("MYHARVARD_MIN_HKS_OFFERINGS", "250"))
 PROMOTE = os.environ.get("MYHARVARD_PROMOTE", "false").lower() == "true"
@@ -314,13 +317,89 @@ def post_json(path: str, payload: dict, prefer: str | None = None):
     return response.json() if response.content else None
 
 
+def fetch_active_hks_inventory(request_get=requests.get) -> dict[str, str]:
+    """Read every active upstream HKS identity after promotion for exact verification."""
+    inventory: dict[str, str] = {}
+    offset = 0
+    while True:
+        response = request_get(
+            f"{SUPABASE_URL}/rest/v1/live_courses",
+            headers=supabase_headers(),
+            params={
+                "select": "source_offering_id,source",
+                "active": "eq.true",
+                "is_hks": "eq.true",
+                "order": "id.asc",
+                "limit": str(SUPABASE_PAGE_SIZE),
+                "offset": str(offset),
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, list) or any(not isinstance(row, dict) for row in payload):
+            raise RuntimeError("Supabase returned an invalid active HKS inventory")
+        for row in payload:
+            offering_id = row.get("source_offering_id")
+            source = row.get("source")
+            if not isinstance(offering_id, str) or not offering_id:
+                raise RuntimeError("Supabase returned an active HKS row without a source identity")
+            if offering_id in inventory:
+                raise RuntimeError("Supabase returned a duplicate active HKS identity")
+            inventory[offering_id] = source if isinstance(source, str) else ""
+        if len(inventory) > MAX_ACTIVE_HKS_ROWS:
+            raise RuntimeError("Active HKS inventory exceeds the safe verification limit")
+        if len(payload) < SUPABASE_PAGE_SIZE:
+            return inventory
+        offset += SUPABASE_PAGE_SIZE
+
+
+def verify_promoted_inventory(rows: list[dict], inventory: dict[str, str]) -> str:
+    """Require exact upstream-to-production identity equality and return its audit digest."""
+    expected_ids = {row.get("id") for row in rows}
+    if None in expected_ids or any(not isinstance(offering_id, str) for offering_id in expected_ids):
+        raise RuntimeError("Upstream HKS rows contain an invalid offering identity")
+    if len(expected_ids) != len(rows):
+        raise RuntimeError("Upstream HKS rows contain duplicate offering identities")
+
+    actual_ids = set(inventory)
+    non_authoritative = sum(source != "myharvard" for source in inventory.values())
+    if actual_ids != expected_ids or non_authoritative:
+        raise RuntimeError(
+            "Promoted HKS inventory does not exactly match my.harvard: "
+            f"expected={len(expected_ids)}, active={len(actual_ids)}, "
+            f"missing={len(expected_ids - actual_ids)}, extra={len(actual_ids - expected_ids)}, "
+            f"non_authoritative={non_authoritative}"
+        )
+
+    identity_payload = "\n".join(sorted(expected_ids)).encode("utf-8")
+    return hashlib.sha256(identity_payload).hexdigest()
+
+
+def build_manifest(rows: list[dict]) -> tuple[str, dict[str, int]]:
+    """Return the exact immutable identity and term manifest for a staged run."""
+    identities = [row.get("id") for row in rows]
+    if any(not isinstance(value, str) or not value for value in identities):
+        raise RuntimeError("Upstream HKS rows contain an invalid offering identity")
+    if len(set(identities)) != len(identities):
+        raise RuntimeError("Upstream HKS rows contain duplicate offering identities")
+    terms = Counter(row.get("term") for row in rows)
+    if any(not isinstance(term, str) or not term for term in terms):
+        raise RuntimeError("Upstream HKS rows contain an invalid term")
+    digest = hashlib.sha256("\n".join(sorted(identities)).encode("utf-8")).hexdigest()
+    return digest, dict(sorted(terms.items()))
+
+
 def stage(rows: list[dict]) -> tuple[str, int]:
+    digest, term_counts = build_manifest(rows)
     run_rows = post_json(
         "live_catalogue_runs?select=id",
         {
             "source": "myharvard",
             "status": "staged",
             "offering_count": len(rows),
+            "identity_sha256": digest,
+            "term_counts": term_counts,
         },
         "return=representation",
     )
@@ -336,6 +415,39 @@ def promote(run_id: str) -> int:
     return int(post_json("rpc/promote_myharvard_hks_run", {"p_run_id": run_id}))
 
 
+def rollback(run_id: str) -> int:
+    return int(post_json("rpc/rollback_myharvard_hks_run", {"p_run_id": run_id}))
+
+
+def promote_and_verify(rows: list[dict], run_id: str) -> tuple[int, str]:
+    """Promote, verify exact identity, and restore the previous run on any mismatch."""
+    previous_inventory = fetch_active_hks_inventory()
+    activated = promote(run_id)
+    try:
+        if activated != len(rows):
+            raise RuntimeError(
+                f"Promotion activated {activated} HKS offerings; expected exactly {len(rows)}"
+            )
+        digest = verify_promoted_inventory(rows, fetch_active_hks_inventory())
+        return activated, digest
+    except Exception as verification_error:
+        try:
+            rollback(run_id)
+            restored_inventory = fetch_active_hks_inventory()
+            if restored_inventory != previous_inventory:
+                raise RuntimeError(
+                    "Rollback completed but did not restore the exact previous HKS inventory"
+                )
+        except Exception as rollback_error:
+            raise RuntimeError(
+                "Promotion verification failed and the previous HKS catalogue could not be "
+                "verified after rollback"
+            ) from rollback_error
+        raise RuntimeError(
+            "Promotion verification failed; the exact previous HKS catalogue was restored"
+        ) from verification_error
+
+
 def main() -> None:
     if not SUPABASE_URL or not SUPABASE_KEY:
         sys.exit("SUPABASE_URL and SUPABASE_KEY are required")
@@ -344,8 +456,9 @@ def main() -> None:
     run_id, staged = stage(rows)
     print(f"Staged {staged} HKS offerings in run {run_id}; terms: {dict(sorted(counts.items()))}")
     if PROMOTE:
-        activated = promote(run_id)
+        activated, digest = promote_and_verify(rows, run_id)
         print(f"Promoted {activated} HKS offerings atomically")
+        print(f"Verified exact upstream-to-production offering set: sha256={digest}")
     else:
         print("Run remains staged and invisible; set MYHARVARD_PROMOTE=true after reader verification")
 
