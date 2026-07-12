@@ -259,6 +259,10 @@ platform-owner evidence.
 
 ## Incident response
 
+Accountability, severity definitions, private/public intake, zero-cost limits,
+and the successor-team acceptance process are defined in
+[`OWNERSHIP.md`](OWNERSHIP.md).
+
 1. Stop promotion and preserve the failing release/data-sync logs.
 2. Classify the incident: browser UI, Pages Function, Harvard API, Supabase,
    sync job, or third-party provider.

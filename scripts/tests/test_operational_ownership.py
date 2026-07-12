@@ -1,0 +1,51 @@
+"""Regression contract for accountable, zero-cost service ownership."""
+
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+class OperationalOwnershipTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.ownership = (ROOT / "docs" / "OWNERSHIP.md").read_text(encoding="utf-8")
+        cls.codeowners = (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8")
+        cls.operations = (ROOT / "docs" / "OPERATIONS.md").read_text(encoding="utf-8")
+        cls.readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    def test_current_owner_covers_every_production_boundary(self):
+        for boundary in (
+            "Product and release decisions",
+            "Repository and CI/CD",
+            "Supabase and catalogue data",
+            "Cloudflare Pages and Functions",
+            "Observability and providers",
+        ):
+            self.assertIn(boundary, self.ownership)
+        self.assertGreaterEqual(self.ownership.count("`@mgritzbach`"), 5)
+
+    def test_codeowners_covers_high_risk_paths(self):
+        for path in ("*", "/.github/workflows/", "/functions/", "/supabase/", "/scripts/", "/data/"):
+            self.assertIn(f"{path} @mgritzbach", self.codeowners)
+
+    def test_incident_cost_and_handover_contracts_are_explicit(self):
+        for required in (
+            "| P0 |",
+            "| P1 |",
+            "| P2 |",
+            "Mandatory zero-cost control",
+            "hard `$0` spend/usage limit",
+            "Successor IT-team acceptance checklist",
+            "the transfer is incomplete",
+        ):
+            self.assertIn(required, self.ownership)
+
+    def test_primary_handover_documents_link_to_ownership(self):
+        self.assertIn("[`OWNERSHIP.md`](OWNERSHIP.md)", self.operations)
+        self.assertIn("[service ownership](docs/OWNERSHIP.md)", self.readme)
+
+
+if __name__ == "__main__":
+    unittest.main()

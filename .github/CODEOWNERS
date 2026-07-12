@@ -1,0 +1,8 @@
+# Current sole-maintainer ownership. Replace or extend these entries during the
+# documented IT handover; do not remove ownership without naming a successor.
+* @mgritzbach
+/.github/workflows/ @mgritzbach
+/functions/ @mgritzbach
+/supabase/ @mgritzbach
+/scripts/ @mgritzbach
+/data/ @mgritzbach
