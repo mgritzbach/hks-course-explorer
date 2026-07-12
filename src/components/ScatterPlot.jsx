@@ -16,6 +16,7 @@ import {
   zoomNumericDomain,
 } from '../lib/scatterData.js'
 import Plot from '../lib/plotlyComponent.js'
+import ScatterControls from './ScatterControls.jsx'
 
 function _CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -806,49 +807,12 @@ export default function ScatterPlot({
         </div>
       </div>
 
-      <div aria-label="Graph controls" className="flex flex-wrap items-center gap-2 md:col-span-2">
-        <button
-          onClick={() => handleZoomButton('out')}
-          aria-label="Zoom out"
-          className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
-          style={{
-            border: '1px solid var(--line)',
-            background: 'var(--panel-subtle)',
-            color: 'var(--text-muted)',
-          }}
-        >
-          Zoom out
-        </button>
-        <button
-          onClick={() => handleZoomButton('in')}
-          aria-label="Zoom in"
-          className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
-          style={{
-            border: '1px solid var(--line)',
-            background: 'var(--panel-subtle)',
-            color: 'var(--text-muted)',
-          }}
-        >
-          Zoom in
-        </button>
-        <button
-          onClick={resetZoom}
-          aria-label="Reset axes"
-          className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
-          style={{
-            border: '1px solid var(--line)',
-            background: 'var(--panel-subtle)',
-            color: 'var(--text-muted)',
-          }}
-        >
-          Reset axes
-        </button>
-        {isZoomed && (
-          <span className="text-[10px]" style={{ color: 'var(--blue)' }}>
-            Zoomed in
-          </span>
-        )}
-      </div>
+      <ScatterControls
+        isZoomed={isZoomed}
+        onZoomOut={() => handleZoomButton('out')}
+        onZoomIn={() => handleZoomButton('in')}
+        onReset={resetZoom}
+      />
     </div>
   )
 
