@@ -179,6 +179,17 @@ class CourseExplorerRecoveryTests(unittest.TestCase):
                 request_get=lambda *_args, **_kwargs: FakeResponse([], "", status=200),
             )
 
+    def test_row_validation_canonicalizes_database_collation_order(self):
+        rows = [
+            row_for(self.exporter, "schedules", "schedule-z"),
+            row_for(self.exporter, "schedules", "schedule-a"),
+        ]
+
+        validated = self.exporter._validate_rows("schedules", rows)
+
+        self.assertEqual([row["id"] for row in validated], ["schedule-a", "schedule-z"])
+        self.assertEqual([row["id"] for row in rows], ["schedule-z", "schedule-a"])
+
     def test_validator_round_trip_and_tamper_fail_closed(self):
         from scripts import verify_course_explorer_recovery as verifier
 

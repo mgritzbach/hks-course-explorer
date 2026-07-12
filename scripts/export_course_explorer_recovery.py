@@ -121,9 +121,13 @@ def _validate_rows(table: str, rows: list[dict]) -> list[dict]:
         raise RuntimeError(f"{table} contains a blank identity")
     if len(set(identities)) != len(identities):
         raise RuntimeError(f"{table} contains duplicate identities")
-    if identities != sorted(identities):
-        raise RuntimeError(f"{table} rows are not deterministically ordered by id")
-    return rows
+
+    # Postgres applies the database collation to `order=id.asc`, while Python's
+    # string ordering follows Unicode code points. Both are deterministic but
+    # can disagree for punctuation or non-ASCII course identities. Canonicalize
+    # the completed, uniqueness-checked capture locally so package hashes are
+    # stable without treating a safe database collation as data corruption.
+    return sorted(rows, key=lambda row: str(row["id"]))
 
 
 def write_recovery_package(
