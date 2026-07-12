@@ -89,6 +89,6 @@ describe('ScatterPlot production regressions', () => {
 
     await waitFor(() => expect(screen.getByTestId('x-range').textContent).toBe('0,100'))
     expect(screen.getByTestId('y-range').textContent).toBe('0,100')
-    expect(Number(screen.getByTestId('left-margin').textContent)).toBeGreaterThanOrEqual(72)
+    expect(Number(screen.getByTestId('left-margin').textContent)).toBeGreaterThanOrEqual(100)
   })
 })

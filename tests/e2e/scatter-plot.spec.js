@@ -46,15 +46,32 @@ test.describe('Scatter Plot built-artifact regression', () => {
     expect(chartBox).not.toBeNull()
     expect(controlsBox.y + controlsBox.height).toBeLessThanOrEqual(chartBox.y)
 
-    await page.getByRole('button', { name: 'Zoom in' }).click()
-    await expect(page.getByText('Zoomed in', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Reset axes' }).click()
-    await expect(page.getByText('Zoomed in', { exact: true })).toHaveCount(0)
-    await expect
-      .poll(() => chart.evaluate((element) => element.layout.xaxis.range))
-      .toEqual([0, 100])
-    await expect
-      .poll(() => chart.evaluate((element) => element.layout.yaxis.range))
-      .toEqual([0, 100])
+    const renderedRanges = () =>
+      chart.evaluate((element) => ({
+        x: [...element._fullLayout.xaxis.range],
+        y: [...element._fullLayout.yaxis.range],
+      }))
+
+    // Repeatedly zoom and pan the rendered Plotly canvas before resetting.
+    // Checking `_fullLayout` catches the failure where React requested 0-100
+    // but Plotly continued showing a stale, cropped internal range.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await page.getByRole('button', { name: 'Zoom in' }).click()
+      await expect(page.getByText('Zoomed in', { exact: true })).toBeVisible()
+
+      const renderedBox = await chart.boundingBox()
+      expect(renderedBox).not.toBeNull()
+      const startX = renderedBox.x + renderedBox.width * 0.58
+      const startY = renderedBox.y + renderedBox.height * 0.48
+      await page.mouse.move(startX, startY)
+      await page.mouse.down()
+      await page.mouse.move(startX - renderedBox.width * 0.2, startY + renderedBox.height * 0.2)
+      await page.mouse.up()
+      await expect.poll(renderedRanges).not.toEqual({ x: [0, 100], y: [0, 100] })
+
+      await page.getByRole('button', { name: 'Reset axes' }).click()
+      await expect(page.getByText('Zoomed in', { exact: true })).toHaveCount(0)
+      await expect.poll(renderedRanges).toEqual({ x: [0, 100], y: [0, 100] })
+    }
   })
 })

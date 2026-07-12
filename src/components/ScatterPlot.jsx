@@ -142,6 +142,7 @@ export default function ScatterPlot({
   const [zoomedX, setZoomedX] = useState(null)
   const [zoomedY, setZoomedY] = useState(null)
   const [viewResetRevision, setViewResetRevision] = useState(0)
+  const [plotResetRevision, setPlotResetRevision] = useState(0)
 
   const allCoursesDeduped = useMemo(() => dedupeCoTaught(allCourses), [allCourses])
   const matchedCoursesDeduped = useMemo(() => dedupeCoTaught(matchedCourses), [matchedCourses])
@@ -399,6 +400,7 @@ export default function ScatterPlot({
     // Force Plotly to discard any internal pan/autorange state even when the
     // React ranges are already at their base values.
     setViewResetRevision((revision) => revision + 1)
+    setPlotResetRevision((revision) => revision + 1)
   }
 
   const handlePlotRelayout = (event) => {
@@ -599,7 +601,7 @@ export default function ScatterPlot({
       uirevision: `${xMetric}-${yMetric}-${metricMode}-${matchedViewKey}-${viewResetRevision}-${effectiveXDomain.join(':')}-${effectiveYDomain.join(':')}`,
       // Leave enough room for vertical labels such as "Course Rating
       // (percentile)" instead of letting them crowd the plot edge.
-      margin: { t: 44, r: 18, b: 44, l: 78 },
+      margin: { t: 44, r: 18, b: 44, l: 108 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       dragmode: 'pan',
@@ -850,6 +852,7 @@ export default function ScatterPlot({
         style={{ width: '100%', height: chartHeight, flexShrink: 0, position: 'relative' }}
       >
         <Plot
+          key={`scatter-reset-${plotResetRevision}`}
           data={plotData}
           layout={plotLayout}
           config={plotConfig}
