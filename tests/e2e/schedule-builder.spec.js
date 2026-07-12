@@ -23,6 +23,14 @@ test.describe('Schedule Builder critical flows', () => {
     await expect(page.getByText('5 current HKS offerings across 3 catalogue terms')).toBeVisible()
   })
 
+  test('keeps non-HKS-only catalogue terms visible and selectable', async ({ page }) => {
+    await page.goto('/schedule-builder')
+    await page.getByLabel('School filter').selectOption('Non-HKS')
+    await page.getByLabel('Year').selectOption('2025')
+    await page.getByLabel('Semester').selectOption('Fall')
+    await expect(page.getByRole('list', { name: 'Course search results' })).toContainText('ECON-60')
+  })
+
   test('filters the locally loaded catalogue by session', async ({ page }) => {
     await page.goto('/schedule-builder')
 

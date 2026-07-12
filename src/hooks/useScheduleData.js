@@ -44,9 +44,8 @@ export function useScheduleData(semesterYear, semester) {
   const [sectionTimesLoading, setSectionTimesLoading] = useState(false)
 
   // Read the small active HKS catalogue once so the UI can offer only real
-  // terms and disclose complete coverage across them. The selected-term query
-  // below remains separate because cross-registration can contain thousands
-  // of rows and must stay term-scoped.
+  // HKS terms and disclose complete coverage across them. Non-HKS browsing
+  // retains the broader year/semester controls below.
   useEffect(() => {
     let cancelled = false
     const controller = new AbortController()
