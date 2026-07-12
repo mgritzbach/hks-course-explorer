@@ -6,6 +6,7 @@ import App from './App.jsx'
 import { TourProvider } from './components/TutorialOverlay.jsx'
 import { WelcomeEntryProvider } from './components/WelcomeEntryProvider.jsx'
 import { initializeAnalytics } from './lib/analytics.js'
+import { SENTRY_REPLAY_OPTIONS } from './lib/sentryReplayConfig.js'
 import './index.css'
 
 // Sentry — error monitoring and performance tracking
@@ -17,7 +18,7 @@ Sentry.init({
   replaysOnErrorSampleRate: 1.0,
   integrations: [
     Sentry.browserTracingIntegration(),
-    Sentry.replayIntegration({ maskAllText: false, blockAllMedia: false }),
+    Sentry.replayIntegration(SENTRY_REPLAY_OPTIONS),
   ],
 })
 
