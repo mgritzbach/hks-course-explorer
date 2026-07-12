@@ -60,14 +60,16 @@ class OperationalOwnershipTests(unittest.TestCase):
             "## Manual Cloudflare Pages rollback",
             "Rollback to this deployment",
             "/deployments/$env:ROLLBACK_DEPLOYMENT_ID/rollback",
+            "git worktree add --detach",
+            "npm ci --legacy-peer-deps",
+            "npm run build",
             "node scripts/smoke_deployed_site.mjs",
             "npm run test:e2e:production",
         ):
             self.assertIn(required, self.operations)
-        self.assertIn(
-            "does **not** roll back Supabase data",
-            " ".join(self.operations.split()),
-        )
+        normalized = " ".join(self.operations.split())
+        self.assertIn("does **not** roll back Supabase data", normalized)
+        self.assertIn("does not yet have an exercised Worker rollback procedure", normalized)
 
 
 if __name__ == "__main__":

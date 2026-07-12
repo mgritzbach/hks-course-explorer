@@ -90,18 +90,39 @@ preview/release-candidate deployments are not valid targets. See Cloudflare's
    if (-not $result.success) { throw 'Cloudflare Pages rollback was not accepted.' }
    ```
 
-4. Verify the rolled-back deployment, first on Pages and then on the custom
-   domain. Keep the incident open if any command fails:
+4. Verify from an isolated checkout of the **recorded rollback commit**. The
+   static smoke compares deployed asset fingerprints and bodies with local
+   `dist`, so running it from the failed/newer checkout would produce a false
+   mismatch. Keep the incident checkout and logs untouched; create a detached
+   worktree, rebuild with the production browser configuration, and run every
+   smoke from that exact target. `VITE_SUPABASE_ANON_KEY` must come from the
+   existing browser deployment secret and must never be printed:
 
    ```powershell
+   $rollbackCommit = '<recorded 40-character rollback commit>'
+   if ($rollbackCommit -notmatch '^[0-9a-f]{40}$') { throw 'Invalid rollback commit.' }
+   if (-not $env:VITE_SUPABASE_ANON_KEY) { throw 'Production browser key is required.' }
+   $env:VITE_SUPABASE_URL = 'https://cbtroatixvydpwoviezf.supabase.co'
+   git fetch origin --prune
+   $rollbackWorktree = Join-Path $env:TEMP "hks-course-explorer-rollback-$($rollbackCommit.Substring(0, 12))"
+   git worktree add --detach $rollbackWorktree $rollbackCommit
+   Push-Location $rollbackWorktree
+   npm ci --legacy-peer-deps
+   npm run build
+   npx playwright install chromium
    $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.pages.dev/'
    node scripts/smoke_deployed_site.mjs
    $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.org/'
    node scripts/smoke_deployed_site.mjs
    $env:DEPLOY_MIN_HKS_OFFERINGS = '285'
    npm run test:e2e:production
+   Pop-Location
+   git worktree remove $rollbackWorktree
    ```
 
+   If verification fails, preserve the detached worktree until its output is
+   attached to the incident, then remove it explicitly. Do not switch or reset
+   the original incident checkout.
 5. Confirm the custom domain serves the recorded rollback deployment and retain
    the smoke output with the incident. Re-enable promotion only after the
    regression is fixed and the normal exact-commit release path passes again.
@@ -110,8 +131,11 @@ A Pages rollback changes application/Function code only. It does **not** roll
 back Supabase data, migrations, KV contents, secrets, or Durable Object state.
 Do not perform a database restore unless its separately approved recovery plan
 requires it. If the failed release changed the `ChatRateLimiter` Worker, review
-binding/state compatibility and use the separately documented Cloudflare Worker
-rollback path; never assume the Pages rollback reverted that Worker.
+binding/state compatibility before any response. This repository does not yet
+have an exercised Worker rollback procedure, so Worker rollback is not a
+routine operator action: keep the affected path failed closed and escalate to
+the platform owner rather than improvising a version or Durable Object change.
+Never assume the Pages rollback reverted that Worker.
 
 If port 4173 is intentionally occupied by another local preview, run the
 same isolated built-artifact suite on a different port, for example:
