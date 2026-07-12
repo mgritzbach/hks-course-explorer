@@ -31,6 +31,12 @@ class WorkflowActionPinningTests(unittest.TestCase):
         )
         self.assertIn("github.event.workflow_run.head_branch == 'master'", deploy_workflow)
 
+    def test_unchanged_rate_limiter_does_not_block_pages_deploy(self):
+        deploy_workflow = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
+        self.assertIn("fetch-depth: 2", deploy_workflow)
+        self.assertIn("git diff --quiet HEAD^ HEAD -- workers/chat-rate-limiter", deploy_workflow)
+        self.assertIn("if: steps.rate-limiter.outputs.changed == 'true'", deploy_workflow)
+
     def test_all_official_actions_are_full_sha_pinned_with_a_readable_version(self):
         references = []
         for workflow in sorted(WORKFLOWS.glob("*.yml")):
@@ -55,6 +61,7 @@ class WorkflowActionPinningTests(unittest.TestCase):
             "backup-live-courses.yml",
             "catalogue-parity-audit.yml",
             "sync-live-courses.yml",
+            "sync-myharvard-hks.yml",
         ):
             workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
             self.assertIn(expected_install, workflow, name)
