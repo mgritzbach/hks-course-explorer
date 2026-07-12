@@ -68,9 +68,25 @@ export function assertFingerprintAsset(
       `Deployed asset smoke check returned ${contentType || 'no content type'} instead of ${expectedContentType}: ${assetUrl}`,
     )
   }
-  if (response.headers.get('cache-control') !== FINGERPRINTED_ASSET_CACHE_CONTROL) {
+  if (!hasSafePagesRevalidation(response.headers.get('cache-control'))) {
     throw new Error(`Deployed asset bypasses the reviewed Pages revalidation policy: ${assetUrl}`)
   }
+}
+
+export function hasSafePagesRevalidation(cacheControl) {
+  if (typeof cacheControl !== 'string') return false
+  const directives = new Set(
+    cacheControl
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  )
+  return (
+    directives.has('public') &&
+    directives.has('max-age=0') &&
+    directives.has('must-revalidate') &&
+    !directives.has('immutable')
+  )
 }
 
 export function collectBuildAssetPaths(manifest) {
@@ -236,9 +252,9 @@ export async function smokeDeployedSite({
       redirect: 'follow',
       signal: AbortSignal.timeout(30_000),
     })
-    if (!assetResponse.ok) assertFingerprintAsset(assetResponse, assetUrl)
     if (
-      assetResponse.headers.get('cache-control') !== FINGERPRINTED_ASSET_CACHE_CONTROL ||
+      !assetResponse.ok ||
+      !hasSafePagesRevalidation(assetResponse.headers.get('cache-control')) ||
       !(assetResponse.headers.get('content-type') || '').includes('application/javascript')
     ) {
       // The entry HTML and the asset inventory can arrive at edge locations a

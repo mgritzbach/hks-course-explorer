@@ -50,4 +50,27 @@ describe('stale deployment asset recovery', () => {
 
     expect(reload).toHaveBeenCalledTimes(2)
   })
+
+  it('still reloads safely when session storage is unavailable', () => {
+    const eventTarget = new EventTarget()
+    const reload = vi.fn()
+    const storage = {
+      getItem: () => {
+        throw new Error('storage disabled')
+      },
+      setItem: () => {
+        throw new Error('storage disabled')
+      },
+    }
+    installStaleAssetRecovery({ eventTarget, storage, reload, now: () => 100_000 })
+
+    const firstError = new Event('vite:preloadError', { cancelable: true })
+    const cooldownError = new Event('vite:preloadError', { cancelable: true })
+    eventTarget.dispatchEvent(firstError)
+    eventTarget.dispatchEvent(cooldownError)
+
+    expect(firstError.defaultPrevented).toBe(true)
+    expect(cooldownError.defaultPrevented).toBe(false)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
 })

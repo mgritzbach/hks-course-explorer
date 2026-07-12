@@ -10,6 +10,7 @@ import {
   DEPLOYED_SPA_ROUTE_PATHS,
   extractFingerprintAssetPath,
   FINGERPRINTED_ASSET_CACHE_CONTROL,
+  hasSafePagesRevalidation,
   smokeDeployedSite,
   smokeDeployedSpaRoutes,
 } from './smoke_deployed_site.mjs'
@@ -81,6 +82,11 @@ describe('deployed site smoke check', () => {
         fetchImpl: async () => responses.shift(),
       }),
     ).resolves.toBeUndefined()
+  })
+
+  it('accepts equivalent safe Pages cache directives in any order', () => {
+    expect(hasSafePagesRevalidation('must-revalidate, public, max-age=0, no-transform')).toBe(true)
+    expect(hasSafePagesRevalidation('public, max-age=31556952, immutable')).toBe(false)
   })
 
   it('rejects a non-success response', () => {
@@ -174,6 +180,31 @@ describe('deployed site smoke check', () => {
       response({
         body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
       }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+    ]
+    const waits = []
+
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-current123.js',
+        fetchImpl: async () => responses.shift(),
+        waitImpl: async (milliseconds) => waits.push(milliseconds),
+      }),
+    ).resolves.toBeUndefined()
+    expect(waits).toEqual([3_000])
+  })
+
+  it('retries a transient missing entry asset before accepting the exact build', async () => {
+    const entrypoint = response({
+      body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+    })
+    const responses = [
+      entrypoint,
+      response({ ok: false, status: 404, contentType: 'text/html; charset=utf-8' }),
+      entrypoint,
       response({
         contentType: 'application/javascript',
         cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
