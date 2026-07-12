@@ -60,12 +60,6 @@ function searchableTokens(value) {
   return new Set(searchableText(value).split(/\s+/).filter(Boolean))
 }
 
-function instructorNameTokens(value) {
-  return searchableText(value)
-    .split(/\s+/)
-    .filter((token) => token.length > 1)
-}
-
 export function normalizeOptionalBoolean(value) {
   if (typeof value === 'boolean') return value
   if (value === 1 || value === '1' || value === 'true') return true
@@ -107,9 +101,31 @@ function instructorIdentity(course) {
   return searchableText(course.professor_display || course.professor)
 }
 
-function hasCompleteInstructorName(course, keywords) {
-  const nameTokens = new Set(instructorNameTokens(course.professor_display || course.professor))
-  return nameTokens.size >= 2 && [...nameTokens].every((token) => keywords.includes(token))
+function exactInstructorIdentities(courses, query) {
+  const queryText = ` ${searchableText(query)} `
+  const candidates = [
+    ...new Set(
+      courses
+        .map((course) => instructorIdentity(course))
+        .filter((identity) => identity.split(/\s+/).length >= 2)
+        .filter((identity) => queryText.includes(` ${identity} `)),
+    ),
+  ]
+
+  // Prefer the longer identity only when one candidate literally contains
+  // another ("l david brown" versus "david brown"). Independent full names
+  // in a comparison query remain selected together.
+  return new Set(
+    candidates.filter(
+      (identity) =>
+        !candidates.some(
+          (other) =>
+            other !== identity &&
+            other.split(/\s+/).length > identity.split(/\s+/).length &&
+            ` ${other} `.includes(` ${identity} `),
+        ),
+    ),
+  )
 }
 
 function priorInstructorIdentities(courses, history) {
@@ -119,12 +135,7 @@ function priorInstructorIdentities(courses, history) {
     .reverse()
 
   for (const priorQuery of priorUserQueries) {
-    const keywords = meaningfulQueryTerms(priorQuery)
-    const identities = new Set(
-      courses
-        .filter((course) => hasCompleteInstructorName(course, keywords))
-        .map((course) => instructorIdentity(course)),
-    )
+    const identities = exactInstructorIdentities(courses, priorQuery)
     if (identities.size > 0) return identities
   }
   return new Set()
@@ -191,10 +202,11 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
   if (!courses?.length) return []
   const keywords = meaningfulQueryTerms(query)
   const shortlistedSet = new Set(shortlistedCodes)
+  const exactIdentities = exactInstructorIdentities(courses, query)
 
   const scoredCourses = courses
     .map((c) => {
-      const instructorTokens = new Set(instructorNameTokens(c.professor_display || c.professor))
+      const instructorTokens = searchableTokens(c.professor_display || c.professor)
       const courseTokens = searchableTokens(
         [c.course_name, c.course_code, c.course_code_base, c.concentration].join(' '),
       )
@@ -202,7 +214,7 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
       // Joshua Goodman and made "is" select Allison Shapira.
       const instructorHits = keywords.filter((keyword) => instructorTokens.has(keyword)).length
       const courseHits = keywords.filter((keyword) => courseTokens.has(keyword)).length
-      const exactInstructor = hasCompleteInstructorName(c, keywords)
+      const exactInstructor = exactIdentities.has(instructorIdentity(c))
       return {
         c,
         exactInstructor,
