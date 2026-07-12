@@ -106,6 +106,80 @@ describe('chat course context', () => {
     expect(context.some((course) => course.code === 'MLD-215-B')).toBe(false)
   })
 
+  it.each([
+    ['D. Freeland', 'MLD-515-M', 'Grant Freeland'],
+    ["Daniel D'Oca", 'DPI-201', 'Daniel Oca'],
+    ['L. David Brown', 'MLD-301', 'David Brown'],
+    ["Meghan O'Sullivan", 'IGA-401', 'Meghan Sullivan'],
+    ["Timothy O'Brien", 'IGA-501', 'Timothy Brien'],
+  ])(
+    'matches the complete instructor name %s without selecting %s',
+    (instructor, code, collidingInstructor) => {
+      const courses = [
+        {
+          course_code: code,
+          course_code_base: code,
+          course_name: 'Named Instructor Seminar',
+          professor_display: instructor,
+          year: 2026,
+          term: 'Spring',
+          has_eval: true,
+        },
+        {
+          course_code: 'COLLISION-1',
+          course_code_base: 'COLLISION-1',
+          course_name: 'Potential Identity Collision',
+          professor_display: collidingInstructor,
+          year: 2026,
+          term: 'Spring',
+          has_eval: true,
+        },
+        {
+          course_code: 'UNRELATED-1',
+          course_code_base: 'UNRELATED-1',
+          course_name: 'Unrelated Seminar',
+          professor_display: 'Another Professor',
+          year: 2026,
+          term: 'Spring',
+          has_eval: true,
+        },
+      ]
+
+      const context = condenseCourses(courses, `What does ${instructor} teach?`)
+
+      expect(context).toHaveLength(1)
+      expect(context[0]).toMatchObject({ code, instructor })
+    },
+  )
+
+  it('uses an explicitly supplied initial to distinguish D. Freeland from Grant Freeland', () => {
+    const courses = [
+      {
+        course_code: 'MLD-515-M',
+        course_code_base: 'MLD-515-M',
+        course_name: 'Presenting Quantitative Information',
+        professor_display: 'D. Freeland',
+        year: 2024,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'MLD-632-M',
+        course_code_base: 'MLD-632-M',
+        course_name: 'Leading through Difference',
+        professor_display: 'Grant Freeland',
+        year: 2024,
+        term: 'Spring',
+        has_eval: true,
+      },
+    ]
+
+    expect(condenseCourses(courses, 'What does D. Freeland teach?')).toMatchObject([
+      { code: 'MLD-515-M', instructor: 'D. Freeland' },
+    ])
+    expect(condenseCourses(courses, 'What does Freeland teach?')).toEqual([])
+  })
+
   it('keeps a second-turn professor question focused on the named instructor', () => {
     const courses = [
       {

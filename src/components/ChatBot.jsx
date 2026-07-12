@@ -101,9 +101,31 @@ function instructorIdentity(course) {
   return searchableText(course.professor_display || course.professor)
 }
 
-function hasCompleteInstructorName(course, keywords) {
-  const nameTokens = searchableTokens(course.professor_display || course.professor)
-  return nameTokens.size >= 2 && [...nameTokens].every((token) => keywords.includes(token))
+function exactInstructorIdentities(courses, query) {
+  const queryText = ` ${searchableText(query)} `
+  const candidates = [
+    ...new Set(
+      courses
+        .map((course) => instructorIdentity(course))
+        .filter((identity) => identity.split(/\s+/).length >= 2)
+        .filter((identity) => queryText.includes(` ${identity} `)),
+    ),
+  ]
+
+  // Prefer the longer identity only when one candidate literally contains
+  // another ("l david brown" versus "david brown"). Independent full names
+  // in a comparison query remain selected together.
+  return new Set(
+    candidates.filter(
+      (identity) =>
+        !candidates.some(
+          (other) =>
+            other !== identity &&
+            other.split(/\s+/).length > identity.split(/\s+/).length &&
+            ` ${other} `.includes(` ${identity} `),
+        ),
+    ),
+  )
 }
 
 function priorInstructorIdentities(courses, history) {
@@ -113,12 +135,7 @@ function priorInstructorIdentities(courses, history) {
     .reverse()
 
   for (const priorQuery of priorUserQueries) {
-    const keywords = meaningfulQueryTerms(priorQuery)
-    const identities = new Set(
-      courses
-        .filter((course) => hasCompleteInstructorName(course, keywords))
-        .map((course) => instructorIdentity(course)),
-    )
+    const identities = exactInstructorIdentities(courses, priorQuery)
     if (identities.size > 0) return identities
   }
   return new Set()
@@ -185,6 +202,7 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
   if (!courses?.length) return []
   const keywords = meaningfulQueryTerms(query)
   const shortlistedSet = new Set(shortlistedCodes)
+  const exactIdentities = exactInstructorIdentities(courses, query)
 
   const scoredCourses = courses
     .map((c) => {
@@ -196,7 +214,7 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
       // Joshua Goodman and made "is" select Allison Shapira.
       const instructorHits = keywords.filter((keyword) => instructorTokens.has(keyword)).length
       const courseHits = keywords.filter((keyword) => courseTokens.has(keyword)).length
-      const exactInstructor = hasCompleteInstructorName(c, keywords)
+      const exactInstructor = exactIdentities.has(instructorIdentity(c))
       return {
         c,
         exactInstructor,
