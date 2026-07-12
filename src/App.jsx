@@ -224,12 +224,21 @@ export default function App() {
   const [shareCopied, setShareCopied] = useState(false)
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
   const mobileMoreButtonRef = useRef(null)
+  const previousPathRef = useRef(location.pathname)
 
   // A mobile disclosure belongs to the current screen. Close it after every
-  // route transition so it cannot cover controls on the destination page.
+  // route transition and move keyboard/screen-reader focus to the destination
+  // content after client-side navigation. A direct page load deliberately
+  // keeps the skip link as the first keyboard target.
   useEffect(() => {
     setMobileMoreOpen(false)
-  }, [location.pathname])
+    if (previousPathRef.current === location.pathname || isWelcomeDecisionPending) return undefined
+    previousPathRef.current = location.pathname
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('main-content')?.focus()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [isWelcomeDecisionPending, location.pathname])
   const favs = useFavorites()
   const { notes, setNote } = useNotes()
   const shareToastTimeoutRef = useRef(null)

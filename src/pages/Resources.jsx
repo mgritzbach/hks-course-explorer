@@ -1,6 +1,9 @@
 import { HKS_RESOURCES } from '../resourceLinks.js'
+import { useDocumentTitle } from '../lib/useDocumentTitle.js'
+import config from '../school.config.js'
 
 export default function Resources() {
+  useDocumentTitle(`${config.appTitle} - Resources`)
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
       <p className="kicker mb-1">Official Links</p>

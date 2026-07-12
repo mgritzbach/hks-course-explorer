@@ -10,6 +10,8 @@ import {
 } from '../lib/scheduleStorage'
 import { computeProgress, getPrograms } from '../lib/requirementsEngine'
 import { findLiveCatalogueRows, toScheduleSearchItem } from '../lib/liveCatalogueSearch.js'
+import { useDocumentTitle } from '../lib/useDocumentTitle.js'
+import config from '../school.config.js'
 import {
   DAY_INDEX,
   courseHasSchedule,
@@ -307,6 +309,7 @@ function Chip({ children, tone = 'default' }) {
 }
 
 export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) {
+  useDocumentTitle(`${config.appTitle} - ${myDegreeMode ? 'My Degree' : 'Schedule Builder'}`)
   const programs = useMemo(() => getPrograms(), [])
   const { favorites } = useFavorites()
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
@@ -1171,6 +1174,17 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         }),
     [planCoursesEnriched],
   )
+
+  // My Degree shares the schedule/requirements data model, but it is a
+  // standalone responsive route. Do not wrap it in the desktop-only schedule
+  // grid shell or the mobile "wider screen" gate.
+  if (myDegreeMode) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <Requirements courses={courses} />
+      </div>
+    )
+  }
 
   return (
     <div className="h-full overflow-hidden">

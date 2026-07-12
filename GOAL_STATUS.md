@@ -11,11 +11,11 @@ release proceeds while any P0 goal is `0`.
 | G02 | P0 | Data integrity | 80% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
 | G03 | P0 | Supabase reliability | 70% | 0 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
 | G04 | P0 | Security | 85% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
-| G05 | P1 | Navigation / usability | 75% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
-| G06 | P1 | Accessibility | 85% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
+| G05 | P1 | Navigation / usability | 82% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
+| G06 | P1 | Accessibility | 93% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
 | G07 | P1 | Dependency security | 100% | 1 | Audited upgrade matrix, green complete suite, and documented residual risk. |
 | G08 | P1 | Performance | 75% | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
-| G09 | P1 | Regression safety | 87% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
+| G09 | P1 | Regression safety | 90% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
 | G10 | P1 | Maintainable architecture | 99% | 0 | Final independent manager review of bounded modules, contracts, and quality gates. |
 | G11 | P1 | Operations / deployment | 78% | 0 | Fresh setup, production deployment/smoke, rollback exercise, and on-call handover evidence. |
 
@@ -86,3 +86,4 @@ Production certification needs authorized access to Cloudflare Pages/Functions l
 | L49 | Non-aggregate terminal section-code changes are isolated in a local manual-provenance queue without auto-linking evaluation data. | 1 | PR #22 (`6dac43a`), controlled queue contracts, read-only parity evidence, protected CI, and deployed smoke passed. |
 | L50 | The daily sync cannot delete rows and records an aggregate retained-versus-current-source inventory after a successful atomic upsert. | 1 | PR #23 (`b833492`), no-delete/inventory contracts, protected CI/deploy, and successful production sync `29150410187`: 5,894 source offerings and 1,592 retained rows. Those rows remain reconciliation evidence, not a deletion set or rollback proof. |
 | L51 | The first-visit Direct and Tutorial actions remain fully reachable in a 1280 by 720 desktop viewport while preserving the complete landing copy and tutorial handoff. | 1 | PR #24 (`2e8a985`), full-rectangle browser regression, protected CI/deploy, and live Direct-path verification with no console errors. |
+| L52 | Every visitor route and the 404 page expose a route-specific title and visible page-level heading, pass the full Axe WCAG A/AA ruleset on desktop and mobile, retain a working skip path, and move focus to main content after client-side navigation; My Degree is independently usable on mobile. | 1 | Route-wide built-artifact accessibility suite (6/6; seven visitor routes plus 404 at desktop/mobile sizes and first-visit focus containment), complete JavaScript suite (225/225), complete Python suite (104/104), complete browser suite (31/31), production dependency audit, lint/format/contracts/architecture/UI/runtime/build/bundle gates, and independent controlling-SWE approval. |

@@ -5,6 +5,7 @@ import OnboardingTour from '../components/OnboardingTour.jsx'
 import { buildComparisonCandidatePool } from '../lib/compareCandidates.js'
 import { fmtShort } from '../utils/formatMetric.js'
 import config from '../school.config.js'
+import { useDocumentTitle } from '../lib/useDocumentTitle.js'
 
 const COMPARE_TOUR_STEPS = [
   {
@@ -221,6 +222,7 @@ export default function Compare({
   metricMode = 'score',
   setMetricMode = null,
 }) {
+  useDocumentTitle(`${config.appTitle} - Compare`)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selected, setSelected] = useState([]) // array of course ids
