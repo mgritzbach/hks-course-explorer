@@ -321,7 +321,16 @@ def _fetch_course_page(
     last_error = "unknown error"
     for attempt in range(HTTP_MAX_ATTEMPTS):
         try:
-            response = session.get(url, params=params, timeout=25, headers=headers)
+            response = session.get(
+                url,
+                params=params,
+                timeout=25,
+                headers=headers,
+                allow_redirects=False,
+            )
+            if response.is_redirect is True:
+                last_error = "unexpected redirect from Harvard API"
+                break
             if response.ok:
                 items, next_url = _decode_course_page(response.json())
                 return items, next_url, ""

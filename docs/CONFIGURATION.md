@@ -44,8 +44,9 @@ Pages too if Pages can create builds outside this workflow.
 
 The sync job fails closed if any required source request fails or the minimum
 course guard is not met. It requests Harvard's documented 1,000-record pages
-and follows only provider-issued HTTPS scroll links; an invalid, repeated, or
-failed page aborts the whole run. It passes the complete validated payload to the
+and follows only provider-issued HTTPS scroll links. It never follows a redirect
+after attaching the Harvard API key; an invalid, repeated, redirected, or failed
+page aborts the whole run. It passes the complete validated payload to the
 server-only `sync_live_courses_atomically(jsonb)` RPC, which validates IDs and
 upserts in one Postgres transaction. It must run with a service account
 restricted to the minimum required database privileges. The default schedule
@@ -61,7 +62,8 @@ backup and restore plan.
 | Name/binding | Required by | Purpose |
 |---|---|---|
 | `HARVARD_API_KEY` | Legacy `/api/harvard-courses` endpoint | Retained temporarily for a separately reviewed retirement; the deployed browser must not call it. Daily GitHub Actions sync is the only supported Harvard API consumer. |
-| `HKS_KV` binding | Auth and `/api/courses` | One-time passwords and protected catalogue payloads. |
+| `HKS_KV` binding | `/api/courses` | Protected catalogue payloads. |
+| `CHAT_RATE_LIMITER` Durable Object binding | Chat, OTP, and `/api/admin-verify` | Per-client/per-email atomic cooldown, OTP state, and failed-admin-attempt coordination. The binding must target the deployed `ChatRateLimiter` class; all consumers fail closed when it is absent. |
 | `JWT_SECRET` | Auth and protected catalogue | HMAC signing/verification. Rotate on a defined schedule. |
 | `RESEND_API_KEY` | Auth request | Preferred one-time-password delivery provider. |
 | `BREVO_API_KEY` | Auth request | Legacy one-time-password delivery fallback. |

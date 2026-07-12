@@ -74,6 +74,26 @@ class FetchSchoolTests(unittest.TestCase):
         )
         self.assertEqual(second_call.args[0], scroll_url)
         self.assertIsNone(second_call.kwargs["params"])
+        self.assertFalse(first_call.kwargs["allow_redirects"])
+        self.assertFalse(second_call.kwargs["allow_redirects"])
+
+    def test_rejects_redirects_before_a_credentialed_follow_up_request(self):
+        redirect = Mock(ok=True, is_redirect=True, status_code=302)
+        session = Mock()
+        session.get.return_value = redirect
+
+        rows, next_url, error = self.sync._fetch_course_page(
+            session,
+            self.sync.HARVARD_API_BASE,
+            params={"q": "api"},
+            school="HKS",
+            query="api",
+        )
+
+        self.assertIsNone(rows)
+        self.assertIsNone(next_url)
+        self.assertEqual(error, "unexpected redirect from Harvard API")
+        self.assertFalse(session.get.call_args.kwargs["allow_redirects"])
 
     def test_rejects_untrusted_or_looping_scroll_urls_without_partial_rows(self):
         external = Mock(ok=True)

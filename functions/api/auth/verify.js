@@ -1,9 +1,11 @@
 // POST /api/auth/verify
 // Body: { email: "user@harvard.edu", otp: "123456" }
-// Verifies OTP, issues 30-day JWT as httpOnly cookie
+// Verifies a single-use OTP through a per-email Durable Object and issues a
+// 30-day JWT as an httpOnly cookie.
 
 import { signJWT } from '../../_shared/jwt.js'
 import { corsHeaders, handleOptions } from '../../_shared/cors.js'
+import { hashedLimiterKey, limiterStub } from '../../_shared/rateLimit.js'
 
 const THIRTY_DAYS_SEC = 30 * 24 * 60 * 60
 const OTP_ATTEMPT_LIMIT = 5
@@ -24,71 +26,52 @@ export async function onRequestPost({ request, env }) {
 
   try {
     const { email, otp } = await request.json()
-
-    if (typeof email !== 'string' || typeof otp !== 'string' || !email || !otp)
+    if (typeof email !== 'string' || typeof otp !== 'string' || !email || !otp) {
       return response(request, 400, { error: 'Email and OTP are required.' })
+    }
 
-    if (!env?.HKS_KV?.get || !env.HKS_KV?.put || !env.HKS_KV?.delete)
+    const normalizedEmail = email.toLowerCase().trim()
+    const otpState = await limiterStub(env, 'otp', normalizedEmail)
+    if (!otpState) return response(request, 503, { error: 'Login storage is not configured.' })
+
+    const decision = await otpState.verifyOtp(
+      Date.now(),
+      await hashedLimiterKey(otp.trim()),
+      OTP_ATTEMPT_LIMIT,
+    )
+    if (!decision || typeof decision.status !== 'string') {
       return response(request, 503, { error: 'Login storage is not configured.' })
-
-    const key = `otp:${email.toLowerCase().trim()}`
-    const stored = await env.HKS_KV.get(key)
-
-    if (!stored) {
+    }
+    if (decision.status === 'missing') {
       return response(request, 400, {
         error: 'Code expired or not found. Please request a new one.',
       })
     }
-
-    const { otp: storedOtp, expires, attempts = 0 } = JSON.parse(stored)
-
-    if (Date.now() > expires) {
-      await env.HKS_KV.delete(key)
-      return response(request, 400, { error: 'Code has expired. Please request a new one.' })
+    if (decision.status === 'locked') {
+      return response(request, 429, {
+        error: 'Too many incorrect codes. Please request a new one.',
+      })
     }
-
-    if (otp.trim() !== storedOtp) {
-      const nextAttempts = Number.isInteger(attempts) && attempts >= 0 ? attempts + 1 : 1
-      if (nextAttempts >= OTP_ATTEMPT_LIMIT) {
-        await env.HKS_KV.delete(key)
-        return response(request, 429, {
-          error: 'Too many incorrect codes. Please request a new one.',
-        })
-      }
-
-      // Workers KV rejects TTLs below one minute. The separately stored
-      // expiration still makes the OTP fail closed at its actual deadline.
-      const remainingTtl = Math.max(60, Math.ceil((expires - Date.now()) / 1000))
-      await env.HKS_KV.put(
-        key,
-        JSON.stringify({ otp: storedOtp, expires, attempts: nextAttempts }),
-        {
-          expirationTtl: remainingTtl,
-        },
-      )
+    if (decision.status === 'incorrect') {
       return response(request, 400, { error: 'Incorrect code. Please try again.' })
     }
+    if (decision.status !== 'valid') {
+      return response(request, 503, { error: 'Login storage is not configured.' })
+    }
 
-    // OTP valid — delete it (single-use)
-    await env.HKS_KV.delete(key)
-
-    // Issue JWT
     const now = Math.floor(Date.now() / 1000)
     const payload = {
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       iat: now,
       exp: now + THIRTY_DAYS_SEC,
     }
     const token = await signJWT(payload, env.JWT_SECRET)
-
-    // Set as httpOnly cookie
     const cookieOptions = [
       `hks_auth=${token}`,
       'HttpOnly',
       'SameSite=Lax',
       'Path=/',
       `Max-Age=${THIRTY_DAYS_SEC}`,
-      // Secure only in production (Pages deploys over HTTPS)
       'Secure',
     ].join('; ')
 
@@ -101,8 +84,11 @@ export async function onRequestPost({ request, env }) {
         ...corsHeaders(request),
       },
     })
-  } catch (err) {
-    console.error('verify.js error:', err)
+  } catch (error) {
+    console.error(
+      'OTP verification failed:',
+      error instanceof Error ? error.message : 'unknown error',
+    )
     return response(request, 500, { error: 'Internal server error.' })
   }
 }
