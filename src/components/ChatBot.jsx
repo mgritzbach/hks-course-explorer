@@ -27,6 +27,7 @@ const QUERY_STOP_WORDS = new Set([
   'does',
   'for',
   'instructor',
+  'is',
   'professor',
   's',
   'teach',
@@ -105,6 +106,7 @@ export function condenseCourses(courses, query, shortlistedCodes = []) {
       return {
         c,
         exactInstructor,
+        instructorHits,
         score: instructorHits * 20 + courseHits * 5,
       }
     })
@@ -120,9 +122,19 @@ export function condenseCourses(courses, query, shortlistedCodes = []) {
   // from only the catalogue's globally newest year. Supplying unrelated rows
   // in this case caused the model/fallback to pad factual answers.
   const exactInstructorMatches = scoredCourses.filter(({ exactInstructor }) => exactInstructor)
+  // A follow-up can use only part of the name (for example, "Is Hong a good
+  // professor?"). Once any instructor token matches, keep the context focused
+  // on those instructors and never mix in incidental title matches from words
+  // such as "good". The LLM receives the conversation history separately.
+  const instructorMatches = scoredCourses.filter(({ instructorHits }) => instructorHits > 0)
+  const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
+    searchableText(query),
+  )
+  const focusedInstructorMatches =
+    exactInstructorMatches.length > 0 || asksAboutInstructor ? instructorMatches : []
   const relevantMatches =
-    exactInstructorMatches.length > 0
-      ? exactInstructorMatches
+    focusedInstructorMatches.length > 0
+      ? focusedInstructorMatches
       : scoredCourses.filter(({ score }) => score > 0).slice(0, 25)
 
   const recentYear = Math.max(
@@ -147,7 +159,9 @@ export function condenseCourses(courses, query, shortlistedCodes = []) {
     .map((course) => toCourseSummary(course))
 
   return dedupeCourseSummaries(
-    exactInstructorMatches.length > 0 ? keywordMatches : [...keywordMatches, ...shortlistedCourses],
+    focusedInstructorMatches.length > 0
+      ? keywordMatches
+      : [...keywordMatches, ...shortlistedCourses],
     30,
   )
 }

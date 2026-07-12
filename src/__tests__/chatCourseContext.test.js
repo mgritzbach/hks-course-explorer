@@ -100,6 +100,43 @@ describe('chat course context', () => {
     expect(context.some((course) => course.code === 'MLD-215-B')).toBe(false)
   })
 
+  it('keeps a second-turn professor question focused on the named instructor', () => {
+    const courses = [
+      {
+        course_code: 'DPI-852-M',
+        course_code_base: 'DPI-852-M',
+        course_name: 'Advanced Data and Information Visualization',
+        professor_display: 'Hong Qu',
+        year: 2025,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'DPI-802-M-D-2',
+        course_code_base: 'DPI-802-M-D-2',
+        course_name: 'The Arts of Communication',
+        professor_display: 'Allison Shapira',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'MLD-215-B',
+        course_code_base: 'MLD-215-B',
+        course_name: 'Negotiation and Leadership',
+        professor_display: 'Robert Wilkinson',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+    ]
+
+    const context = condenseCourses(courses, 'Is Hong a good professor?')
+
+    expect(context).toHaveLength(1)
+    expect(context[0]).toMatchObject({ code: 'DPI-852-M', instructor: 'Hong Qu' })
+  })
+
   it('keeps query matches ahead of a favorite with extensive history', () => {
     const favoriteHistory = Array.from({ length: 35 }, (_, index) => ({
       id: `api-201-${index}`,
