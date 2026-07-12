@@ -152,6 +152,28 @@ describe('Chat Pages Function contract', () => {
     })
   })
 
+  it('does not hide a non-transient provider configuration error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: 'Invalid provider credentials' } }), {
+          status: 401,
+        }),
+      ),
+    )
+    const CHAT_RATE_LIMITER = {
+      getByName: vi.fn().mockReturnValue({ consume: vi.fn().mockResolvedValue({ allowed: true }) }),
+    }
+
+    const response = await onRequestPost({
+      request: chatRequest(validPayload),
+      env: { OPENROUTER_API_KEY: 'test-key', CHAT_RATE_LIMITER },
+    })
+
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toMatchObject({ error: 'Invalid provider credentials' })
+  })
+
   it('uses the Durable Object decision as the atomic admission boundary', async () => {
     const consume = vi.fn().mockResolvedValue({ allowed: false, retryAfterMs: 45_000 })
     const decision = await enforceChatRateLimit(

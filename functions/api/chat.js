@@ -475,7 +475,20 @@ export async function onRequestPost({ request, env }) {
     }
 
     if (!response.ok) {
-      return jsonResponse({ reply: fallbackReply }, 200, request)
+      if (response.status === 429 || response.status >= 500) {
+        return jsonResponse({ reply: fallbackReply }, 200, request)
+      }
+      const data = await response.json().catch(() => ({}))
+      return jsonResponse(
+        {
+          error:
+            typeof data?.error?.message === 'string'
+              ? data.error.message
+              : `Chat provider error ${response.status}`,
+        },
+        502,
+        request,
+      )
     }
 
     return new Response(createSseStream(response, { fallbackText: fallbackReply }), {
