@@ -23,9 +23,11 @@ describe('stale deployment asset recovery', () => {
 
     const firstError = new Event('vite:preloadError', { cancelable: true })
     eventTarget.dispatchEvent(firstError)
-    eventTarget.dispatchEvent(new Event('vite:preloadError', { cancelable: true }))
+    const cooldownError = new Event('vite:preloadError', { cancelable: true })
+    eventTarget.dispatchEvent(cooldownError)
 
     expect(firstError.defaultPrevented).toBe(true)
+    expect(cooldownError.defaultPrevented).toBe(false)
     expect(reload).toHaveBeenCalledTimes(1)
     remove()
   })

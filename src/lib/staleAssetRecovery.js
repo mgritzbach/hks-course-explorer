@@ -17,14 +17,15 @@ export function installStaleAssetRecovery({
   now = () => Date.now(),
 } = {}) {
   const handlePreloadError = (event) => {
-    event.preventDefault()
-
     const currentTime = now()
     const previousReload = Number(storage.getItem(PRELOAD_RELOAD_KEY))
     if (Number.isFinite(previousReload) && currentTime - previousReload < RELOAD_COOLDOWN_MS) {
+      // Do not swallow a repeated failure. The route ErrorBoundary remains
+      // available while the cooldown protects the tab from a reload loop.
       return
     }
 
+    event.preventDefault()
     storage.setItem(PRELOAD_RELOAD_KEY, String(currentTime))
     reload()
   }
