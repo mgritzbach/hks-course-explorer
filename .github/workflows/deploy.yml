@@ -121,6 +121,16 @@ jobs:
             exit 1
           fi
 
+      - name: Enforce custom-domain browser cache policy
+        # Cloudflare's four-hour zone default can override Pages' deployment-
+        # safe revalidation header. Value 0 means Respect Existing Headers.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: >-
+          python scripts/ensure_cloudflare_browser_cache.py
+          --zone hks-course-explorer.org
+          --apply
+
       - name: Deploy atomic chat-rate limiter when changed
         if: steps.rate-limiter.outputs.changed == 'true'
         # The Pages chat handler fails closed without this Durable Object
