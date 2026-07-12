@@ -99,4 +99,34 @@ describe('chat course context', () => {
     expect(context.every((course) => course.instructor === 'Hong Qu')).toBe(true)
     expect(context.some((course) => course.code === 'MLD-215-B')).toBe(false)
   })
+
+  it('keeps query matches ahead of a favorite with extensive history', () => {
+    const favoriteHistory = Array.from({ length: 35 }, (_, index) => ({
+      id: `api-201-${index}`,
+      course_code: 'API-201',
+      course_code_base: 'API-201',
+      course_name: 'Quantitative Analysis and Empirical Methods',
+      professor_display: `Professor ${index}`,
+      year: 1990 + index,
+      term: 'Fall',
+      has_eval: true,
+    }))
+    const climateMatch = {
+      id: 'env-250-2026',
+      course_code: 'ENV-250',
+      course_code_base: 'ENV-250',
+      course_name: 'Climate Adaptation Policy',
+      professor_display: 'Ada Climate',
+      year: 2026,
+      term: 'Spring',
+      has_eval: true,
+    }
+
+    const context = condenseCourses([...favoriteHistory, climateMatch], 'climate adaptation', [
+      'API-201',
+    ])
+    expect(context).toHaveLength(30)
+    expect(context[0]).toMatchObject({ code: 'ENV-250', name: 'Climate Adaptation Policy' })
+    expect(context.some((course) => course.code === 'ENV-250')).toBe(true)
+  })
 })

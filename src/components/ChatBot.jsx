@@ -147,7 +147,7 @@ export function condenseCourses(courses, query, shortlistedCodes = []) {
     .map((course) => toCourseSummary(course))
 
   return dedupeCourseSummaries(
-    exactInstructorMatches.length > 0 ? keywordMatches : [...shortlistedCourses, ...keywordMatches],
+    exactInstructorMatches.length > 0 ? keywordMatches : [...keywordMatches, ...shortlistedCourses],
     30,
   )
 }
