@@ -15,6 +15,15 @@ GitHub Actions
   '-- Scheduled non-HKS sync -> Harvard ATS API -> Supabase live_courses
 ```
 
+The Course Advisor receives a bounded, question-relevant projection of the
+historical course rows already loaded from Supabase. Named-instructor queries
+include the instructor's matching history across years and code variants. The
+Pages Function treats those rows as untrusted grounding data and sends them to
+OpenRouter's `openrouter/free` router with a hard zero-price cap. Only a
+completed response from a selected `:free` model with reported cost `0` is
+returned as an answer; missing configuration, cooldowns, provider failures, or
+unverified responses are explicit failures and never become canned advice.
+
 The browser uses only the Supabase anon key. Trusted source synchronisation,
 provider keys, OTP delivery, and JWT signing run outside the browser.
 
