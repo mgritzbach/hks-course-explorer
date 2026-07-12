@@ -6,7 +6,7 @@ release record and rollback reference for that scoped migration.
 
 Follow-up status: browser table-grant hardening is proven on the isolated free
 staging project and is not yet applied to production. The reviewed source is
-`20260712144500_revoke_course_explorer_browser_write_grants.sql`.
+`20260712200000_revoke_course_explorer_browser_write_grants.sql`.
 
 ## Scope and evidence
 
@@ -36,7 +36,7 @@ there is no supported remote plan-read path to preserve.
    `Public read` `SELECT` policy exists and permits the browser's required
    catalogue columns. Stop rather than removing the only browser read path.
 4. Export or verify a point-in-time backup covering `public.schedules` and the
-   two target policy definitions. Retain the 58 legacy schedule rows; do not
+   two target policy definitions. Retain the 63 legacy schedule rows; do not
    delete them as part of access hardening.
 5. Apply the approved code release that makes schedule persistence local-only.
 6. On staging, verify a visitor can read `live_courses`, browse Schedule
@@ -132,12 +132,16 @@ returns, or `schedules` gains any policy. It then:
 
 ### Completed grant-hardening staging exercise
 
-The migration ran on `hks-course-explorer-staging` on 2026-07-12. Read-back
-proved that the retained `live_courses` and `schedules` rows remained present;
-`anon` and `authenticated` retained only `live_courses` `SELECT` and had no
-schedule privilege; `service_role` retained catalogue read/write/delete and
-schedule read/write authority. An explicit read-only transaction under the
-`anon` role still returned the active staging catalogue row.
+The first migration exercise ran on `hks-course-explorer-staging` on
+2026-07-12. A second exercise added a schema-parity `courses` replica with the
+production-equivalent public `SELECT` policy and broad pre-migration browser
+grants, then reran the exact migration source. Read-back proved one retained row
+in each of `courses`, `live_courses`, and `schedules`; the two catalogue
+policies were unchanged; and `anon` and `authenticated` retained catalogue
+`SELECT` while catalogue writes and every schedule privilege were false.
+`service_role` retained catalogue read/write/delete and schedule read/write
+authority. Explicit read-only transactions under the `anon` role returned both
+historical and live staging catalogue rows.
 
 Production promotion is pending independent review, exact-head CI, and the
 same post-migration grant/policy/row-count read-back. Because the migration only

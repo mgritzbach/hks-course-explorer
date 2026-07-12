@@ -6,32 +6,33 @@
 
 do $$
 begin
-  if to_regclass('public.courses') is not null then
-    if not (
-      select c.relrowsecurity
-      from pg_class c
-      join pg_namespace n on n.oid = c.relnamespace
-      where n.nspname = 'public' and c.relname = 'courses'
-    ) then
-      raise exception 'Refusing grant hardening: public.courses RLS is not enabled';
-    end if;
-    if not exists (
-      select 1 from pg_policies
-      where schemaname = 'public' and tablename = 'courses' and cmd = 'SELECT'
-    ) then
-      raise exception 'Refusing grant hardening: public.courses has no SELECT policy';
-    end if;
-    if exists (
-      select 1 from pg_policies
-      where schemaname = 'public' and tablename = 'courses' and cmd <> 'SELECT'
-    ) then
-      raise exception 'Refusing grant hardening: public.courses has an unexpected write policy';
-    end if;
-
-    revoke insert, update, delete, truncate, references, trigger
-      on table public.courses from anon, authenticated;
-    grant select on table public.courses to anon, authenticated;
+  if to_regclass('public.courses') is null then
+    raise exception 'Refusing grant hardening: public.courses is missing';
   end if;
+  if not (
+    select c.relrowsecurity
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'courses'
+  ) then
+    raise exception 'Refusing grant hardening: public.courses RLS is not enabled';
+  end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'courses' and cmd = 'SELECT'
+  ) then
+    raise exception 'Refusing grant hardening: public.courses has no SELECT policy';
+  end if;
+  if exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'courses' and cmd <> 'SELECT'
+  ) then
+    raise exception 'Refusing grant hardening: public.courses has an unexpected write policy';
+  end if;
+
+  revoke insert, update, delete, truncate, references, trigger
+    on table public.courses from anon, authenticated;
+  grant select on table public.courses to anon, authenticated;
 
   if to_regclass('public.live_courses') is null then
     raise exception 'Refusing grant hardening: public.live_courses is missing';

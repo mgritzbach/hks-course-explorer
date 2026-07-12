@@ -10,7 +10,7 @@ MIGRATION = (
     ROOT
     / "supabase"
     / "migrations"
-    / "20260712144500_revoke_course_explorer_browser_write_grants.sql"
+    / "20260712200000_revoke_course_explorer_browser_write_grants.sql"
 )
 
 
@@ -31,7 +31,8 @@ class BrowserTableGrantMigrationTests(unittest.TestCase):
 
     def test_fails_closed_on_rls_policy_or_table_drift(self):
         self.assertGreaterEqual(self.sql.count("relrowsecurity"), 3)
-        self.assertGreaterEqual(self.sql.count("raise exception 'refusing grant hardening"), 8)
+        self.assertGreaterEqual(self.sql.count("raise exception 'refusing grant hardening"), 9)
+        self.assertIn("public.courses is missing", self.sql)
         self.assertIn("public.live_courses is missing", self.sql)
         self.assertIn("public.schedules is missing", self.sql)
         self.assertIn("cmd <> 'select'", self.sql)
@@ -47,6 +48,14 @@ class BrowserTableGrantMigrationTests(unittest.TestCase):
             r"\bupdate\s+public\.",
         ):
             self.assertIsNone(re.search(pattern, self.sql), pattern)
+
+    def test_version_sorts_after_every_existing_production_migration(self):
+        versions = sorted(
+            path.name.split("_", 1)[0]
+            for path in MIGRATION.parent.glob("*.sql")
+            if path.name[0].isdigit()
+        )
+        self.assertEqual(MIGRATION.name.split("_", 1)[0], versions[-1])
 
 
 if __name__ == "__main__":
