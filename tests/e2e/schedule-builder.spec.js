@@ -12,13 +12,15 @@ test.describe('Schedule Builder critical flows', () => {
     await page.goto('/schedule-builder')
 
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
+    await page.getByLabel('Year').selectOption('2026')
+    await page.getByLabel('Semester').selectOption('Spring')
     const results = page.getByRole('list', { name: 'Course search results' })
     await expect(results).toContainText('API-101')
     await expect(results).toContainText('BGP-201')
-    await expect(results).toContainText('2 with schedule')
+    await expect(results).toContainText('2 live courses · 2 scheduled')
 
     await page.getByLabel('Session filter').selectOption('Spring 1')
-    await expect(results).toContainText('1 with schedule')
+    await expect(results).toContainText('1 live course · 1 scheduled')
     await expect(results).toContainText('API-101')
     await expect(results).not.toContainText('BGP-201')
   })
@@ -29,9 +31,12 @@ test.describe('Schedule Builder critical flows', () => {
     await page.goto('/schedule-builder')
     const results = page.getByRole('list', { name: 'Course search results' })
 
+    await page.getByLabel('Year').selectOption('2026')
+    await page.getByLabel('Semester').selectOption('Spring')
+
     await page.getByLabel('School filter').selectOption('Non-HKS')
     await expect(results).toContainText('ECON-50')
-    await expect(results).toContainText('1 course')
+    await expect(results).toContainText('1 live course · 1 scheduled')
 
     await page.getByLabel('School filter').selectOption('HKS')
     await page.getByLabel('Search courses and instructors').fill('policy')
@@ -49,6 +54,9 @@ test.describe('Schedule Builder critical flows', () => {
     await page.addInitScript(() => localStorage.setItem('hks-splash-shown', '1'))
     await page.goto('/schedule-builder')
 
+    await page.getByLabel('Year').selectOption('2026')
+    await page.getByLabel('Semester').selectOption('Spring')
+
     await page.getByLabel('Search courses and instructors').fill('policy')
     await expect(page.getByRole('list', { name: 'Course search results' })).toContainText('API-101')
     expect(harvardRequests).toBe(0)
@@ -65,10 +73,61 @@ test.describe('Schedule Builder critical flows', () => {
     await page.goto('/schedule-builder')
 
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
-    await expect.poll(() => requestedTerms).toContain('eq.2026 Spring')
-
-    await page.getByLabel('Semester').selectOption('Fall')
     await expect.poll(() => requestedTerms).toContain('eq.2026 Fall')
+
+    await page.getByLabel('Semester').selectOption('Spring')
+    await expect.poll(() => requestedTerms).toContain('eq.2026 Spring')
+  })
+
+  test('clears an incompatible session and keeps every HKS offering visible', async ({ page }) => {
+    await page.goto('/schedule-builder')
+    const results = page.getByRole('list', { name: 'Course search results' })
+
+    await page.getByLabel('Year').selectOption('2026')
+    await page.getByLabel('Semester').selectOption('Spring')
+    await page.getByLabel('Session filter').selectOption('Spring 1')
+    await page.getByLabel('Semester').selectOption('Fall')
+
+    await expect(page.getByLabel('Session filter')).toHaveValue('all')
+    await expect(results).toContainText('2 live courses')
+    await expect(results).toContainText('2 schedule pending')
+    await expect(results).toContainText('API-201-A')
+    await expect(results).toContainText('DPI-100-A')
+  })
+
+  test('maps J-Term to January offerings inside the Spring source term', async ({ page }) => {
+    const requestedTerms = []
+    await installMockBackend(page, {
+      onLiveCoursesRequest: (url) => requestedTerms.push(url.searchParams.get('term')),
+    })
+    await page.goto('/schedule-builder')
+    const results = page.getByRole('list', { name: 'Course search results' })
+
+    await page.getByLabel('Year').selectOption('2027')
+    await page.getByLabel('Semester').selectOption('January')
+    await expect.poll(() => requestedTerms).toContain('eq.2027 Spring')
+    await expect(results).toContainText('IGA-299-A')
+    await expect(results).toContainText('1 live course')
+  })
+
+  test('does not claim schedule-pending courses match explicit day filters', async ({ page }) => {
+    await page.goto('/schedule-builder')
+    const results = page.getByRole('list', { name: 'Course search results' })
+    await expect(results).toContainText('2 schedule pending')
+
+    await page.getByRole('button', { name: 'Mon', exact: true }).click()
+    await expect(page.getByText(/0 live courses match/)).toBeVisible()
+  })
+
+  test('does not substitute historical section stubs for an empty live HKS term', async ({
+    page,
+  }) => {
+    await installMockBackend(page, { liveCoursesResponse: [] })
+    await page.goto('/schedule-builder')
+
+    await expect(page.getByText(/0 live courses match/)).toBeVisible()
+    await expect(page.getByText(/Historical \/ no schedule/)).toHaveCount(0)
+    await expect(page.getByRole('list', { name: 'Course search results' })).toHaveCount(0)
   })
 
   test('makes a failed synced-catalogue read visible for typed searches instead of showing empty results', async ({

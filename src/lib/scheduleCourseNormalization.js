@@ -157,6 +157,7 @@ export function normalizeCourse(raw, index = 0) {
     .map((section) => normalizeSection(section, raw))
     .filter(Boolean)
   const main = sections[0] || null
+  const rawCredits = raw?.credits ?? raw?.credits_min ?? raw?.credits_max
   return {
     id:
       raw?.id ||
@@ -167,11 +168,18 @@ export function normalizeCourse(raw, index = 0) {
       raw?.course_code_base ||
       raw?.code ||
       `course-${index}`,
+    courseCodeBase:
+      raw?.courseCodeBase ||
+      raw?.course_code_base ||
+      raw?.courseCode ||
+      raw?.course_code ||
+      raw?.code ||
+      `course-${index}`,
     title: raw?.title || raw?.course_name || raw?.name || 'Untitled course',
     instructors: Array.isArray(raw?.instructors)
       ? raw.instructors.filter(Boolean)
       : [raw?.instructor, raw?.professor, raw?.professor_display].filter(Boolean),
-    credits: toNumber(raw?.credits ?? raw?.credits_min ?? raw?.credits_max, 4) || 4,
+    credits: rawCredits == null ? 4 : toNumber(rawCredits, 4),
     sections,
     selectedSectionId: raw?.selectedSectionId || main?.id || '',
     meeting_days: raw?.meeting_days || main?.meeting_days || '',
@@ -186,6 +194,9 @@ export function normalizeCourse(raw, index = 0) {
     is_hks: typeof raw?.is_hks === 'boolean' ? raw.is_hks : undefined,
     school: raw?.school || null,
     sessionDescription: raw?.sessionDescription ?? raw?.session_description ?? '',
+    sectionCode: raw?.sectionCode ?? raw?.section_code ?? '',
+    sourceUrl: raw?.sourceUrl ?? raw?.source_url ?? '',
+    source: raw?.source ?? '',
     enrichment: {
       is_core: Boolean(raw?.enrichment?.is_core ?? raw?.is_core),
       is_stem: Boolean(raw?.enrichment?.is_stem ?? raw?.is_stem),

@@ -273,6 +273,29 @@ def normalise_course(c: dict, school: str) -> dict:
     }
 
 
+def merge_duplicate_course(existing: dict, incoming: dict) -> dict:
+    """Merge one Harvard courseID returned by multiple catalog schools.
+
+    The API can return a cross-listed HKS offering under an earlier school too.
+    HKS must remain discoverable in that case; missing fields are filled from
+    the alternate representation without changing the stable source ID.
+    """
+    if existing.get("id") != incoming.get("id"):
+        raise ValueError("Cannot merge live-course rows with different ids")
+
+    prefer_incoming = bool(incoming.get("is_hks")) and not bool(existing.get("is_hks"))
+    preferred, alternate = (incoming, existing) if prefer_incoming else (existing, incoming)
+    merged = dict(preferred)
+    for key, value in alternate.items():
+        if merged.get(key) in (None, "", [], {}) and value not in (None, "", [], {}):
+            merged[key] = value
+
+    if existing.get("is_hks") or incoming.get("is_hks"):
+        merged["is_hks"] = True
+        merged["school"] = HKS_SCHOOL
+    return merged
+
+
 # ── Sync safety helpers ───────────────────────────────────────────────────────
 
 def _valid_scroll_url(value: object) -> bool:
@@ -560,6 +583,8 @@ def main():
                 if row["id"] not in all_rows:
                     all_rows[row["id"]] = row
                     new += 1
+                else:
+                    all_rows[row["id"]] = merge_duplicate_course(all_rows[row["id"]], row)
             log.info("  %-6s q=%-6s → %d returned, %d new (total unique: %d)",
                      school, q, len(rows), new, len(all_rows))
 

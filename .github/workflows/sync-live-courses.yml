@@ -9,7 +9,7 @@ on:
 # the same upstream catalogue and race to promote it. Keep the earlier run
 # intact and queue one follow-up instead of cancelling a valid promotion.
 concurrency:
-  group: hks-live-courses-production-sync
+  group: hks-production-catalogue-sync
   cancel-in-progress: false
 
 permissions:

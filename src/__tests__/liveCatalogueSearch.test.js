@@ -51,6 +51,20 @@ describe('live catalogue search', () => {
     expect(toScheduleSearchItem(rows[1])).toMatchObject({ school: 'HBSD', is_hks: false })
   })
 
+  it('preserves current-offering identity and session metadata', () => {
+    expect(
+      toScheduleSearchItem({
+        ...rows[0],
+        session_description: 'Spring 1',
+        cross_reg_eligible: 'NOXREG',
+      }),
+    ).toMatchObject({
+      id: 'hks',
+      sessionDescription: 'Spring 1',
+      crossRegEligible: 'NOXREG',
+    })
+  })
+
   it('keeps the Schedule Builder on the synced catalogue path', () => {
     const source = readFileSync(
       resolve(globalThis.process.cwd(), 'src/pages/ScheduleBuilder.jsx'),

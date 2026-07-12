@@ -37,7 +37,9 @@ export function findLiveCatalogueRows(rows, { query = '', year, semester, school
 /** Adapt a synced database row to the Schedule Builder's normaliser contract. */
 export function toScheduleSearchItem(row) {
   return {
+    id: row?.id || undefined,
     courseCode: row?.course_code || row?.course_code_base,
+    courseCodeBase: row?.course_code_base || row?.course_code,
     title: row?.title || '',
     instructors: Array.isArray(row?.instructors) ? row.instructors : [],
     credits: row?.credits,
@@ -47,6 +49,11 @@ export function toScheduleSearchItem(row) {
     time_end: row?.time_end || null,
     location: row?.location || null,
     term: row?.term || null,
+    sessionDescription: row?.session_description || '',
+    crossRegEligible: row?.cross_reg_eligible || '',
+    sectionCode: row?.section_code || '',
+    sourceUrl: row?.source_url || '',
+    source: row?.source || '',
     // Preserve the source classification through the scheduling path: only
     // HKS offerings may be associated with the HKS-only historical dataset.
     school: row?.school || null,

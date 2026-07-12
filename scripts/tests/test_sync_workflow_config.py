@@ -15,9 +15,16 @@ class SyncWorkflowConfigTests(unittest.TestCase):
 
     def test_production_sync_serializes_manual_and_scheduled_promotions(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("group: hks-live-courses-production-sync", workflow)
+        self.assertIn("group: hks-production-catalogue-sync", workflow)
         self.assertIn("cancel-in-progress: false", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
+
+    def test_both_catalogue_sources_share_the_same_production_lock(self):
+        myharvard = (ROOT / ".github" / "workflows" / "sync-myharvard-hks.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("group: hks-production-catalogue-sync", myharvard)
+        self.assertIn("MYHARVARD_MIN_HKS_OFFERINGS: '285'", myharvard)
 
 
 if __name__ == "__main__":
