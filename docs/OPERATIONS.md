@@ -60,6 +60,59 @@ global API key. The policy control retries transient rate-limit, server, and
 network failures twice with bounded backoff; permission, target-validation, and
 read-back failures are never retried into a broader mutation.
 
+## Manual Cloudflare Pages rollback
+
+Use this only after a production promotion has occurred and a subsequent smoke
+or monitoring check proves the new deployment unsafe. Cloudflare accepts only a
+previously successful **production** deployment as a Pages rollback target;
+preview/release-candidate deployments are not valid targets. See Cloudflare's
+[Pages rollback documentation](https://developers.cloudflare.com/pages/configuration/rollbacks/).
+
+1. Freeze new merges and cancel or disable any queued production deployment.
+2. In **Cloudflare > Workers & Pages > hks-course-explorer > Deployments > All
+   deployments**, record the current production deployment ID/commit and the
+   last successful production deployment that passed both Pages and custom-
+   domain smoke. Do not select a preview deployment. Record the target ID,
+   commit, URL, and the evidence that made it last-known-good.
+3. Open the target's three-dot menu, choose **Rollback to this deployment**,
+   confirm, and record the resulting production deployment ID and timestamp.
+   The equivalent API operation requires only Pages Write and is useful when
+   the dashboard is unavailable:
+
+   ```powershell
+   $env:CLOUDFLARE_ACCOUNT_ID = '54cdc2ac5fbe86216672ccf2589cf9cb'
+   $env:CLOUDFLARE_PAGES_PROJECT = 'hks-course-explorer'
+   $env:ROLLBACK_DEPLOYMENT_ID = '<reviewed successful production deployment UUID>'
+   # CLOUDFLARE_API_TOKEN must be supplied as a secret environment variable.
+   $headers = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+   $uri = "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects/$env:CLOUDFLARE_PAGES_PROJECT/deployments/$env:ROLLBACK_DEPLOYMENT_ID/rollback"
+   $result = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers
+   if (-not $result.success) { throw 'Cloudflare Pages rollback was not accepted.' }
+   ```
+
+4. Verify the rolled-back deployment, first on Pages and then on the custom
+   domain. Keep the incident open if any command fails:
+
+   ```powershell
+   $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.pages.dev/'
+   node scripts/smoke_deployed_site.mjs
+   $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.org/'
+   node scripts/smoke_deployed_site.mjs
+   $env:DEPLOY_MIN_HKS_OFFERINGS = '285'
+   npm run test:e2e:production
+   ```
+
+5. Confirm the custom domain serves the recorded rollback deployment and retain
+   the smoke output with the incident. Re-enable promotion only after the
+   regression is fixed and the normal exact-commit release path passes again.
+
+A Pages rollback changes application/Function code only. It does **not** roll
+back Supabase data, migrations, KV contents, secrets, or Durable Object state.
+Do not perform a database restore unless its separately approved recovery plan
+requires it. If the failed release changed the `ChatRateLimiter` Worker, review
+binding/state compatibility and use the separately documented Cloudflare Worker
+rollback path; never assume the Pages rollback reverted that Worker.
+
 If port 4173 is intentionally occupied by another local preview, run the
 same isolated built-artifact suite on a different port, for example:
 

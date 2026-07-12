@@ -55,6 +55,20 @@ class OperationalOwnershipTests(unittest.TestCase):
         self.assertIn("Do not put secrets, tokens, student data", self.security)
         self.assertIn("[`.github/SECURITY.md`](../.github/SECURITY.md)", self.ownership)
 
+    def test_pages_rollback_is_actionable_and_separate_from_database_recovery(self):
+        for required in (
+            "## Manual Cloudflare Pages rollback",
+            "Rollback to this deployment",
+            "/deployments/$env:ROLLBACK_DEPLOYMENT_ID/rollback",
+            "node scripts/smoke_deployed_site.mjs",
+            "npm run test:e2e:production",
+        ):
+            self.assertIn(required, self.operations)
+        self.assertIn(
+            "does **not** roll back Supabase data",
+            " ".join(self.operations.split()),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
