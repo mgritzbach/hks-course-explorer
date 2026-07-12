@@ -12,6 +12,7 @@ class OperationalOwnershipTests(unittest.TestCase):
     def setUpClass(cls):
         cls.ownership = (ROOT / "docs" / "OWNERSHIP.md").read_text(encoding="utf-8")
         cls.codeowners = (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8")
+        cls.security = (ROOT / ".github" / "SECURITY.md").read_text(encoding="utf-8")
         cls.operations = (ROOT / "docs" / "OPERATIONS.md").read_text(encoding="utf-8")
         cls.readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
@@ -45,6 +46,14 @@ class OperationalOwnershipTests(unittest.TestCase):
     def test_primary_handover_documents_link_to_ownership(self):
         self.assertIn("[`OWNERSHIP.md`](OWNERSHIP.md)", self.operations)
         self.assertIn("[service ownership](docs/OWNERSHIP.md)", self.readme)
+
+    def test_private_vulnerability_intake_is_discoverable_and_safe(self):
+        self.assertIn(
+            "https://github.com/mgritzbach/hks-course-explorer/security/advisories/new",
+            self.security,
+        )
+        self.assertIn("Do not put secrets, tokens, student data", self.security)
+        self.assertIn("[`.github/SECURITY.md`](../.github/SECURITY.md)", self.ownership)
 
 
 if __name__ == "__main__":

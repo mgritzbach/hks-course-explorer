@@ -17,15 +17,16 @@ team. It contains roles and procedures only; secret values never belong here.
 The current project has one maintainer and therefore does not promise a 24/7
 on-call service or response-time SLA. Reliability comes from failing closed,
 retaining the last verified catalogue, blocking unverified deployments, and
-keeping a tested rollback path. If the owner is unavailable, freeze releases
-and leave the last-known-good production state in place.
+keeping a documented rollback path with tested local/ephemeral recovery
+components. If the owner is unavailable, freeze releases and leave the
+last-known-good production state in place.
 
 ## Incident intake and severity
 
 - Report non-sensitive defects through the repository's GitHub Issues page.
-- Report vulnerabilities or credential exposure through a private GitHub
-  Security Advisory. Never paste secrets, student data, tokens, or raw provider
-  responses into a public issue.
+- Report vulnerabilities or credential exposure through the enabled private
+  process in [`.github/SECURITY.md`](../.github/SECURITY.md). Never paste
+  secrets, student data, tokens, or raw provider responses into a public issue.
 - Preserve the failing GitHub Actions run, Cloudflare deployment identifier,
   Supabase migration/sync identifier, and affected application commit.
 
@@ -43,7 +44,10 @@ The detailed diagnostic and rollback commands live in
 1. Every production change must use a pull request and the current required
    `Quality gate`; unresolved review threads block merge.
 2. Deploy only the exact commit proven by CI and the isolated release-candidate
-   browser smoke. A failed gate leaves production unchanged.
+   browser smoke. A pre-promotion gate failure leaves production unchanged. If
+   any post-promotion smoke fails, freeze releases and immediately perform the
+   documented manual rollback to the recorded prior Pages deployment; the
+   workflow does not claim an automatic rollback.
 3. Apply production database changes only from reviewed migrations, after
    current row/policy/grant evidence and a successful backup/restore drill.
 4. Never restore unrestricted anonymous writes as a routine rollback.
