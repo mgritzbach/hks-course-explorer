@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 DEPENDABOT = ROOT / ".github" / "dependabot.yml"
+WORKFLOW_REQUIREMENTS = ROOT / "requirements" / "workflows.txt"
 ACTION_REFERENCE = re.compile(
     r"^\s*(?:-\s+)?uses:\s+actions/[\w-]+@[0-9a-f]{40}\s+#\s+v\d+\s*$"
 )
@@ -44,8 +45,24 @@ class WorkflowActionPinningTests(unittest.TestCase):
     def test_dependabot_keeps_action_pins_reviewable_and_current(self):
         config = DEPENDABOT.read_text(encoding="utf-8")
         self.assertIn("package-ecosystem: github-actions", config)
+        self.assertIn("package-ecosystem: pip", config)
         self.assertIn("interval: weekly", config)
         self.assertIn("open-pull-requests-limit: 2", config)
+
+    def test_credential_bearing_python_workflows_use_the_hash_locked_requirements(self):
+        expected_install = "pip install --require-hashes -r requirements/workflows.txt"
+        for name in (
+            "backup-live-courses.yml",
+            "catalogue-parity-audit.yml",
+            "sync-live-courses.yml",
+        ):
+            workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
+            self.assertIn(expected_install, workflow, name)
+            self.assertNotIn("pip install requests", workflow, name)
+
+        requirements = WORKFLOW_REQUIREMENTS.read_text(encoding="utf-8")
+        self.assertIn("requests==", requirements)
+        self.assertIn("--hash=sha256:", requirements)
 
 
 if __name__ == "__main__":

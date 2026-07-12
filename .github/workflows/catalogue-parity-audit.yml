@@ -20,7 +20,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install read-only audit dependency
-        run: pip install requests
+        run: pip install --require-hashes -r requirements/workflows.txt
 
       - name: Audit current and historical catalogue sources
         env:
