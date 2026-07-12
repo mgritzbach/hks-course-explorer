@@ -15,8 +15,8 @@ import {
   spreadRankPosition,
   zoomNumericDomain,
 } from '../lib/scatterData.js'
-import { useFavorites } from '../useFavorites'
 import Plot from '../lib/plotlyComponent.js'
+import ScatterControls from './ScatterControls.jsx'
 
 function _CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -132,17 +132,37 @@ export default function ScatterPlot({
   metricMode = 'score',
   colorblindMode = false,
   isLight = false,
+  favs,
 }) {
   const navigate = useNavigate()
-  const { favorites, toggleFav } = useFavorites()
+  const { favorites, toggle: toggleFav } = favs
   const [pinnedDatum, setPinnedDatum] = useState(null)
   const [hoverState, setHoverState] = useState(null)
   const chartWrapperRef = useRef(null)
   const [zoomedX, setZoomedX] = useState(null)
   const [zoomedY, setZoomedY] = useState(null)
+  const [viewResetRevision, setViewResetRevision] = useState(0)
 
   const allCoursesDeduped = useMemo(() => dedupeCoTaught(allCourses), [allCourses])
   const matchedCoursesDeduped = useMemo(() => dedupeCoTaught(matchedCourses), [matchedCourses])
+  const matchedViewKey = useMemo(
+    () =>
+      matchedCoursesDeduped
+        .map((course) => course.id)
+        .sort()
+        .join('|'),
+    [matchedCoursesDeduped],
+  )
+
+  // A new preset, metric, or dataset represents a new chart view. Do not
+  // carry a pan/zoom range or pinned point across incompatible coordinates.
+  useEffect(() => {
+    setZoomedX(null)
+    setZoomedY(null)
+    setViewResetRevision((revision) => revision + 1)
+    setPinnedDatum(null)
+    setHoverState(null)
+  }, [matchedViewKey, metricMode, xMetric, yMetric])
 
   const xMeta = metrics.find((metric) => metric.key === xMetric) || metrics[0]
   const yMeta = metrics.find((metric) => metric.key === yMetric) || metrics[2]
@@ -376,12 +396,18 @@ export default function ScatterPlot({
   const resetZoom = () => {
     setZoomedX(null)
     setZoomedY(null)
+    // Force Plotly to discard any internal pan/autorange state even when the
+    // React ranges are already at their base values.
+    setViewResetRevision((revision) => revision + 1)
   }
 
   const handlePlotRelayout = (event) => {
     if (!event) return
     if (event['xaxis.autorange'] || event['yaxis.autorange']) {
-      resetZoom()
+      // Plotly emits autorange while applying a new revision. Clear the
+      // controlled ranges without incrementing the revision again.
+      setZoomedX(null)
+      setZoomedY(null)
       return
     }
 
@@ -400,7 +426,8 @@ export default function ScatterPlot({
       isBaseOrWiderDomain(nextX, xMode.domain) &&
       isBaseOrWiderDomain(nextY, yMode.domain)
     ) {
-      resetZoom()
+      setZoomedX(null)
+      setZoomedY(null)
       return
     }
 
@@ -567,8 +594,12 @@ export default function ScatterPlot({
 
     return {
       autosize: true,
-      uirevision: `${xMetric}-${yMetric}-${metricMode}`,
-      margin: { t: 44, r: 18, b: 44, l: 54 },
+      // Plotly otherwise preserves an out-of-date internal pan range even
+      // after React supplies a new controlled range.
+      uirevision: `${xMetric}-${yMetric}-${metricMode}-${matchedViewKey}-${viewResetRevision}-${effectiveXDomain.join(':')}-${effectiveYDomain.join(':')}`,
+      // Leave enough room for vertical labels such as "Course Rating
+      // (percentile)" instead of letting them crowd the plot edge.
+      margin: { t: 44, r: 18, b: 44, l: 78 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       dragmode: 'pan',
@@ -665,6 +696,7 @@ export default function ScatterPlot({
     isLight,
     isZoomed,
     metricMode,
+    matchedViewKey,
     quadBadBorder,
     quadBadColor,
     quadGoodBorder,
@@ -682,12 +714,14 @@ export default function ScatterPlot({
     yMetric,
     yMode.domain,
     yMode.useRaw,
+    viewResetRevision,
   ])
 
   const plotConfig = useMemo(
     () => ({
       responsive: true,
       displaylogo: false,
+      displayModeBar: false,
       scrollZoom: false,
       doubleClick: 'reset',
       modeBarButtonsToRemove: [
@@ -778,50 +812,12 @@ export default function ScatterPlot({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 md:col-span-2">
-        <button
-          onClick={() => handleZoomButton('out')}
-          aria-label="Zoom out"
-          className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
-          style={{
-            border: '1px solid var(--line)',
-            background: 'var(--panel-subtle)',
-            color: 'var(--text-muted)',
-          }}
-        >
-          -
-        </button>
-        <button
-          onClick={() => handleZoomButton('in')}
-          aria-label="Zoom in"
-          className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:text-label"
-          style={{
-            border: '1px solid var(--line)',
-            background: 'var(--panel-subtle)',
-            color: 'var(--text-muted)',
-          }}
-        >
-          +
-        </button>
-        {isZoomed && (
-          <>
-            <span className="text-[10px]" style={{ color: 'var(--blue)' }}>
-              Zoomed in
-            </span>
-            <button
-              onClick={resetZoom}
-              className="rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors hover:text-label"
-              style={{
-                border: '1px solid var(--line)',
-                background: 'var(--panel-subtle)',
-                color: 'var(--text-muted)',
-              }}
-            >
-              Reset zoom
-            </button>
-          </>
-        )}
-      </div>
+      <ScatterControls
+        isZoomed={isZoomed}
+        onZoomOut={() => handleZoomButton('out')}
+        onZoomIn={() => handleZoomButton('in')}
+        onReset={resetZoom}
+      />
     </div>
   )
 

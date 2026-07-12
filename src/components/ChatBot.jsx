@@ -15,7 +15,14 @@ function dedupeCourseSummaries(items, limit = 30) {
   return deduped
 }
 
-function toCourseSummary(course) {
+export function normalizeOptionalBoolean(value) {
+  if (typeof value === 'boolean') return value
+  if (value === 1 || value === '1' || value === 'true') return true
+  if (value === 0 || value === '0' || value === 'false') return false
+  return undefined
+}
+
+export function toCourseSummary(course) {
   return {
     code: course.course_code,
     name: course.course_name,
@@ -26,7 +33,9 @@ function toCourseSummary(course) {
     workload_pct: Math.round(coursesafe(course.metrics_pct?.Workload)),
     instructor_pct: Math.round(coursesafe(course.metrics_pct?.Instructor_Rating)),
     bid_price_pts: course.last_bid_price ?? null,
-    is_core: course.is_core,
+    // Older catalogue rows can contain 0/1, strings, or null. The Worker
+    // accepts only a real boolean, so normalize known values and omit unknowns.
+    is_core: normalizeOptionalBoolean(course.is_core),
     stem: course.stem_group ?? null,
   }
 }

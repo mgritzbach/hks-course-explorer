@@ -37,9 +37,24 @@ test.describe('Scatter Plot built-artifact regression', () => {
     await yAxis.selectOption('Instructor_Rating')
     await expect(yAxis).toHaveValue('Instructor_Rating')
 
-    await page.getByText('+', { exact: true }).click()
+    const controls = page.locator('[aria-label="Graph controls"]')
+    await expect(controls).toBeVisible()
+    await expect(chart.locator('.modebar')).toHaveCount(0)
+    const controlsBox = await controls.boundingBox()
+    const chartBox = await chart.boundingBox()
+    expect(controlsBox).not.toBeNull()
+    expect(chartBox).not.toBeNull()
+    expect(controlsBox.y + controlsBox.height).toBeLessThanOrEqual(chartBox.y)
+
+    await page.getByRole('button', { name: 'Zoom in' }).click()
     await expect(page.getByText('Zoomed in', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Reset zoom' }).click()
+    await page.getByRole('button', { name: 'Reset axes' }).click()
     await expect(page.getByText('Zoomed in', { exact: true })).toHaveCount(0)
+    await expect
+      .poll(() => chart.evaluate((element) => element.layout.xaxis.range))
+      .toEqual([0, 100])
+    await expect
+      .poll(() => chart.evaluate((element) => element.layout.yaxis.range))
+      .toEqual([0, 100])
   })
 })
