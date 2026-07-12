@@ -8,17 +8,18 @@ or local proof is credited only for the boundary it actually exercises.
 
 | Boundary | Exact evidence | Result |
 |---|---|---|
-| Protected master | `ed81c2413cbef79fcc51dc27277bb6e634f96626` | Recovery ordering PR #65 merged through the protected branch after independent manager review. |
-| Exact-master quality gate | GitHub Actions `29206470877` | Dependency integrity/audit, lint, format, public contracts, architecture and complexity ratchets, 244 JavaScript tests, 168 Python tests, build, bundle budgets, and built-artifact browser E2E passed. |
-| Exact-master release candidate | Deploy workflow `29206574864`; deployment `2248ffcb-1276-4f15-ad44-0ab9bfbcce40` | Target validation, catalogue parity, build, isolated Pages upload, static fingerprint smoke, and release-candidate real-browser acceptance passed. The workflow then stopped safely at the Cloudflare zone cache-policy gate. |
+| Protected master | `167e20407cc70b72398276f816a0d1af3bba80d5` | PR #67 merged through protected master after controller review, automated review remediation, two exact-head quality gates, and final manager approval. |
+| Exact-master quality gate | GitHub Actions `29208929319` | Dependency integrity/audit, lint, format, public contracts, architecture and complexity ratchets, 252 JavaScript tests, 168 Python tests, build, bundle budgets, and 38 built-artifact browser flows passed. |
+| Exact-master release candidate | Deploy workflow `29209040956`; deployment `304ec26c-c03d-4e80-bfd4-8fe1ce66dcc5` | Target validation, catalogue parity, build, isolated Pages upload, static smoke, and release-candidate real-browser acceptance passed 5/5. The workflow then stopped safely at the Cloudflare zone cache-policy gate; production promotion and post-deploy checks were skipped. |
 | Production runtime | Commit `67558bfa128d93630edaea2f4d35180c42e18653`; deployment `d83b6a60-f3a6-4bae-932d-80286a70c771` | Custom-domain production acceptance passed 5/5: all visitor routes, usable course advisor, every advertised HKS offering/session selectable, graph reset plus shortlist, and first-visit/mobile navigation. Two immediate advisor messages both returned recommendations. |
-| Runtime equivalence | `git diff 67558bf..ed81c24` over `src`, `functions`, `public`, production tests, package manifests, and Vite configuration | No user-facing runtime difference. The later master commits contain recovery workflows/scripts/docs and the database privilege migration only. |
+| Current-master delta | PR #67 (`dfff5d29a4088504a48a04dd45eaff88908325c0`) merged as `167e204` | Adds non-visual, privacy-bounded performance telemetry and its release controls. It passed the isolated release-candidate boundary but is not yet on the production deployment. |
 
 The canonical deployment workflow is still red because its token cannot verify
 or set the custom-domain browser-cache policy. The separately recorded
-production deployment and production acceptance prove G05 behavior, but do not
-substitute for that missing Cloudflare control, a rollback exercise, or a fully
-green canonical promotion.
+production deployment and production acceptance prove G05 behavior, while the
+current exact-master release candidate proves the new telemetry did not break
+the five browser acceptance boundaries. Neither substitutes for the missing
+Cloudflare control, a rollback exercise, or a fully green canonical promotion.
 
 ## Production catalogue and database evidence
 
@@ -46,10 +47,10 @@ no-cost recovery-point window, not durable archival retention.
 | G02 Data integrity | 94% | 0 | Source promotion/parity and full disaster recovery are strong; no catalogue-promotion rollback has been exercised and retained non-current rows are not fully reconciled. |
 | G03 Supabase reliability | 100% | 1 | Production RLS/privilege exercises, unchanged health counts, zero orphans, an exact-master encrypted five-table backup, and a complete isolated schema/relationship/policy restore are proven. |
 | G04 Security | 90% | 0 | Course Explorer database hardening and live security headers are proven; authenticated Cloudflare zone/cache-policy verification and remaining shared-project advisor ownership are not closed. |
-| G05 Navigation / usability | 100% | 1 | The custom production domain passed all five desktop/mobile visitor acceptance boundaries, and current master has no user-facing runtime difference from the tested deployment. |
+| G05 Navigation / usability | 100% | 1 | The custom production domain passed all five desktop/mobile visitor acceptance boundaries; current master independently passed the same five release-candidate browser boundaries after its non-visual telemetry change. |
 | G06 Accessibility | 94% | 0 | Automated route-wide desktop/mobile WCAG, focus, and keyboard checks pass; documented manual exact-production keyboard/mobile acceptance is missing. |
 | G07 Dependency security | 100% | 1 | Reviewed dependency register, vendored integrity, immutable action pins, and exact-master production audit gate are complete. |
-| G08 Performance | 75% | 0 | Bundle/lab budgets and telemetry code exist; representative field LCP/INP and catalogue/API latency evidence is incomplete. |
+| G08 Performance | 82% | 0 | Exact-master now has tested, privacy-bounded, zero-cost LCP/INP/CLS RUM, operational p75 queries, and a bundle-enforced lazy measurement chunk; release-candidate smoke and browser acceptance pass. The collector is not deployed, and representative mobile field Web Vitals plus catalogue/API latency evidence are absent. |
 | G09 Regression safety | 96% | 0 | Exact-master CI plus custom-domain production acceptance pass; an exercised Pages rollback/re-promotion is absent. |
 | G10 Maintainable architecture | 100% | 1 | Bounded modules/contracts, architecture/complexity/runtime ratchets, exact-master quality gates, and independent final review are complete. |
 | G11 Operations / deployment | 94% | 0 | Ownership, runbooks, production smoke, sync, and complete database recovery are proven; canonical Cloudflare promotion, Pages rollback/re-promotion, and successor/on-call acceptance remain incomplete. |
@@ -69,7 +70,13 @@ binary complete. Percentages are not release waivers.
    smoke the prior exact commit, and re-promote current through the complete
    path.
 4. Record manual production desktop/mobile/keyboard accessibility acceptance.
-5. Collect representative field LCP/INP and catalogue/API latency evidence.
+5. Deploy the exact-master collector through the complete canonical workflow,
+   then retain and review a representative 28-day field window. Require mobile
+   traffic, at least 75 LCP and CLS samples, at least 30 INP interaction
+   samples, p75 LCP at or below 2,500 ms, p75 INP at or below 200 ms, p75 CLS at
+   or below 0.1, and representative catalogue/API latency results against
+   approved budgets. An empty or operator-only window is not acceptance
+   evidence.
 6. Complete the successor/on-call handover acceptance record.
 
 No item in this document authorizes a paid provider feature, destructive

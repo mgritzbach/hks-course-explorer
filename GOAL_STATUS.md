@@ -14,7 +14,7 @@ release proceeds while any P0 goal is `0`.
 | G05 | P1 | Navigation / usability | 100% | 1 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
 | G06 | P1 | Accessibility | 94% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
 | G07 | P1 | Dependency security | 100% | 1 | Audited upgrade matrix, green complete suite, and documented residual risk. |
-| G08 | P1 | Performance | 75% | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
+| G08 | P1 | Performance | 82% | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
 | G09 | P1 | Regression safety | 96% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
 | G10 | P1 | Maintainable architecture | 100% | 1 | Final independent manager review of bounded modules, contracts, and quality gates. |
 | G11 | P1 | Operations / deployment | 94% | 0 | Fresh setup, production deployment/smoke, rollback exercise, and on-call handover evidence. |
@@ -100,3 +100,4 @@ production evidence.
 | L54 | The course advisor remains usable at zero cost when the optional provider is absent, unavailable, or rate-limited. | 1 | PR #63, 244/244 JavaScript tests, exact-master CI `29205233279`, production deployment `d83b6a60-f3a6-4bae-932d-80286a70c771`, two consecutive live recommendations, and custom-domain production acceptance 5/5. |
 | L55 | The complete five-table Course Explorer relational boundary has an encrypted no-cost backup and exact isolated restore proof. | 1 | Backup `29206580982` and PostgreSQL 17 recovery `29206612080` on exact master `ed81c24`: 14,543 exact rows, schema/access contract, FKs, rollback, RLS, grants, functions, indexes, triggers, zero-orphan linking, digests, and cleanup all passed. |
 | L56 | Residual PostgreSQL `MAINTAIN` and direct trigger-function execution are unavailable to browser roles without changing application data or service authority. | 1 | Production migration `20260712224500_harden_maintain_and_trigger_function_grants`; unchanged counts `5812/265/63/5/8398`, zero orphans, RLS enabled, browser privileges false, and `service_role` privileges true. |
+| L57 | Exact-master has a privacy-bounded, zero-cost LCP/INP/CLS field collector that remains outside the initial route bundle and preserves application availability when analytics fails. | 1 | PR #67; master `167e204`; CI `29208929319` with 252 unit tests, 38 browser flows, and bundle budgets; lazy `web-vitals` chunk 2.56 KiB gzip; release-candidate deployment `304ec26c` and browser acceptance 5/5 in deploy run `29209040956`. Production promotion was skipped at the Cloudflare gate, so this is implementation/preview evidence only. |
