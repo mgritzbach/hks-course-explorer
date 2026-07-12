@@ -248,6 +248,7 @@ Review a rolling 28-day window with this HogQL query:
 
 ```sql
 SELECT
+  properties.$device_type AS device_type,
   properties.metric AS metric,
   count() AS samples,
   quantile(0.75)(toFloat(properties.value)) AS p75,
@@ -256,18 +257,19 @@ FROM events
 WHERE event = 'app_web_vital'
   AND timestamp >= now() - INTERVAL 28 DAY
   AND properties.metric IN ('LCP', 'INP', 'CLS')
-GROUP BY metric
-ORDER BY metric
+GROUP BY device_type, metric
+ORDER BY device_type, metric
 ```
 
 Use Google's Core Web Vitals p75 "good" thresholds as release budgets: LCP at
-or below 2,500 ms, INP at or below 200 ms, and CLS at or below 0.1. Do not call
-the field result representative until LCP and CLS each have at least 75
-samples, INP has at least 30 interaction samples, mobile traffic is present,
-and the 28-day window includes normal student usage rather than only operator
-smoke tests. Record the query output and time window in the release evidence.
-An empty result immediately after deployment proves only that collection needs
-time; it is not a passing performance result.
+or below 2,500 ms, INP at or below 200 ms, and CLS at or below 0.1. The mobile
+rows are an independent release gate; an all-device or desktop result cannot
+substitute for them. Do not call mobile field performance representative until
+the `Mobile` segment has at least 75 LCP samples, 75 CLS samples, and 30 INP
+interaction samples, and the 28-day window includes normal student usage rather
+than only operator smoke tests. Record every device-segment row and the time
+window in the release evidence. An empty, operator-only, or desktop-dominated
+result is not passing mobile performance evidence.
 
 ## Live-course sync
 
