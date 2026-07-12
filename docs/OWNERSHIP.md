@@ -32,7 +32,7 @@ last-known-good production state in place.
 
 | Severity | Definition | Required response |
 | --- | --- | --- |
-| P0 | Data exposure/corruption, compromised credential, or the core service unavailable. | Freeze promotion, disable the affected path if safe, preserve evidence, rotate exposed credentials, and use the tested rollback procedure. |
+| P0 | Data exposure/corruption, compromised credential, or the core service unavailable. | Freeze promotion, disable the affected path if safe, preserve evidence, rotate exposed credentials, and use the documented manual rollback procedure. |
 | P1 | Major route, catalogue, schedule, comparison, or provider function broken without data exposure. | Stop new releases, reproduce against the exact production commit, add a regression test, and promote only after the full gate passes. |
 | P2 | Localized defect or documentation/operational issue with a safe workaround. | Track it, test the correction proportionally, and release through the normal protected path. |
 
