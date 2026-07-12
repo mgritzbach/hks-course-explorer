@@ -136,6 +136,9 @@ class WorkflowActionPinningTests(unittest.TestCase):
         for image in re.findall(r"^\s*image:\s*(\S+)", workflow, flags=re.MULTILINE):
             self.assertRegex(image, r"^[^@\s]+@sha256:[0-9a-f]{64}$")
         self.assertIn("restore_live_courses_probe.sql", workflow)
+        self.assertIn("live-courses-restored.csv", workflow)
+        self.assertIn("with (format csv)", workflow)
+        self.assertNotIn("live-courses-restored.ndjson", workflow)
         restore_sql = (ROOT / "scripts" / "restore_live_courses_probe.sql").read_text(
             encoding="utf-8"
         )

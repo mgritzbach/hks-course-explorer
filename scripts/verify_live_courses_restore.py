@@ -51,6 +51,7 @@ LIVE_COURSES_COLUMNS = frozenset(
         "source_offering_id",
     }
 )
+MAX_RESTORED_PAYLOAD_CHARS = 1_048_576
 
 
 def load_backup(
@@ -100,12 +101,23 @@ def write_restore_csv(backup: dict, destination: str | Path) -> None:
 
 def read_restored_rows(path: str | Path) -> list[dict]:
     rows = []
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        if line:
-            row = json.loads(line)
-            if not isinstance(row, dict):
-                raise ValueError("Restored payload contains a non-object row")
-            rows.append(row)
+    # Python's platform default is commonly 128 KiB, which can reject a valid
+    # restored row containing unusually long course text. Keep a reviewed
+    # one-MiB per-row ceiling so recovery is both tolerant and memory-bounded.
+    csv.field_size_limit(MAX_RESTORED_PAYLOAD_CHARS)
+    with Path(path).open(encoding="utf-8", newline="") as handle:
+        try:
+            for record in csv.reader(handle):
+                if len(record) != 1:
+                    raise ValueError("Restored CSV must contain exactly one JSON payload column")
+                row = json.loads(record[0])
+                if not isinstance(row, dict):
+                    raise ValueError("Restored payload contains a non-object row")
+                rows.append(row)
+        except csv.Error as exc:
+            raise ValueError(
+                f"Restored JSON payload exceeds the {MAX_RESTORED_PAYLOAD_CHARS}-character limit"
+            ) from exc
     return rows
 
 
@@ -133,7 +145,7 @@ def main(argv: list[str] | None = None) -> None:
     verify.add_argument("--backup", required=True)
     verify.add_argument("--expected-project-url", required=True)
     verify.add_argument("--minimum-rows", type=int, default=1)
-    verify.add_argument("--restored", required=True)
+    verify.add_argument("--restored", required=True, help="CSV export from the scratch table")
 
     args = parser.parse_args(argv)
     backup = load_backup(args.backup, args.expected_project_url, args.minimum_rows)
