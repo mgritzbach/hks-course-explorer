@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import time
 from typing import Any
 
 import requests
@@ -21,6 +22,7 @@ import requests
 DEFAULT_API_BASE = "https://api.cloudflare.com/client/v4"
 SETTING_ID = "browser_cache_ttl"
 RESPECT_EXISTING_HEADERS = 0
+RETRY_DELAYS_SECONDS = (1.0, 2.0)
 
 
 class CloudflarePolicyError(RuntimeError):
@@ -36,14 +38,33 @@ def _request_json(
     params: dict[str, str] | None = None,
     json: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    response = session.request(
-        method,
-        url,
-        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-        params=params,
-        json=json,
-        timeout=20,
-    )
+    response = None
+    for attempt in range(len(RETRY_DELAYS_SECONDS) + 1):
+        try:
+            response = session.request(
+                method,
+                url,
+                headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+                params=params,
+                json=json,
+                timeout=20,
+            )
+        except requests.RequestException as exc:
+            if attempt >= len(RETRY_DELAYS_SECONDS):
+                raise CloudflarePolicyError(
+                    f"Cloudflare API request failed after {attempt + 1} attempts: {type(exc).__name__}"
+                ) from exc
+            time.sleep(RETRY_DELAYS_SECONDS[attempt])
+            continue
+
+        transient_status = response.status_code == 429 or response.status_code >= 500
+        if transient_status and attempt < len(RETRY_DELAYS_SECONDS):
+            time.sleep(RETRY_DELAYS_SECONDS[attempt])
+            continue
+        break
+
+    if response is None:  # Defensive: the bounded loop always returns or raises.
+        raise CloudflarePolicyError("Cloudflare API request produced no response")
     try:
         payload = response.json()
     except ValueError as exc:
@@ -51,6 +72,8 @@ def _request_json(
             f"Cloudflare returned non-JSON content with HTTP {response.status_code}"
         ) from exc
 
+    if not isinstance(payload, dict):
+        raise CloudflarePolicyError("Cloudflare returned an invalid JSON response")
     if response.status_code >= 400 or payload.get("success") is not True:
         errors = payload.get("errors") or []
         raise CloudflarePolicyError(

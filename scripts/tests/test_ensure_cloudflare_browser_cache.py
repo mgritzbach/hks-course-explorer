@@ -4,6 +4,9 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+import requests
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +37,10 @@ class FakeSession:
         self.requests.append((method, url, kwargs))
         if not self.responses:
             raise AssertionError("Unexpected Cloudflare request")
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        if isinstance(response, BaseException):
+            raise response
+        return response
 
 
 def ok(result):
@@ -121,6 +127,58 @@ class EnsureCloudflareBrowserCacheTests(unittest.TestCase):
                 apply=True,
                 session=session,
             )
+
+    def test_refuses_non_editable_setting_without_mutating(self):
+        session = FakeSession(
+            [ok(ACTIVE_ZONE), ok({"id": "browser_cache_ttl", "value": 14400, "editable": False})]
+        )
+        with self.assertRaisesRegex(CloudflarePolicyError, "not editable"):
+            ensure_browser_cache_policy(
+                token="secret",
+                zone_name="hks-course-explorer.org",
+                apply=True,
+                session=session,
+            )
+        self.assertEqual([request[0] for request in session.requests], ["GET", "GET"])
+
+    @patch.object(MODULE.time, "sleep")
+    def test_retries_transient_status_and_network_failure_with_a_bound(self, sleep):
+        session = FakeSession(
+            [
+                FakeResponse({"success": False, "errors": ["busy"]}, status_code=503),
+                requests.ConnectionError("temporary connection failure"),
+                ok(ACTIVE_ZONE),
+                ok({"id": "browser_cache_ttl", "value": 0, "editable": True}),
+            ]
+        )
+
+        result = ensure_browser_cache_policy(
+            token="secret",
+            zone_name="hks-course-explorer.org",
+            apply=True,
+            session=session,
+        )
+
+        self.assertEqual(result, ("zone-123", 0, False))
+        self.assertEqual(sleep.call_count, 2)
+        self.assertEqual(len(session.requests), 4)
+
+    @patch.object(MODULE.time, "sleep")
+    def test_does_not_retry_explicit_permission_failure(self, sleep):
+        session = FakeSession(
+            [FakeResponse({"success": False, "errors": [{"code": 10000}]}, status_code=403)]
+        )
+
+        with self.assertRaisesRegex(CloudflarePolicyError, "HTTP 403"):
+            ensure_browser_cache_policy(
+                token="secret",
+                zone_name="hks-course-explorer.org",
+                apply=True,
+                session=session,
+            )
+
+        sleep.assert_not_called()
+        self.assertEqual(len(session.requests), 1)
 
 
 if __name__ == "__main__":

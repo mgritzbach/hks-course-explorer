@@ -53,6 +53,13 @@ read-back. The following custom-domain static smoke still validates every
 manifest asset's exact body, MIME type, and cache directives, so a separate
 Cache Rule override remains release-blocking.
 
+The repository secret `CLOUDFLARE_API_TOKEN` must grant **Zone Read** and
+**Zone Settings Write** only for the `hks-course-explorer.org` zone, in addition
+to the existing Pages/Workers deployment permissions. Do not replace it with a
+global API key. The policy control retries transient rate-limit, server, and
+network failures twice with bounded backoff; permission, target-validation, and
+read-back failures are never retried into a broader mutation.
+
 If port 4173 is intentionally occupied by another local preview, run the
 same isolated built-artifact suite on a different port, for example:
 
