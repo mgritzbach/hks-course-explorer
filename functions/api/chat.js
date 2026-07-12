@@ -64,8 +64,21 @@ function jsonResponse(body, status, request) {
 export async function chatRateLimitKey(request) {
   // Cloudflare supplies this header at the trusted edge. Hash it so neither
   // the Pages Function nor the limiter object persists a raw client address.
+  // Include the deployment hostname so a release-candidate smoke request
+  // cannot consume the custom production domain's independent admission.
   const client = request.headers.get('CF-Connecting-IP') || 'unknown-client'
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(client))
+  const hostname = new URL(request.url).hostname.toLowerCase()
+  // Use two controlled buckets rather than raw hostnames. This keeps the
+  // release-candidate acceptance request independent without letting arbitrary
+  // preview hostnames multiply provider admissions.
+  const deploymentScope =
+    hostname === 'release-candidate.hks-course-explorer.pages.dev'
+      ? 'release-candidate'
+      : 'production'
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`${client}|${deploymentScope}`),
+  )
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
@@ -366,13 +379,22 @@ export function createSseStream(
   const writer = writable.getWriter()
   const encoder = new TextEncoder()
   const decoder = new TextDecoder()
+  let wroteToken = false
+  let providerCompleted = false
+
+  const writeFallbackReplacement = async () => {
+    if (!fallbackText) return false
+    // `replace` tells the browser to discard a partial provider response and
+    // show one complete deterministic recommendation instead.
+    await writer.write(encoder.encode(`data: ${JSON.stringify({ replace: fallbackText })}\n\n`))
+    return true
+  }
 
   void (async () => {
     try {
       if (!response.body) throw new Error('Chat provider returned no stream')
       const reader = response.body.getReader()
       let buffer = ''
-      let wroteToken = false
       const writeFallbackIfNeeded = async () => {
         if (wroteToken || !fallbackText) return
         await writer.write(encoder.encode(`data: ${JSON.stringify({ token: fallbackText })}\n\n`))
@@ -394,6 +416,7 @@ export function createSseStream(
             if (!line.startsWith('data: ')) continue
             const payload = line.slice(6).trim()
             if (payload === '[DONE]') {
+              providerCompleted = true
               await writeFallbackIfNeeded()
               await writer.write(encoder.encode('data: [DONE]\n\n'))
               return
@@ -410,19 +433,29 @@ export function createSseStream(
             }
           }
         }
-        await writeFallbackIfNeeded()
-        await writer.write(encoder.encode('data: [DONE]\n\n'))
+        if (!providerCompleted) {
+          const replaced = await writeFallbackReplacement()
+          if (!replaced) throw new Error('Chat provider stream ended before completion')
+          await writer.write(encoder.encode('data: [DONE]\n\n'))
+        }
       } finally {
         reader.releaseLock()
       }
     } catch {
-      // Do not expose provider or runtime internals in a browser-readable stream.
+      // Do not expose provider or runtime internals in a browser-readable
+      // stream. Replace even a partial provider answer with one complete local
+      // recommendation so the student never receives a broken fragment.
       try {
-        await writer.write(
-          encoder.encode(
-            `data: ${JSON.stringify({ error: 'Chat provider stream interrupted' })}\n\n`,
-          ),
-        )
+        const replaced = await writeFallbackReplacement()
+        if (replaced) {
+          await writer.write(encoder.encode('data: [DONE]\n\n'))
+        } else {
+          await writer.write(
+            encoder.encode(
+              `data: ${JSON.stringify({ error: 'Chat provider stream interrupted' })}\n\n`,
+            ),
+          )
+        }
       } catch {
         // The browser may have disconnected before the stream error was written.
       }
@@ -440,19 +473,29 @@ export function createSseStream(
 
 export async function onRequestPost({ request, env }) {
   const apiKey = typeof env?.OPENROUTER_API_KEY === 'string' ? env.OPENROUTER_API_KEY.trim() : ''
-  if (!apiKey) {
-    return jsonResponse(
-      { error: 'Course advisor is not configured', code: 'OPENROUTER_NOT_CONFIGURED' },
-      503,
-      request,
-    )
-  }
-
   try {
     const { message, history, courses, shortlisted } = validateChatPayload(
       await readJsonBody(request),
     )
-    const admission = await enforceChatRateLimit(request, env)
+    const fallbackReply = buildCourseDataFallback(courses, message)
+    let admission
+    try {
+      admission = await enforceChatRateLimit(request, env)
+    } catch {
+      // A missing/broken limiter must never permit an external provider call,
+      // but the zero-cost deterministic advisor can remain useful. Payload
+      // bounds above keep this local fallback small and predictable.
+      console.warn('Chat rate limiter unavailable; returning course-data fallback')
+      return jsonResponse(
+        {
+          reply: fallbackReply,
+          source: 'course-data-fallback',
+          degraded: 'rate-limiter-unavailable',
+        },
+        200,
+        request,
+      )
+    }
     if (!admission.allowed) {
       return jsonResponse(
         {
@@ -463,7 +506,14 @@ export async function onRequestPost({ request, env }) {
         request,
       )
     }
-    const fallbackReply = buildCourseDataFallback(courses, message)
+    // The advisor must remain useful and free even when the optional model
+    // provider is unconfigured, rotated, or deliberately disabled. The
+    // browser already supplies a bounded, validated set of matching courses,
+    // so return deterministic course-data recommendations without making any
+    // external request. The same fallback is used for transient model errors.
+    if (!apiKey) {
+      return jsonResponse({ reply: fallbackReply, source: 'course-data-fallback' }, 200, request)
+    }
     let response
     try {
       response = await fetchFromOpenRouter(apiKey, {
@@ -479,25 +529,15 @@ export async function onRequestPost({ request, env }) {
       })
     } catch (error) {
       if (error instanceof UpstreamError)
-        return jsonResponse({ reply: fallbackReply }, 200, request)
+        return jsonResponse({ reply: fallbackReply, source: 'course-data-fallback' }, 200, request)
       throw error
     }
 
     if (!response.ok) {
-      if (response.status === 429 || response.status >= 500) {
-        return jsonResponse({ reply: fallbackReply }, 200, request)
-      }
-      const data = await response.json().catch(() => ({}))
-      return jsonResponse(
-        {
-          error:
-            typeof data?.error?.message === 'string'
-              ? data.error.message
-              : `Chat provider error ${response.status}`,
-        },
-        502,
-        request,
-      )
+      console.warn('Chat provider returned non-success status; using course-data fallback', {
+        status: response.status,
+      })
+      return jsonResponse({ reply: fallbackReply, source: 'course-data-fallback' }, 200, request)
     }
 
     return new Response(createSseStream(response, { fallbackText: fallbackReply }), {

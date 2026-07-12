@@ -4,9 +4,13 @@ Status: applied to production on 2026-07-10 as
 `20260710230627_restrict_course_explorer_browser_writes`. This document is the
 release record and rollback reference for that scoped migration.
 
-Follow-up status: browser table-grant hardening is proven on the isolated free
-staging project and is not yet applied to production. The reviewed source is
-`20260712200000_revoke_course_explorer_browser_write_grants.sql`.
+Follow-up status: browser table-grant hardening was applied to production on
+2026-07-12 and recorded by the managed migration service as
+`20260712150803_revoke_course_explorer_browser_write_grants`. The portable,
+reviewed repository source is
+`20260712200000_revoke_course_explorer_browser_write_grants.sql`; the differing
+version records the managed production application time and must not be used to
+apply the same grant change twice.
 
 ## Scope and evidence
 
@@ -107,8 +111,8 @@ migration:
 - no `ALL` policy remained on either table.
 
 This staging proof preceded the production policy application recorded above.
-The policy migration is now applied to production; the later table-grant
-follow-up remains staging-only until its separate acceptance record is added.
+The policy migration and the later table-grant follow-up are now applied to
+production; their separate acceptance records follow.
 
 ## Browser table-grant follow-up
 
@@ -143,11 +147,71 @@ policies were unchanged; and `anon` and `authenticated` retained catalogue
 authority. Explicit read-only transactions under the `anon` role returned both
 historical and live staging catalogue rows.
 
-Production promotion is pending independent review, exact-head CI, and the
-same post-migration grant/policy/row-count read-back. Because the migration only
-revokes unsupported browser privileges, rollback must not broadly re-grant
-`ALL`; any successor browser write feature requires authenticated ownership and
-dedicated integration tests.
+### Production grant-hardening acceptance record
+
+The managed migration application recorded
+`20260712150803_revoke_course_explorer_browser_write_grants`. The preflight and
+postflight used read-only policy, privilege, row-count, and deterministic digest
+queries around the scoped grant change. Immediately after application:
+
+- `anon` and `authenticated` retained `SELECT` on `courses` and
+  `live_courses`, while `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES`,
+  and `TRIGGER` were false;
+- both browser roles had no table privilege on `schedules`;
+- `service_role` retained full table authority on all three scoped tables;
+- the `courses` and `live_courses` public `SELECT` policies were unchanged and
+  `schedules` still had no policy;
+- row counts remained `courses=5,812`, `live_courses=8,291`, and
+  `schedules=63`; and
+- deterministic pre/post row digests were unchanged:
+  `courses=aced0559d50e2186763ddf5b02ddabc5`,
+  `live_courses=1f607ba0a97ea9ca0e69bd79accb43ec`, and
+  `schedules=e6478923c35123c128659967e4cc1cf6`.
+
+An explicit read-only `anon` transaction returned all `5,812` historical rows
+and `7,765` active live rows after the grant change. Production service-role
+HKS and non-HKS synchronization, encrypted backup, isolated restore, and parity
+workflows subsequently passed. This acceptance record closes the scoped
+browser-grant action; it does not prove full shared-project recovery and does
+not waive the remaining Cloudflare or release blockers.
+
+Because the migration only revokes unsupported browser privileges, rollback
+must not broadly re-grant `ALL`; any successor browser write feature requires
+authenticated ownership and dedicated integration tests.
+
+## Section-catalogue grant follow-up
+
+The Schedule Builder reads `course_sections` directly with the browser
+publishable role. A subsequent read-only audit found its RLS boundary and only
+policy were correct (`Public read`, permissive `SELECT`, `USING true`), but the
+underlying default table grants still included unsupported write-oriented
+privileges for `anon` and `authenticated`.
+
+The exact migration
+`20260712213000_revoke_course_sections_browser_write_grants.sql` was first
+exercised against a schema-parity, broad-grant staging fixture. It retained the
+fixture row and policy, preserved browser `SELECT`, denied every browser write,
+and left `service_role` fully privileged. Production recorded the reviewed ACL
+change as `20260712164711_revoke_course_sections_browser_write_grants`.
+
+Production pre/post read-back proved:
+
+- the row count remained `265` and the deterministic row digest remained
+  `1de61d6bd93b360b24bddcf14c502cac`;
+- RLS and the sole permissive `Public read` policy were unchanged;
+- `anon` and `authenticated` retained `SELECT` while `INSERT`, `UPDATE`,
+  `DELETE`, `TRUNCATE`, `REFERENCES`, and `TRIGGER` became false;
+- `service_role` retained all seven table privileges; and
+- an explicit read-only `anon` transaction returned all `265` rows.
+
+The assertion-only follow-up
+`20260712213500_assert_course_sections_browser_grant_postconditions.sql` was
+then recorded as production migration `20260712165347`. It fails if effective
+browser privileges can be inherited through another role, the exact permissive
+read policy drifts, or `service_role` loses a required privilege. It changes no
+database object. A complete read-only production browser suite passed four of
+four flows after the grant change, including every visitor route, all advertised
+HKS offerings, graph reset, and mobile navigation.
 
 ## Rollback and retention
 

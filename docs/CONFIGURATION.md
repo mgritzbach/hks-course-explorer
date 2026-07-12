@@ -73,12 +73,12 @@ atomically deactivates the prior HKS set and promotes only the verified run.
 |---|---|---|
 | `HARVARD_API_KEY` | Legacy `/api/harvard-courses` endpoint | Retained temporarily for a separately reviewed retirement; the deployed browser must not call it. Daily GitHub Actions sync is the only supported Harvard API consumer. |
 | `HKS_KV` binding | `/api/courses` | Protected catalogue payloads. |
-| `CHAT_RATE_LIMITER` Durable Object binding | Chat, OTP, and `/api/admin-verify` | Per-client/per-email atomic cooldown, OTP state, and failed-admin-attempt coordination. The binding must target the deployed `ChatRateLimiter` class; all consumers fail closed when it is absent. |
+| `CHAT_RATE_LIMITER` Durable Object binding | Chat, OTP, and `/api/admin-verify` | Per-client/per-email atomic cooldown, OTP state, and failed-admin-attempt coordination. The binding must target the deployed `ChatRateLimiter` class. OTP and Admin consumers fail closed when it is absent; Chat makes no model call and returns only its bounded deterministic course-data fallback. |
 | `JWT_SECRET` | Auth and protected catalogue | HMAC signing/verification. Rotate on a defined schedule. |
 | `RESEND_API_KEY` | Auth request | Preferred one-time-password delivery provider. |
 | `BREVO_API_KEY` | Auth request | Legacy one-time-password delivery fallback. |
 | `AUTH_FROM_EMAIL` | Auth request | Optional verified sender address; defaults to the current HKS Course Explorer sender. |
-| `OPENROUTER_API_KEY` | Chat endpoint | Course-advisor provider access. |
+| `OPENROUTER_API_KEY` | Chat endpoint | Optional free-model enhancement. When absent or transiently unavailable, the advisor returns deterministic recommendations from the bounded HKS course context and makes no external model request. |
 | `ADMIN_PASSWORD` | `/api/admin-verify` | Verifies the Admin UI password. Never expose it to the browser. |
 | `ADMIN_SESSION_SECRET` | Admin endpoints | Distinct, randomly generated HMAC secret (at least 32 characters) for 15-minute admin data sessions. Rotate it to invalidate all outstanding Admin sessions. |
 | `SUPABASE_URL` | Admin upload/history | Server-only Supabase REST endpoint used by Pages Functions. It must not use the `VITE_` prefix. |

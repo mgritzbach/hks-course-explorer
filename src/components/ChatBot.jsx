@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import config from '../school.config.js'
 import { capture } from '../lib/analytics.js'
@@ -95,6 +95,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const toggleRef = useRef(null)
   const welcomeShownRef = useRef(false)
 
   const isHidden = HIDDEN_ROUTES.some((route) => location.pathname.startsWith(route))
@@ -113,6 +114,25 @@ export default function ChatBot({ courses, favs, isLight = false }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  const closeAdvisor = useCallback(() => {
+    setOpen(false)
+    // The panel is rendered next to its persistent trigger. Restore focus
+    // after React removes the dialog so keyboard users never fall back to the
+    // document body or lose their place in the page.
+    requestAnimationFrame(() => toggleRef.current?.focus())
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnEscape = (event) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      closeAdvisor()
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [closeAdvisor, open])
 
   const send = async () => {
     if (!input.trim() || loading) return
@@ -188,10 +208,19 @@ export default function ChatBot({ courses, favs, isLight = false }) {
           const payload = line.slice(6).trim()
           if (payload === '[DONE]') break
           try {
-            const { token, error } = JSON.parse(payload)
+            const { token, replace, error } = JSON.parse(payload)
             if (error) {
               reply = `Error: ${error}`
               break
+            }
+            if (typeof replace === 'string' && replace) {
+              reply = replace
+              setMessages((prev) => {
+                const updated = [...prev]
+                updated[updated.length - 1] = { role: 'assistant', content: reply }
+                return updated
+              })
+              continue
             }
             if (token) {
               reply += token
@@ -235,7 +264,8 @@ export default function ChatBot({ courses, favs, isLight = false }) {
     <>
       {/* Floating button */}
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={toggleRef}
+        onClick={() => (open ? closeAdvisor() : setOpen(true))}
         aria-label={open ? 'Close course advisor' : 'Open course advisor'}
         className="chat-fab"
         style={{
@@ -279,7 +309,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
               <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{config.chatFootnote}</p>
             </div>
             <button
-              onClick={() => setOpen(false)}
+              onClick={closeAdvisor}
               aria-label="Close Course Advisor"
               title="Close"
               style={{
@@ -305,7 +335,8 @@ export default function ChatBot({ courses, favs, isLight = false }) {
             }}
           >
             <p style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              ⚠️ Based on free AI models — use as orientation only, not a reliable source of truth.
+              ⚠️ Course-data suggestions may use free AI models when available — use as orientation
+              only, not a reliable source of truth.
             </p>
           </div>
 

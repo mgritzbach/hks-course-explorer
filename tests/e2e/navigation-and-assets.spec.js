@@ -78,7 +78,10 @@ test.describe('local build navigation and static assets', () => {
 
     for (const [route, marker] of routes) {
       await page.goto(route)
-      await expect(page.locator('#main-content')).toContainText(marker)
+      // Full CI runs load every lazy route in parallel on one preview server.
+      // Keep the assertion strict, but allow the same route load that completes
+      // in ~2 seconds alone enough headroom under CPU contention.
+      await expect(page.locator('#main-content')).toContainText(marker, { timeout: 15_000 })
       await expect(page.getByRole('main')).toHaveCount(1)
       expect(new URL(page.url()).pathname).toBe(route)
       await expect(page.locator('#main-content')).not.toContainText('Failed to load course data')
