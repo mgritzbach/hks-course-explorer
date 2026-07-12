@@ -23,6 +23,7 @@ const COURSE_STRING_FIELDS = new Set([
   'base_code',
   'name',
   'instructor',
+  'offering_history',
   'concentration',
   'term',
   'stem',

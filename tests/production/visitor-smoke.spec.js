@@ -187,7 +187,7 @@ test.describe('read-only production acceptance', () => {
       reply: expect.any(String),
     })
     expect(body.reply.trim().length).toBeGreaterThan(0)
-    expect(body.reply).toMatch(/Hong Qu/i)
+    expect(body.reply).toMatch(/Hong[\s\u00a0\u202f]+Qu/i)
     expect(body.reply).not.toMatch(/Robert Wilkinson|MLD-215-B/i)
   })
 

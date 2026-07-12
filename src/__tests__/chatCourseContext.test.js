@@ -94,8 +94,14 @@ describe('chat course context', () => {
     expect(new Set(context.map((course) => course.base_code))).toEqual(
       new Set(['DPI-851-M', 'DPI-852-M', 'DPI-853-M']),
     )
-    expect(context.map((course) => course.code)).toContain('DPI-851-M-B')
-    expect(context.map((course) => course.year)).toEqual(expect.arrayContaining([2024, 2025, 2026]))
+    expect(context).toHaveLength(3)
+    expect(context.find((course) => course.base_code === 'DPI-851-M')).toMatchObject({
+      code: 'DPI-851-M',
+      year: 2025,
+    })
+    expect(context.find((course) => course.base_code === 'DPI-851-M').offering_history).toMatch(
+      /DPI-851-M-B.*2025 Spring.*2024 Fall/,
+    )
     expect(context.every((course) => course.instructor === 'Hong Qu')).toBe(true)
     expect(context.some((course) => course.code === 'MLD-215-B')).toBe(false)
   })
