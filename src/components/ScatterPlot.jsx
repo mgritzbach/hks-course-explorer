@@ -610,8 +610,6 @@ export default function ScatterPlot({
       xaxis: {
         range: effectiveXDomain,
         fixedrange: false,
-        minallowed: xMode.domain[0],
-        maxallowed: xMode.domain[1],
         tickfont: { color: 'var(--text-muted)', size: 11 },
         ticksuffix: xMode.useRaw ? '' : metricMode === 'score' ? '%' : ' pct',
         showline: true,
@@ -627,8 +625,6 @@ export default function ScatterPlot({
       yaxis: {
         range: effectiveYDomain,
         fixedrange: false,
-        minallowed: yMode.domain[0],
-        maxallowed: yMode.domain[1],
         tickfont: { color: 'var(--text-muted)', size: 11 },
         ticksuffix: yMode.useRaw ? '' : metricMode === 'score' ? '%' : ' pct',
         showline: true,
@@ -710,11 +706,9 @@ export default function ScatterPlot({
     showQuadrants,
     xMeta,
     xMetric,
-    xMode.domain,
     xMode.useRaw,
     yMeta,
     yMetric,
-    yMode.domain,
     yMode.useRaw,
     viewResetRevision,
   ])

@@ -58,6 +58,11 @@ test.describe('Scatter Plot built-artifact regression', () => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await page.getByRole('button', { name: 'Zoom in' }).click()
       await expect(page.getByText('Zoomed in', { exact: true })).toBeVisible()
+      const zoomedRanges = await renderedRanges()
+      const zoomedSpan = {
+        x: zoomedRanges.x[1] - zoomedRanges.x[0],
+        y: zoomedRanges.y[1] - zoomedRanges.y[0],
+      }
 
       const renderedBox = await chart.boundingBox()
       expect(renderedBox).not.toBeNull()
@@ -67,7 +72,21 @@ test.describe('Scatter Plot built-artifact regression', () => {
       await page.mouse.down()
       await page.mouse.move(startX - renderedBox.width * 0.2, startY + renderedBox.height * 0.2)
       await page.mouse.up()
-      await expect.poll(renderedRanges).not.toEqual({ x: [0, 100], y: [0, 100] })
+      await expect.poll(renderedRanges).not.toEqual(zoomedRanges)
+      await expect
+        .poll(async () => {
+          const pannedRanges = await renderedRanges()
+          const epsilon = 0.001
+          return (
+            Math.abs(pannedRanges.x[1] - pannedRanges.x[0] - zoomedSpan.x) < epsilon &&
+            Math.abs(pannedRanges.y[1] - pannedRanges.y[0] - zoomedSpan.y) < epsilon &&
+            pannedRanges.x[0] >= 0 &&
+            pannedRanges.x[1] <= 100 &&
+            pannedRanges.y[0] >= 0 &&
+            pannedRanges.y[1] <= 100
+          )
+        })
+        .toBe(true)
 
       await page.getByRole('button', { name: 'Reset axes' }).click()
       await expect(page.getByText('Zoomed in', { exact: true })).toHaveCount(0)
