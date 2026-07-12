@@ -26,7 +26,12 @@ const QUERY_STOP_WORDS = new Set([
   'courses',
   'does',
   'for',
+  'good',
+  'great',
+  'bad',
+  'best',
   'instructor',
+  'is',
   'professor',
   's',
   'teach',
@@ -49,6 +54,10 @@ function meaningfulQueryTerms(query) {
   return searchableText(query)
     .split(/\s+/)
     .filter((term) => term.length > 1 && !QUERY_STOP_WORDS.has(term))
+}
+
+function searchableTokens(value) {
+  return new Set(searchableText(value).split(/\s+/).filter(Boolean))
 }
 
 export function normalizeOptionalBoolean(value) {
@@ -88,23 +97,53 @@ function rankCourse(course) {
   return course.year || 0
 }
 
-export function condenseCourses(courses, query, shortlistedCodes = []) {
+function instructorIdentity(course) {
+  return searchableText(course.professor_display || course.professor)
+}
+
+function hasCompleteInstructorName(course, keywords) {
+  const nameTokens = searchableTokens(course.professor_display || course.professor)
+  return nameTokens.size >= 2 && [...nameTokens].every((token) => keywords.includes(token))
+}
+
+function priorInstructorIdentities(courses, history) {
+  const priorUserQueries = (history || [])
+    .filter((message) => message?.role === 'user' && typeof message.content === 'string')
+    .map((message) => message.content)
+    .reverse()
+
+  for (const priorQuery of priorUserQueries) {
+    const keywords = meaningfulQueryTerms(priorQuery)
+    const identities = new Set(
+      courses
+        .filter((course) => hasCompleteInstructorName(course, keywords))
+        .map((course) => instructorIdentity(course)),
+    )
+    if (identities.size > 0) return identities
+  }
+  return new Set()
+}
+
+export function condenseCourses(courses, query, shortlistedCodes = [], history = []) {
   if (!courses?.length) return []
   const keywords = meaningfulQueryTerms(query)
   const shortlistedSet = new Set(shortlistedCodes)
 
   const scoredCourses = courses
     .map((c) => {
-      const instructor = searchableText(c.professor_display || c.professor)
-      const courseText = searchableText(
+      const instructorTokens = searchableTokens(c.professor_display || c.professor)
+      const courseTokens = searchableTokens(
         [c.course_name, c.course_code, c.course_code_base, c.concentration].join(' '),
       )
-      const instructorHits = keywords.filter((keyword) => instructor.includes(keyword)).length
-      const courseHits = keywords.filter((keyword) => courseText.includes(keyword)).length
-      const exactInstructor = keywords.length >= 2 && instructorHits === keywords.length
+      // Match whole normalized tokens. Substring matching made "good" select
+      // Joshua Goodman and made "is" select Allison Shapira.
+      const instructorHits = keywords.filter((keyword) => instructorTokens.has(keyword)).length
+      const courseHits = keywords.filter((keyword) => courseTokens.has(keyword)).length
+      const exactInstructor = hasCompleteInstructorName(c, keywords)
       return {
         c,
         exactInstructor,
+        instructorHits,
         score: instructorHits * 20 + courseHits * 5,
       }
     })
@@ -120,9 +159,45 @@ export function condenseCourses(courses, query, shortlistedCodes = []) {
   // from only the catalogue's globally newest year. Supplying unrelated rows
   // in this case caused the model/fallback to pad factual answers.
   const exactInstructorMatches = scoredCourses.filter(({ exactInstructor }) => exactInstructor)
+  // A follow-up can use only part of the name (for example, "Is Hong a good
+  // professor?"). Once any instructor token matches, keep the context focused
+  // on those instructors and never mix in incidental title matches from words
+  // such as "good". The LLM receives the conversation history separately.
+  const instructorMatches = scoredCourses.filter(({ instructorHits }) => instructorHits > 0)
+  const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
+    searchableText(query),
+  )
+  let focusedInstructorMatches = exactInstructorMatches
+  if (
+    focusedInstructorMatches.length === 0 &&
+    asksAboutInstructor &&
+    instructorMatches.length > 0
+  ) {
+    const currentIdentities = new Set(
+      instructorMatches.map(({ c }) => instructorIdentity(c)).filter(Boolean),
+    )
+    if (currentIdentities.size === 1) {
+      focusedInstructorMatches = instructorMatches
+    } else {
+      const priorIdentities = priorInstructorIdentities(courses, history)
+      const resolvedIdentities = new Set(
+        [...currentIdentities].filter((identity) => priorIdentities.has(identity)),
+      )
+      if (resolvedIdentities.size === 1) {
+        focusedInstructorMatches = instructorMatches.filter(({ c }) =>
+          resolvedIdentities.has(instructorIdentity(c)),
+        )
+      } else {
+        // A partial name that maps to multiple people is not safe grounding.
+        // Returning no rows makes the request fail closed rather than letting
+        // the model answer about the wrong instructor.
+        return []
+      }
+    }
+  }
   const relevantMatches =
-    exactInstructorMatches.length > 0
-      ? exactInstructorMatches
+    focusedInstructorMatches.length > 0
+      ? focusedInstructorMatches
       : scoredCourses.filter(({ score }) => score > 0).slice(0, 25)
 
   const recentYear = Math.max(
@@ -147,7 +222,9 @@ export function condenseCourses(courses, query, shortlistedCodes = []) {
     .map((course) => toCourseSummary(course))
 
   return dedupeCourseSummaries(
-    exactInstructorMatches.length > 0 ? keywordMatches : [...keywordMatches, ...shortlistedCourses],
+    focusedInstructorMatches.length > 0
+      ? keywordMatches
+      : [...keywordMatches, ...shortlistedCourses],
     30,
   )
 }
@@ -229,13 +306,26 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         .filter((message) => message.role === 'user' || message.kind === 'ai')
         .slice(-4)
         .map((message) => ({ role: message.role, content: message.content }))
+      const courseContext = condenseCourses(courses, userMsg, shortlistedCodes, history)
+      if (courseContext.length === 0) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            kind: 'error',
+            content:
+              'I could not identify one matching professor or course in the database. Please use the full name or course code.',
+          },
+        ])
+        return
+      }
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg,
           history,
-          courses: condenseCourses(courses, userMsg, shortlistedCodes),
+          courses: courseContext,
           context: { shortlisted: shortlistedNames },
         }),
       })
