@@ -110,6 +110,72 @@ const liveCourses = [
     session_description: 'Full Term',
     cross_reg_eligible: 'YESXREG',
   },
+  {
+    id: 'myh|HKS|2027-Spring|january1|1|A',
+    course_code: 'IGA-299-A',
+    course_code_base: 'IGA-299',
+    title: 'January Policy Lab',
+    term: '2027 Spring',
+    credits: 2,
+    instructors: ['Jamie January'],
+    meeting_days: '',
+    time_start: '',
+    time_end: '',
+    location: '',
+    school: 'HKS',
+    is_hks: true,
+    session_code: 'JANUARY',
+    session_description: 'January',
+    cross_reg_eligible: 'YESXREG',
+    source: 'myharvard',
+    section_code: 'A',
+    source_url: 'https://my.harvard.edu/course/IGA299/2027-Spring/A',
+    active: true,
+  },
+  {
+    id: 'myh|HKS|2026-Fall|api201|1|A',
+    course_code: 'API-201-A',
+    course_code_base: 'API-201',
+    title: 'Quantitative Analysis and Empirical Methods',
+    term: '2026 Fall',
+    credits: 4,
+    instructors: ['Quinn Quant'],
+    meeting_days: '',
+    time_start: '',
+    time_end: '',
+    location: '',
+    school: 'HKS',
+    is_hks: true,
+    session_code: 'FALL1',
+    session_description: 'Fall 1',
+    cross_reg_eligible: 'NOXREG',
+    source: 'myharvard',
+    section_code: 'A',
+    source_url: 'https://my.harvard.edu/course/API201/2026-Fall/A',
+    active: true,
+  },
+  {
+    id: 'myh|HKS|2026-Fall|dpi100|1|A',
+    course_code: 'DPI-100-A',
+    course_code_base: 'DPI-100',
+    title: 'Public Policy Institutions',
+    term: '2026 Fall',
+    credits: 4,
+    instructors: ['Pat Policy'],
+    meeting_days: '',
+    time_start: '',
+    time_end: '',
+    location: '',
+    school: 'HKS',
+    is_hks: true,
+    session_code: 'FULLTERM',
+    session_description: 'Full Term',
+    cross_reg_eligible: 'YESXREG',
+    source: 'myharvard',
+    section_code: 'A',
+    source_url: 'https://my.harvard.edu/course/DPI100/2026-Fall/A',
+    active: true,
+  },
 ]
 
 const catalogueResults = [
@@ -150,7 +216,12 @@ function json(route, body, status = 200) {
  */
 export async function installMockBackend(
   page,
-  { harvardResponse, liveCoursesStatus = 200, onLiveCoursesRequest } = {},
+  {
+    harvardResponse,
+    liveCoursesStatus = 200,
+    liveCoursesResponse = liveCourses,
+    onLiveCoursesRequest,
+  } = {},
 ) {
   // The client requests catalogue pages in parallel. Returning the compact
   // fixture exactly once models a populated first page without coupling tests
@@ -169,7 +240,7 @@ export async function installMockBackend(
       onLiveCoursesRequest?.(new URL(request.url()))
       return json(
         route,
-        liveCoursesStatus === 200 ? liveCourses : { error: 'unavailable' },
+        liveCoursesStatus === 200 ? liveCoursesResponse : { error: 'unavailable' },
         liveCoursesStatus,
       )
     }

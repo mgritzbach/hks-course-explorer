@@ -49,6 +49,21 @@ describe('Schedule Builder historical-rating links', () => {
     ).toBeNull()
   })
 
+  it('links a section offering through its explicit API base code', () => {
+    const index = buildHistoricalRatingsByCode(history)
+    expect(
+      findVerifiedHistoricalRating(
+        {
+          courseCode: 'DPI-802-M-A',
+          courseCodeBase: 'DPI-802-M',
+          instructors: ['Graham Allison'],
+          is_hks: true,
+        },
+        index,
+      ),
+    ).toMatchObject({ metrics_pct: { Instructor_Rating: 82 } })
+  })
+
   it('does not attach HKS history to an explicitly non-HKS current offering', () => {
     const index = buildHistoricalRatingsByCode(history)
     expect(

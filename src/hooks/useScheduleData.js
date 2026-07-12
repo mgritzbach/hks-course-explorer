@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from 'react'
 import { fetchCataloguePages } from '../lib/cataloguePagination.js'
+import { getLiveCatalogueTerm } from '../lib/scheduleCatalogueOptions.js'
 import { buildSectionCatalogueIndexes } from '../lib/sectionCatalogueIndexes.js'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
@@ -44,7 +45,7 @@ export function useScheduleData(semesterYear, semester) {
   useEffect(() => {
     let cancelled = false
     const controller = new AbortController()
-    const liveTerm = `${semesterYear} ${semester}`
+    const liveTerm = getLiveCatalogueTerm(semesterYear, semester)
     const timeoutId = window.setTimeout(() => controller.abort(), LIVE_CATALOGUE_REQUEST_TIMEOUT_MS)
 
     setLiveCoursesData([])
@@ -66,12 +67,14 @@ export function useScheduleData(semesterYear, semester) {
         .select(
           'id,course_code,course_code_base,title,term,credits,instructors,' +
             'meeting_days,time_start,time_end,school,is_hks,session_code,' +
-            'session_description,cross_reg_eligible',
+            'session_description,cross_reg_eligible,source,source_course_id,' +
+            'course_offer_nbr,section_code,source_url,active',
         )
         // The ID tie-breaker makes page boundaries stable when many offerings
         // share a term, preventing duplicate or skipped rows across requests.
         .abortSignal(controller.signal)
         .eq('term', liveTerm)
+        .eq('active', true)
         .order('term', { ascending: false })
         .order('id', { ascending: true }),
     )

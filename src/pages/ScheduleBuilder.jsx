@@ -35,6 +35,13 @@ import { useFavorites } from '../useFavorites'
 import { useScheduleData } from '../hooks/useScheduleData.js'
 import { escapeIcsText } from '../lib/calendarText.js'
 import { sectionCodeKey } from '../lib/sectionCatalogueIndexes.js'
+import {
+  getEffectiveScheduleSession,
+  getDefaultScheduleTerm,
+  getLiveCatalogueTerm,
+  getSessionOptions,
+  normalizeSessionForSemester,
+} from '../lib/scheduleCatalogueOptions.js'
 import CompletedCoursesPanel from '../components/CompletedCoursesPanel.jsx'
 import ManualCourseModal from '../components/ManualCourseModal.jsx'
 import SchedulePlanHeader from '../components/SchedulePlanHeader.jsx'
@@ -48,6 +55,7 @@ const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 const WEEKEND_LABELS = ['Sat', 'Sun']
 const TERM_OPTIONS = ['Q1', 'Q2', 'FULL']
 const EMPTY_LIVE_SEARCH_STATUS = { stale: false, partial: false }
+const DEFAULT_SCHEDULE_TERM = getDefaultScheduleTerm()
 
 function fallbackSearch(q, allCourses, filters = {}) {
   const query = String(q || '')
@@ -305,8 +313,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   const [planData, setPlanData] = useState(() => loadPlan(DEFAULT_PLAN))
   const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
   const [term, setTerm] = useState('FULL')
-  const [semesterYear, setSemesterYear] = useState('2026')
-  const [semester, setSemester] = useState('Spring') // Spring | Fall | Summer | January
+  const [semesterYear, setSemesterYear] = useState(DEFAULT_SCHEDULE_TERM.year)
+  const [semester, setSemester] = useState(DEFAULT_SCHEDULE_TERM.semester) // Spring | Fall | Summer | January
 
   // All Supabase fetching is handled by this hook (see src/hooks/useScheduleData.js)
   const {
@@ -314,7 +322,6 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     liveCoursesLoading,
     liveCoursesError,
     sectionTimesMap,
-    sectionCanonicalCodes,
     sectionInfoMap,
     sectionTimesLoading,
   } = useScheduleData(semesterYear, semester)
@@ -362,6 +369,14 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   // the legacy fallback-search message so an unavailable catalogue can never
   // look like a trustworthy empty current result.
   const catalogueReadError = searchMode === 'live' ? liveCoursesError : ''
+  const sessionOptions = useMemo(() => getSessionOptions(semester), [semester])
+
+  // A session belongs to one semester. Never carry "Spring 1" into Fall (or
+  // vice versa), where an exact-match filter would incorrectly show zero.
+  useEffect(() => {
+    setSearchSession((current) => normalizeSessionForSemester(current, semester))
+    setBrowseLimit(25)
+  }, [semester, semesterYear])
 
   function openManualModal(prefillCode) {
     setManualCourseModal({ code: prefillCode || '' })
@@ -480,11 +495,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                 ? remote.results
                 : []
             let normalized = remoteArr.map((item, index) => normalizeCourse(item, index))
-            // Apply client-side filters to live results
-            if (searchSource === 'HKS')
-              normalized = normalized.filter((c) => isHksCourse(c.courseCode))
-            if (searchSource === 'Non-HKS')
-              normalized = normalized.filter((c) => !isHksCourse(c.courseCode))
+            // School membership was already applied from synchronized source
+            // metadata. Reclassifying by course-code prefix hides cross-lists.
             if (searchStem === 'stem') normalized = normalized.filter((c) => c.enrichment?.is_stem)
             if (searchStem === 'nonstem')
               normalized = normalized.filter((c) => !c.enrichment?.is_stem)
@@ -564,7 +576,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   const enrichedSearchResults = useMemo(() => {
     return searchResults.map((course) => {
       if (courseHasSchedule(course)) return course // already has time data (e.g. from Harvard API or DB)
-      const code = sectionCodeKey(course.courseCode)
+      const code = sectionCodeKey(course.courseCodeBase || course.courseCode)
       const meetings = sectionTimesMap.get(code)
       if (!meetings?.length) return course // genuinely no data
       const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
@@ -579,96 +591,9 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     })
   }, [searchResults, sectionTimesMap])
 
-  // Step 1b — generate stub courses from sectionTimesMap for courses not returned by DB search.
-  // Iterates CANONICAL codes only (original keys from course_sections, not aliases) to avoid duplicates.
-  const sectionMapStubs = useMemo(() => {
-    if (sectionCanonicalCodes.size === 0 || sectionTimesLoading) return []
-    const q = searchQ.trim().toLowerCase()
-    const existingCourseCodes = new Set(searchResults.map((r) => sectionCodeKey(r.courseCode)))
-    const stubs = []
-    // Build a quick lookup for historical course data by normalized code
-    const histMap = new Map()
-    ;(Array.isArray(courses) ? courses : [])
-      .filter((c) => !c?.is_average)
-      .forEach((c) => {
-        const key = sectionCodeKey(c.course_code_base || c.course_code)
-        if (!key) return
-        const existing = histMap.get(key)
-        if (!existing || Number(c.year || 0) > Number(existing.year || 0)) histMap.set(key, c)
-      })
-    for (const code of sectionCanonicalCodes) {
-      if (existingCourseCodes.has(code)) continue // already covered by the exact DB result
-      const hks = isHksCourse(code)
-      if (searchSource === 'HKS' && !hks) continue
-      if (searchSource === 'Non-HKS' && hks) continue
-      // Text query filter — match on course code or historical title
-      if (q) {
-        const hist = histMap.get(code)
-        const secInfo = sectionInfoMap.get(code)
-        const codeMatch = code.toLowerCase().includes(q)
-        const titleMatch = String(hist?.course_name || secInfo?.title || '')
-          .toLowerCase()
-          .includes(q)
-        const instrMatch = String(
-          hist?.professor_display ||
-            hist?.professor ||
-            (secInfo?.instructors || []).join(' ') ||
-            '',
-        )
-          .toLowerCase()
-          .includes(q)
-        if (!codeMatch && !titleMatch && !instrMatch) continue
-      }
-      const meetings = sectionTimesMap.get(code)
-      if (!meetings?.length) continue
-      const hist = histMap.get(code)
-      const secInfo = sectionInfoMap.get(code) // title/instructors stored from course_sections (key for non-HKS courses)
-      const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
-      stubs.push(
-        normalizeCourse(
-          {
-            courseCode: code,
-            title: hist?.course_name || secInfo?.title || code,
-            instructors: hist
-              ? [hist?.professor_display || hist?.professor].filter(Boolean)
-              : secInfo?.instructors || [],
-            credits:
-              Number(
-                hist?.credits_min ?? hist?.credits_max ?? hist?.credits ?? secInfo?.credits ?? 4,
-              ) || 4,
-            sections: [],
-            meeting_days: allDays,
-            time_start: meetings[0]?.start || '',
-            time_end: meetings[0]?.end || '',
-            location: meetings[0]?.location || '',
-            sessionDescription: '',
-            enrichment: {
-              is_stem: hist?.is_stem ?? false,
-              is_core: hist?.is_core ?? false,
-              metrics_pct: hist?.metrics_pct ?? null,
-              bid_clearing_price: hist?.bid_clearing_price ?? null,
-              last_bid_price: hist?.last_bid_price ?? null,
-            },
-            _fromSections: true,
-          },
-          10000 + stubs.length,
-        ),
-      )
-    }
-    return stubs
-  }, [
-    sectionCanonicalCodes,
-    sectionTimesMap,
-    sectionInfoMap,
-    sectionTimesLoading,
-    searchResults,
-    searchQ,
-    searchSource,
-    courses,
-  ])
-
   // Step 2 — apply day-of-week and time-slot filters on the enriched results.
-  // Courses that still have no schedule data pass through (can't exclude the unknown).
+  // Schedule-pending courses remain visible when browsing, but cannot
+  // truthfully match an explicit day or time constraint.
   const filteredSearchResults = useMemo(() => {
     const hasTypedQuery = searchQ.trim().length > 0
 
@@ -676,7 +601,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     // Synchronously derive from liveCoursesData — avoids the race condition where
     // the search effect fires before the Supabase fetch completes (liveCoursesData=[]).
     // live_courses stores terms as "YYYY Semester" (e.g. "2026 Spring", "2025 Fall").
-    const apiTerm = `${semesterYear} ${semester === 'January' ? 'January' : semester}`
+    const apiTerm = getLiveCatalogueTerm(semesterYear, semester)
+    const effectiveSession = getEffectiveScheduleSession(semester, searchSession)
     // Specific school codes that can be selected (all are non-HKS Harvard schools or NONH)
     const SPECIFIC_SCHOOLS = new Set([
       'HLS',
@@ -690,7 +616,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       'NONH',
     ])
     const isSpecificSchool = SPECIFIC_SCHOOLS.has(searchSource)
-    const isBrowseLive = !hasTypedQuery && searchMode === 'live' && liveCoursesData.length > 0
+    const isBrowseLive = !hasTypedQuery && searchMode === 'live'
 
     let allResults
     if (isBrowseLive) {
@@ -703,54 +629,29 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       else if (isSpecificSchool) liveRows = liveRows.filter((r) => r.school === searchSource)
       // else searchSource === 'All': show every school
 
-      // If live_courses has no HKS data (e.g. sync script hasn't run for HKS),
-      // fall through to the enrichedSearchResults + stubs path so the page
-      // isn't empty — better to show Q-guide history than nothing.
-      if (searchSource === 'HKS' && liveRows.length === 0) {
-        const useStubs =
-          sectionMapStubs.length > 0 &&
-          searchMode === 'live' &&
-          apiMode === 'db' &&
-          (searchSource === 'HKS' || searchSource === 'All')
-        allResults = useStubs
-          ? [...enrichedSearchResults, ...sectionMapStubs]
-          : enrichedSearchResults
-        if (searchSession !== 'all') {
-          allResults = allResults.filter((c) => c.sessionDescription === searchSession)
-        }
-      } else {
-        // Cross-reg filter: API uses 'NOXREG'/'YESXREG'; empty means unknown (show by default)
-        if (filterCrossRegOnly && searchSource !== 'NONH') {
-          liveRows = liveRows.filter((r) => {
-            if (r.cross_reg_eligible === 'NOXREG') return false // explicitly not cross-reg eligible
-            if (r.school === 'NONH') return false // non-Harvard fallback
-            return true
-          })
-        }
-        // Session filter (Full Term / Spring 1 / Spring 2 / January)
-        if (searchSession !== 'all') {
-          liveRows = liveRows.filter((r) => r.session_description === searchSession)
-        }
-        allResults = liveRows.map((row, index) => {
-          const norm = normalizeCourse(toScheduleSearchItem(row), index)
-          // Mark as having live times if schedule data exists (drives sort + UI badge)
-          if (norm.meeting_days && norm.time_start) norm._hasLiveTimes = true
-          return norm
+      // Incoming cross-registration eligibility must never hide an HKS course
+      // from HKS students. Apply this option only when browsing other schools.
+      if (filterCrossRegOnly && searchSource !== 'HKS' && searchSource !== 'NONH') {
+        liveRows = liveRows.filter((r) => {
+          if (r.cross_reg_eligible === 'NOXREG') return false
+          if (r.school === 'NONH') return false
+          return true
         })
       }
+      if (effectiveSession !== 'all') {
+        liveRows = liveRows.filter((r) => r.session_description === effectiveSession)
+      }
+      allResults = liveRows.map((row, index) => {
+        const norm = normalizeCourse(toScheduleSearchItem(row), index)
+        if (norm.meeting_days && norm.time_start) norm._hasLiveTimes = true
+        return norm
+      })
     } else {
-      // Typed query, history mode, or HKS browse — use enrichedSearchResults + stubs
-      // Merge DB-enriched results with section stubs (currently-offered courses not in Q-guide)
-      const useStubs =
-        sectionMapStubs.length > 0 &&
-        searchMode === 'live' &&
-        ((apiMode === 'db' && (searchSource === 'HKS' || searchSource === 'All')) ||
-          (apiMode === 'live' &&
-            (searchSource === 'All' || searchSource === 'Non-HKS') &&
-            hasTypedQuery))
-      allResults = useStubs ? [...enrichedSearchResults, ...sectionMapStubs] : enrichedSearchResults
-      if (searchSession !== 'all') {
-        allResults = allResults.filter((c) => c.sessionDescription === searchSession)
+      // Typed live results come only from the synchronized catalogue; history
+      // results come only from Q-guide. Never disguise section stubs as live.
+      allResults = enrichedSearchResults
+      if (effectiveSession !== 'all') {
+        allResults = allResults.filter((c) => c.sessionDescription === effectiveSession)
       }
     }
     const fromMinutes = searchTimeFrom ? minutesFromValue(searchTimeFrom) : null
@@ -759,19 +660,16 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       // --- Day filter ---
       if (searchDays.length > 0) {
         const days = extractDays(course.meeting_days)
-        if (days.length > 0) {
-          const upperDays = days.map((d) => String(d).toUpperCase().slice(0, 3))
-          if (!upperDays.every((d) => searchDays.includes(d))) return false
-        }
+        if (days.length === 0) return false
+        const upperDays = days.map((d) => String(d).toUpperCase().slice(0, 3))
+        if (!upperDays.every((d) => searchDays.includes(d))) return false
       }
       // --- Time from/to filter ---
       if (fromMinutes != null || toMinutes != null) {
         const startMin = minutesFromValue(course.time_start)
-        if (startMin != null) {
-          if (fromMinutes != null && startMin < fromMinutes) return false
-          if (toMinutes != null && startMin >= toMinutes) return false
-        }
-        // no time data → passes through
+        if (startMin == null) return false
+        if (fromMinutes != null && startMin < fromMinutes) return false
+        if (toMinutes != null && startMin >= toMinutes) return false
       }
       // --- Credit filter ---
       if (searchCredits && course.credits != null) {
@@ -784,11 +682,13 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       }
       return true
     })
-    // Deduplicate by courseCode (stubs may overlap with enriched results)
+    // A course code can have distinct API offerings for different sessions or
+    // instructors. Remove only exact duplicate source identities.
     const seen = new Set()
-    const deduped = results.filter((c) => {
-      if (seen.has(c.courseCode)) return false
-      seen.add(c.courseCode)
+    const deduped = results.filter((c, index) => {
+      const key = c.id || `${c.courseCode}-${c.term || ''}-${c.sessionDescription || ''}-${index}`
+      if (seen.has(key)) return false
+      seen.add(key)
       return true
     })
     return deduped.sort((a, b) => {
@@ -800,8 +700,6 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   }, [
     liveCoursesData,
     enrichedSearchResults,
-    sectionMapStubs,
-    apiMode,
     searchDays,
     searchTimeFrom,
     searchTimeTo,
@@ -858,7 +756,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         }
         // 2. Inject live section times if schedule not yet present
         if (courseHasSchedule(enriched)) return enriched
-        const eCode = sectionCodeKey(enriched.courseCode)
+        const eCode = sectionCodeKey(enriched.courseCodeBase || enriched.courseCode)
         const meetings = sectionTimesMap.get(eCode)
         if (!meetings?.length) return enriched
         const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
@@ -1482,12 +1380,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     aria-label="Session filter"
                   >
                     <option value="all">All sessions</option>
-                    <option value="Full Term">Full Term</option>
-                    <option value="Spring 1">Spring 1</option>
-                    <option value="Spring 2">Spring 2</option>
-                    <option value="Fall 1">Fall 1</option>
-                    <option value="Fall 2">Fall 2</option>
-                    <option value="January">January</option>
+                    {sessionOptions.map((session) => (
+                      <option key={session} value={session}>
+                        {session}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 {/* School dropdown — replaces All/HKS/Non-HKS buttons */}
@@ -1721,8 +1618,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                   searchCredits ||
                   searchMode !== 'live' ||
                   browseAll ||
-                  semesterYear !== '2026' ||
-                  semester !== 'Spring' ||
+                  semesterYear !== DEFAULT_SCHEDULE_TERM.year ||
+                  semester !== DEFAULT_SCHEDULE_TERM.semester ||
                   !filterCrossRegOnly ||
                   searchSession !== 'all'
                 return hasActiveFilters ? (
@@ -1740,8 +1637,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                       setSearchCredits('')
                       setSearchMode('live')
                       setBrowseAll(false)
-                      setSemesterYear('2026')
-                      setSemester('Spring')
+                      setSemesterYear(DEFAULT_SCHEDULE_TERM.year)
+                      setSemester(DEFAULT_SCHEDULE_TERM.semester)
                       setFilterCrossRegOnly(true)
                       setSearchSession('all')
                     }}
@@ -1765,7 +1662,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                   ↩ Enter to add first result
                   {searchSource !== 'HKS' ? ' · Enter with code to manually add if not found' : ''}
                 </p>
-              ) : !searchQ.trim() && searchSource !== 'HKS' && searchMode === 'live' ? (
+              ) : !searchQ.trim() && searchMode === 'live' ? (
                 <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
                   {catalogueReadError
                     ? 'Current catalogue unavailable — see notice below.'
@@ -1774,14 +1671,6 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                       : liveCoursesData.length > 0
                         ? `Browsing ${semesterYear} ${semester} catalog — type to narrow`
                         : `No synced courses are available for ${semesterYear} ${semester}.`}
-                </p>
-              ) : apiMode === 'db' && !searchQ.trim() ? (
-                <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-                  {sectionTimesLoading
-                    ? 'Loading schedule times…'
-                    : sectionMapStubs.length > 0
-                      ? `${semesterYear} ${semester} schedule loaded · type to search Harvard catalog`
-                      : 'Q-guide history · type to search Harvard catalog'}
                 </p>
               ) : null}
             </div>
@@ -1829,7 +1718,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     className="mb-3 text-[11px]"
                     style={{ color: 'var(--text-muted)' }}
                   >
-                    0 with schedule
+                    0 live courses match {semesterYear} {semester}
+                    {searchSession !== 'all' ? ` · ${searchSession}` : ''}
                   </p>
                 )}
               {searching ? (
@@ -1858,9 +1748,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                         <p className="mb-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
                           {searchMode === 'history'
                             ? `Q-guide: ${filteredSearchResults.length} result${filteredSearchResults.length !== 1 ? 's' : ''} across all years`
-                            : !searchQ.trim() && searchSource !== 'HKS'
-                              ? `${filteredSearchResults.length} course${filteredSearchResults.length !== 1 ? 's' : ''} · ${searchSource === 'All' ? 'all schools' : searchSource} · type to narrow`
-                              : `${withTime.length} with schedule${withoutTime.length > 0 ? ` · ${withoutTime.length} historical` : ''}`}
+                            : `${filteredSearchResults.length} live course${filteredSearchResults.length !== 1 ? 's' : ''} · ${withTime.length} scheduled${withoutTime.length > 0 ? ` · ${withoutTime.length} schedule pending` : ''}`}
                           {searchDays.length > 0
                             ? ` · ${searchDays.map((d) => d[0] + d.slice(1).toLowerCase()).join('/')}`
                             : ''}
@@ -1934,6 +1822,21 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         style={{ color: 'var(--accent)', textDecoration: 'none' }}
                                       >
                                         Q ↗
+                                      </a>
+                                    )}
+                                    {course.sourceUrl && (
+                                      <a
+                                        href={course.sourceUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        aria-label={`Open ${course.courseCode} in my.harvard (opens in new tab)`}
+                                        className="text-[10px] font-semibold hover:underline"
+                                        style={{
+                                          color: 'var(--text-muted)',
+                                          textDecoration: 'none',
+                                        }}
+                                      >
+                                        my.harvard ↗
                                       </a>
                                     )}
                                   </div>
@@ -2051,6 +1954,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                   : 'Instructor TBA'}
                               </p>
                               <div className="mt-3 flex flex-wrap gap-2">
+                                {course.credits != null && <Chip>{course.credits} cr</Chip>}
                                 {hks && course.enrichment?.is_core && (
                                   <Chip tone="success">Core</Chip>
                                 )}
@@ -2123,7 +2027,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                             >
                               {searchMode === 'history'
                                 ? `Past semesters · ${withoutTime.length}`
-                                : `Historical / no schedule · ${withoutTime.length}`}
+                                : `Current courses — schedule pending · ${withoutTime.length}`}
                             </p>
                           </div>
                         )}
@@ -2192,6 +2096,21 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         style={{ color: 'var(--accent)', textDecoration: 'none' }}
                                       >
                                         Q ↗
+                                      </a>
+                                    )}
+                                    {course.sourceUrl && (
+                                      <a
+                                        href={course.sourceUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        aria-label={`Open ${course.courseCode} in my.harvard (opens in new tab)`}
+                                        className="text-[10px] font-semibold hover:underline"
+                                        style={{
+                                          color: 'var(--text-muted)',
+                                          textDecoration: 'none',
+                                        }}
+                                      >
+                                        my.harvard ↗
                                       </a>
                                     )}
                                   </div>
@@ -2312,6 +2231,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                   : 'Instructor TBA'}
                               </p>
                               <div className="mt-3 flex flex-wrap gap-2">
+                                {course.credits != null && <Chip>{course.credits} cr</Chip>}
                                 {hks && course.enrichment?.is_core && (
                                   <Chip tone="success">Core</Chip>
                                 )}

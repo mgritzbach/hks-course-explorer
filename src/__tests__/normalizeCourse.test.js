@@ -82,6 +82,10 @@ describe('schedule course normalization', () => {
     })
   })
 
+  it('preserves an explicit zero-credit offering instead of inventing four credits', () => {
+    expect(normalizeCourse({ courseCode: 'IGA-000', credits: 0 }).credits).toBe(0)
+  })
+
   it('selects the active section and recognizes complete schedules only', () => {
     const course = normalizeCourse({
       courseCode: 'API-101',

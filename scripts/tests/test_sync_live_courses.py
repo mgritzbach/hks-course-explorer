@@ -115,6 +115,29 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertEqual(result.rows, [])
         self.assertIn("cursor loop", result.error)
 
+    def test_cross_listed_hks_representation_wins_without_losing_source_fields(self):
+        fas = {
+            "id": "shared-id",
+            "course_code": "GOV-100",
+            "school": "FAS",
+            "is_hks": False,
+            "description": "Shared description",
+        }
+        hks = {
+            "id": "shared-id",
+            "course_code": "DPI-100",
+            "school": "HKS",
+            "is_hks": True,
+            "description": "",
+        }
+
+        merged = self.sync.merge_duplicate_course(fas, hks)
+
+        self.assertEqual(merged["school"], "HKS")
+        self.assertTrue(merged["is_hks"])
+        self.assertEqual(merged["course_code"], "DPI-100")
+        self.assertEqual(merged["description"], "Shared description")
+
     def test_partial_failure_performs_no_database_writes_or_deletes(self):
         success = self.sync.FetchResult("HKS", "a", [], True)
         failure = self.sync.FetchResult("HKS", "e", [], False, "HTTP 503")

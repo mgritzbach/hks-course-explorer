@@ -47,7 +47,7 @@ export function findVerifiedHistoricalRating(course, ratingsByCode) {
   if (course?.is_hks === false) return null
 
   const code = normaliseCourseCode(
-    course?.courseCode || course?.course_code || course?.course_code_base,
+    course?.courseCodeBase || course?.course_code_base || course?.courseCode || course?.course_code,
   )
   if (!code) return null
 
