@@ -99,25 +99,51 @@ preview/release-candidate deployments are not valid targets. See Cloudflare's
    existing browser deployment secret and must never be printed:
 
    ```powershell
+   $ErrorActionPreference = 'Stop'
    $rollbackCommit = '<recorded 40-character rollback commit>'
    if ($rollbackCommit -notmatch '^[0-9a-f]{40}$') { throw 'Invalid rollback commit.' }
    if (-not $env:VITE_SUPABASE_ANON_KEY) { throw 'Production browser key is required.' }
    $env:VITE_SUPABASE_URL = 'https://cbtroatixvydpwoviezf.supabase.co'
    git fetch origin --prune
+   if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch the rollback commit.' }
+   git rev-parse --verify "${rollbackCommit}^{commit}"
+   if ($LASTEXITCODE -ne 0) { throw 'Rollback commit is not available locally.' }
    $rollbackWorktree = Join-Path $env:TEMP "hks-course-explorer-rollback-$($rollbackCommit.Substring(0, 12))"
+   if (Test-Path -LiteralPath $rollbackWorktree) { throw "Rollback worktree path already exists: $rollbackWorktree" }
    git worktree add --detach $rollbackWorktree $rollbackCommit
-   Push-Location $rollbackWorktree
-   npm ci --legacy-peer-deps
-   npm run build
-   npx playwright install chromium
-   $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.pages.dev/'
-   node scripts/smoke_deployed_site.mjs
-   $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.org/'
-   node scripts/smoke_deployed_site.mjs
-   $env:DEPLOY_MIN_HKS_OFFERINGS = '285'
-   npm run test:e2e:production
-   Pop-Location
-   git worktree remove $rollbackWorktree
+   if ($LASTEXITCODE -ne 0) { throw 'Failed to create the isolated rollback worktree.' }
+   $verificationSucceeded = $false
+   $insideRollbackWorktree = $false
+   try {
+       Push-Location $rollbackWorktree
+       $insideRollbackWorktree = $true
+       npm ci --legacy-peer-deps
+       if ($LASTEXITCODE -ne 0) { throw 'Rollback dependency install failed.' }
+       npm run build
+       if ($LASTEXITCODE -ne 0) { throw 'Rollback build failed.' }
+       npx playwright install chromium
+       if ($LASTEXITCODE -ne 0) { throw 'Rollback browser install failed.' }
+       $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.pages.dev/'
+       node scripts/smoke_deployed_site.mjs
+       if ($LASTEXITCODE -ne 0) { throw 'Pages-domain rollback smoke failed.' }
+       $env:DEPLOY_SMOKE_URL = 'https://hks-course-explorer.org/'
+       node scripts/smoke_deployed_site.mjs
+       if ($LASTEXITCODE -ne 0) { throw 'Custom-domain rollback smoke failed.' }
+       $env:DEPLOY_MIN_HKS_OFFERINGS = '285'
+       npm run test:e2e:production
+       if ($LASTEXITCODE -ne 0) { throw 'Rollback production browser suite failed.' }
+       $verificationSucceeded = $true
+   }
+   finally {
+       if ($insideRollbackWorktree) { Pop-Location }
+       if ($verificationSucceeded) {
+           git worktree remove $rollbackWorktree
+           if ($LASTEXITCODE -ne 0) { throw 'Rollback worktree cleanup failed.' }
+       }
+       else {
+           Write-Warning "Rollback verification failed; evidence retained at $rollbackWorktree"
+       }
+   }
    ```
 
    If verification fails, preserve the detached worktree until its output is
