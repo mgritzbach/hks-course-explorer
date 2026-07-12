@@ -1,0 +1,76 @@
+name: Backup Course Explorer recovery package
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_backup:
+        description: Create the encrypted allowlist-only Course Explorer recovery package
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hks-production-catalogue-sync
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    # Secrets are never exposed to code checked out from a dispatch branch.
+    if: ${{ inputs.confirm_backup && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Install hash-locked read-only dependencies
+        run: pip install --require-hashes -r requirements/workflows.txt
+
+      - name: Capture two identical allowlist-only table snapshots
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: >-
+          python scripts/export_course_explorer_recovery.py
+          --output "$RUNNER_TEMP/course-explorer-recovery.json"
+          --expected-project-ref cbtroatixvydpwoviezf
+          --source-commit "${{ github.sha }}"
+
+      - name: Encrypt and authenticate before artifact upload
+        env:
+          BACKUP_ARTIFACT_PASSPHRASE: ${{ secrets.BACKUP_ARTIFACT_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_ARTIFACT_PASSPHRASE" ]; then
+            echo "BACKUP_ARTIFACT_PASSPHRASE is required; refusing plaintext recovery upload." >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/encrypted-recovery"
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+            -in "$RUNNER_TEMP/course-explorer-recovery.json" \
+            -out "$RUNNER_TEMP/encrypted-recovery/course-explorer-recovery.json.enc" \
+            -pass env:BACKUP_ARTIFACT_PASSPHRASE
+          python scripts/recovery_ciphertext_hmac.py create \
+            --ciphertext "$RUNNER_TEMP/encrypted-recovery/course-explorer-recovery.json.enc" \
+            --tag "$RUNNER_TEMP/encrypted-recovery/course-explorer-recovery.json.enc.hmac"
+          rm -f "$RUNNER_TEMP/course-explorer-recovery.json"
+
+      - name: Retain encrypted recovery artifact for seven days
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: course-explorer-recovery-${{ github.run_id }}
+          path: ${{ runner.temp }}/encrypted-recovery/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove all runner recovery files
+        if: always()
+        run: >-
+          rm -rf "$RUNNER_TEMP/course-explorer-recovery.json"
+          "$RUNNER_TEMP/encrypted-recovery"

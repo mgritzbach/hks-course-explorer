@@ -213,6 +213,24 @@ database object. A complete read-only production browser suite passed four of
 four flows after the grant change, including every visitor route, all advertised
 HKS offerings, graph reset, and mobile navigation.
 
+## PostgreSQL MAINTAIN and trigger-function follow-up
+
+A later exact ACL inventory found a PostgreSQL 15+ residual from older `ALL`
+grants: browser roles still held `MAINTAIN` on catalogue tables, and the two
+trigger-only functions retained redundant direct browser `EXECUTE`. Neither is
+required for public catalogue reads. Migration
+`20260712224500_harden_maintain_and_trigger_function_grants.sql` revokes
+`MAINTAIN` from `anon`/`authenticated`, preserves it for `service_role`, and
+restricts `refresh_synced_at()` and
+`keep_ats_hks_inactive_after_myharvard()` execution to the service boundary.
+It changes no row, policy, index, constraint, or trigger.
+
+The migration is accepted only after read-back proves browser `MAINTAIN=false`,
+service `MAINTAIN=true`, direct browser trigger-function execution is false,
+service execution is true, and service-role insert/update still fires both user
+triggers. These outcomes are also part of the generated exact recovery schema
+contract, including grant-option and normalized ACL state.
+
 ## Rollback and retention
 
 Keep the policy definition export and backup checkpoint with the release
