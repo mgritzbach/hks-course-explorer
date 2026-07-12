@@ -843,6 +843,7 @@ export default function Home({
                   metricMode={metricMode}
                   colorblindMode={colorblindMode}
                   isLight={isLight}
+                  favs={favs}
                 />
               </ErrorBoundary>
             </div>

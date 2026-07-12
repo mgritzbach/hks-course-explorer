@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import BiddingPlanner from '../components/BiddingPlanner.jsx'
 import OnboardingTour from '../components/OnboardingTour.jsx'
+import { buildComparisonCandidatePool } from '../lib/compareCandidates.js'
 import { fmtShort } from '../utils/formatMetric.js'
 import config from '../school.config.js'
 
@@ -256,26 +257,7 @@ export default function Compare({
   }
 
   // Dedupe to averages if available, else latest year
-  const candidatePool = useMemo(() => {
-    const byBase = new Map()
-    for (const course of courses) {
-      if (!course.has_eval) continue
-      const key = course.course_code_base || course.course_code
-      if (!byBase.has(key)) byBase.set(key, [])
-      byBase.get(key).push(course)
-    }
-    const result = []
-    for (const group of byBase.values()) {
-      const avg = group.find((c) => c.is_average)
-      if (avg) {
-        result.push(avg)
-        continue
-      }
-      const latest = group.reduce((best, c) => (c.year > (best.year || 0) ? c : best), group[0])
-      result.push(latest)
-    }
-    return result.sort((a, b) => (a.course_name || '').localeCompare(b.course_name || ''))
-  }, [courses])
+  const candidatePool = useMemo(() => buildComparisonCandidatePool(courses), [courses])
 
   const selectedCourses = useMemo(
     () => selected.map((id) => candidatePool.find((c) => c.id === id)).filter(Boolean),
