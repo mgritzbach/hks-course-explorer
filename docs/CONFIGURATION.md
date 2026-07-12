@@ -85,6 +85,16 @@ atomically deactivates the prior HKS set and promotes only the verified run.
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin upload/history | Server-only service-role/secret key. It is never bundled or returned by Pages Functions. |
 | `CATALOGUE_API_ENABLED` | `/api/catalogue` | Explicit `true` switch for the private, promoted `catalogue_current_v1` read contract. Keep `false` until the parity and rollback gates in `UNIFIED_CATALOGUE_ROLLOUT.md` have passed. |
 
+Cloudflare stores Production and Preview Pages bindings separately. Before a
+release candidate can be promoted, Preview must have its own
+`OPENROUTER_API_KEY` secret and a `CHAT_RATE_LIMITER` binding targeting the same
+deployed `ChatRateLimiter` class as Production. Secrets cannot be copied back
+out of Cloudflare after encryption, so configure both environments during key
+rotation and verify both with the named-instructor Course Advisor acceptance
+test. A missing binding is a release-blocking configuration error; the endpoint
+must continue to fail closed and must never replace the LLM with a canned
+answer.
+
 ### Admin data Functions
 
 `/api/admin-verify` returns a 15-minute HMAC-signed `admin:data` bearer

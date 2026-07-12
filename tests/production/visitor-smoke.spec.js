@@ -168,8 +168,18 @@ test.describe('read-only production acceptance', () => {
       },
     })
 
-    expect(response.status()).toBe(200)
-    const body = await response.json()
+    const responseBody = await response.text()
+    expect(
+      response.status(),
+      `Course Advisor acceptance returned HTTP ${response.status()}: ${responseBody}`,
+    ).toBe(200)
+
+    let body
+    try {
+      body = JSON.parse(responseBody)
+    } catch {
+      throw new Error(`Course Advisor acceptance returned malformed JSON: ${responseBody}`)
+    }
     expect(body).toMatchObject({
       source: 'openrouter',
       cost: 0,
