@@ -135,8 +135,7 @@ export default function ScatterPlot({
   favs,
 }) {
   const navigate = useNavigate()
-  const favorites = favs?.favorites
-  const toggleFav = favs?.toggle
+  const { favorites, toggle: toggleFav } = favs
   const [pinnedDatum, setPinnedDatum] = useState(null)
   const [hoverState, setHoverState] = useState(null)
   const chartWrapperRef = useRef(null)
@@ -1014,7 +1013,7 @@ export default function ScatterPlot({
                 const starred = favorites?.has(code)
                 return (
                   <button
-                    onClick={() => toggleFav?.(code)}
+                    onClick={() => toggleFav(code)}
                     title={starred ? 'Remove from shortlist' : 'Add to shortlist'}
                     aria-label={starred ? 'Remove from shortlist' : 'Add to shortlist'}
                     className="rounded-full border px-2.5 py-1 text-sm transition-colors"
