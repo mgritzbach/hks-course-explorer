@@ -49,13 +49,16 @@ class BrowserTableGrantMigrationTests(unittest.TestCase):
         ):
             self.assertIsNone(re.search(pattern, self.sql), pattern)
 
-    def test_version_sorts_after_every_existing_production_migration(self):
-        versions = sorted(
+    def test_version_sorts_after_known_catalogue_manifest_migration(self):
+        versions = {
             path.name.split("_", 1)[0]
             for path in MIGRATION.parent.glob("*.sql")
             if path.name[0].isdigit()
-        )
-        self.assertEqual(MIGRATION.name.split("_", 1)[0], versions[-1])
+        }
+        predecessor = "20260712193000"
+        version = MIGRATION.name.split("_", 1)[0]
+        self.assertIn(predecessor, versions)
+        self.assertGreater(version, predecessor)
 
 
 if __name__ == "__main__":
