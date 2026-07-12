@@ -1,4 +1,4 @@
 # Dependencies used only by credential-bearing GitHub Actions Python jobs.
 # `workflows.txt` is generated with pip-compile and must be installed with
 # `--require-hashes` so a mutable package-index response cannot change a run.
-requests==2.32.5
+requests==2.34.2

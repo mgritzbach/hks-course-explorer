@@ -10,7 +10,7 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 DEPENDABOT = ROOT / ".github" / "dependabot.yml"
 WORKFLOW_REQUIREMENTS = ROOT / "requirements" / "workflows.txt"
 ACTION_REFERENCE = re.compile(
-    r"^\s*(?:-\s+)?uses:\s+actions/[\w-]+@[0-9a-f]{40}\s+#\s+v\d+\s*$"
+    r"^\s*(?:-\s+)?uses:\s+actions/[\w-]+@[0-9a-f]{40}\s+#\s+v\d+(?:\.\d+){0,2}\s*$"
 )
 
 
