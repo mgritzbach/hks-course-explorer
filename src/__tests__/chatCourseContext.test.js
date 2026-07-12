@@ -129,12 +129,44 @@ describe('chat course context', () => {
         term: 'Spring',
         has_eval: true,
       },
+      {
+        course_code: 'API-202',
+        course_code_base: 'API-202',
+        course_name: 'Empirical Methods II',
+        professor_display: 'Joshua Goodman',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'MLD-223',
+        course_code_base: 'MLD-223',
+        course_name: 'Organizing for Good',
+        professor_display: 'Kessely Hong',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
     ]
 
-    const context = condenseCourses(courses, 'Is Hong a good professor?')
+    const context = condenseCourses(
+      courses,
+      'Is Hong a good professor?',
+      [],
+      [
+        { role: 'user', content: 'What are Hong Qu’s courses?' },
+        { role: 'assistant', content: 'Hong Qu teaches the listed DPI courses.' },
+      ],
+    )
 
     expect(context).toHaveLength(1)
     expect(context[0]).toMatchObject({ code: 'DPI-852-M', instructor: 'Hong Qu' })
+
+    expect(condenseCourses(courses, 'Is Hong a good professor?')).toEqual([])
+
+    const genericContext = condenseCourses(courses, 'Who is a good professor?')
+    expect(genericContext.length).toBeGreaterThan(1)
+    expect(genericContext.every((course) => course.instructor === 'Joshua Goodman')).toBe(false)
   })
 
   it('keeps query matches ahead of a favorite with extensive history', () => {

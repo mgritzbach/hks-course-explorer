@@ -78,6 +78,99 @@ test.describe('course advisor lifecycle', () => {
     await expect(dialog.getByText(/Error:/)).toHaveCount(0)
   })
 
+  test('keeps a second-turn Hong question grounded only in Hong Qu records', async ({ page }) => {
+    const advisorFixture = [
+      ['DPI-852-M', 'Advanced Data and Information Visualization', 'Hong Qu'],
+      ['MLD-223', 'Organizing for Good', 'Kessely Hong'],
+      ['API-202', 'Empirical Methods II', 'Joshua Goodman'],
+      ['DPI-802-M-D-2', 'The Arts of Communication', 'Allison Shapira'],
+      ['MLD-215-B', 'Negotiation and Leadership', 'Robert Wilkinson'],
+    ].map(([course_code, course_name, professor_display]) => ({
+      id: `${course_code}-${professor_display}`,
+      course_code,
+      course_code_base: course_code,
+      course_name,
+      professor_display,
+      year: 2026,
+      term: 'Spring',
+      has_eval: true,
+      is_average: false,
+      metrics_pct: { Instructor_Rating: 80, Course_Rating: 75, Workload: 40 },
+    }))
+
+    await page.unroute('**/rest/v1/**')
+    let historicalPageServed = false
+    await page.route('**/rest/v1/**', async (route) => {
+      const pathname = new URL(route.request().url()).pathname
+      const body = pathname.endsWith('/courses') && !historicalPageServed ? advisorFixture : []
+      if (pathname.endsWith('/courses')) historicalPageServed = true
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify(body),
+      })
+    })
+
+    let requestNumber = 0
+    await page.route('**/api/chat', async (route) => {
+      requestNumber += 1
+      const payload = route.request().postDataJSON()
+      expect(payload.courses.length).toBeGreaterThan(0)
+      const contextInstructors = [...new Set(payload.courses.map((course) => course.instructor))]
+      expect(
+        payload.courses.every((course) => course.instructor === 'Hong Qu'),
+        `Unexpected advisor context for request ${requestNumber} (${payload.message}), history ${JSON.stringify(payload.history)}: ${JSON.stringify(contextInstructors)}`,
+      ).toBe(true)
+      expect(payload.courses.some((course) => course.instructor === 'Allison Shapira')).toBe(false)
+      expect(payload.courses.some((course) => course.instructor === 'Robert Wilkinson')).toBe(false)
+
+      if (requestNumber === 1) {
+        expect(payload.message).toBe('What are Hong Qu’s courses?')
+        expect(payload.history).toEqual([])
+      } else {
+        expect(payload.message).toBe('Is Hong a good professor?')
+        expect(payload.history).toEqual(
+          expect.arrayContaining([
+            { role: 'user', content: 'What are Hong Qu’s courses?' },
+            { role: 'assistant', content: 'Hong Qu teaches the listed DPI courses.' },
+          ]),
+        )
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          reply:
+            requestNumber === 1
+              ? 'Hong Qu teaches the listed DPI courses.'
+              : 'The database records for Hong Qu show strong instructor ratings.',
+          source: 'openrouter',
+          model: 'openai/gpt-oss-20b:free',
+          cost: 0,
+        }),
+      })
+    })
+
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Open course advisor' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Course Advisor' })
+    const input = dialog.getByPlaceholder(/light workload/i)
+    const send = dialog.getByRole('button', { name: 'Send message' })
+
+    await input.fill('What are Hong Qu’s courses?')
+    await send.click()
+    await expect(dialog.getByText('Hong Qu teaches the listed DPI courses.')).toBeVisible()
+
+    await input.fill('Is Hong a good professor?')
+    await send.click()
+    await expect(
+      dialog.getByText('The database records for Hong Qu show strong instructor ratings.'),
+    ).toBeVisible()
+    expect(requestNumber).toBe(2)
+  })
+
   test('shows provider failure explicitly and never substitutes a canned answer', async ({
     page,
   }) => {

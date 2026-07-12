@@ -26,6 +26,10 @@ const QUERY_STOP_WORDS = new Set([
   'courses',
   'does',
   'for',
+  'good',
+  'great',
+  'bad',
+  'best',
   'instructor',
   'is',
   'professor',
@@ -50,6 +54,10 @@ function meaningfulQueryTerms(query) {
   return searchableText(query)
     .split(/\s+/)
     .filter((term) => term.length > 1 && !QUERY_STOP_WORDS.has(term))
+}
+
+function searchableTokens(value) {
+  return new Set(searchableText(value).split(/\s+/).filter(Boolean))
 }
 
 export function normalizeOptionalBoolean(value) {
@@ -89,20 +97,49 @@ function rankCourse(course) {
   return course.year || 0
 }
 
-export function condenseCourses(courses, query, shortlistedCodes = []) {
+function instructorIdentity(course) {
+  return searchableText(course.professor_display || course.professor)
+}
+
+function hasCompleteInstructorName(course, keywords) {
+  const nameTokens = searchableTokens(course.professor_display || course.professor)
+  return nameTokens.size >= 2 && [...nameTokens].every((token) => keywords.includes(token))
+}
+
+function priorInstructorIdentities(courses, history) {
+  const priorUserQueries = (history || [])
+    .filter((message) => message?.role === 'user' && typeof message.content === 'string')
+    .map((message) => message.content)
+    .reverse()
+
+  for (const priorQuery of priorUserQueries) {
+    const keywords = meaningfulQueryTerms(priorQuery)
+    const identities = new Set(
+      courses
+        .filter((course) => hasCompleteInstructorName(course, keywords))
+        .map((course) => instructorIdentity(course)),
+    )
+    if (identities.size > 0) return identities
+  }
+  return new Set()
+}
+
+export function condenseCourses(courses, query, shortlistedCodes = [], history = []) {
   if (!courses?.length) return []
   const keywords = meaningfulQueryTerms(query)
   const shortlistedSet = new Set(shortlistedCodes)
 
   const scoredCourses = courses
     .map((c) => {
-      const instructor = searchableText(c.professor_display || c.professor)
-      const courseText = searchableText(
+      const instructorTokens = searchableTokens(c.professor_display || c.professor)
+      const courseTokens = searchableTokens(
         [c.course_name, c.course_code, c.course_code_base, c.concentration].join(' '),
       )
-      const instructorHits = keywords.filter((keyword) => instructor.includes(keyword)).length
-      const courseHits = keywords.filter((keyword) => courseText.includes(keyword)).length
-      const exactInstructor = keywords.length >= 2 && instructorHits === keywords.length
+      // Match whole normalized tokens. Substring matching made "good" select
+      // Joshua Goodman and made "is" select Allison Shapira.
+      const instructorHits = keywords.filter((keyword) => instructorTokens.has(keyword)).length
+      const courseHits = keywords.filter((keyword) => courseTokens.has(keyword)).length
+      const exactInstructor = hasCompleteInstructorName(c, keywords)
       return {
         c,
         exactInstructor,
@@ -130,8 +167,34 @@ export function condenseCourses(courses, query, shortlistedCodes = []) {
   const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
     searchableText(query),
   )
-  const focusedInstructorMatches =
-    exactInstructorMatches.length > 0 || asksAboutInstructor ? instructorMatches : []
+  let focusedInstructorMatches = exactInstructorMatches
+  if (
+    focusedInstructorMatches.length === 0 &&
+    asksAboutInstructor &&
+    instructorMatches.length > 0
+  ) {
+    const currentIdentities = new Set(
+      instructorMatches.map(({ c }) => instructorIdentity(c)).filter(Boolean),
+    )
+    if (currentIdentities.size === 1) {
+      focusedInstructorMatches = instructorMatches
+    } else {
+      const priorIdentities = priorInstructorIdentities(courses, history)
+      const resolvedIdentities = new Set(
+        [...currentIdentities].filter((identity) => priorIdentities.has(identity)),
+      )
+      if (resolvedIdentities.size === 1) {
+        focusedInstructorMatches = instructorMatches.filter(({ c }) =>
+          resolvedIdentities.has(instructorIdentity(c)),
+        )
+      } else {
+        // A partial name that maps to multiple people is not safe grounding.
+        // Returning no rows makes the request fail closed rather than letting
+        // the model answer about the wrong instructor.
+        return []
+      }
+    }
+  }
   const relevantMatches =
     focusedInstructorMatches.length > 0
       ? focusedInstructorMatches
@@ -249,7 +312,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         body: JSON.stringify({
           message: userMsg,
           history,
-          courses: condenseCourses(courses, userMsg, shortlistedCodes),
+          courses: condenseCourses(courses, userMsg, shortlistedCodes, history),
           context: { shortlisted: shortlistedNames },
         }),
       })
