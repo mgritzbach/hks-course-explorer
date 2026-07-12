@@ -159,6 +159,9 @@ describe('chat course context', () => {
       ],
     )
 
+    const firstTurnContext = condenseCourses(courses, 'What are Hong Qu’s courses?')
+    expect(firstTurnContext).toHaveLength(1)
+    expect(firstTurnContext[0]).toMatchObject({ code: 'DPI-852-M', instructor: 'Hong Qu' })
     expect(context).toHaveLength(1)
     expect(context[0]).toMatchObject({ code: 'DPI-852-M', instructor: 'Hong Qu' })
 

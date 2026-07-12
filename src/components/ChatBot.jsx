@@ -306,13 +306,26 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         .filter((message) => message.role === 'user' || message.kind === 'ai')
         .slice(-4)
         .map((message) => ({ role: message.role, content: message.content }))
+      const courseContext = condenseCourses(courses, userMsg, shortlistedCodes, history)
+      if (courseContext.length === 0) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            kind: 'error',
+            content:
+              'I could not identify one matching professor or course in the database. Please use the full name or course code.',
+          },
+        ])
+        return
+      }
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg,
           history,
-          courses: condenseCourses(courses, userMsg, shortlistedCodes, history),
+          courses: courseContext,
           context: { shortlisted: shortlistedNames },
         }),
       })
