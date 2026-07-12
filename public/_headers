@@ -5,8 +5,7 @@
   X-Frame-Options: SAMEORIGIN
   Strict-Transport-Security: max-age=31536000
 
-# Vite fingerprints every production asset under /assets/. Those URLs change
-# with their content, so browsers may safely reuse them without revalidation.
-# Do not put Cache-Control on /*: HTML must continue to discover each release.
-/assets/*
-  Cache-Control: public, max-age=31556952, immutable
+# Cloudflare Pages already revalidates static assets and clears its deployment
+# cache when a new release is published. Do not override that policy here: an
+# SPA fallback can temporarily answer a not-yet-propagated asset path with
+# index.html, and an immutable rule would cache that wrong response for a year.

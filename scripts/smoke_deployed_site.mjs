@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 
 const DEFAULT_DEPLOYED_SITE_URL = 'https://hks-course-explorer.pages.dev/'
-export const FINGERPRINTED_ASSET_CACHE_CONTROL = 'public, max-age=31556952, immutable'
+export const FINGERPRINTED_ASSET_CACHE_CONTROL = 'public, max-age=0, must-revalidate'
 // These direct SPA routes cover each primary visitor navigation destination.
 // Verify them against the same build fingerprint as `/` so a healthy landing
 // page cannot hide a broken redirect or stale route cache after deployment.
@@ -54,12 +54,84 @@ export function assertSameFingerprintAsset(expectedAssetPath, deployedAssetPath,
   }
 }
 
-export function assertFingerprintAsset(response, assetUrl) {
+export function assertFingerprintAsset(
+  response,
+  assetUrl,
+  expectedContentType = 'application/javascript',
+) {
   if (!response.ok) {
     throw new Error(`Deployed asset smoke check returned HTTP ${response.status}: ${assetUrl}`)
   }
-  if (response.headers.get('cache-control') !== FINGERPRINTED_ASSET_CACHE_CONTROL) {
-    throw new Error(`Deployed asset lacks immutable cache policy: ${assetUrl}`)
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.includes(expectedContentType)) {
+    throw new Error(
+      `Deployed asset smoke check returned ${contentType || 'no content type'} instead of ${expectedContentType}: ${assetUrl}`,
+    )
+  }
+  if (!hasSafePagesRevalidation(response.headers.get('cache-control'))) {
+    throw new Error(`Deployed asset bypasses the reviewed Pages revalidation policy: ${assetUrl}`)
+  }
+}
+
+export function hasSafePagesRevalidation(cacheControl) {
+  if (typeof cacheControl !== 'string') return false
+  const directives = cacheControl
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+  const directiveNames = directives.map((value) => value.split('=', 1)[0])
+  const maxAges = directives.filter((value) => value.startsWith('max-age='))
+  const unsafeSharedCacheDirectives = new Set([
+    'immutable',
+    'private',
+    's-maxage',
+    'stale-if-error',
+    'stale-while-revalidate',
+  ])
+  return (
+    directives.includes('public') &&
+    directives.includes('must-revalidate') &&
+    maxAges.length === 1 &&
+    maxAges[0] === 'max-age=0' &&
+    !directiveNames.some((name) => unsafeSharedCacheDirectives.has(name))
+  )
+}
+
+export function collectBuildAssetPaths(manifest) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    throw new Error('Built Vite manifest is not an object.')
+  }
+  const paths = new Set()
+  for (const entry of Object.values(manifest)) {
+    if (!entry || typeof entry !== 'object') continue
+    for (const value of [entry.file, ...(entry.css || []), ...(entry.assets || [])]) {
+      if (typeof value === 'string' && /\.(?:css|js)$/.test(value)) paths.add(`/${value}`)
+    }
+  }
+  if (!paths.size) throw new Error('Built Vite manifest contains no JavaScript or CSS assets.')
+  return [...paths].sort()
+}
+
+export async function smokeDeployedBuildAssets({
+  fetchImpl = fetch,
+  targetUrl,
+  expectedAssets,
+} = {}) {
+  if (!(expectedAssets instanceof Map) || !expectedAssets.size) {
+    throw new Error('Deployed asset smoke check requires the exact built asset bodies.')
+  }
+  for (const [assetPath, expectedBody] of expectedAssets) {
+    const assetUrl = new URL(assetPath, targetUrl).toString()
+    const response = await fetchImpl(assetUrl, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(30_000),
+    })
+    const body = await response.text()
+    const expectedContentType = assetPath.endsWith('.css') ? 'text/css' : 'application/javascript'
+    assertFingerprintAsset(response, assetUrl, expectedContentType)
+    if (body !== expectedBody) {
+      throw new Error(`Deployed asset differs from the exact built file: ${assetUrl}`)
+    }
   }
 }
 
@@ -132,9 +204,12 @@ export async function smokeDeployedSite({
   readFileImpl = readFile,
   targetUrl = process.env.DEPLOY_SMOKE_URL || DEFAULT_DEPLOYED_SITE_URL,
   buildHtmlPath = process.env.DEPLOY_BUILD_HTML || 'dist/index.html',
+  buildManifestPath = 'dist/.vite/manifest.json',
   expectedAssetPath,
+  expectedBuildAssets,
   maxAttempts = DEPLOYED_ASSET_MAX_ATTEMPTS,
   spaRoutes = DEPLOYED_SPA_ROUTE_PATHS,
+  verifyBuildAssets = false,
   verifySpaRoutes = false,
   verifySimilarityCoordinates = false,
   buildSimilarityPath = 'dist/sim_coords.json',
@@ -151,6 +226,14 @@ export async function smokeDeployedSite({
   const expectedCoordinates = verifySimilarityCoordinates
     ? expectedSimilarityBody || (await readFileImpl(buildSimilarityPath, 'utf8'))
     : null
+  let buildAssets = expectedBuildAssets
+  if (verifyBuildAssets && !buildAssets) {
+    const manifest = JSON.parse(await readFileImpl(buildManifestPath, 'utf8'))
+    buildAssets = new Map()
+    for (const assetPath of collectBuildAssetPaths(manifest)) {
+      buildAssets.set(assetPath, await readFileImpl(`dist${assetPath}`, 'utf8'))
+    }
+  }
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
     throw new Error('Deployed site smoke check requires at least one asset verification attempt.')
   }
@@ -177,16 +260,30 @@ export async function smokeDeployedSite({
       redirect: 'follow',
       signal: AbortSignal.timeout(30_000),
     })
-    if (!assetResponse.ok) assertFingerprintAsset(assetResponse, assetUrl)
-    if (assetResponse.headers.get('cache-control') !== FINGERPRINTED_ASSET_CACHE_CONTROL) {
-      // The entry HTML and the Pages header rules can arrive at edge locations
-      // a few seconds apart. Keep waiting only for this exact expected asset;
-      // never accept a stale hash or an unsuccessful asset response.
+    if (
+      !assetResponse.ok ||
+      !hasSafePagesRevalidation(assetResponse.headers.get('cache-control')) ||
+      !(assetResponse.headers.get('content-type') || '').includes('application/javascript')
+    ) {
+      // The entry HTML and the asset inventory can arrive at edge locations a
+      // few seconds apart. Keep waiting only for this exact expected asset;
+      // never accept HTML from the SPA fallback as JavaScript.
       if (attempt < maxAttempts) {
         await waitImpl(DEPLOYED_ASSET_RETRY_MS)
         continue
       }
       assertFingerprintAsset(assetResponse, assetUrl)
+    }
+    if (verifyBuildAssets) {
+      try {
+        await smokeDeployedBuildAssets({ fetchImpl, targetUrl, expectedAssets: buildAssets })
+      } catch (error) {
+        if (attempt < maxAttempts) {
+          await waitImpl(DEPLOYED_ASSET_RETRY_MS)
+          continue
+        }
+        throw error
+      }
     }
     if (verifySpaRoutes) {
       try {
@@ -236,7 +333,11 @@ export async function smokeDeployedSite({
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    await smokeDeployedSite({ verifySpaRoutes: true, verifySimilarityCoordinates: true })
+    await smokeDeployedSite({
+      verifyBuildAssets: true,
+      verifySpaRoutes: true,
+      verifySimilarityCoordinates: true,
+    })
     console.log(
       `Deployed site smoke check passed: ${process.env.DEPLOY_SMOKE_URL || DEFAULT_DEPLOYED_SITE_URL}`,
     )

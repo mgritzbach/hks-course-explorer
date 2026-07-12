@@ -11,13 +11,10 @@ describe('Cloudflare Pages security headers', () => {
     }
   })
 
-  it('long-caches only content-fingerprinted Vite assets', async () => {
+  it('leaves cache ownership to Cloudflare Pages for every static response', async () => {
     const staticHeaders = await readFile('public/_headers', 'utf8')
-    const [generalRule] = staticHeaders.split('/assets/*')
 
-    expect(generalRule).not.toContain('Cache-Control:')
-    expect(staticHeaders).toContain(
-      '/assets/*\n  Cache-Control: public, max-age=31556952, immutable',
-    )
+    expect(staticHeaders).not.toContain('Cache-Control:')
+    expect(staticHeaders).not.toContain('/assets/*')
   })
 })

@@ -5,10 +5,12 @@ import {
   assertDeployedSpaRoute,
   assertSameFingerprintAsset,
   assertSimilarityCoordinates,
+  collectBuildAssetPaths,
   DEPLOYED_ASSET_MAX_ATTEMPTS,
   DEPLOYED_SPA_ROUTE_PATHS,
   extractFingerprintAssetPath,
   FINGERPRINTED_ASSET_CACHE_CONTROL,
+  hasSafePagesRevalidation,
   smokeDeployedSite,
   smokeDeployedSpaRoutes,
 } from './smoke_deployed_site.mjs'
@@ -49,6 +51,23 @@ describe('deployed site smoke check', () => {
     ])
   })
 
+  it('collects every JavaScript and CSS file from the Vite manifest', () => {
+    expect(
+      collectBuildAssetPaths({
+        entry: {
+          file: 'assets/index-current123.js',
+          css: ['assets/index-current123.css'],
+          assets: ['assets/logo.svg'],
+        },
+        compare: { file: 'assets/Compare-current123.js' },
+      }),
+    ).toEqual([
+      '/assets/Compare-current123.js',
+      '/assets/index-current123.css',
+      '/assets/index-current123.js',
+    ])
+  })
+
   it('accepts a reachable HTML application entrypoint', async () => {
     const responses = [
       response(),
@@ -65,6 +84,18 @@ describe('deployed site smoke check', () => {
     ).resolves.toBeUndefined()
   })
 
+  it('accepts equivalent safe Pages cache directives in any order', () => {
+    expect(hasSafePagesRevalidation('must-revalidate, public, max-age=0, no-transform')).toBe(true)
+    expect(hasSafePagesRevalidation('public, max-age=31556952, immutable')).toBe(false)
+    expect(hasSafePagesRevalidation('public, max-age=0, must-revalidate, s-maxage=31556952')).toBe(
+      false,
+    )
+    expect(hasSafePagesRevalidation('public, max-age=0, max-age=60, must-revalidate')).toBe(false)
+    expect(
+      hasSafePagesRevalidation('public, max-age=0, must-revalidate, stale-if-error=3600'),
+    ).toBe(false)
+  })
+
   it('rejects a non-success response', () => {
     expect(() =>
       assertDeployedEntrypoint(response({ ok: false, status: 503 }), '', 'https://example.test'),
@@ -77,7 +108,7 @@ describe('deployed site smoke check', () => {
     ).toThrow('no application root')
   })
 
-  it('extracts the fingerprinted Vite asset and requires its immutable cache policy', () => {
+  it('extracts the fingerprinted Vite asset and requires safe Pages revalidation', () => {
     expect(
       extractFingerprintAssetPath(
         '<script type="module" src="/assets/index-abc12345.js"></script>',
@@ -86,7 +117,7 @@ describe('deployed site smoke check', () => {
     ).toBe('/assets/index-abc12345.js')
     expect(() =>
       assertFingerprintAsset(response(), 'https://example.test/assets/index-abc12345.js'),
-    ).toThrow('lacks immutable cache policy')
+    ).toThrow('instead of application/javascript')
   })
 
   it('rejects an unhashed or stale deployed entry asset', async () => {
@@ -147,7 +178,7 @@ describe('deployed site smoke check', () => {
     expect(waits).toEqual([3_000])
   })
 
-  it('waits for the immutable header after the exact asset is present', async () => {
+  it('waits for the reviewed Pages cache policy after the exact asset is present', async () => {
     const responses = [
       response({
         body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
@@ -171,6 +202,67 @@ describe('deployed site smoke check', () => {
       }),
     ).resolves.toBeUndefined()
     expect(waits).toEqual([3_000])
+  })
+
+  it('retries a transient missing entry asset before accepting the exact build', async () => {
+    const entrypoint = response({
+      body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+    })
+    const responses = [
+      entrypoint,
+      response({ ok: false, status: 404, contentType: 'text/html; charset=utf-8' }),
+      entrypoint,
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+    ]
+    const waits = []
+
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-current123.js',
+        fetchImpl: async () => responses.shift(),
+        waitImpl: async (milliseconds) => waits.push(milliseconds),
+      }),
+    ).resolves.toBeUndefined()
+    expect(waits).toEqual([3_000])
+  })
+
+  it('rejects an SPA fallback cached as a JavaScript chunk', async () => {
+    const expectedAssets = new Map([
+      ['/assets/index-current123.js', 'console.log("entry")'],
+      ['/assets/Compare-current123.js', 'console.log("compare")'],
+    ])
+    const responses = [
+      response({
+        body: '<script src="/assets/index-current123.js"></script><div id="root"></div>',
+      }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+      }),
+      response({
+        contentType: 'application/javascript',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+        body: 'console.log("entry")',
+      }),
+      response({
+        contentType: 'text/html; charset=utf-8',
+        cacheControl: FINGERPRINTED_ASSET_CACHE_CONTROL,
+        body: '<div id="root"></div>',
+      }),
+    ]
+
+    await expect(
+      smokeDeployedSite({
+        expectedAssetPath: '/assets/index-current123.js',
+        expectedBuildAssets: expectedAssets,
+        fetchImpl: async () => responses.shift(),
+        maxAttempts: 1,
+        verifyBuildAssets: true,
+      }),
+    ).rejects.toThrow('instead of application/javascript')
   })
 
   it('rejects a primary route that does not serve the exact deployed SPA build', async () => {
