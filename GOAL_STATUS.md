@@ -8,21 +8,21 @@ release proceeds while any P0 goal is `0`.
 | ID | Priority | Canonical goal | Verified progress | Status | Evidence required to mark 1 |
 |---|---|---|---:|---:|---|
 | G01 | P0 | Foundations / governance | 100% | 1 | Protected release ownership, CI controls, fresh setup/review evidence, and final governance sign-off. |
-| G02 | P0 | Data integrity | 90% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
-| G03 | P0 | Supabase reliability | 82% | 0 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
-| G04 | P0 | Security | 80% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
-| G05 | P1 | Navigation / usability | 90% | 0 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
+| G02 | P0 | Data integrity | 94% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
+| G03 | P0 | Supabase reliability | 100% | 1 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
+| G04 | P0 | Security | 90% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
+| G05 | P1 | Navigation / usability | 100% | 1 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
 | G06 | P1 | Accessibility | 94% | 0 | Complete WCAG remediation/acceptance and manual keyboard/mobile evidence. |
 | G07 | P1 | Dependency security | 100% | 1 | Audited upgrade matrix, green complete suite, and documented residual risk. |
 | G08 | P1 | Performance | 75% | 0 | Mobile staging/production LCP, INP, bundle, and API latency budgets pass in CI/RUM. |
-| G09 | P1 | Regression safety | 92% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
+| G09 | P1 | Regression safety | 96% | 0 | Green exact-commit browser/route/a11y suite plus production smoke and rollback evidence. |
 | G10 | P1 | Maintainable architecture | 100% | 1 | Final independent manager review of bounded modules, contracts, and quality gates. |
-| G11 | P1 | Operations / deployment | 82% | 0 | Fresh setup, production deployment/smoke, rollback exercise, and on-call handover evidence. |
+| G11 | P1 | Operations / deployment | 94% | 0 | Fresh setup, production deployment/smoke, rollback exercise, and on-call handover evidence. |
 
 The exact evidence and conservative audit behind this snapshot are recorded in
 [`docs/RELEASE_EVIDENCE_2026-07-12.md`](docs/RELEASE_EVIDENCE_2026-07-12.md).
-The evidence-weighted total is approximately 90%; only G01, G07, and G10 are
-binary complete. Percentages are not release waivers.
+The evidence-weighted total is approximately 95%; G01, G03, G05, G07, and G10
+are binary complete. Percentages are not release waivers.
 
 ## Required engineering loop
 
@@ -35,10 +35,10 @@ binary complete. Percentages are not release waivers.
 ## Current external certification blockers
 
 Production certification remains blocked by the Cloudflare zone-policy gate,
-an exercised Pages and catalogue rollback, full Course Explorer recovery proof,
-manual production accessibility acceptance, representative field performance
-evidence, and successor/on-call handover acceptance. Local or release-candidate
-checks do not substitute for production evidence.
+an exercised Pages and catalogue rollback, manual production accessibility
+acceptance, representative field performance evidence, and successor/on-call
+handover acceptance. Local or release-candidate checks do not substitute for
+production evidence.
 
 ## Completed local increments (not release sign-off)
 
@@ -97,3 +97,6 @@ checks do not substitute for production evidence.
 | L51 | The first-visit Direct and Tutorial actions remain fully reachable in a 1280 by 720 desktop viewport while preserving the complete landing copy and tutorial handoff. | 1 | PR #24 (`2e8a985`), full-rectangle browser regression, protected CI/deploy, and live Direct-path verification with no console errors. |
 | L52 | Every visitor route and the 404 page expose a route-specific title and visible page-level heading, pass the full Axe WCAG A/AA ruleset on desktop and mobile, retain a working skip path, and move focus to main content after client-side navigation; My Degree is independently usable on mobile. | 1 | Route-wide built-artifact accessibility suite (6/6; seven visitor routes plus 404 at desktop/mobile sizes and first-visit focus containment), complete JavaScript suite (225/225), complete Python suite (104/104), complete browser suite (31/31), production dependency audit, lint/format/contracts/architecture/UI/runtime/build/bundle gates, and independent controlling-SWE approval. |
 | L53 | The hardened non-HKS sync has a successful exact-master production exercise that preserves authoritative HKS ownership and raises the fail-closed source-completeness floor from current evidence. | 1 | Production run `29189143811` on exact master `2c3b558`: 5,607 non-HKS rows atomically promoted with no deletion; post-run database proof retained 297 active/distinct `myharvard` HKS rows and zero ATS-owned HKS rows; production floor recalibrated to 5,000 with workflow contracts and independent review. |
+| L54 | The course advisor remains usable at zero cost when the optional provider is absent, unavailable, or rate-limited. | 1 | PR #63, 244/244 JavaScript tests, exact-master CI `29205233279`, production deployment `d83b6a60-f3a6-4bae-932d-80286a70c771`, two consecutive live recommendations, and custom-domain production acceptance 5/5. |
+| L55 | The complete five-table Course Explorer relational boundary has an encrypted no-cost backup and exact isolated restore proof. | 1 | Backup `29206580982` and PostgreSQL 17 recovery `29206612080` on exact master `ed81c24`: 14,543 exact rows, schema/access contract, FKs, rollback, RLS, grants, functions, indexes, triggers, zero-orphan linking, digests, and cleanup all passed. |
+| L56 | Residual PostgreSQL `MAINTAIN` and direct trigger-function execution are unavailable to browser roles without changing application data or service authority. | 1 | Production migration `20260712224500_harden_maintain_and_trigger_function_grants`; unchanged counts `5812/265/63/5/8398`, zero orphans, RLS enabled, browser privileges false, and `service_role` privileges true. |
