@@ -41,6 +41,7 @@ const LAZY_ROUTES = [
 ]
 const PLOTLY = /plotly/i
 const SUPABASE = /supabase/i
+const WEB_VITALS = /web-vitals/i
 
 function formatBytes(bytes) {
   return `${bytes.toLocaleString('en-US')} B (${(bytes / 1024).toFixed(1)} KiB)`
@@ -110,6 +111,11 @@ async function main() {
     .map(([, chunk]) => chunk.file)
     .filter(Boolean)
   const initialSupabaseChunks = allSupabaseChunks.filter((asset) => assets.has(asset))
+  const allWebVitalsChunks = Object.entries(manifest)
+    .filter(([key, chunk]) => WEB_VITALS.test(key) || WEB_VITALS.test(chunk.file || ''))
+    .map(([, chunk]) => chunk.file)
+    .filter(Boolean)
+  const initialWebVitalsChunks = allWebVitalsChunks.filter((asset) => assets.has(asset))
   const violations = []
 
   if (!allPlotlyChunks.length)
@@ -132,6 +138,14 @@ async function main() {
   if (initialSupabaseChunks.length) {
     violations.push(
       `Supabase must load after the initial Home graph: ${initialSupabaseChunks.join(', ')}`,
+    )
+  }
+  if (!allWebVitalsChunks.length) {
+    violations.push('Vite manifest contains no web-vitals chunk to verify as lazy')
+  }
+  if (initialWebVitalsChunks.length) {
+    violations.push(
+      `Web Vitals telemetry must be lazy-loaded, but is in the root-route graph: ${initialWebVitalsChunks.join(', ')}`,
     )
   }
 
@@ -182,6 +196,9 @@ async function main() {
   )
   console.log(
     `  Supabase: ${initialSupabaseChunks.length ? 'FAILED' : `deferred (${allSupabaseChunks.join(', ')})`}`,
+  )
+  console.log(
+    `  Web Vitals: ${initialWebVitalsChunks.length ? 'FAILED' : `lazy (${allWebVitalsChunks.join(', ')})`}`,
   )
   for (const report of lazyRouteReports) {
     console.log(`Lazy-route ('${report.route}') bundle budget`)

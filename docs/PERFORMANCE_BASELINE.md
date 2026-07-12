@@ -82,14 +82,26 @@ but no estimated LCP saving from removing it. The Supabase response transferred
 about 1.9 MB. A production schema read-back confirmed that `metrics_score` is
 not stored or transferred; the browser already derives it from `metrics_raw`.
 
-Production now opts into PostHog's lightweight, non-attributed LCP, CLS, and INP
-collection and emits one bounded `catalogue_ready` event with duration, row
-count, cache hit/miss, route, and success state. No database response or error
-message is included. The connected project recorded 1,754 total analytics
-events and 370 pageviews in the preceding 30 days. The implementation adds one
-`catalogue_ready` event per catalogue load; PostHog aggregates Web Vitals when
-possible, and its published average is about 0.3 `$web_vitals` events per
-pageview. That volume remains far below PostHog's one-million-event monthly
-free allowance. This uses the existing analytics integration and adds no paid
-service. G08 remains incomplete until representative field data is available
-and reviewed; lab results alone are not production certification.
+The connected PostHog project's server-side Web Vitals setting was unset, so
+the earlier client configuration did not produce `$web_vitals` events. The
+release candidate now measures LCP, INP, and CLS with Google's standard
+`web-vitals` build and sends a bounded `app_web_vital` event through the
+existing PostHog adapter. It includes only metric, numeric value, rating,
+navigation type, and a query-free route. It does not include DOM attribution,
+catalogue data, or user-provided values. The final PostHog `before_send`
+boundary strips query strings and fragments from SDK-added URL/referrer
+properties. The measurement chunk is a dynamic 2.56 KiB gzip asset loaded
+after two paints and an idle boundary; the bundle gate rejects making it part
+of the initial Home graph. Google's library uses buffered performance entries,
+so deferring the measurement code does not discard earlier entries.
+
+The project recorded 1,759 total events and 368 pageviews in the preceding 30
+days before this change. The collector has a hard ceiling of 12 measurement
+events per document, covering normal reporting and a bounded number of
+back/forward-cache restores. Even that conservative ceiling remains far below
+the existing free event allowance and adds no paid service. PostHog's mutable
+built-in Web Vitals collector is explicitly disabled to prevent duplicates.
+`catalogue_ready` remains a separate bounded event for catalogue-load latency.
+G08 remains incomplete until the release is deployed and representative 28-day
+field data is available and reviewed; the implementation and lab results alone
+are not production certification.

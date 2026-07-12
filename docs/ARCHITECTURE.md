@@ -95,6 +95,21 @@ until after the app starts. Product analytics remain available when configured,
 but course search and navigation no longer carry the analytics library in the
 startup bundle.
 
+`src/lib/performanceTelemetry.js` owns privacy-bounded catalogue timing and
+Core Web Vitals normalization. Google's standard `web-vitals` build is a lazy
+chunk registered once per page load; it reports LCP, INP, and CLS without DOM
+attribution through the analytics adapter. The bundle guard prevents this
+optional measurement code from entering the initial Home graph.
+
+`src/lib/analytics.js` also owns the final PostHog `before_send` privacy
+boundary. It removes query strings and fragments from SDK-enriched URL and
+referrer properties after enrichment, so intermediate custom-event sanitizing
+cannot be bypassed by the analytics client.
+
+The analytics adapter preserves optional PostHog capture options in its pending
+queue. Core Web Vitals use immediate `sendBeacon` delivery because their final
+callbacks often run while the document is becoming hidden or unloading.
+
 `src/components/SchedulePlanHeader.jsx` owns only the desktop plan-management
 controls. Schedule Builder retains all storage, import/export, and scheduling
 orchestration, passing explicit callbacks to keep the header independently

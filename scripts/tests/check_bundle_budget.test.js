@@ -66,6 +66,10 @@ function baseManifest({ home = {}, shell = {}, courses = {}, scheduleBuilder = {
     },
     'node_modules/plotly.js-dist-min/plotly.js': { file: 'assets/vendor-plotly.js' },
     'node_modules/@supabase/supabase-js/dist/main/index.js': { file: 'assets/vendor-supabase.js' },
+    'node_modules/web-vitals/dist/web-vitals.js': {
+      file: 'assets/web-vitals.js',
+      isDynamicEntry: true,
+    },
   }
 }
 
@@ -80,6 +84,7 @@ const standardAssets = {
   'assets/shared.css': '.shared{}',
   'assets/vendor-plotly.js': 'plotly',
   'assets/vendor-supabase.js': 'supabase',
+  'assets/web-vitals.js': 'web-vitals',
 }
 
 describe('check_bundle_budget', () => {
@@ -110,6 +115,7 @@ describe('check_bundle_budget', () => {
     expect(result.stdout).toContain('assets/index.css')
     expect(result.stdout).toContain('assets/shared.css')
     expect(result.stdout).toContain('Plotly: lazy')
+    expect(result.stdout).toContain('Web Vitals: lazy')
     expect(result.stdout).toContain("Lazy-route ('/courses') bundle budget")
     expect(result.stdout).toContain("Lazy-route ('/schedule-builder') bundle budget")
   })
@@ -160,6 +166,17 @@ describe('check_bundle_budget', () => {
 
     expect(result.code).not.toBe(0)
     expect(result.stderr).toContain('Supabase must load after the initial Home graph')
+  })
+
+  it('fails when Web Vitals telemetry becomes a static Home dependency', async () => {
+    const dist = await createFixture(
+      baseManifest({ home: { imports: ['node_modules/web-vitals/dist/web-vitals.js'] } }),
+      standardAssets,
+    )
+    const result = await runGuard(dist)
+
+    expect(result.code).not.toBe(0)
+    expect(result.stderr).toContain('Web Vitals telemetry must be lazy-loaded')
   })
 
   it('fails when a direct-navigation lazy route exceeds its budget', async () => {

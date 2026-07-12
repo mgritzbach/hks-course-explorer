@@ -5,8 +5,11 @@ import * as Sentry from '@sentry/react'
 import App from './App.jsx'
 import { TourProvider } from './components/TutorialOverlay.jsx'
 import { useWelcomeEntry, WelcomeEntryProvider } from './components/WelcomeEntryProvider.jsx'
-import { initializeAnalytics } from './lib/analytics.js'
-import { POSTHOG_PERFORMANCE_OPTIONS } from './lib/performanceTelemetry.js'
+import { capture, initializeAnalytics } from './lib/analytics.js'
+import {
+  initializeWebVitalsTelemetry,
+  POSTHOG_PERFORMANCE_OPTIONS,
+} from './lib/performanceTelemetry.js'
 import { SENTRY_REPLAY_OPTIONS } from './lib/sentryReplayConfig.js'
 import { installStaleAssetRecovery } from './lib/staleAssetRecovery.js'
 import './index.css'
@@ -44,6 +47,7 @@ function AnalyticsBootstrap() {
       person_profiles: 'identified_only',
       ...POSTHOG_PERFORMANCE_OPTIONS,
     })
+    void initializeWebVitalsTelemetry(capture)
   }, [isWelcomeDecisionPending])
 
   return null
