@@ -26,7 +26,8 @@
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
     "test:e2e:build": "node scripts/run_e2e_build.mjs",
-    "test:e2e:ci": "playwright test"
+    "test:e2e:ci": "playwright test",
+    "test:e2e:production": "playwright test --config=playwright.production.config.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",

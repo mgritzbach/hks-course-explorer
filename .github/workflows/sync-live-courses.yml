@@ -42,8 +42,9 @@ jobs:
           # HKS is owned by the separate authoritative my.harvard sync. This
           # job protects all other Harvard-school offerings without changing
           # which HKS rows are active.
-          # Run 29186716529 produced 4,826 distinct non-HKS ATS rows. Reject a
-          # drop below 4,300 (89% of that reviewed baseline) before any write.
+          # Exact-master run 29189143811 promoted 5,607 non-HKS ATS rows after
+          # the authoritative HKS ownership filter. Reject a drop below 5,000
+          # (89.2% of that reviewed baseline) before any database write.
           # Recalibrate only from a successful, inventory-audited source run.
-          SYNC_MIN_UNIQUE_COURSES: '4300'
+          SYNC_MIN_UNIQUE_COURSES: '5000'
         run: python scripts/sync_live_courses.py

@@ -23,7 +23,10 @@ Choose the track that matches how much data you have.
 ### Track A — Schedule Builder Only
 **What you get:** A working schedule builder showing current Harvard course listings for your school, with conflict detection and a visual grid.
 
-**Time to deploy:** ~2 hours. No evaluation data needed.
+**Time to deploy:** Not yet turnkey. No evaluation data is required, but a new
+fork must first provide and verify a complete Supabase catalogue-schema
+baseline. Until that baseline is versioned here, do not estimate this track as
+a two-hour deployment.
 
 **Steps:**
 

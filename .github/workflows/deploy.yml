@@ -12,6 +12,11 @@ permissions:
   contents: read
   deployments: write
 
+# A fixed release-candidate alias is safe only when releases cannot race.
+concurrency:
+  group: hks-production-release
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy verified master
@@ -21,6 +26,7 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.head_branch == 'master'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout tested commit
@@ -65,11 +71,46 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Deploy isolated Pages release candidate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 54cdc2ac5fbe86216672ccf2589cf9cb
+        run: >-
+          wrangler pages deploy dist
+          --project-name=hks-course-explorer
+          --branch=release-candidate
+
+      - name: Smoke-test exact release-candidate artifact
+        env:
+          DEPLOY_SMOKE_URL: https://release-candidate.hks-course-explorer.pages.dev/
+        run: node scripts/smoke_deployed_site.mjs
+
+      - name: Install production smoke browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Exercise release candidate in a real browser
+        env:
+          DEPLOY_SMOKE_URL: https://release-candidate.hks-course-explorer.pages.dev/
+          DEPLOY_MIN_HKS_OFFERINGS: '285'
+        run: npm run test:e2e:production
+
+      - name: Refuse stale master promotion
+        shell: bash
+        env:
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git fetch origin master --depth=1
+          latest_sha="$(git rev-parse origin/master)"
+          if [ "$latest_sha" != "$TESTED_SHA" ]; then
+            echo "Refusing stale release: tested $TESTED_SHA, current master $latest_sha" >&2
+            exit 1
+          fi
+
       - name: Deploy atomic chat-rate limiter when changed
         if: steps.rate-limiter.outputs.changed == 'true'
         # The Pages chat handler fails closed without this Durable Object
-        # namespace. When its source changes, deploy it before Pages and keep
-        # the release blocked if the token cannot update Workers.
+        # namespace. Promote it only after the static/UI release candidate has
+        # passed, then keep production promotion blocked if the update fails.
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: 54cdc2ac5fbe86216672ccf2589cf9cb
@@ -88,6 +129,23 @@ jobs:
         env:
           DEPLOY_SMOKE_URL: https://hks-course-explorer.org/
         run: node scripts/smoke_deployed_site.mjs
+
+      - name: Exercise production in a real browser
+        env:
+          DEPLOY_SMOKE_URL: https://hks-course-explorer.org/
+          DEPLOY_MIN_HKS_OFFERINGS: '285'
+        run: npm run test:e2e:production
+
+      - name: Retain production browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-browser-smoke-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Record deployed commit
         run: echo "Deployed verified commit ${{ github.event.workflow_run.head_sha }}"

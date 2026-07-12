@@ -39,7 +39,7 @@ Pages too if Pages can create builds outside this workflow.
 | `SUPABASE_URL` | Yes | REST/client endpoint for trusted data-sync scripts. |
 | `SUPABASE_KEY` | Yes | Supabase service-role/secret key for trusted scripts only. |
 | `HARVARD_API_KEY` | Yes | Harvard ATS API key used by the non-HKS sync script. |
-| `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated non-HKS results required before the ATS sync writes. Script default: `1`; production uses `4300` against the reviewed 4,826-row source baseline from run `29186716529`. |
+| `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated non-HKS results required before the ATS sync writes. Script default: `1`; production uses `5000` against the reviewed 5,607-row accepted baseline from exact-master run `29189143811`. |
 | `SYNC_ALLOW_STALE_DELETE` | No | Retired safety flag. Any `true` value makes the sync fail before Harvard or database activity; this workflow never deletes rows. |
 | `MYHARVARD_MIN_HKS_OFFERINGS` | No | Minimum complete HKS offerings required before staging/promotion; production uses `285` against the current 297-row catalogue. |
 | `MYHARVARD_PROMOTE` | Yes in production | Must be `true` only in the trusted scheduled HKS promotion; defaults to staging without promotion. |
