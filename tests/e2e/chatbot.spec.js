@@ -99,7 +99,7 @@ test.describe('course advisor lifecycle', () => {
     await dialog.getByRole('button', { name: 'Send message' }).click()
 
     await expect(dialog.getByText(/Please wait 3 seconds/)).toBeVisible()
-    await expect(dialog.getByText('AI provider was not used')).toBeVisible()
+    await expect(dialog.getByText('No AI answer was accepted')).toBeVisible()
     await expect(dialog.getByText(/Based on the available course data/)).toHaveCount(0)
   })
 })

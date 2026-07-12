@@ -287,7 +287,7 @@ export function parseOpenRouterCompletion(payload) {
   const model = payload.model
   const cost = payload.usage?.cost
 
-  if (typeof reply !== 'string' || !reply.trim() || finishReason === 'error') {
+  if (typeof reply !== 'string' || !reply.trim() || finishReason !== 'stop') {
     throw new UpstreamError('Chat provider returned an incomplete response')
   }
   if (typeof model !== 'string' || !model.endsWith(':free')) {

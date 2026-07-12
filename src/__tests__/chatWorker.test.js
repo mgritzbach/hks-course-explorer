@@ -213,6 +213,10 @@ describe('Chat Pages Function contract', () => {
       'provider error finish',
       providerPayload({ choices: [{ message: { content: 'partial' }, finish_reason: 'error' }] }),
     ],
+    [
+      'token-limit truncation',
+      providerPayload({ choices: [{ message: { content: 'partial' }, finish_reason: 'length' }] }),
+    ],
   ])('rejects an unverified completion with %s', async (_label, payload) => {
     expect(() => parseOpenRouterCompletion(payload)).toThrow()
     vi.stubGlobal(

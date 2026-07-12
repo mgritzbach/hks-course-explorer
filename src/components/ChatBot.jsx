@@ -435,7 +435,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
                         fontWeight: 700,
                       }}
                     >
-                      AI provider was not used
+                      No AI answer was accepted
                     </p>
                   )}
                 </div>
