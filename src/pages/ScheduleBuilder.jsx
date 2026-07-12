@@ -321,6 +321,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     liveCoursesData,
     liveCoursesLoading,
     liveCoursesError,
+    availableHksTerms,
     sectionTimesMap,
     sectionInfoMap,
     sectionTimesLoading,
@@ -370,6 +371,27 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   // look like a trustworthy empty current result.
   const catalogueReadError = searchMode === 'live' ? liveCoursesError : ''
   const sessionOptions = useMemo(() => getSessionOptions(semester), [semester])
+  const selectedCatalogueTerm = getLiveCatalogueTerm(semesterYear, semester)
+  const totalCurrentHksOfferings = useMemo(
+    () => availableHksTerms.reduce((total, option) => total + option.count, 0),
+    [availableHksTerms],
+  )
+
+  // Correct an impossible year/semester pair to a term that actually exists
+  // rather than presenting a trustworthy-looking zero-result catalogue.
+  useEffect(() => {
+    if (!availableHksTerms.length) return
+    if (availableHksTerms.some((option) => option.term === selectedCatalogueTerm)) return
+    const fallback =
+      availableHksTerms.find(
+        (option) =>
+          option.term ===
+          getLiveCatalogueTerm(DEFAULT_SCHEDULE_TERM.year, DEFAULT_SCHEDULE_TERM.semester),
+      ) || availableHksTerms[0]
+    setSemesterYear(fallback.year)
+    setSemester(fallback.semester)
+    setSearchSession('all')
+  }, [availableHksTerms, selectedCatalogueTerm])
 
   // A session belongs to one semester. Never carry "Spring 1" into Fall (or
   // vice versa), where an exact-match filter would incorrectly show zero.
@@ -1334,39 +1356,33 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     Core
                   </button>
                 </div>
-                {/* Year + Semester selectors */}
+                {/* Only offer terms that actually exist in the active catalogue. */}
                 <div className="flex gap-1.5">
                   <select
-                    value={semesterYear}
-                    onChange={(e) => setSemesterYear(e.target.value)}
-                    className="rounded-xl border px-2 py-1.5 text-xs"
+                    value={selectedCatalogueTerm}
+                    onChange={(e) => {
+                      const option = availableHksTerms.find((item) => item.term === e.target.value)
+                      if (!option) return
+                      setSemesterYear(option.year)
+                      setSemester(option.semester)
+                      setSearchSession('all')
+                    }}
+                    className="min-w-0 flex-1 rounded-xl border px-2 py-1.5 text-xs"
                     style={{
                       background: 'var(--panel-soft)',
                       borderColor: 'var(--line-strong)',
                       color: 'var(--text)',
                     }}
-                    aria-label="Year"
+                    aria-label="Catalogue term"
                   >
-                    <option value="2025">2025</option>
-                    <option value="2026">2026</option>
-                    <option value="2027">2027</option>
-                    <option value="2028">2028</option>
-                  </select>
-                  <select
-                    value={semester}
-                    onChange={(e) => setSemester(e.target.value)}
-                    className="flex-1 rounded-xl border px-2 py-1.5 text-xs"
-                    style={{
-                      background: 'var(--panel-soft)',
-                      borderColor: 'var(--line-strong)',
-                      color: 'var(--text)',
-                    }}
-                    aria-label="Semester"
-                  >
-                    <option value="Spring">Spring</option>
-                    <option value="Fall">Fall</option>
-                    <option value="Summer">Summer</option>
-                    <option value="January">J-Term</option>
+                    {!availableHksTerms.length && (
+                      <option value={selectedCatalogueTerm}>{`${semester} ${semesterYear}`}</option>
+                    )}
+                    {availableHksTerms.map((option) => (
+                      <option key={option.term} value={option.term}>
+                        {option.label} ({option.count} HKS)
+                      </option>
+                    ))}
                   </select>
                   <select
                     value={searchSession}
@@ -1663,15 +1679,26 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                   {searchSource !== 'HKS' ? ' · Enter with code to manually add if not found' : ''}
                 </p>
               ) : !searchQ.trim() && searchMode === 'live' ? (
-                <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-                  {catalogueReadError
-                    ? 'Current catalogue unavailable — see notice below.'
-                    : liveCoursesLoading
-                      ? 'Loading current catalog…'
-                      : liveCoursesData.length > 0
-                        ? `Browsing ${semesterYear} ${semester} catalog — type to narrow`
-                        : `No synced courses are available for ${semesterYear} ${semester}.`}
-                </p>
+                <div
+                  className="mt-2 space-y-0.5 text-[11px] leading-5"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <p>
+                    {catalogueReadError
+                      ? 'Current catalogue unavailable — see notice below.'
+                      : liveCoursesLoading
+                        ? 'Loading current catalog…'
+                        : liveCoursesData.length > 0
+                          ? `Browsing ${semester} ${semesterYear} catalog — type to narrow`
+                          : `No synced courses are available for ${semester} ${semesterYear}.`}
+                  </p>
+                  {totalCurrentHksOfferings > 0 && (
+                    <p>
+                      {totalCurrentHksOfferings} current HKS offerings across{' '}
+                      {availableHksTerms.length} catalogue terms
+                    </p>
+                  )}
+                </div>
               ) : null}
             </div>
 

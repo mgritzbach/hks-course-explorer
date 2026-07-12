@@ -8,12 +8,26 @@ test.describe('Schedule Builder critical flows', () => {
     await page.setViewportSize({ width: 1440, height: 1000 })
   })
 
+  test('offers only synced catalogue terms and discloses complete HKS coverage', async ({
+    page,
+  }) => {
+    await page.goto('/schedule-builder')
+
+    const term = page.getByLabel('Catalogue term')
+    await expect(term.locator('option')).toHaveText([
+      'Spring 2026 (2 HKS)',
+      'Fall 2026 (2 HKS)',
+      'Spring 2027 (1 HKS)',
+    ])
+    await expect(term.locator('option[value="2027 Fall"]')).toHaveCount(0)
+    await expect(page.getByText('5 current HKS offerings across 3 catalogue terms')).toBeVisible()
+  })
+
   test('filters the locally loaded catalogue by session', async ({ page }) => {
     await page.goto('/schedule-builder')
 
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
-    await page.getByLabel('Year').selectOption('2026')
-    await page.getByLabel('Semester').selectOption('Spring')
+    await page.getByLabel('Catalogue term').selectOption('2026 Spring')
     const results = page.getByRole('list', { name: 'Course search results' })
     await expect(results).toContainText('API-101')
     await expect(results).toContainText('BGP-201')
@@ -31,8 +45,7 @@ test.describe('Schedule Builder critical flows', () => {
     await page.goto('/schedule-builder')
     const results = page.getByRole('list', { name: 'Course search results' })
 
-    await page.getByLabel('Year').selectOption('2026')
-    await page.getByLabel('Semester').selectOption('Spring')
+    await page.getByLabel('Catalogue term').selectOption('2026 Spring')
 
     await page.getByLabel('School filter').selectOption('Non-HKS')
     await expect(results).toContainText('ECON-50')
@@ -54,8 +67,7 @@ test.describe('Schedule Builder critical flows', () => {
     await page.addInitScript(() => localStorage.setItem('hks-splash-shown', '1'))
     await page.goto('/schedule-builder')
 
-    await page.getByLabel('Year').selectOption('2026')
-    await page.getByLabel('Semester').selectOption('Spring')
+    await page.getByLabel('Catalogue term').selectOption('2026 Spring')
 
     await page.getByLabel('Search courses and instructors').fill('policy')
     await expect(page.getByRole('list', { name: 'Course search results' })).toContainText('API-101')
@@ -75,7 +87,7 @@ test.describe('Schedule Builder critical flows', () => {
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
     await expect.poll(() => requestedTerms).toContain('eq.2026 Fall')
 
-    await page.getByLabel('Semester').selectOption('Spring')
+    await page.getByLabel('Catalogue term').selectOption('2026 Spring')
     await expect.poll(() => requestedTerms).toContain('eq.2026 Spring')
   })
 
@@ -83,10 +95,9 @@ test.describe('Schedule Builder critical flows', () => {
     await page.goto('/schedule-builder')
     const results = page.getByRole('list', { name: 'Course search results' })
 
-    await page.getByLabel('Year').selectOption('2026')
-    await page.getByLabel('Semester').selectOption('Spring')
+    await page.getByLabel('Catalogue term').selectOption('2026 Spring')
     await page.getByLabel('Session filter').selectOption('Spring 1')
-    await page.getByLabel('Semester').selectOption('Fall')
+    await page.getByLabel('Catalogue term').selectOption('2026 Fall')
 
     await expect(page.getByLabel('Session filter')).toHaveValue('all')
     await expect(results).toContainText('2 live courses')
@@ -103,8 +114,8 @@ test.describe('Schedule Builder critical flows', () => {
     await page.goto('/schedule-builder')
     const results = page.getByRole('list', { name: 'Course search results' })
 
-    await page.getByLabel('Year').selectOption('2027')
-    await page.getByLabel('Semester').selectOption('January')
+    await page.getByLabel('Catalogue term').selectOption('2027 Spring')
+    await page.getByLabel('Session filter').selectOption('January')
     await expect.poll(() => requestedTerms).toContain('eq.2027 Spring')
     await expect(results).toContainText('IGA-299-A')
     await expect(results).toContainText('1 live course')

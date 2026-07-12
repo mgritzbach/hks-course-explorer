@@ -20,6 +20,12 @@ SIM_COORDINATE_FIELDS = (
     "sim_y_text",
 )
 
+
+def stable_source_hash(path):
+    """Hash text input independently of the checkout platform's line endings."""
+    normalized = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.md5(normalized).hexdigest()
+
 # Load school-specific config from data/school_config.json
 # Forks replace that file — no changes to this script needed.
 _school_cfg_path = ROOT / "data" / "school_config.json"
@@ -756,7 +762,7 @@ def main():
     SIM_JSON = ROOT / "public" / "sim_coords.json"
     SIM_SRC  = ROOT / "src" / "data" / "sim_coords.json"
 
-    csv_hash = hashlib.md5(SOURCE_CSV.read_bytes()).hexdigest()
+    csv_hash = stable_source_hash(SOURCE_CSV)
     cached_hash = SIM_HASH_FILE.read_text(encoding="utf-8").strip() if SIM_HASH_FILE.exists() else ""
     sim_coords_cached = SIM_JSON.exists() and SIM_SRC.exists() and csv_hash == cached_hash
 
