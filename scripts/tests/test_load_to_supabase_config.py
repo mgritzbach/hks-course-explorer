@@ -75,6 +75,24 @@ class LoadToSupabaseConfigTests(unittest.TestCase):
         self.assertIsNone(loader.validate_prepared_rows(rows))
         self.assertEqual(rows, [{"id": "a"}, {"id": "b"}])
 
+    def test_prepared_schedule_matches_production_courses_columns(self):
+        loader = load_module({})
+        row = loader.prepare_row(
+            {
+                "id": "API-101",
+                "meeting_days": ["Mon", "Wed"],
+                "meeting_time": "09:00",
+                "meeting_time_end": "10:15",
+                "location": "Wexner 436",
+            }
+        )
+        self.assertEqual(row["meeting_days"], "MON/WED")
+        self.assertEqual(row["time_start"], "09:00")
+        self.assertEqual(row["time_end"], "10:15")
+        self.assertEqual(row["location"], "Wexner 436")
+        self.assertNotIn("meeting_time", row)
+        self.assertNotIn("meeting_time_end", row)
+
     def test_database_count_mismatch_is_a_failed_promotion(self):
         loader = load_module({})
         with self.assertRaises(SystemExit) as missing_count:

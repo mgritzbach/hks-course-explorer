@@ -65,6 +65,9 @@ def load_courses():
 
 def prepare_row(course):
     """Strip frontend-only computed fields and keep only DB columns."""
+    meeting_days = course.get("meeting_days")
+    if isinstance(meeting_days, list):
+        meeting_days = "/".join(str(day).strip().upper() for day in meeting_days if str(day).strip())
     return {
         "id":                  course.get("id"),
         "course_code":         course.get("course_code"),
@@ -82,9 +85,12 @@ def prepare_row(course):
         "course_name":         course.get("course_name"),
         "description":         course.get("description"),
         "course_url":          course.get("course_url"),
-        "meeting_days":        course.get("meeting_days", None),
-        "meeting_time":        course.get("meeting_time", None),
-        "meeting_time_end":    course.get("meeting_time_end", None),
+        # Production's historical courses contract uses text schedule fields;
+        # the built JSON retains legacy frontend names and day arrays.
+        "meeting_days":        meeting_days,
+        "time_start":          course.get("meeting_time", course.get("time_start")),
+        "time_end":            course.get("meeting_time_end", course.get("time_end")),
+        "location":            course.get("location"),
         "is_stem":             course.get("is_stem", False),
         "stem_group":          course.get("stem_group"),
         "stem_school":         course.get("stem_school"),

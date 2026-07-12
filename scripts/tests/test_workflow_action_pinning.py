@@ -112,6 +112,7 @@ class WorkflowActionPinningTests(unittest.TestCase):
     def test_credential_bearing_python_workflows_use_the_hash_locked_requirements(self):
         expected_install = "pip install --require-hashes -r requirements/workflows.txt"
         for name in (
+            "backup-course-explorer-recovery.yml",
             "backup-live-courses.yml",
             "catalogue-parity-audit.yml",
             "deploy.yml",

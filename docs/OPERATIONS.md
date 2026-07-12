@@ -325,6 +325,27 @@ run rows, and it does not authorize a production restore. A real incident still
 requires owner approval, a migration-created target, restoration of related
 tables, and post-restore application smoke tests.
 
+### Multi-table Course Explorer recovery verification
+
+The single-table probe above remains useful for older `live_courses` artifacts,
+but it is not the current application-recovery boundary. Use **Backup Course
+Explorer recovery package** followed by **Verify Course Explorer recovery
+package** for the allowlist-only five-table package, clean PostgreSQL 17 schema
+replay, exact row/digest round trip, FK/index/RLS/policy/grant/function/trigger
+assertions, and shared-project sentinel check.
+
+The complete scope, controls, exclusions, and residual limits are maintained in
+[`docs/COURSE_EXPLORER_RECOVERY.md`](COURSE_EXPLORER_RECOVERY.md). Neither
+workflow can restore production, and neither is permission to expand into
+unrelated objects in the shared Supabase project.
+
+Both secret-bearing workflows are master-only. The backup package records the
+exact backup commit and a digest of the complete ordered recovery contract.
+Verification refuses a package from a different commit or a changed recovery
+contract, proves FK rejection/transaction rollback before loading data, and
+byte-compares the generated schema/access contract before accepting restored
+row digests.
+
 ### Schedule-plan persistence
 
 Schedule plans are intentionally browser-local. `savePlan` persists the plan in

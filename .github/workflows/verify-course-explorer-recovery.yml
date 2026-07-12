@@ -1,0 +1,216 @@
+name: Verify Course Explorer recovery package
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_run_id:
+        description: Successful Backup Course Explorer recovery package workflow run ID
+        required: true
+        type: string
+      confirm_restore:
+        description: Decrypt and restore only into ephemeral PostgreSQL
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-recovery:
+    # The recovery passphrase is never exposed to branch-controlled code.
+    if: ${{ inputs.confirm_restore && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.24@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        env:
+          POSTGRES_DB: recovery_probe
+          POSTGRES_USER: recovery_probe
+          POSTGRES_PASSWORD: recovery_probe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recovery_probe -d recovery_probe"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout reviewed recovery code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Verify backup workflow provenance
+        id: provenance
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+        run: |
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BACKUP_RUN_ID")"
+          test "$(jq -r .path <<<"$run_json")" = ".github/workflows/backup-course-explorer-recovery.yml"
+          test "$(jq -r .conclusion <<<"$run_json")" = "success"
+          test "$(jq -r .event <<<"$run_json")" = "workflow_dispatch"
+          test "$(jq -r .head_branch <<<"$run_json")" = "master"
+          test "$(jq -r .head_repository.full_name <<<"$run_json")" = "$GITHUB_REPOSITORY"
+          head_sha="$(jq -r .head_sha <<<"$run_json")"
+          [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download encrypted recovery artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: course-explorer-recovery-${{ inputs.backup_run_id }}
+          path: ${{ runner.temp }}/encrypted-recovery
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.backup_run_id }}
+
+      - name: Authenticate ciphertext before decryption
+        env:
+          BACKUP_ARTIFACT_PASSPHRASE: ${{ secrets.BACKUP_ARTIFACT_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_ARTIFACT_PASSPHRASE" ]; then
+            echo "BACKUP_ARTIFACT_PASSPHRASE is required for recovery verification." >&2
+            exit 1
+          fi
+          python scripts/recovery_ciphertext_hmac.py verify \
+            --ciphertext "$RUNNER_TEMP/encrypted-recovery/course-explorer-recovery.json.enc" \
+            --tag "$RUNNER_TEMP/encrypted-recovery/course-explorer-recovery.json.enc.hmac"
+
+      - name: Decrypt private recovery package
+        env:
+          BACKUP_ARTIFACT_PASSPHRASE: ${{ secrets.BACKUP_ARTIFACT_PASSPHRASE }}
+        run: >-
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000
+          -in "$RUNNER_TEMP/encrypted-recovery/course-explorer-recovery.json.enc"
+          -out "$RUNNER_TEMP/course-explorer-recovery.json"
+          -pass env:BACKUP_ARTIFACT_PASSPHRASE
+
+      - name: Validate package and prepare bounded restore CSV
+        run: >-
+          python scripts/verify_course_explorer_recovery.py prepare
+          --package "$RUNNER_TEMP/course-explorer-recovery.json"
+          --expected-project-url "https://cbtroatixvydpwoviezf.supabase.co"
+          --schema supabase/recovery/course_explorer_base.sql
+          --expected-source-commit "${{ steps.provenance.outputs.head_sha }}"
+          --csv "$RUNNER_TEMP/course-explorer-recovery.csv"
+
+      - name: Build clean-room schema from baseline and reviewed migrations
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          psql=(psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -v ON_ERROR_STOP=1)
+          "${psql[@]}" -c "create table public.unrelated_recovery_sentinel (id integer primary key, marker text not null); insert into public.unrelated_recovery_sentinel values (1, 'unchanged');"
+          "${psql[@]}" -f supabase/recovery/course_explorer_base.sql
+          for migration in \
+            supabase/migrations/20260710230627_restrict_course_explorer_browser_writes.sql \
+            supabase/migrations/20260710235500_atomic_live_course_sync.sql \
+            supabase/migrations/20260712060918_authoritative_myharvard_hks_catalogue.sql \
+            supabase/migrations/20260712062903_fix_myharvard_staging_isolation_and_rollback.sql \
+            supabase/migrations/20260712065000_make_myharvard_snapshot_retention_deterministic.sql \
+            supabase/migrations/20260712070000_serialize_and_guard_catalogue_promotions.sql \
+            supabase/migrations/20260712092831_isolate_non_hks_ats_activation.sql \
+            supabase/migrations/20260712193000_persist_hks_catalogue_manifest.sql \
+            supabase/migrations/20260712200000_revoke_course_explorer_browser_write_grants.sql \
+            supabase/migrations/20260712213000_revoke_course_sections_browser_write_grants.sql \
+            supabase/migrations/20260712213500_assert_course_sections_browser_grant_postconditions.sql \
+            supabase/migrations/20260712224500_harden_maintain_and_trigger_function_grants.sql
+          do
+            "${psql[@]}" -f "$migration"
+          done
+
+      - name: Prove exact recovery schema contract
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          psql -q -h 127.0.0.1 -U recovery_probe -d recovery_probe -v ON_ERROR_STOP=1 \
+            -f scripts/export_course_explorer_schema_contract.sql \
+            > "$RUNNER_TEMP/course-explorer-schema-contract.txt"
+          diff -u \
+            supabase/recovery/course_explorer_schema_contract.txt \
+            "$RUNNER_TEMP/course-explorer-schema-contract.txt"
+
+      - name: Prove foreign-key enforcement and transaction rollback
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          psql=(psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -v ON_ERROR_STOP=1)
+          if "${psql[@]}" <<'SQL'
+          begin;
+          insert into public.courses (id) values ('recovery-rollback-probe');
+          insert into public.live_courses (id, source, active, sync_run_id)
+          values (
+            'recovery-orphan-probe',
+            'myharvard',
+            false,
+            '00000000-0000-0000-0000-000000000001'::uuid
+          );
+          commit;
+          SQL
+          then
+            echo "Foreign-key probe unexpectedly accepted an orphan." >&2
+            exit 1
+          fi
+          probe_rows="$("${psql[@]}" -Atc \
+            "select count(*) from public.courses where id='recovery-rollback-probe'")"
+          test "$probe_rows" = "0"
+
+      - name: Restore every table atomically with triggers suppressed only during load
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -v ON_ERROR_STOP=1 <<'SQL'
+          create table recovery_payloads (
+            table_name text not null,
+            ordinal bigint not null,
+            row_id text not null,
+            payload jsonb not null,
+            primary key (table_name, ordinal),
+            unique (table_name, row_id)
+          );
+          SQL
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -v ON_ERROR_STOP=1 \
+            -c "\copy recovery_payloads (table_name,ordinal,row_id,payload) from '$RUNNER_TEMP/course-explorer-recovery.csv' with (format csv)"
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -v ON_ERROR_STOP=1 \
+            -f scripts/restore_course_explorer_recovery.sql
+
+      - name: Verify schema, relationships, RLS, grants, functions, and application linking
+        env:
+          PGPASSWORD: recovery_probe
+        run: >-
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_probe
+          -v ON_ERROR_STOP=1 -f scripts/verify_course_explorer_schema.sql
+
+      - name: Export and verify exact restored rows and per-table digests
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -v ON_ERROR_STOP=1 \
+            --csv -t -f scripts/export_course_explorer_restored_rows.sql \
+            > "$RUNNER_TEMP/course-explorer-restored.csv"
+          python scripts/verify_course_explorer_recovery.py verify \
+            --package "$RUNNER_TEMP/course-explorer-recovery.json" \
+          --expected-project-url "https://cbtroatixvydpwoviezf.supabase.co" \
+          --schema supabase/recovery/course_explorer_base.sql \
+          --expected-source-commit "${{ steps.provenance.outputs.head_sha }}" \
+          --csv "$RUNNER_TEMP/course-explorer-restored.csv"
+
+      - name: Remove all decrypted recovery files and scratch payloads
+        if: always()
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          rm -rf "$RUNNER_TEMP/encrypted-recovery" \
+            "$RUNNER_TEMP/course-explorer-recovery.json" \
+            "$RUNNER_TEMP/course-explorer-recovery.csv" \
+            "$RUNNER_TEMP/course-explorer-schema-contract.txt" \
+            "$RUNNER_TEMP/course-explorer-restored.csv"
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_probe \
+            -c "drop table if exists recovery_payloads" || true
