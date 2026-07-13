@@ -74,14 +74,30 @@ no delete or active-state change.
 
 ### Exact retained-ATS observation audit
 
-The current actionable queue is frozen at **1,526 unique IDs** with SHA-256
+The first observation cohort is frozen at **1,526 unique IDs** with SHA-256
 `fbd0a26cc18c195150f6f8d6e402db69edf28f0227c3ad5911814518c04312a5`.
 The manual `scripts/audit_retained_ats.py` tool refuses to inspect a subset: it
 reconstructs the complete current ATS source, authoritative HKS exclusions,
 database ownership partition, row count, and digest before the first retained
 lookup. Any source, manifest, ownership, count, duplicate, HKS-overlap, or
-digest mismatch stops the run as `queue_snapshot_mismatch` without history
-output.
+digest mismatch stops the run as `queue_snapshot_mismatch`. Once a valid
+history location and HMAC key are available, a bounded failed-attempt record is
+appended so an interrupted run cannot be mistaken for a clean observation.
+
+The first successful schema-v2 observation establishes the immutable cohort,
+an immutable ownership commitment, and a separate locator commitment for every
+member. Later runs recover
+those same 1,526 rows from the complete database inventory, even when a row has
+reappeared in the current Harvard source and therefore left the current
+actionable queue. A verified current-source reappearance may advance that row's
+term, code, school, session, and active-state commitment without changing its
+ownership or cohort token. An absent row cannot change those fields. Reappeared
+cohort rows remain observable, while newly
+actionable rows outside the frozen cohort are counted and digested separately.
+Any outside-cohort row blocks G02 completion until it receives a separately
+reviewed disposition; it is never silently excluded. The complete source and
+database inventory is read again after all provider lookups, and any intervening
+change invalidates the run.
 
 After a known-current positive control, the tool performs one sequential,
 paced Harvard search per retained ID. Each search uses exact `courseID`, never a
@@ -95,13 +111,23 @@ be missed. Every queue row receives exactly one outcome:
 - `unknown`: request, pagination, schema, identity, or locator evidence was
   insufficient. Unknown is allowed and must never be converted into absence.
 
+Membership in the complete current-source sweep always dominates an individual
+exact-search absence. That disagreement becomes `unknown` with the bounded
+`source_disagreement` reason and can never support retirement review.
+
 The local JSONL history contains HMAC tokens, outcome names, moved field names,
 bounded reason codes, counts, provenance, and a chained HMAC—never raw IDs,
-descriptions, request URLs, response bodies, or credentials. A token can become
+descriptions, request URLs, response bodies, or credentials. The chain is
+authenticated by the shared operator secret; it is not a digital signature and
+is not independently tamper-proof unless its printed chain head is retained in
+an external change ticket or other access-controlled record. A token can become
 a `future_retirement_review_candidate` only after its latest three eligible
-observations are clean absences on three distinct UTC dates. A later present,
-moved, unknown, invalid, or incomplete observation blocks that status until
-three newer clean absences exist. Candidate status is evidence for a future
+observations are clean absences on three distinct UTC dates and are at least 18
+hours apart. A later present, moved, unknown, invalid, or incomplete observation
+blocks that status until three newer clean absences exist. Pre-v2 observations
+do not count toward this barrier, and schema-v1 records are forbidden after the
+first schema-v2 record. A run with any newly actionable outside-cohort row also
+cannot count toward the barrier. Candidate status is evidence for a future
 human review only; it does not mutate, hide, deactivate, delete, merge, enrich,
 or publish anything.
 
@@ -109,15 +135,25 @@ Run only from a clean reviewed commit, with the persistent HMAC secret supplied
 through the operator environment:
 
 ```powershell
-$env:SUPABASE_URL = 'https://your-project.supabase.co'
+$env:SUPABASE_URL = 'https://cbtroatixvydpwoviezf.supabase.co'
 $env:SUPABASE_KEY = '<service-role-or-secret-key>'
 $env:HARVARD_API_KEY = '<harvard-api-key>'
 $env:RETAINED_ATS_AUDIT_HMAC_KEY = '<unique-persistent-secret-at-least-32-bytes>'
 python scripts/audit_retained_ats.py --history "$PWD\artifacts\retained-ats-audit-history.jsonl"
 ```
 
-Do not schedule this command, upload its history, or treat one successful run
-as G02 completion or retirement approval.
+`SUPABASE_URL` must be that exact production origin; the runtime transport guard
+permits only GET requests to its REST API and the reviewed Harvard ATS hosts.
+Before a run, confirm that the provider request volume remains inside the free
+quota with no paid overage. A successful run performs two complete general-source
+sweeps plus one positive control and 1,526 exact searches, with additional
+pagination and bounded transient retries. Avoid the scheduled 07:00 UTC sync
+window so both inventory reads observe one stable catalogue. Do not schedule
+this command, upload its history, or treat one successful run as G02 completion
+or retirement approval. After a successful run, copy the aggregate terminal
+line—including `history_chain_head`—to an external access-controlled change
+record. Never copy the JSONL history, raw identifiers, or secrets into that
+record.
 
 ## Read-only operator review
 

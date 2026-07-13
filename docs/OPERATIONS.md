@@ -363,24 +363,56 @@ separate, reviewed reconciliation with a tested backup and restore path.
 
 ### Manual retained-ATS evidence run
 
-Use `scripts/audit_retained_ats.py` only from a clean reviewed commit and only
-when the frozen queue is expected to remain exactly 1,526 rows with the
-documented digest. The tool repeats the full source/ownership proof, runs a
-known-current positive control, then issues sequential exact-ID GET requests at
-no more than one provider request per second. It does not call an RPC, use a
-write HTTP method, touch Cloudflare, alter schedules, or publish an artifact.
+Use `scripts/audit_retained_ats.py` only from a clean reviewed commit. On the
+first successful schema-v2 run, the current actionable queue must be exactly
+1,526 rows with the documented digest. Later runs retain those exact cohort
+members even if they reappear in the current source, while reporting any newly
+actionable outside-cohort rows as a separate G02 blocker. The tool repeats the
+full source/ownership proof, runs a known-current positive control, then issues
+sequential exact-ID GET requests at no more than one provider request per
+second. It does not call an RPC, use a write HTTP method, touch Cloudflare,
+alter schedules, or publish an artifact. Confirm the expected request volume
+fits the provider's free quota with no paid overage before starting a manual
+run. A successful run performs two complete general-source sweeps plus one
+positive control and 1,526 exact searches, with additional pagination and
+bounded retries. Do not overlap the scheduled 07:00 UTC catalogue sync.
+
+The audit accepts only the exact production Supabase origin
+`https://cbtroatixvydpwoviezf.supabase.co`. Its runtime network guard rejects
+every non-GET request, arbitrary/lookalike host, non-REST Supabase path, and
+unreviewed Harvard host before the underlying transport can send credentials.
+Each schema-v2 record is bound to that project and the current audit-key
+identifier. Schema-v1 records are accepted only as a legacy prefix; once any v2
+record exists, a later v1 record is an integrity failure.
 
 Keep `RETAINED_ATS_AUDIT_HMAC_KEY` in the operator environment or secure store.
 It must remain persistent so pseudonymous tokens are comparable across dates,
 but it must never be reused from Supabase, Harvard, or application secrets.
 Write history only under ignored `artifacts/` or to an absolute path outside the
 repository. The tool verifies the entire HMAC chain before an atomic append;
-an integrity failure stops the run.
+an integrity failure stops the run before source/database work. It holds an
+exclusive sidecar lock for the full audit and rereads the source/database
+inventory before accepting evidence. If a process crashes and leaves the lock,
+verify that no audit process is running before manually removing only the
+matching `.lock` file.
+
+The HMAC chain is authenticated with a shared secret; it is not a digital
+signature, and a secret holder could rewrite both records and chain. After each
+successful or recorded failed run, copy the aggregate terminal receipt and its
+`history_chain_head`
+to an access-controlled change ticket or equivalent external record. Do not
+copy the history file, raw course identifiers, response bodies, request URLs,
+or credentials. A later mismatch between the external head and local chain is
+an incident and invalidates the evidence until investigated.
 
 Review only aggregate output. `unknown` is a safe result, not a failure to be
 coerced into absence. Even three clean absence dates produce only a tokenized
 future-review candidate. Any later exact/moved instance, unknown, invalid run,
-or incomplete observation resets or blocks the three-day evidence barrier. A
+or incomplete observation resets or blocks the three-day evidence barrier; the
+three clean observations must also be at least 18 hours apart. Pre-v2 history is
+validated for compatibility but cannot satisfy this barrier, current-source
+presence always blocks retirement evidence, and any outside-cohort row makes
+that observation ineligible. A
 separate reviewed backup, rollback exercise, human decision, and mutation plan
 remain mandatory before any production change.
 

@@ -72,12 +72,33 @@ authorize deletion or deactivation; any keep/retire decision requires a
 separately reviewed backup and restore plan.
 
 `scripts/audit_retained_ats.py` is a separate manual, local-only evidence tool.
-It requires the same three read credentials plus
+It requires the same three connection secrets plus
 `RETAINED_ATS_AUDIT_HMAC_KEY`. It is intentionally absent from workflows and
 accepts no secret or course-ID command-line argument. Its only optional CLI
 input is a history path under ignored `artifacts/`, or an absolute path outside
-the repository. Supabase access is paginated GET-only; Harvard access is a
-single paced worker using exact `courseID` lookups without a school facet.
+the repository. Supabase access from this tool is paginated GET-only; Harvard
+access is a single paced worker using exact `courseID` lookups without a school
+facet. Prefer a dedicated, least-privilege server-side read credential when the
+project supports one; never expose the configured secret to browser code.
+
+For this production evidence tool, `SUPABASE_URL` is restricted to the exact
+reviewed production origin `https://cbtroatixvydpwoviezf.supabase.co`; a staging,
+lookalike, arbitrary, credential-bearing, or path-bearing URL fails before the
+sync module is imported or any network request is made. A runtime guard then
+allows only GET requests to that Supabase REST origin and the reviewed Harvard
+ATS hosts.
+
+The first successful schema-v2 history record fixes the 1,526-member HMAC token
+cohort plus separate ownership and locator commitments. Ownership stays fixed;
+a locator/active-state transition is accepted only while the complete current
+source independently proves that member present. The same HMAC key and history
+file must be used for every later observation. A different key, changed cohort,
+changed baseline, malformed record, duplicate token, non-monotonic timestamp,
+schema-v1 downgrade, unknown history field, project change, or concurrent audit
+fails closed before evidence is accepted. The HMAC chain is
+shared-secret authentication, not a digital signature. Retain the printed
+aggregate `history_chain_head` in a separate access-controlled change record if
+independent tamper evidence is required.
 
 The separate my.harvard job stages every student-facing HKS offering under a
 run ID, verifies the upstream advertised count and configured minimum, then
