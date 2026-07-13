@@ -137,6 +137,7 @@ create index live_courses_term_idx on public.live_courses (term);
 create or replace function public.refresh_synced_at()
 returns trigger
 language plpgsql
+set search_path = pg_catalog
 as $$
 begin
   new.synced_at = now();

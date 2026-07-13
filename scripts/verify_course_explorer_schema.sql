@@ -196,6 +196,13 @@ begin
       raise exception 'Recovery trigger-function grants are unsafe for %', trigger_function;
     end if;
   end loop;
+  if not coalesce((
+    select proconfig @> array['search_path=pg_catalog']
+    from pg_proc
+    where oid=to_regprocedure('public.refresh_synced_at()')
+  ), false) then
+    raise exception 'Recovery refresh_synced_at search_path is unsafe';
+  end if;
 
   if (select count(*) from public.live_catalogue_runs where source='myharvard' and status='active') <> 1 then
     raise exception 'Recovery data must contain exactly one active my.harvard run';

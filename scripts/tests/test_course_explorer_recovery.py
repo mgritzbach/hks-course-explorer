@@ -397,6 +397,30 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
         self.assertNotIn("delete from", hardening)
         self.assertNotIn("drop table", hardening)
 
+        search_path_hardening = (
+            ROOT
+            / "supabase/migrations/20260713150805_harden_refresh_synced_at_search_path.sql"
+        ).read_text(encoding="utf-8").lower()
+        self.assertIn("alter function public.refresh_synced_at()", search_path_hardening)
+        self.assertIn("set search_path = pg_catalog", search_path_hardening)
+        self.assertIn("reset search_path", search_path_hardening)
+        self.assertNotIn("delete from", search_path_hardening)
+        self.assertNotIn("drop table", search_path_hardening)
+
+        recovery_base = (
+            ROOT / "supabase/recovery/course_explorer_base.sql"
+        ).read_text(encoding="utf-8").lower()
+        refresh_start = recovery_base.index(
+            "create or replace function public.refresh_synced_at()"
+        )
+        refresh_definition = recovery_base[refresh_start : refresh_start + 300]
+        self.assertIn("set search_path = pg_catalog", refresh_definition)
+
+        verifier = (
+            ROOT / "scripts/verify_course_explorer_schema.sql"
+        ).read_text(encoding="utf-8").lower()
+        self.assertIn("refresh_synced_at search_path is unsafe", verifier)
+
     def test_catalogue_rollback_exercise_is_clone_only_and_manifest_exact(self):
         probe = (ROOT / "scripts/verify_myharvard_rollback_exercise.sql").read_text(
             encoding="utf-8"

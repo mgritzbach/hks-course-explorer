@@ -36,6 +36,7 @@ RECOVERY_CONTRACT_PATHS = (
     "supabase/migrations/20260712213000_revoke_course_sections_browser_write_grants.sql",
     "supabase/migrations/20260712213500_assert_course_sections_browser_grant_postconditions.sql",
     "supabase/migrations/20260712224500_harden_maintain_and_trigger_function_grants.sql",
+    "supabase/migrations/20260713150805_harden_refresh_synced_at_search_path.sql",
 )
 TABLE_ORDER = (
     "courses",

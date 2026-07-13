@@ -231,6 +231,28 @@ service execution is true, and service-role insert/update still fires both user
 triggers. These outcomes are also part of the generated exact recovery schema
 contract, including grant-option and normalized ACL state.
 
+## Trigger search-path follow-up
+
+The live Supabase security advisor later identified that the invoker trigger
+function `public.refresh_synced_at()` inherited the caller's mutable
+`search_path`. Migration
+`20260713150805_harden_refresh_synced_at_search_path.sql` pins that function to
+`pg_catalog`. The function resolves only PostgreSQL's `now()` and the trigger
+record `NEW`, so the change does not alter an application-table dependency,
+row, policy, grant, trigger, or API contract.
+
+The recovery baseline, replay workflow, exact schema contract, and verifier
+must carry the same setting. Before production application, create a fresh
+encrypted recovery package from the exact commit and pass its isolated restore
+verification. After application, require `proconfig` to contain
+`search_path=pg_catalog`, prove a normal `live_courses` update still refreshes
+`synced_at`, confirm catalogue counts and ownership invariants are unchanged,
+and rerun the security advisor. The configuration-only rollback is:
+
+```sql
+alter function public.refresh_synced_at() reset search_path;
+```
+
 ## Rollback and retention
 
 Keep the policy definition export and backup checkpoint with the release
