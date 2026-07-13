@@ -18,7 +18,7 @@ import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html.parser import HTMLParser
-from urllib.parse import urljoin
+from urllib.parse import parse_qsl, urljoin, urlparse
 
 import requests
 
@@ -30,6 +30,7 @@ MAX_ACTIVE_HKS_ROWS = 10_000
 DETAIL_WORKERS = 4
 DETAIL_MAX_ATTEMPTS = 3
 DETAIL_RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
+SEARCH_MAX_ATTEMPTS = 3
 MIN_HKS_OFFERINGS = int(os.environ.get("MYHARVARD_MIN_HKS_OFFERINGS", "250"))
 PROMOTE = os.environ.get("MYHARVARD_PROMOTE", "false").lower() == "true"
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -66,6 +67,10 @@ def plain_text(fragment: str) -> str:
 
 class ScheduleParseError(RuntimeError):
     """Raised when a published meeting pattern cannot be represented safely."""
+
+
+class SearchSnapshotRetry(RuntimeError):
+    """Requests a clean page-one restart without retaining partial search rows."""
 
 
 DAY_LABELS = {
@@ -380,7 +385,7 @@ def fetch_detail_html(source_url: str) -> str:
             # Authentication, authorization, or a changed exact source URL is
             # not transient; retrying would only delay the fail-closed result.
             raise
-        except requests.RequestException as exc:
+        except (requests.RequestException, ValueError) as exc:
             last_error = exc
         if attempt + 1 < DETAIL_MAX_ATTEMPTS:
             time.sleep(0.25 * (2**attempt))
@@ -453,55 +458,119 @@ def count_schedule_states(rows: list[dict]) -> tuple[int, int]:
     return scheduled, pending
 
 
-def fetch_all_hks_offerings(session: requests.Session | None = None) -> list[dict]:
-    client = session or requests.Session()
+def fetch_search_page(
+    client: requests.Session,
+    page: int,
+    expected_total: int | None,
+) -> tuple[int, list[dict]]:
+    """Fetch one page; retryable failures require a whole-snapshot restart."""
+    params = {
+        "q": "",
+        "school": "HKS",
+        "term": "All",
+        "sort": "subject_catalog",
+        "page": page,
+        "browseSchool": "true",
+    }
+    try:
+        response = client.get(
+            MYHARVARD_SEARCH,
+            params=params,
+            headers=REQUEST_HEADERS,
+            timeout=30,
+            allow_redirects=False,
+        )
+        status_code = getattr(response, "status_code", 0)
+        if isinstance(status_code, int) and 300 <= status_code < 400:
+            raise RuntimeError("my.harvard search redirect was refused")
+        if not response.ok:
+            if status_code not in DETAIL_RETRYABLE_STATUS_CODES:
+                response.raise_for_status()
+            raise SearchSnapshotRetry(
+                f"my.harvard search returned retryable HTTP {status_code}"
+            )
+
+        final_url = getattr(response, "url", MYHARVARD_SEARCH)
+        if isinstance(final_url, str):
+            expected_url = urlparse(MYHARVARD_SEARCH)
+            actual_url = urlparse(final_url)
+            expected_query = sorted((key, str(value)) for key, value in params.items())
+            actual_query = sorted(parse_qsl(actual_url.query, keep_blank_values=True))
+            if (
+                actual_url.scheme != expected_url.scheme
+                or actual_url.netloc != expected_url.netloc
+                or actual_url.path.rstrip("/") != expected_url.path.rstrip("/")
+                or actual_query != expected_query
+            ):
+                raise RuntimeError("my.harvard search response URL changed")
+        payload = response.json()
+    except requests.HTTPError:
+        raise
+    except requests.RequestException as exc:
+        raise SearchSnapshotRetry("my.harvard search request failed") from exc
+    except ValueError as exc:
+        raise SearchSnapshotRetry("my.harvard search returned invalid JSON") from exc
+
+    if not isinstance(payload, dict) or not isinstance(payload.get("hits"), str):
+        raise SearchSnapshotRetry("my.harvard returned an invalid search response")
+    total = payload.get("total_hits")
+    if not isinstance(total, int) or total < MIN_HKS_OFFERINGS:
+        raise SearchSnapshotRetry(
+            "my.harvard advertised an invalid or incomplete HKS result count"
+        )
+    if expected_total is not None and total != expected_total:
+        raise SearchSnapshotRetry("my.harvard result count changed during pagination")
+    try:
+        page_rows = parse_cards(payload["hits"])
+    except ValueError as exc:
+        raise SearchSnapshotRetry("my.harvard search-card contract was incomplete") from exc
+    if not page_rows:
+        raise SearchSnapshotRetry(
+            "my.harvard returned an empty page before all offerings were read"
+        )
+    return total, page_rows
+
+
+def fetch_hks_snapshot(client: requests.Session) -> list[dict]:
+    """Read one internally consistent candidate without cross-attempt row reuse."""
     rows: list[dict] = []
     expected_total: int | None = None
     page = 1
     while expected_total is None or len(rows) < expected_total:
-        response = client.get(
-            MYHARVARD_SEARCH,
-            params={
-                "q": "",
-                "school": "HKS",
-                "term": "All",
-                "sort": "subject_catalog",
-                "page": page,
-                "browseSchool": "true",
-            },
-            headers=REQUEST_HEADERS,
-            timeout=30,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict) or not isinstance(payload.get("hits"), str):
-            raise RuntimeError("my.harvard returned an invalid search response")
-        total = payload.get("total_hits")
-        if not isinstance(total, int) or total < MIN_HKS_OFFERINGS:
-            raise RuntimeError(
-                f"my.harvard advertised {total!r} HKS offerings; minimum is {MIN_HKS_OFFERINGS}"
-            )
+        total, page_rows = fetch_search_page(client, page, expected_total)
         if expected_total is None:
             expected_total = total
-        elif total != expected_total:
-            raise RuntimeError("my.harvard result count changed during pagination")
-
-        page_rows = parse_cards(payload["hits"])
-        if not page_rows:
-            raise RuntimeError(f"my.harvard page {page} was empty before all offerings were read")
         rows.extend(page_rows)
         page += 1
         if page > (expected_total + PAGE_SIZE - 1) // PAGE_SIZE + 2:
-            raise RuntimeError("my.harvard pagination exceeded the advertised result count")
+            raise SearchSnapshotRetry("my.harvard pagination exceeded the advertised result count")
 
     if len(rows) != expected_total:
-        raise RuntimeError(f"Parsed {len(rows)} offerings; my.harvard advertised {expected_total}")
+        raise SearchSnapshotRetry(
+            f"Parsed {len(rows)} offerings; my.harvard advertised {expected_total}"
+        )
     identities = {row["id"] for row in rows}
     if len(identities) != expected_total:
-        raise RuntimeError("my.harvard returned duplicate offering identities")
+        raise SearchSnapshotRetry("my.harvard returned duplicate offering identities")
     if any(not row["title"] for row in rows):
-        raise RuntimeError("my.harvard returned an offering without a title")
+        raise SearchSnapshotRetry("my.harvard returned an offering without a title")
     return rows
+
+
+def fetch_all_hks_offerings(session: requests.Session | None = None) -> list[dict]:
+    client = session or requests.Session()
+    last_error: SearchSnapshotRetry | None = None
+    for attempt in range(SEARCH_MAX_ATTEMPTS):
+        try:
+            return fetch_hks_snapshot(client)
+        except SearchSnapshotRetry as exc:
+            last_error = exc
+            if attempt + 1 < SEARCH_MAX_ATTEMPTS:
+                time.sleep(0.5 * (2**attempt))
+    raise RuntimeError(
+        f"Could not verify a complete my.harvard snapshot after "
+        f"{SEARCH_MAX_ATTEMPTS} attempts"
+    ) from last_error
 
 
 def supabase_headers(prefer: str | None = None) -> dict[str, str]:
