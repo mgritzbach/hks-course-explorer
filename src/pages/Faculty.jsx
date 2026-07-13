@@ -4,6 +4,7 @@ import OnboardingTour from '../components/OnboardingTour.jsx'
 import { fmtShort, modeSubLabel, modeUnit } from '../utils/formatMetric.js'
 import config from '../school.config.js'
 import { useDocumentTitle } from '../lib/useDocumentTitle.js'
+import { closedMobileDrawerAttributes } from '../lib/mobileDrawerAccessibility.js'
 
 const FACULTY_TOUR_STEPS = [
   {
@@ -633,8 +634,9 @@ export default function Faculty({
         storageKey="hks-tour-faculty"
         autoStart={replayTour}
         onDone={() => {
+          const shouldRestoreReplayDrawer = replayTour
           setReplayTour(false)
-          setSidebarOpen(false)
+          setSidebarOpen(shouldRestoreReplayDrawer)
         }}
         onStepChange={handleTourStepChange}
       />
@@ -648,6 +650,7 @@ export default function Faculty({
       />
       <div
         className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}
+        {...closedMobileDrawerAttributes(sidebarOpen)}
         onTouchStart={handleDrawerTouchStart}
         onTouchEnd={handleDrawerTouchEnd}
       >

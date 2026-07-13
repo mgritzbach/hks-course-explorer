@@ -67,25 +67,57 @@ test.describe('local build navigation and static assets', () => {
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
   })
 
-  test('keeps the closed mobile Course filters out of the accessibility tree', async ({ page }) => {
+  test('keeps closed mobile filter drawers out of the accessibility tree', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/courses')
 
-    const drawer = page.locator('.mobile-drawer')
-    const close = drawer.getByRole('button', { name: 'Close' })
-    await expect(drawer).toHaveAttribute('aria-hidden', 'true')
-    await expect.poll(() => drawer.evaluate((element) => element.inert)).toBe(true)
-    await expect(close).toHaveCount(0)
+    for (const [route, openName, closeName] of [
+      ['/', 'Open filters', 'Close filter panel'],
+      ['/courses', 'Open filters', 'Close'],
+      ['/faculty', 'Browse Faculty', 'Close'],
+    ]) {
+      await page.goto(route)
 
-    await page.getByRole('button', { name: 'Open filters' }).click()
-    await expect(drawer).not.toHaveAttribute('aria-hidden', 'true')
-    await expect.poll(() => drawer.evaluate((element) => element.inert)).toBe(false)
-    await expect(close).toBeVisible()
+      const drawer = page.locator('.mobile-drawer')
+      const close = drawer.getByRole('button', { name: closeName })
+      await expect(drawer).toHaveAttribute('aria-hidden', 'true')
+      await expect.poll(() => drawer.evaluate((element) => element.inert)).toBe(true)
+      await expect(close).toHaveCount(0)
 
-    await close.click()
-    await expect(drawer).toHaveAttribute('aria-hidden', 'true')
-    await expect.poll(() => drawer.evaluate((element) => element.inert)).toBe(true)
-    await expect(close).toHaveCount(0)
+      await page.getByRole('button', { name: openName }).click()
+      await expect(drawer).not.toHaveAttribute('aria-hidden', 'true')
+      await expect.poll(() => drawer.evaluate((element) => element.inert)).toBe(false)
+      await expect(close).toBeVisible()
+
+      await close.click()
+      await expect(drawer).toHaveAttribute('aria-hidden', 'true')
+      await expect.poll(() => drawer.evaluate((element) => element.inert)).toBe(true)
+      await expect(close).toHaveCount(0)
+    }
+  })
+
+  test('restores each mobile drawer Replay control after keyboard dismissal', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    for (const [route, openName] of [
+      ['/', 'Open filters'],
+      ['/courses', 'Open filters'],
+      ['/faculty', 'Browse Faculty'],
+    ]) {
+      await page.goto(route)
+      await page.getByRole('button', { name: openName }).click()
+
+      const drawer = page.locator('.mobile-drawer')
+      const replay = drawer.getByRole('button', { name: 'Replay tour' })
+      await replay.focus()
+      await replay.press('Enter')
+
+      const tour = page.getByRole('dialog')
+      await expect(tour).toBeFocused({ timeout: 15_000 })
+      await page.keyboard.press('Escape')
+      await expect(tour).toHaveCount(0)
+      await expect(drawer).toHaveClass(/\bopen\b/)
+      await expect(replay).toBeFocused()
+    }
   })
 
   test('restores the Course Explorer Replay control after keyboard dismissal', async ({ page }) => {

@@ -26,10 +26,9 @@ import {
 } from '../lib/courseCatalogPresentation.js'
 import config from '../school.config.js'
 import { useDocumentTitle } from '../lib/useDocumentTitle.js'
+import { closedMobileDrawerAttributes } from '../lib/mobileDrawerAccessibility.js'
 
 const BiddingTrendChart = lazy(() => import('../components/BiddingTrendChart.jsx'))
-
-const closedMobileDrawerAttributes = (isOpen) => (isOpen ? {} : { 'aria-hidden': true, inert: '' })
 
 const COURSES_TOUR_STEPS = [
   {
@@ -731,7 +730,9 @@ export default function Courses({
   useEffect(() => {
     const handler = (event) => {
       if (event.key === 'Escape') {
-        setFilterOpen(false)
+        if (!document.querySelector('[role="dialog"][aria-modal="true"]')) {
+          setFilterOpen(false)
+        }
         return
       }
       if (event.key !== '/') return
