@@ -2,6 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useOptionalWelcomeEntry } from './WelcomeEntryProvider.jsx'
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ')
+
 /**
  * Lightweight spotlight tour.
  *
@@ -11,6 +20,7 @@ import { useOptionalWelcomeEntry } from './WelcomeEntryProvider.jsx'
  *   storageKey   — localStorage key; tour shown only if key is absent
  *   autoStart    — boolean; if true, shows even if user skipped the splash
  *   onDone       — called when the tour finishes or is skipped
+ *   restoreFocusToMain — return to the main landmark after a welcome-page handoff
  */
 export default function OnboardingTour({
   steps,
@@ -18,6 +28,7 @@ export default function OnboardingTour({
   autoStart = false,
   onDone,
   onStepChange,
+  restoreFocusToMain = false,
 }) {
   const welcomeEntry = useOptionalWelcomeEntry()
   const isWelcomeDecisionPending = welcomeEntry?.isWelcomeDecisionPending ?? false
@@ -26,6 +37,7 @@ export default function OnboardingTour({
   const [fading, setFading] = useState(false)
   const [tick, setTick] = useState(-1)
   const onDoneRef = useRef(onDone)
+  const dialogRef = useRef(null)
 
   useEffect(() => {
     onDoneRef.current = onDone
@@ -75,9 +87,23 @@ export default function OnboardingTour({
     // On mobile give 360ms for the 260ms drawer CSS transition to finish.
     setTick(-1)
     const delay = window.innerWidth < 768 ? 360 : 0
-    const t = setTimeout(() => setTick(0), delay)
+    const t = setTimeout(() => {
+      const currentStep = steps[index]
+      const targets = currentStep
+        ? document.querySelectorAll(`[data-tour="${currentStep.target}"]`)
+        : []
+      for (const target of targets) {
+        const bounds = target.getBoundingClientRect()
+        if (bounds.width <= 0 || bounds.height <= 0) continue
+        if (typeof target.scrollIntoView === 'function') {
+          target.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
+        }
+        break
+      }
+      setTick(0)
+    }, delay)
     return () => clearTimeout(t)
-  }, [index, onStepChange, visible])
+  }, [index, onStepChange, steps, visible])
 
   const step = steps[index]
   const rect = step
@@ -122,6 +148,74 @@ export default function OnboardingTour({
     }, 60)
     return () => clearTimeout(t)
   }, [visible, index, tick, rect])
+
+  const isDialogRendered = visible && Boolean(rect)
+
+  useEffect(() => {
+    if (!isDialogRendered || !dialogRef.current) return undefined
+
+    const dialog = dialogRef.current
+    const appRoot = document.getElementById('root')
+    const previousAriaHidden = appRoot?.getAttribute('aria-hidden')
+    const previousInert = appRoot?.inert
+    const invokingElement =
+      document.activeElement &&
+      document.activeElement !== document.body &&
+      document.activeElement !== document.documentElement
+        ? document.activeElement
+        : null
+
+    if (appRoot) {
+      appRoot.inert = true
+      appRoot.setAttribute('aria-hidden', 'true')
+    }
+    dialog.focus()
+
+    const containFocus = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        dismiss()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const focusable = Array.from(dialog.querySelectorAll(FOCUSABLE_SELECTOR))
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialog.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+      if (!dialog.contains(active) || active === dialog) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    window.addEventListener('keydown', containFocus)
+    return () => {
+      window.removeEventListener('keydown', containFocus)
+      if (appRoot) {
+        appRoot.inert = previousInert
+        if (previousAriaHidden == null) appRoot.removeAttribute('aria-hidden')
+        else appRoot.setAttribute('aria-hidden', previousAriaHidden)
+      }
+
+      const main = document.getElementById('main-content')
+      const focusTarget =
+        !restoreFocusToMain && invokingElement?.isConnected ? invokingElement : main
+      focusTarget?.focus()
+    }
+  }, [dismiss, isDialogRendered, restoreFocusToMain])
 
   // Skip a step whose target element is absent or permanently off-screen.
   // Runs after render so state updates happen outside the render cycle.
@@ -219,9 +313,12 @@ export default function OnboardingTour({
 
       {/* Tooltip card */}
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="tour-title"
+        aria-describedby="tour-description"
+        tabIndex={-1}
         style={{
           position: 'fixed',
           left: tipLeft,
@@ -283,7 +380,10 @@ export default function OnboardingTour({
         >
           {step.title}
         </p>
-        <p style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, marginBottom: 14 }}>
+        <p
+          id="tour-description"
+          style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, marginBottom: 14 }}
+        >
           {step.body}
         </p>
 

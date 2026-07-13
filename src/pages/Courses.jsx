@@ -516,8 +516,10 @@ function FilterSidebar({
         {onReplayTour && (
           <button
             type="button"
-            disabled={tourPending}
+            aria-label="Replay tour"
+            aria-disabled={tourPending}
             onClick={() => {
+              if (tourPending) return
               setTourPending(true)
               setTimeout(() => {
                 onReplayTour()
@@ -958,6 +960,7 @@ export default function Courses({
             </p>
           </div>
           <button
+            aria-label="Open filters"
             onClick={() => setFilterOpen(true)}
             className="rounded-full border px-4 py-2.5 text-xs font-semibold text-label md:hidden"
             style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)', minHeight: 44 }}

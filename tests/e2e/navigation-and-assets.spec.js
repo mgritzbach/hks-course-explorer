@@ -4,17 +4,18 @@ import {
   MOBILE_MORE_NAV_ITEMS,
   MOBILE_PRIMARY_NAV_ITEMS,
 } from '../../src/lib/visitorNavigation.js'
+import { ALL_TUTORIAL_STORAGE_KEYS } from '../../src/lib/tutorialPreferences.js'
 import { installMockBackend } from './support/mockBackend.js'
 
 test.describe('local build navigation and static assets', () => {
   test.beforeEach(async ({ page }) => {
     await installMockBackend(page)
-    await page.addInitScript(() => {
+    await page.addInitScript((tutorialKeys) => {
       localStorage.setItem('hks-splash-shown', '1')
       // Navigation coverage should exercise the application after a user has
       // completed onboarding, not a deliberate first-run teaching overlay.
-      localStorage.setItem('hks-tour-home', '1')
-    })
+      for (const key of tutorialKeys) localStorage.setItem(key, '1')
+    }, ALL_TUTORIAL_STORAGE_KEYS)
     await page.setViewportSize({ width: 1440, height: 1000 })
   })
 
@@ -64,6 +65,31 @@ test.describe('local build navigation and static assets', () => {
     await navigation.getByRole('link', { name: 'Schedule Builder', exact: true }).click()
     await expect(page).toHaveURL(/\/schedule-builder$/)
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
+  })
+
+  test('restores the Course Explorer Replay control after keyboard dismissal', async ({ page }) => {
+    for (const viewport of [
+      { width: 1440, height: 1000 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await page.goto('/courses')
+      if (viewport.width < 768) {
+        await page.getByRole('button', { name: 'Open filters' }).click()
+      }
+
+      const replay = page.getByRole('button', { name: 'Replay tour' })
+      await replay.focus()
+      await page.keyboard.press('Enter')
+      await expect(replay).toHaveAttribute('aria-disabled', 'true')
+      await expect(replay).toBeFocused()
+
+      const tour = page.getByRole('dialog', { name: 'Set the Year' })
+      await expect(tour).toBeFocused({ timeout: 15_000 })
+      await page.keyboard.press('Escape')
+      await expect(tour).toHaveCount(0)
+      await expect(replay).toBeFocused()
+    }
   })
 
   test('renders every visitor-facing SPA route from a direct URL', async ({ page }) => {

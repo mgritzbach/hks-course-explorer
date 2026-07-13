@@ -515,8 +515,10 @@ export default function Sidebar({
         {onReplayTour && (
           <button
             type="button"
-            disabled={tourPending}
+            aria-label="Replay tour"
+            aria-disabled={tourPending}
             onClick={() => {
+              if (tourPending) return
               setTourPending(true)
               setTimeout(() => {
                 onReplayTour()

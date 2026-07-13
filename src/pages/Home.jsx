@@ -276,6 +276,7 @@ export default function Home({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortlistOnly, setShowShortlistOnly] = useState(false)
   const [replayTour, setReplayTour] = useState(false)
+  const [restoreWelcomeTourFocusToMain, setRestoreWelcomeTourFocusToMain] = useState(false)
   const [pageLimit, setPageLimit] = useState(50)
   const [compactView, setCompactView] = useState(
     () => localStorage.getItem('hks_card_view') === 'compact',
@@ -291,6 +292,7 @@ export default function Home({
   useEffect(() => {
     if (welcomeTourRequest !== 'tutorial') return
     localStorage.removeItem('hks-tour-home')
+    setRestoreWelcomeTourFocusToMain(true)
     setReplayTour(true)
     onWelcomeTourRequestHandled?.()
   }, [onWelcomeTourRequestHandled, welcomeTourRequest])
@@ -304,6 +306,7 @@ export default function Home({
 
   const handleReplayTour = () => {
     localStorage.removeItem('hks-tour-home')
+    setRestoreWelcomeTourFocusToMain(false)
     setReplayTour(true)
   }
 
@@ -607,8 +610,10 @@ export default function Home({
           steps={HOME_TOUR_STEPS}
           storageKey="hks-tour-home"
           autoStart={replayTour}
+          restoreFocusToMain={restoreWelcomeTourFocusToMain}
           onDone={() => {
             setReplayTour(false)
+            setRestoreWelcomeTourFocusToMain(false)
             setSidebarOpen(false)
           }}
           onStepChange={handleTourStepChange}
@@ -686,6 +691,7 @@ export default function Home({
 
             <button
               type="button"
+              aria-label="Open filters"
               onClick={() => setSidebarOpen(true)}
               className="md:hidden rounded-full border px-4 py-2.5 text-xs font-semibold text-label shadow-sm touch-manipulation"
               style={{

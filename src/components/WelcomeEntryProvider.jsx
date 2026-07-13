@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LandingSplash from './LandingSplash.jsx'
 import { skipAllTutorials } from '../lib/tutorialPreferences.js'
@@ -16,17 +16,50 @@ export function WelcomeEntryProvider({ children }) {
     () => typeof window !== 'undefined' && !window.localStorage.getItem('hks-splash-shown'),
   )
   const [homeTourRequest, setHomeTourRequest] = useState(null)
+  const [mainFocusRequest, setMainFocusRequest] = useState(0)
 
-  const focusMainContent = () => {
-    window.setTimeout(() => document.getElementById('main-content')?.focus(), 0)
-  }
+  useEffect(() => {
+    if (mainFocusRequest === 0 || deferHomeOnboarding || typeof document === 'undefined') {
+      return undefined
+    }
+
+    let focusFrame = 0
+    let observer
+    const focusWhenReady = () => {
+      const main = document.getElementById('main-content')
+      if (!main) return false
+
+      // The landing portal restores #root before the next frame. Waiting for
+      // that boundary prevents a focus attempt against an element that is
+      // still inert while also covering lazy Home rendering.
+      focusFrame = window.requestAnimationFrame(() => main.focus())
+      return true
+    }
+
+    if (!focusWhenReady()) {
+      observer = new MutationObserver(() => {
+        if (!focusWhenReady()) return
+        observer.disconnect()
+      })
+      observer.observe(document.body, { childList: true, subtree: true })
+    }
+
+    const timeout = window.setTimeout(() => observer?.disconnect(), 5_000)
+    return () => {
+      window.clearTimeout(timeout)
+      window.cancelAnimationFrame(focusFrame)
+      observer?.disconnect()
+    }
+  }, [deferHomeOnboarding, mainFocusRequest])
+
+  const requestMainFocus = () => setMainFocusRequest((request) => request + 1)
 
   const continueDirectly = () => {
     skipAllTutorials()
     setHomeTourRequest(null)
     setDeferHomeOnboarding(false)
     navigate('/')
-    focusMainContent()
+    requestMainFocus()
   }
 
   const continueWithTutorial = () => {
@@ -34,7 +67,7 @@ export function WelcomeEntryProvider({ children }) {
     setHomeTourRequest('tutorial')
     setDeferHomeOnboarding(false)
     navigate('/')
-    focusMainContent()
+    requestMainFocus()
   }
 
   return (
