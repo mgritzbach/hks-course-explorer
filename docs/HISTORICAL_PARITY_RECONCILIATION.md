@@ -43,6 +43,35 @@ reconciliation queue, not proof of a safe deletion set. The sync now records
 this aggregate inventory after every successful promotion and rejects all
 deletion requests before API or database activity.
 
+## Source-aware retained-row queue
+
+The earlier aggregate mixed unrelated ownership populations and therefore
+cannot support a keep/retire decision. After each complete non-HKS promotion,
+the sync now performs a read-only, service-authorized inventory that must place
+every database row in exactly one population:
+
+- current, active non-HKS ATS rows from the just-promoted source;
+- the active my.harvard HKS snapshot;
+- the one retained my.harvard rollback snapshot;
+- inactive legacy HKS fallback rows; or
+- actionable retained non-HKS ATS rows absent from the current source.
+
+The active and rollback HKS populations are checked against their persisted
+row-count, source-offering identity SHA-256, and exact term-count manifests.
+Unknown ownership, duplicate identities, missing/inactive current ATS rows,
+active legacy HKS fallback rows, or manifest drift fail the audit. The Actions
+summary contains only population counts, actionable school/term/last-seen-age
+buckets, and a deterministic SHA-256 of the sorted actionable IDs. It never
+publishes raw IDs or course content.
+
+The classifier requires both the active snapshot and exactly one row-bearing
+rollback snapshot; either snapshot missing is a failed audit. The actionable
+digest makes successive complete ATS runs comparable, but neither absence from
+one upstream result nor a stable digest authorizes mutation. Every actionable
+row still needs authoritative source evidence and an explicit keep/retire
+decision. Until that review is complete, the sync retains the row and performs
+no delete or active-state change.
+
 ## Read-only operator review
 
 Run the audit with service-role credentials only in a controlled operator

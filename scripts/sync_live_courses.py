@@ -26,12 +26,18 @@ import re
 import time
 import logging
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 
 import requests
+
+try:
+    from live_course_reconciliation import classify_live_course_inventory
+except ModuleNotFoundError:  # Loaded as a module by repository-root tests.
+    from scripts.live_course_reconciliation import classify_live_course_inventory
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -143,21 +149,51 @@ def build_sync_summary(
         lines.extend(
             [
                 f"- **Database rows inventoried after upsert:** {inventory['database_row_count']}",
-                f"- **Retained rows absent from current source:** {inventory['retained_not_in_current_source_count']}",
+                f"- **Database rows classified exactly once:** {inventory['classified_row_count']}",
+                f"- **Current non-HKS ATS rows:** {inventory['current_non_hks_ats_count']}",
+                f"- **Protected active my.harvard rows:** {inventory['protected_active_myharvard_count']}",
+                f"- **Protected my.harvard rollback rows:** {inventory['protected_myharvard_rollback_count']}",
+                f"- **Protected legacy HKS fallback rows:** {inventory['protected_legacy_hks_fallback_count']}",
+                f"- **Actionable retained non-HKS ATS rows:** {inventory['actionable_retained_non_hks_ats_count']}",
+                f"- **Actionable queue SHA-256:** `{inventory['actionable_queue_sha256']}`",
                 f"- **Current-source rows missing from database:** {inventory['current_source_missing_from_database_count']}",
             ]
         )
-        retained_by_school = inventory["retained_not_in_current_source_by_school"]
-        retained_by_term = inventory["retained_not_in_current_source_by_term"]
-        if retained_by_school:
+        actionable_by_state = inventory["actionable_by_active_state"]
+        actionable_by_age = inventory["actionable_by_age"]
+        actionable_by_school = inventory["actionable_by_school"]
+        actionable_by_term = inventory["actionable_by_term"]
+        if actionable_by_state:
             lines.append(
-                "- **Retained rows absent from current source by school:** "
-                + ", ".join(f"{school}: {count}" for school, count in retained_by_school.items())
+                "- **Actionable ATS rows by active state:** "
+                + ", ".join(
+                    f"{summary_label(state)}: {count}"
+                    for state, count in actionable_by_state.items()
+                )
             )
-        if retained_by_term:
+        if actionable_by_age:
             lines.append(
-                "- **Retained rows absent from current source by term:** "
-                + ", ".join(f"{term}: {count}" for term, count in retained_by_term.items())
+                "- **Actionable ATS rows by last-seen age:** "
+                + ", ".join(
+                    f"{summary_label(bucket)}: {count}"
+                    for bucket, count in actionable_by_age.items()
+                )
+            )
+        if actionable_by_school:
+            lines.append(
+                "- **Actionable ATS rows by school:** "
+                + ", ".join(
+                    f"{summary_label(school)}: {count}"
+                    for school, count in actionable_by_school.items()
+                )
+            )
+        if actionable_by_term:
+            lines.append(
+                "- **Actionable ATS rows by term:** "
+                + ", ".join(
+                    f"{summary_label(term)}: {count}"
+                    for term, count in actionable_by_term.items()
+                )
             )
     lines.append("")
     return "\n".join(lines)
@@ -449,7 +485,58 @@ def _sb_read_headers():
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Accept": "application/json",
+        "Prefer": "count=exact",
     }
+
+
+_CONTENT_RANGE_RE = re.compile(r"^(?:(\d+)-(\d+)|\*)/(\d+|\*)$")
+
+
+def _inventory_page_complete(
+    response,
+    page: list,
+    *,
+    start: int,
+    observed_rows: int,
+    expected_total: int | None,
+    label: str,
+) -> tuple[int | None, bool]:
+    """Validate PostgREST range continuity when an exact total is advertised."""
+    headers = getattr(response, "headers", {})
+    content_range = (
+        str(headers.get("Content-Range") or "").strip()
+        if isinstance(headers, Mapping)
+        else ""
+    )
+    if not content_range:
+        raise RuntimeError(f"{label} did not return an exact Content-Range")
+
+    match = _CONTENT_RANGE_RE.fullmatch(content_range)
+    if not match:
+        raise RuntimeError(f"{label} returned an invalid Content-Range")
+    range_start, range_end, raw_total = match.groups()
+    if raw_total == "*":
+        raise RuntimeError(f"{label} did not return an exact total")
+    advertised_total = int(raw_total)
+    if expected_total is not None and advertised_total != expected_total:
+        raise RuntimeError(f"{label} changed its advertised total during pagination")
+    expected_total = advertised_total
+
+    if range_start is None:
+        if page or advertised_total != 0:
+            raise RuntimeError(f"{label} returned an inconsistent empty Content-Range")
+    else:
+        lower, upper = int(range_start), int(range_end)
+        if lower != start or upper - lower + 1 != len(page):
+            raise RuntimeError(f"{label} returned a discontinuous Content-Range")
+
+    if observed_rows > expected_total:
+        raise RuntimeError(f"{label} returned more rows than its advertised total")
+    if observed_rows == expected_total:
+        return expected_total, True
+    if len(page) < INVENTORY_PAGE_SIZE:
+        raise RuntimeError(f"{label} ended before its advertised total")
+    return expected_total, False
 
 
 def supabase_upsert(rows: list[dict]) -> None:
@@ -480,14 +567,15 @@ def supabase_upsert(rows: list[dict]) -> None:
 
 
 def supabase_inventory_live_courses(request_get=requests.get):
-    """Read the complete live table for post-promotion reconciliation evidence.
+    """Read the complete live table for source-aware reconciliation evidence.
 
     This intentionally uses full pagination rather than a client-clock
-    ``synced_at`` predicate. It returns only the identifier and aggregation
-    fields required to count retained rows; it never deletes or logs an ID.
+    ``synced_at`` predicate. It returns only ownership, manifest, and aggregate
+    fields required by the classifier; it never deletes or logs an ID.
     """
     rows = []
     seen_ids = set()
+    expected_total = None
     endpoint = f"{SUPABASE_URL}/rest/v1/live_courses"
     for start in range(0, MAX_INVENTORY_ROWS, INVENTORY_PAGE_SIZE):
         response = request_get(
@@ -497,7 +585,13 @@ def supabase_inventory_live_courses(request_get=requests.get):
                 "Range-Unit": "items",
                 "Range": f"{start}-{start + INVENTORY_PAGE_SIZE - 1}",
             },
-            params={"select": "id,school,term", "order": "id.asc"},
+            params={
+                "select": (
+                    "id,school,term,source,active,is_hks,sync_run_id,"
+                    "source_course_id,source_offering_id,synced_at"
+                ),
+                "order": "id.asc",
+            },
             timeout=30,
         )
         if not response.ok:
@@ -513,9 +607,69 @@ def supabase_inventory_live_courses(request_get=requests.get):
                 raise RuntimeError("Live-course inventory returned duplicate IDs")
             seen_ids.add(row_id)
             rows.append(row)
-        if len(page) < INVENTORY_PAGE_SIZE:
+        expected_total, complete = _inventory_page_complete(
+            response,
+            page,
+            start=start,
+            observed_rows=len(rows),
+            expected_total=expected_total,
+            label="Live-course inventory",
+        )
+        if complete:
             return rows
     raise RuntimeError(f"live_courses exceeds the safe {MAX_INVENTORY_ROWS} row inventory limit")
+
+
+def supabase_inventory_catalogue_runs(request_get=requests.get):
+    """Read every my.harvard run needed to prove protected HKS ownership."""
+    rows = []
+    seen_ids = set()
+    expected_total = None
+    endpoint = f"{SUPABASE_URL}/rest/v1/live_catalogue_runs"
+    params = {
+        "select": "id,source,status,offering_count,identity_sha256,term_counts",
+        "source": "eq.myharvard",
+        "order": "id.asc",
+    }
+    for start in range(0, MAX_INVENTORY_ROWS, INVENTORY_PAGE_SIZE):
+        response = request_get(
+            endpoint,
+            headers={
+                **_sb_read_headers(),
+                "Range-Unit": "items",
+                "Range": f"{start}-{start + INVENTORY_PAGE_SIZE - 1}",
+            },
+            params=params,
+            timeout=30,
+        )
+        if not response.ok:
+            raise RuntimeError(f"Catalogue-run inventory failed: HTTP {response.status_code}")
+        page = response.json()
+        if not isinstance(page, list):
+            raise RuntimeError("Catalogue-run inventory returned a non-list response")
+        for row in page:
+            if not isinstance(row, dict) or not str(row.get("id") or "").strip():
+                raise RuntimeError("Catalogue-run inventory returned a row without an ID")
+            run_id = str(row["id"])
+            if run_id in seen_ids:
+                raise RuntimeError("Catalogue-run inventory returned duplicate IDs")
+            seen_ids.add(run_id)
+            rows.append(row)
+        expected_total, complete = _inventory_page_complete(
+            response,
+            page,
+            start=start,
+            observed_rows=len(rows),
+            expected_total=expected_total,
+            label="Catalogue-run inventory",
+        )
+        if complete:
+            if not rows:
+                raise RuntimeError("Catalogue-run inventory is empty")
+            return rows
+    raise RuntimeError(
+        f"live_catalogue_runs exceeds the safe {MAX_INVENTORY_ROWS} row inventory limit"
+    )
 
 
 def supabase_active_hks_source_course_ids(request_get=requests.get):
@@ -527,14 +681,17 @@ def supabase_active_hks_source_course_ids(request_get=requests.get):
     to the ATS ``courseID`` stored in ``live_courses.id``.
     """
     ids = set()
+    seen_row_ids = set()
+    observed_rows = 0
+    expected_total = None
     endpoint = f"{SUPABASE_URL}/rest/v1/live_courses"
     params = {
-        "select": "source_course_id",
+        "select": "id,source_course_id",
         "source": "eq.myharvard",
         "active": "eq.true",
         "is_hks": "eq.true",
         "source_course_id": "not.is.null",
-        "order": "source_course_id.asc",
+        "order": "id.asc",
     }
     for start in range(0, MAX_INVENTORY_ROWS, INVENTORY_PAGE_SIZE):
         response = request_get(
@@ -554,16 +711,31 @@ def supabase_active_hks_source_course_ids(request_get=requests.get):
         page = response.json()
         if not isinstance(page, list):
             raise RuntimeError("Authoritative HKS identity read returned a non-list response")
+        observed_rows += len(page)
         for row in page:
+            row_id = str(row.get("id") or "").strip() if isinstance(row, dict) else ""
             source_course_id = (
                 str(row.get("source_course_id") or "").strip()
                 if isinstance(row, dict)
                 else ""
             )
+            if not row_id:
+                raise RuntimeError("Authoritative HKS identity read returned an empty row ID")
+            if row_id in seen_row_ids:
+                raise RuntimeError("Authoritative HKS identity read returned duplicate row IDs")
             if not source_course_id:
                 raise RuntimeError("Authoritative HKS identity read returned an empty ID")
+            seen_row_ids.add(row_id)
             ids.add(source_course_id)
-        if len(page) < INVENTORY_PAGE_SIZE:
+        expected_total, complete = _inventory_page_complete(
+            response,
+            page,
+            start=start,
+            observed_rows=observed_rows,
+            expected_total=expected_total,
+            label="Authoritative HKS identity read",
+        )
+        if complete:
             if not ids:
                 raise RuntimeError("Authoritative HKS identity set is empty")
             return ids
@@ -572,25 +744,9 @@ def supabase_active_hks_source_course_ids(request_get=requests.get):
     )
 
 
-def compare_live_course_inventory(source_rows, database_rows):
-    """Return aggregate-only differences; neither side is treated as a deletion list."""
-    source_ids = {str(row.get("id") or "") for row in source_rows}
-    if "" in source_ids or len(source_ids) != len(source_rows):
-        raise RuntimeError("Current-source inventory must contain unique non-empty IDs")
-    database_ids = {str(row["id"]) for row in database_rows}
-    retained = [row for row in database_rows if str(row["id"]) not in source_ids]
-    return {
-        "database_row_count": len(database_rows),
-        "current_source_count": len(source_ids),
-        "retained_not_in_current_source_count": len(retained),
-        "current_source_missing_from_database_count": len(source_ids - database_ids),
-        "retained_not_in_current_source_by_school": dict(
-            sorted(Counter(summary_label(row.get("school")) for row in retained).items())
-        ),
-        "retained_not_in_current_source_by_term": dict(
-            sorted(Counter(summary_label(row.get("term")) for row in retained).items())
-        ),
-    }
+def compare_live_course_inventory(source_rows, database_rows, catalogue_runs):
+    """Compatibility wrapper for the source-aware, read-only classifier."""
+    return classify_live_course_inventory(source_rows, database_rows, catalogue_runs)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -719,11 +875,15 @@ def main():
         raise
 
     try:
-        inventory = compare_live_course_inventory(rows_list, supabase_inventory_live_courses())
+        inventory = compare_live_course_inventory(
+            rows_list,
+            supabase_inventory_live_courses(),
+            supabase_inventory_catalogue_runs(),
+        )
     except Exception:
         write_github_summary(
             build_sync_summary(
-                outcome="atomic promotion succeeded; retained-inventory audit failed; no cleanup attempted",
+                outcome="atomic promotion succeeded; source-aware reconciliation audit failed; no cleanup attempted",
                 sync_start=sync_start,
                 planned_request_count=len(tasks),
                 rows=rows_list,
@@ -740,9 +900,10 @@ def main():
         )
     )
     log.info(
-        "Done. %d current-source courses promoted; %d retained database rows were absent from this source.",
+        "Done. %d current-source courses promoted; %d actionable retained ATS rows; queue sha256=%s.",
         len(rows_list),
-        inventory["retained_not_in_current_source_count"],
+        inventory["actionable_retained_non_hks_ats_count"],
+        inventory["actionable_queue_sha256"],
     )
 
 

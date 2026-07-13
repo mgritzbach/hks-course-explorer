@@ -46,6 +46,8 @@ missing Cloudflare control or a fully green canonical promotion.
 | Post-migration health | Live read-back after the privilege migration | Counts remain `courses=5812`, `course_sections=265`, `schedules=63`, `live_catalogue_runs=5`, and `live_courses=8398`; live-course orphans remain `0`. |
 | Encrypted five-table backup | GitHub Actions `29206580982` on exact master `ed81c24` | Two complete GET-only captures matched, 14,543 rows were encrypted/authenticated before upload, ciphertext retention is seven days, and runner plaintext was removed. |
 | Isolated five-table restore | GitHub Actions `29206612080` on exact master `ed81c24` | PostgreSQL 17 rebuilt the exact schema/access contract, proved FK rejection and rollback, restored all five tables atomically, retained RLS/grants/functions/indexes/triggers and zero-orphan linking, matched every row count/digest, and removed decrypted files. No production credential or restore target was present. |
+| Fresh exact-master recovery point | Backup `29224666761` on master `1e896c2` | Two GET-only captures matched, the current versioned recovery contract was bound into the encrypted package, and runner plaintext was removed. |
+| Isolated catalogue rollback exercise | Recovery `29224720886` on master `1e896c2` | PostgreSQL 17 restored all five tables, cloned only the verified recovery database, rolled the clone back to the persisted predecessor manifest, restored exactly 297 HKS offerings (141 Fall, 156 Spring), rejected invalid/repeated rollback paths, and proved the untouched source recovery database remained byte-exact. No production write credential or endpoint was present. |
 
 This recovery proof covers the complete Course Explorer relational boundary in
 the shared project. It intentionally excludes unrelated shared-project data and
@@ -57,7 +59,7 @@ no-cost recovery-point window, not durable archival retention.
 | Goal | Progress | Status | Acceptance decision |
 |---|---:|---:|---|
 | G01 Foundations / governance | 100% | 1 | Protected ruleset, named accountable owner, CODEOWNERS, private vulnerability intake, zero-cost/incident contracts, exact-master clean CI, and final manager/controller review are complete. |
-| G02 Data integrity | 94% | 0 | Source promotion/parity and full disaster recovery are strong; no catalogue-promotion rollback has been exercised and retained non-current rows are not fully reconciled. |
+| G02 Data integrity | 97% | 0 | Source promotion/parity, full disaster recovery, and catalogue-promotion rollback are proven; retained non-HKS ATS rows still require source-aware classification and evidence-backed keep/retire decisions. |
 | G03 Supabase reliability | 100% | 1 | Production RLS/privilege exercises, unchanged health counts, zero orphans, an exact-master encrypted five-table backup, and a complete isolated schema/relationship/policy restore are proven. |
 | G04 Security | 90% | 0 | Course Explorer database hardening and live security headers are proven; authenticated Cloudflare zone/cache-policy verification and remaining shared-project advisor ownership are not closed. |
 | G05 Navigation / usability | 100% | 1 | The custom production domain passed all five desktop/mobile visitor acceptance boundaries; current master independently passed the same five release-candidate browser boundaries after its non-visual telemetry change. |
@@ -73,9 +75,9 @@ binary complete. Percentages are not release waivers.
 
 ## Required next evidence
 
-1. Exercise a catalogue promotion rollback to a prior snapshot and restore the
-   current promotion; decide ownership/reconciliation for retained non-current
-   catalogue rows.
+1. Classify every retained row by source ownership, verify protected HKS
+   populations against their persisted manifests, and complete evidence-backed
+   keep/retire decisions for the true retained non-HKS ATS queue.
 2. Correct the zero-cost Cloudflare token so it can verify and set the zone
    browser-cache/security policy, then complete the canonical exact-master
    deployment workflow.
