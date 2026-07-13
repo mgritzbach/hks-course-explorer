@@ -66,6 +66,13 @@ function expectNoProductionWrites(audit) {
   expect(audit.unexpectedWrites, audit.unexpectedWrites.join('\n')).toEqual([])
 }
 
+function normaliseProviderReply(reply) {
+  return reply
+    .normalize('NFKC')
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
+    .replace(/[\u00A0\u202F]/g, ' ')
+}
+
 async function exerciseLocalPlanControl(results, control) {
   const addName = await control.getAttribute('aria-label')
   const courseCode = addName?.match(/^Add (.+) to plan$/)?.[1]
@@ -187,8 +194,11 @@ test.describe('read-only production acceptance', () => {
       reply: expect.any(String),
     })
     expect(body.reply.trim().length).toBeGreaterThan(0)
-    expect(body.reply).toMatch(/Hong[\s\u00a0\u202f]+Qu/i)
-    expect(body.reply).not.toMatch(/Robert Wilkinson|MLD-215-B/i)
+    const groundedReply = normaliseProviderReply(body.reply)
+    expect(groundedReply).toMatch(/DPI-851-M/i)
+    expect(groundedReply).toMatch(/DPI-852-M/i)
+    expect(groundedReply).toMatch(/DPI-853-M/i)
+    expect(groundedReply).not.toMatch(/Robert Wilkinson|MLD-215-B/i)
   })
 
   test('proves every advertised HKS catalogue row is selectable', async ({ page }) => {
