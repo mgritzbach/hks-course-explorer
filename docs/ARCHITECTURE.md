@@ -5,7 +5,7 @@
 ```
 Browser (React/Vite)
   |-- Supabase read client: historical courses, live courses, sections
-  |-- Cloudflare Pages Functions: auth, protected catalogue, chat
+  |-- Cloudflare Pages Functions: admin operations, catalogue preview, chat
   |-- Static assets: courses.json, sim_coords.json, Guide, SPA routes
   '-- Local browser storage: plans, shortlist, notes, UI preferences
 
@@ -24,8 +24,10 @@ completed response from a selected `:free` model with reported cost `0` is
 returned as an answer; missing configuration, cooldowns, provider failures, or
 unverified responses are explicit failures and never become canned advice.
 
-The browser uses only the Supabase anon key. Trusted source synchronisation,
-provider keys, OTP delivery, and JWT signing run outside the browser.
+The visitor application has no login or remote visitor-session boundary. The
+browser uses only the Supabase anon key plus public static catalogue assets.
+Trusted source synchronisation, provider keys, and the separate short-lived
+Admin session signing boundary run outside the browser.
 
 ## Source-of-truth rules
 

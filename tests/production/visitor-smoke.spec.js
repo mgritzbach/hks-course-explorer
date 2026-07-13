@@ -137,7 +137,7 @@ test.describe('read-only production acceptance', () => {
     expectNoProductionWrites(requestAudit)
   })
 
-  test('returns a verified zero-cost OpenRouter answer grounded in course data', async ({
+  test('keeps the optional Course Advisor honest when configured or unavailable', async ({
     request,
   }) => {
     const response = await request.post('/api/chat', {
@@ -175,17 +175,28 @@ test.describe('read-only production acceptance', () => {
     })
 
     const responseBody = await response.text()
-    expect(
-      response.status(),
-      `Course Advisor acceptance returned HTTP ${response.status()}: ${responseBody}`,
-    ).toBe(200)
-
     let body
     try {
       body = JSON.parse(responseBody)
     } catch {
       throw new Error(`Course Advisor acceptance returned malformed JSON: ${responseBody}`)
     }
+
+    if (response.status() === 503) {
+      expect(body).toMatchObject({
+        code: 'AI_NOT_CONFIGURED',
+        error: expect.any(String),
+      })
+      expect(body).not.toHaveProperty('reply')
+      expect(body).not.toHaveProperty('source')
+      expect(body).not.toHaveProperty('model')
+      return
+    }
+
+    expect(
+      response.status(),
+      `Course Advisor acceptance returned HTTP ${response.status()}: ${responseBody}`,
+    ).toBe(200)
     expect(body).toMatchObject({
       source: 'openrouter',
       cost: 0,
@@ -198,6 +209,21 @@ test.describe('read-only production acceptance', () => {
     expect(groundedReply).toMatch(/DPI-852-M/i)
     expect(groundedReply).toMatch(/DPI-853-M/i)
     expect(groundedReply).not.toMatch(/Robert Wilkinson|MLD-215-B/i)
+  })
+
+  test('keeps retired visitor-auth and protected-KV endpoints unavailable', async ({ request }) => {
+    for (const [method, pathname] of [
+      ['POST', '/api/auth/request'],
+      ['POST', '/api/auth/verify'],
+      ['GET', '/api/auth/status'],
+      ['POST', '/api/auth/logout'],
+      ['GET', '/api/courses'],
+    ]) {
+      const response = await request.fetch(pathname, { method })
+      expect(response.status(), `${method} ${pathname} unexpectedly remained available`).toBe(404)
+      await expect(response.json()).resolves.toEqual({ error: 'Not found' })
+      expect(response.headers()['cache-control']).toBe('no-store')
+    }
   })
 
   test('proves every advertised HKS catalogue row is selectable', async ({ page }) => {
