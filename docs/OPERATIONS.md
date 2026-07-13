@@ -393,7 +393,11 @@ exact backup commit and a digest of the complete ordered recovery contract.
 Verification refuses a package from a different commit or a changed recovery
 contract, proves FK rejection/transaction rollback before loading data, and
 byte-compares the generated schema/access contract before accepting restored
-row digests.
+row digests. It then clones the verified database, exercises the active
+my.harvard catalogue rollback in that disposable clone, validates the retained
+manifest and protected data digests, and re-verifies the untouched source
+database against the encrypted package. No step has a production database
+credential or production write path.
 
 ### Schedule-plan persistence
 

@@ -323,6 +323,11 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
         self.assertIn("postgres:17.10-alpine3.24@sha256:", restore)
         self.assertIn("Prove exact recovery schema contract", restore)
         self.assertIn("Prove foreign-key enforcement and transaction rollback", restore)
+        self.assertIn("Exercise catalogue rollback only in an ephemeral clone", restore)
+        self.assertIn("--template recovery_probe recovery_rollback_probe", restore)
+        self.assertIn("Prove the source recovery database stayed byte-exact", restore)
+        self.assertIn("verify_myharvard_rollback_exercise.sql", restore)
+        self.assertIn("--if-exists --force recovery_rollback_probe", restore)
         self.assertNotIn("SUPABASE_URL:", restore)
         self.assertNotIn("SUPABASE_KEY:", restore)
         for unrelated in ("orders", "availability", "vouchers", "profiles"):
@@ -391,6 +396,32 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
         self.assertIn("keep_ats_hks_inactive_after_myharvard()", hardening)
         self.assertNotIn("delete from", hardening)
         self.assertNotIn("drop table", hardening)
+
+    def test_catalogue_rollback_exercise_is_clone_only_and_manifest_exact(self):
+        probe = (ROOT / "scripts/verify_myharvard_rollback_exercise.sql").read_text(
+            encoding="utf-8"
+        ).lower()
+        workflow = (ROOT / ".github/workflows/verify-course-explorer-recovery.yml").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("rollback_myharvard_hks_run(active_run_id)", probe)
+        self.assertIn("exactly one retained superseded snapshot", probe)
+        self.assertIn("previous_identity_sha256", probe)
+        self.assertIn("previous_term_counts", probe)
+        self.assertIn("rolled_back", probe)
+        self.assertIn("orphaned sync_run_id", probe)
+        self.assertIn("non_hks_live_courses", probe)
+        self.assertIn("unrelated_live_courses", probe)
+        self.assertIn("unrelated_catalogue_runs", probe)
+        self.assertIn("already rolled-back run", probe)
+        self.assertNotIn("supabase_url", workflow)
+        self.assertNotIn("supabase_key", workflow)
+        self.assertNotIn("-d recovery_probe -f scripts/verify_myharvard_rollback_exercise.sql", workflow)
+        self.assertIn(
+            "-d recovery_rollback_probe",
+            workflow,
+        )
 
 
 if __name__ == "__main__":

@@ -92,7 +92,17 @@ passphrase is exposed. It then:
 8. proves a representative current-offering → historical-course → section-time
    link without inventing a database FK; and
 9. re-exports every table by primary key and requires exact semantic rows and
-   per-table digests before deleting all plaintext files.
+   per-table digests;
+10. clones the restored database into a disposable PostgreSQL database and
+    exercises `rollback_myharvard_hks_run(uuid)` only there. The exercise fails
+    closed unless exactly one active manifest and one retained superseded
+    snapshot exist, restores the predecessor by its persisted count, identity
+    digest, and term manifest, rejects invalid repeated rollback attempts,
+    preserves unrelated tables and catalogue rows, and leaves no orphaned run
+    references; and
+11. re-exports the untouched source recovery database and requires the original
+    package digests a second time before dropping the clone and deleting all
+    plaintext files.
 
 The workflow is free and non-production. It has no `SUPABASE_URL`, API key,
 Cloudflare credential, or production write path.
@@ -112,6 +122,9 @@ and are asserted both semantically and in the exact ACL/grant-option contract.
   recovery exercise before those feature flags may be enabled.
 - A production restore remains a separately reviewed incident action. Never
   overwrite a nonempty production table from this workflow.
+- The catalogue rollback proof runs against a production-derived clone. It
+  proves the reviewed rollback function against retained production data but
+  deliberately does not mutate the live Supabase project.
 
 Record the exact repository commit, backup and verification run IDs, table
 counts/digests, package digest, PostgreSQL image digest, and the statement
