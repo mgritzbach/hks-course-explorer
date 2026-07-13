@@ -92,6 +92,10 @@ function meaningfulQueryTerms(query) {
     .filter((term) => term.length > 1 && !QUERY_STOP_WORDS.has(term))
 }
 
+function substantiveQueryTerms(query) {
+  return meaningfulQueryTerms(query).filter((term) => !INDEPENDENT_SUBJECT_STOP_WORDS.has(term))
+}
+
 function searchableTokens(value) {
   return new Set(searchableText(value).split(/\s+/).filter(Boolean))
 }
@@ -187,7 +191,7 @@ export function selectRelevantHistory(courses, query, history, courseContext = [
   const queryText = searchableText(query)
   if (!/\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(queryText)) return []
 
-  const keywords = meaningfulQueryTerms(query)
+  const keywords = substantiveQueryTerms(query)
   const currentIdentities = new Set(
     courses
       .filter((course) => {
@@ -222,9 +226,7 @@ export function selectRelevantHistory(courses, query, history, courseContext = [
 
 function hasIndependentDatabaseMatch(courses, query) {
   if (exactInstructorIdentities(courses, query).size > 0) return true
-  const keywords = meaningfulQueryTerms(query).filter(
-    (term) => !INDEPENDENT_SUBJECT_STOP_WORDS.has(term),
-  )
+  const keywords = substantiveQueryTerms(query)
   if (keywords.length === 0) return false
   const queryText = searchableText(query)
   const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
@@ -322,7 +324,7 @@ function compactInstructorHistory(courses) {
 
 export function condenseCourses(courses, query, shortlistedCodes = [], history = []) {
   if (!courses?.length) return []
-  const keywords = meaningfulQueryTerms(query)
+  const keywords = substantiveQueryTerms(query)
   const shortlistedSet = new Set(shortlistedCodes)
   const exactIdentities = exactInstructorIdentities(courses, query)
   const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
@@ -508,7 +510,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         .find((message) => message.kind === 'ai' && message.grounding)
       const candidateHistory = priorGroundedResponse
         ? [
-            { role: 'user', content: priorGroundedResponse.grounding.query },
+            { role: 'user', content: priorGroundedResponse.userQuery },
             { role: 'assistant', content: priorGroundedResponse.content },
           ]
         : []
@@ -535,6 +537,17 @@ export default function ChatBot({ courses, favs, isLight = false }) {
       const history = useStructuredFollowup
         ? candidateHistory
         : selectRelevantHistory(courses, userMsg, candidateHistory, courseContext)
+      const grounding =
+        history.length > 0 && priorGroundedResponse
+          ? priorGroundedResponse.grounding
+          : {
+              query: userMsg,
+              courseCodes: [
+                ...new Set(
+                  courseContext.map((course) => course.base_code || course.code).filter(Boolean),
+                ),
+              ],
+            }
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -578,16 +591,10 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         {
           role: 'assistant',
           kind: 'ai',
+          userQuery: userMsg,
           content: data.reply,
           provenance: { model: data.model, cost: data.cost },
-          grounding: {
-            query: userMsg,
-            courseCodes: [
-              ...new Set(
-                courseContext.map((course) => course.base_code || course.code).filter(Boolean),
-              ),
-            ],
-          },
+          grounding,
         },
       ])
     } catch {

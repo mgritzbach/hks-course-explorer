@@ -82,7 +82,9 @@ test.describe('course advisor lifecycle', () => {
     page,
   }) => {
     const advisorFixture = [
+      ['DPI-851-M', 'Data Visualization for Policy Analysis', 'Hong Qu'],
       ['DPI-852-M', 'Advanced Data and Information Visualization', 'Hong Qu'],
+      ['DPI-853-M', 'Interactive Data Visualization', 'Hong Qu'],
       ['MLD-223', 'Organizing for Good', 'Kessely Hong'],
       ['API-202', 'Empirical Methods II', 'Joshua Goodman'],
       ['DPI-802-M-D-2', 'The Arts of Communication', 'Allison Shapira'],
@@ -119,6 +121,7 @@ test.describe('course advisor lifecycle', () => {
     })
 
     let requestNumber = 0
+    const expectedHongCodes = ['DPI-851-M', 'DPI-852-M', 'DPI-853-M']
     await page.route('**/api/chat', async (route) => {
       requestNumber += 1
       const payload = route.request().postDataJSON()
@@ -155,7 +158,7 @@ test.describe('course advisor lifecycle', () => {
           },
         ])
       } else {
-        expect(payload.message).toBe('Which climate courses have light workloads?')
+        expect(payload.message).toBe('How is it for climate?')
         expect(payload.history).toEqual([])
         expect(contextInstructors).toEqual(['Ada Climate'])
         expect(payload.courses.every((course) => /climate/i.test(course.name))).toBe(true)
@@ -172,6 +175,9 @@ test.describe('course advisor lifecycle', () => {
         )
         expect(payload.courses.some((course) => course.instructor === 'Robert Wilkinson')).toBe(
           false,
+        )
+        expect(payload.courses.map((course) => course.base_code || course.code).sort()).toEqual(
+          expectedHongCodes,
         )
       }
 
@@ -224,7 +230,7 @@ test.describe('course advisor lifecycle', () => {
       dialog.getByText('The grounded Hong Qu course records contain the available ratings.'),
     ).toBeVisible()
 
-    await input.fill('Which climate courses have light workloads?')
+    await input.fill('How is it for climate?')
     await send.click()
     await expect(dialog.getByText('ENV-250 is a climate course with workload data.')).toBeVisible()
     expect(requestNumber).toBe(5)

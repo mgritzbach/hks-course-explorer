@@ -246,6 +246,24 @@ describe('chat course context', () => {
         term: 'Spring',
         has_eval: true,
       },
+      {
+        course_code: 'API-206',
+        course_code_base: 'API-206',
+        course_name: 'How Do You Know It Works?',
+        professor_display: 'Jane Evidence',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'API-309',
+        course_code_base: 'API-309',
+        course_name: 'Networks, Complexity and Their Applications',
+        professor_display: 'John Networks',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
     ]
 
     const history = [
@@ -265,22 +283,12 @@ describe('chat course context', () => {
 
     expect(condenseCourses(courses, 'Is Hong a good professor?')).toEqual([])
 
-    const independentContext = condenseCourses(
-      courses,
-      'Which climate courses have light workloads?',
-      [],
-      history,
-    )
+    const independentContext = condenseCourses(courses, 'How is it for climate?', [], history)
     expect(independentContext).toMatchObject([{ code: 'ENV-250', instructor: 'Ada Climate' }])
     expect(independentContext.every((course) => /climate/i.test(course.name))).toBe(true)
     expect(independentContext.some((course) => course.instructor === 'Richard Light')).toBe(false)
     expect(
-      selectRelevantHistory(
-        courses,
-        'Which climate courses have light workloads?',
-        history,
-        independentContext,
-      ),
+      selectRelevantHistory(courses, 'How is it for climate?', history, independentContext),
     ).toEqual([])
 
     const explicitContext = condenseCourses(courses, 'Is Hong Qu a good professor?', [], history)
