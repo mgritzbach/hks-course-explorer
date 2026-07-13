@@ -32,6 +32,26 @@ def load_sync_module():
         return module
 
 
+def reconciliation_report(**overrides):
+    report = {
+        "database_row_count": 4,
+        "classified_row_count": 4,
+        "current_non_hks_ats_count": 1,
+        "protected_active_myharvard_count": 1,
+        "protected_myharvard_rollback_count": 1,
+        "protected_legacy_hks_fallback_count": 0,
+        "actionable_retained_non_hks_ats_count": 1,
+        "actionable_queue_sha256": "a" * 64,
+        "actionable_by_active_state": {"active": 1},
+        "actionable_by_age": {"8_to_30_days": 1},
+        "actionable_by_school": {"FAS": 1},
+        "actionable_by_term": {"2025 Fall": 1},
+        "current_source_missing_from_database_count": 0,
+    }
+    report.update(overrides)
+    return report
+
+
 class FetchSchoolTests(unittest.TestCase):
     def setUp(self):
         self.sync = load_sync_module()
@@ -189,7 +209,7 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertIn("atomic database promotion failed", write_summary.call_args.args[0])
         inventory.assert_not_called()
 
-    def test_successful_sync_reports_retained_inventory_without_deleting_rows(self):
+    def test_successful_sync_reports_source_aware_inventory_without_mutating_retained_rows(self):
         success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
 
         with (
@@ -202,13 +222,23 @@ class FetchSchoolTests(unittest.TestCase):
             ),
             patch.object(self.sync, "supabase_upsert") as upsert,
             patch.object(self.sync, "supabase_inventory_live_courses", return_value=[success.rows[0]]),
+            patch.object(self.sync, "supabase_inventory_catalogue_runs", return_value=[{"id": "run"}]),
+            patch.object(
+                self.sync,
+                "compare_live_course_inventory",
+                return_value=reconciliation_report(),
+            ) as compare_inventory,
             patch.object(self.sync, "write_github_summary") as write_summary,
         ):
             self.sync.main()
 
         upsert.assert_called_once_with([success.rows[0]])
+        compare_inventory.assert_called_once_with(
+            [success.rows[0]], [success.rows[0]], [{"id": "run"}]
+        )
         self.assertIn("promoted atomically", write_summary.call_args.args[0])
-        self.assertIn("Retained rows absent from current source:** 0", write_summary.call_args.args[0])
+        self.assertIn("Actionable retained non-HKS ATS rows:** 1", write_summary.call_args.args[0])
+        self.assertIn("Actionable queue SHA-256:** `" + "a" * 64, write_summary.call_args.args[0])
 
     def test_minimum_unique_course_guard_prevents_writes_and_deletes(self):
         empty_success = self.sync.FetchResult("HKS", "a", [], True)
@@ -283,10 +313,15 @@ class FetchSchoolTests(unittest.TestCase):
         requests_seen = []
 
         def request_get(url, headers, params, timeout):
+            self.assertEqual(headers["Prefer"], "count=exact")
             requests_seen.append((headers["Range"], params))
             start = int(headers["Range"].split("-")[0])
             response = Mock(ok=True)
-            response.json.return_value = records[start : start + self.sync.INVENTORY_PAGE_SIZE]
+            page = records[start : start + self.sync.INVENTORY_PAGE_SIZE]
+            response.json.return_value = page
+            response.headers = {
+                "Content-Range": f"{start}-{start + len(page) - 1}/{len(records)}"
+            }
             return response
 
         inventory = self.sync.supabase_inventory_live_courses(request_get)
@@ -295,24 +330,136 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertEqual(
             requests_seen,
             [
-                ("0-999", {"select": "id,school,term", "order": "id.asc"}),
-                ("1000-1999", {"select": "id,school,term", "order": "id.asc"}),
+                (
+                    "0-999",
+                    {
+                        "select": (
+                            "id,school,term,source,active,is_hks,sync_run_id,"
+                            "source_course_id,source_offering_id,synced_at"
+                        ),
+                        "order": "id.asc",
+                    },
+                ),
+                (
+                    "1000-1999",
+                    {
+                        "select": (
+                            "id,school,term,source,active,is_hks,sync_run_id,"
+                            "source_course_id,source_offering_id,synced_at"
+                        ),
+                        "order": "id.asc",
+                    },
+                ),
             ],
         )
 
-    def test_reads_and_deduplicates_authoritative_hks_course_ids(self):
+    def test_catalogue_run_inventory_is_complete_and_myharvard_only(self):
         records = [
-            {"source_course_id": "170000"},
-            {"source_course_id": "170000"},
-            {"source_course_id": "170001"},
+            {"id": "run-a", "source": "myharvard"},
+            {"id": "run-b", "source": "myharvard"},
         ]
         requests_seen = []
 
         def request_get(url, headers, params, timeout):
+            self.assertEqual(headers["Prefer"], "count=exact")
+            requests_seen.append((url, headers["Range"], params))
+            start = int(headers["Range"].split("-")[0])
+            response = Mock(ok=True)
+            response.json.return_value = records[start : start + 1]
+            response.headers = {"Content-Range": f"{start}-{start}/{len(records)}"}
+            return response
+
+        with (
+            patch.object(self.sync, "INVENTORY_PAGE_SIZE", 1),
+            patch.object(self.sync, "MAX_INVENTORY_ROWS", 3),
+        ):
+            inventory = self.sync.supabase_inventory_catalogue_runs(request_get)
+
+        self.assertEqual(inventory, records)
+        self.assertEqual([item[1] for item in requests_seen], ["0-0", "1-1"])
+        self.assertEqual(requests_seen[0][0], "https://example.supabase.co/rest/v1/live_catalogue_runs")
+        self.assertEqual(requests_seen[0][2]["source"], "eq.myharvard")
+        self.assertEqual(
+            requests_seen[0][2]["select"],
+            "id,source,status,offering_count,identity_sha256,term_counts",
+        )
+
+    def test_catalogue_run_inventory_fails_closed_on_empty_or_duplicate_rows(self):
+        empty = Mock(ok=True)
+        empty.json.return_value = []
+        empty.headers = {"Content-Range": "*/0"}
+        with self.assertRaisesRegex(RuntimeError, "inventory is empty"):
+            self.sync.supabase_inventory_catalogue_runs(Mock(return_value=empty))
+
+        repeated_first = Mock(ok=True)
+        repeated_first.json.return_value = [{"id": "same"}]
+        repeated_first.headers = {"Content-Range": "0-0/2"}
+        repeated_second = Mock(ok=True)
+        repeated_second.json.return_value = [{"id": "same"}]
+        repeated_second.headers = {"Content-Range": "1-1/2"}
+        with (
+            patch.object(self.sync, "INVENTORY_PAGE_SIZE", 1),
+            patch.object(self.sync, "MAX_INVENTORY_ROWS", 2),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "duplicate IDs"):
+                self.sync.supabase_inventory_catalogue_runs(
+                    Mock(side_effect=[repeated_first, repeated_second])
+                )
+
+    def test_inventory_rejects_an_advertised_total_with_a_missing_page_row(self):
+        first = Mock(ok=True)
+        first.json.return_value = [{"id": "a"}, {"id": "b"}]
+        first.headers = {"Content-Range": "0-1/4"}
+        second = Mock(ok=True)
+        second.json.return_value = [{"id": "d"}]
+        second.headers = {"Content-Range": "2-2/4"}
+
+        with (
+            patch.object(self.sync, "INVENTORY_PAGE_SIZE", 2),
+            patch.object(self.sync, "MAX_INVENTORY_ROWS", 4),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "ended before its advertised total"):
+                self.sync.supabase_inventory_live_courses(Mock(side_effect=[first, second]))
+
+    def test_inventory_requires_an_exact_numeric_total(self):
+        missing = Mock(ok=True)
+        missing.json.return_value = [{"id": "a"}]
+        missing.headers = {}
+        with self.assertRaisesRegex(RuntimeError, "exact Content-Range"):
+            self.sync.supabase_inventory_live_courses(Mock(return_value=missing))
+
+        wildcard = Mock(ok=True)
+        wildcard.json.return_value = [{"id": "a"}]
+        wildcard.headers = {"Content-Range": "0-0/*"}
+        with self.assertRaisesRegex(RuntimeError, "exact total"):
+            self.sync.supabase_inventory_live_courses(Mock(return_value=wildcard))
+
+    def test_authoritative_hks_identity_read_rejects_discontinuous_ranges(self):
+        response = Mock(ok=True)
+        response.json.return_value = [{"id": "row-1", "source_course_id": "170000"}]
+        response.headers = {"Content-Range": "1-1/1"}
+
+        with self.assertRaisesRegex(RuntimeError, "discontinuous Content-Range"):
+            self.sync.supabase_active_hks_source_course_ids(Mock(return_value=response))
+
+    def test_reads_and_deduplicates_authoritative_hks_course_ids(self):
+        records = [
+            {"id": "row-a", "source_course_id": "170000"},
+            {"id": "row-b", "source_course_id": "170001"},
+            {"id": "row-c", "source_course_id": "170000"},
+        ]
+        requests_seen = []
+
+        def request_get(url, headers, params, timeout):
+            self.assertEqual(headers["Prefer"], "count=exact")
             requests_seen.append((headers["Range"], params))
             start = int(headers["Range"].split("-")[0])
             response = Mock(ok=True)
-            response.json.return_value = records[start : start + 2]
+            page = records[start : start + 2]
+            response.json.return_value = page
+            response.headers = {
+                "Content-Range": f"{start}-{start + len(page) - 1}/{len(records)}"
+            }
             return response
 
         with (
@@ -326,12 +473,32 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertEqual(requests_seen[0][1]["source"], "eq.myharvard")
         self.assertEqual(requests_seen[0][1]["active"], "eq.true")
         self.assertEqual(requests_seen[0][1]["is_hks"], "eq.true")
+        self.assertEqual(requests_seen[0][1]["select"], "id,source_course_id")
+        self.assertEqual(requests_seen[0][1]["order"], "id.asc")
 
     def test_rejects_an_empty_authoritative_hks_identity_set(self):
         empty = Mock(ok=True)
         empty.json.return_value = []
+        empty.headers = {"Content-Range": "*/0"}
         with self.assertRaisesRegex(RuntimeError, "identity set is empty"):
             self.sync.supabase_active_hks_source_course_ids(Mock(return_value=empty))
+
+    def test_authoritative_hks_identity_read_rejects_duplicate_row_ids(self):
+        first = Mock(ok=True)
+        first.json.return_value = [{"id": "same", "source_course_id": "170000"}]
+        first.headers = {"Content-Range": "0-0/2"}
+        second = Mock(ok=True)
+        second.json.return_value = [{"id": "same", "source_course_id": "170001"}]
+        second.headers = {"Content-Range": "1-1/2"}
+
+        with (
+            patch.object(self.sync, "INVENTORY_PAGE_SIZE", 1),
+            patch.object(self.sync, "MAX_INVENTORY_ROWS", 2),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "duplicate row IDs"):
+                self.sync.supabase_active_hks_source_course_ids(
+                    Mock(side_effect=[first, second])
+                )
 
     def test_filters_authoritative_hks_cross_lists_before_upsert(self):
         success = self.sync.FetchResult(
@@ -359,6 +526,12 @@ class FetchSchoolTests(unittest.TestCase):
                 "supabase_inventory_live_courses",
                 return_value=[{"id": "fas-owned", "school": "FAS", "term": "2026 Fall"}],
             ),
+            patch.object(self.sync, "supabase_inventory_catalogue_runs", return_value=[{"id": "run"}]),
+            patch.object(
+                self.sync,
+                "compare_live_course_inventory",
+                return_value=reconciliation_report(),
+            ),
             patch.object(self.sync, "write_github_summary"),
         ):
             self.sync.main()
@@ -381,8 +554,10 @@ class FetchSchoolTests(unittest.TestCase):
 
         first = Mock(ok=True)
         first.json.return_value = [{"id": "same", "school": "HKS", "term": "2026 Fall"}]
+        first.headers = {"Content-Range": "0-0/2"}
         second = Mock(ok=True)
         second.json.return_value = [{"id": "same", "school": "HKS", "term": "2026 Fall"}]
+        second.headers = {"Content-Range": "1-1/2"}
         with (
             patch.object(self.sync, "INVENTORY_PAGE_SIZE", 1),
             patch.object(self.sync, "MAX_INVENTORY_ROWS", 2),
@@ -393,6 +568,7 @@ class FetchSchoolTests(unittest.TestCase):
     def test_inventory_rejects_a_result_that_reaches_the_safe_page_cap(self):
         full_page = Mock(ok=True)
         full_page.json.return_value = [{"id": "one", "school": "HKS", "term": "2026 Fall"}]
+        full_page.headers = {"Content-Range": "0-0/2"}
         with (
             patch.object(self.sync, "INVENTORY_PAGE_SIZE", 1),
             patch.object(self.sync, "MAX_INVENTORY_ROWS", 1),
@@ -400,21 +576,21 @@ class FetchSchoolTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "safe 1 row inventory limit"):
                 self.sync.supabase_inventory_live_courses(Mock(return_value=full_page))
 
-    def test_inventory_comparison_reports_aggregate_retained_rows_only(self):
-        comparison = self.sync.compare_live_course_inventory(
-            [{"id": "current", "school": "HKS", "term": "2026 Fall"}],
-            [
-                {"id": "current", "school": "HKS", "term": "2026 Fall"},
-                {"id": "retained-a", "school": "HKS", "term": "2025 Fall"},
-                {"id": "retained-b", "school": "FAS", "term": "2024 Spring"},
-            ],
-        )
+    def test_inventory_comparison_delegates_to_source_aware_classifier(self):
+        source_rows = [{"id": "current"}]
+        database_rows = [{"id": "current"}]
+        catalogue_runs = [{"id": "run"}]
+        expected = reconciliation_report()
 
-        self.assertEqual(comparison["database_row_count"], 3)
-        self.assertEqual(comparison["retained_not_in_current_source_count"], 2)
-        self.assertEqual(comparison["current_source_missing_from_database_count"], 0)
-        self.assertEqual(comparison["retained_not_in_current_source_by_school"], {"FAS": 1, "HKS": 1})
-        self.assertEqual(comparison["retained_not_in_current_source_by_term"], {"2024 Spring": 1, "2025 Fall": 1})
+        with patch.object(
+            self.sync, "classify_live_course_inventory", return_value=expected
+        ) as classify:
+            comparison = self.sync.compare_live_course_inventory(
+                source_rows, database_rows, catalogue_runs
+            )
+
+        self.assertEqual(comparison, expected)
+        classify.assert_called_once_with(source_rows, database_rows, catalogue_runs)
 
     def test_inventory_failure_is_reported_after_atomic_promotion_without_cleanup(self):
         success = self.sync.FetchResult("HKS", "a", [{"id": "course-1", "term": "2026 Fall"}], True)
@@ -435,7 +611,10 @@ class FetchSchoolTests(unittest.TestCase):
                 self.sync.main()
 
         upsert.assert_called_once_with([success.rows[0]])
-        self.assertIn("atomic promotion succeeded; retained-inventory audit failed; no cleanup attempted", write_summary.call_args.args[0])
+        self.assertIn(
+            "atomic promotion succeeded; source-aware reconciliation audit failed; no cleanup attempted",
+            write_summary.call_args.args[0],
+        )
 
     def test_summary_reports_coverage_without_course_content_or_credentials(self):
         summary = self.sync.build_sync_summary(
@@ -451,6 +630,7 @@ class FetchSchoolTests(unittest.TestCase):
                     "description": "Sensitive text",
                 },
             ],
+            inventory=reconciliation_report(),
         )
 
         self.assertIn("**Outcome:** promoted atomically", summary)
@@ -460,6 +640,9 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertNotIn("Sensitive", summary)
         self.assertNotIn("SUPABASE_KEY", summary)
         self.assertNotIn("\nmalformed continuation", summary)
+        self.assertIn("**Database rows classified exactly once:** 4", summary)
+        self.assertIn("**Actionable retained non-HKS ATS rows:** 1", summary)
+        self.assertIn("**Actionable queue SHA-256:** `" + "a" * 64 + "`", summary)
         failed_summary = self.sync.build_sync_summary(
             outcome="aborted before database writes",
             sync_start="2026-07-11T00:00:00+00:00",

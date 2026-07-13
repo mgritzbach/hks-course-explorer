@@ -59,9 +59,16 @@ restricted to the minimum required database privileges. The default schedule
 does not delete historical rows, because a 200 response alone does not prove
 an upstream search was complete. After each successful atomic promotion it
 inventories the entire `live_courses` table with a service-only, paginated read
-and reports aggregate retained-versus-current source counts. That evidence does
-not authorize deletion; any reconciliation requires a separately reviewed
-backup and restore plan.
+and reads the my.harvard run manifests. The read-only classifier must assign
+every row exactly once to the current non-HKS ATS source, the protected active
+my.harvard snapshot, its one row-bearing rollback snapshot, a protected legacy
+HKS fallback, or the actionable retained non-HKS ATS queue. It fails on an
+unowned row, a current source row that is missing/inactive, or HKS manifest
+drift. The summary exposes
+only counts, bounded age/school/term buckets, and a SHA-256 digest of the sorted
+actionable IDs; it never emits course IDs or content. That evidence does not
+authorize deletion or deactivation; any keep/retire decision requires a
+separately reviewed backup and restore plan.
 
 The separate my.harvard job stages every student-facing HKS offering under a
 run ID, verifies the upstream advertised count and configured minimum, then

@@ -8,7 +8,7 @@ release proceeds while any P0 goal is `0`.
 | ID | Priority | Canonical goal | Verified progress | Status | Evidence required to mark 1 |
 |---|---|---|---:|---:|---|
 | G01 | P0 | Foundations / governance | 100% | 1 | Protected release ownership, CI controls, fresh setup/review evidence, and final governance sign-off. |
-| G02 | P0 | Data integrity | 94% | 0 | Source parity, complete daily-sync promotion, and production rollback evidence. |
+| G02 | P0 | Data integrity | 97% | 0 | Source parity, complete daily-sync promotion, exercised catalogue rollback, and evidence-backed resolution of the retained non-HKS ATS queue. |
 | G03 | P0 | Supabase reliability | 100% | 1 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence. |
 | G04 | P0 | Security | 90% | 0 | Authorized production RLS hardening, Cloudflare security verification, and remaining-advisor ownership review. |
 | G05 | P1 | Navigation / usability | 100% | 1 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence. |
@@ -35,12 +35,12 @@ are binary complete. Percentages are not release waivers.
 ## Current external certification blockers
 
 Production certification remains blocked by the Cloudflare zone-policy gate,
-an exercised catalogue rollback, manual production accessibility acceptance,
-representative field performance evidence, and successor/on-call handover
-acceptance. The functional Pages rollback/re-promotion boundary is exercised;
-the complete cache-conformant production-smoke exercise must be repeated after
-the zone-policy fix and does not substitute for the remaining stateful or
-institutional evidence.
+evidence-backed resolution of the retained non-HKS ATS queue, manual production
+accessibility acceptance, representative field performance evidence, and
+successor/on-call handover acceptance. Both catalogue and functional Pages
+rollback boundaries are exercised; the complete cache-conformant
+production-smoke exercise must be repeated after the zone-policy fix and does
+not substitute for the remaining stateful or institutional evidence.
 
 ## Completed local increments (not release sign-off)
 
@@ -105,3 +105,4 @@ institutional evidence.
 | L57 | Exact-master has a privacy-bounded, zero-cost LCP/INP/CLS field collector that remains outside the initial route bundle and preserves application availability when analytics fails. | 1 | PR #67; master `167e204`; CI `29208929319` with 252 unit tests, 38 browser flows, and bundle budgets; lazy `web-vitals` chunk 2.56 KiB gzip; release-candidate deployment `304ec26c`; and current production `19e854a` / `a9351956`. Representative field acceptance remains outstanding for G08. |
 | L58 | The reviewed Cloudflare Pages rollback and re-promotion mechanics are exercised against exact production artifacts without mutating Supabase, KV, secrets, or Durable Object state. | 1 | Production `19e854a` / deployment `a9351956` rolled back to `f3ce866` / `e4368292`; exact rollback Pages static smoke and custom-domain browser acceptance 5/5 passed; `19e854a` was re-promoted and exact Pages static smoke plus custom-domain browser acceptance 5/5 passed. The custom-domain static cache-policy assertion remains red and blocks G04/G09/G11. |
 | L59 | Conversational advisor grounding preserves only relevant prior context, resets for independent topics, isolates exact instructor/course identities, and remains bounded on real catalogue history. | 1 | PR #73, 45 focused context/Worker contracts, rebuilt nine-turn browser regression, exhaustive 516-instructor and 1,094-code audits, protected CI, production deployment `a9351956`, and live Hong-only request payload proof. |
+| L60 | The current my.harvard catalogue has an exercised, manifest-exact rollback path that cannot reach production during verification. | 1 | PR #77; fresh encrypted backup `29224666761`; exact-master PostgreSQL 17 recovery `29224720886`; isolated clone rollback restored 297 rows (141 Fall, 156 Spring) and the untouched source recovery database remained byte-exact. |

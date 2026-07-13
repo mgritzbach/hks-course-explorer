@@ -303,10 +303,14 @@ the upstream search returned a complete catalogue, so deletion requires a
 separate, reviewed reconciliation with a tested backup and restore path.
 
 - Any failed Harvard source request causes a non-zero exit before database writes.
-- After a successful atomic upsert, the job reads every `live_courses` ID and
-  reports only aggregate counts: database rows, retained rows absent from the
-  current source, and source rows missing from the database, plus retained
-  school/term coverage. It never emits a deletion list or course content.
+- After a successful atomic upsert, the job reads the complete ownership fields
+  for `live_courses` and the my.harvard run manifests. It partitions every row
+  exactly once into current non-HKS ATS, the protected active my.harvard
+  snapshot, its one row-bearing rollback snapshot, protected legacy HKS
+  fallback, or actionable retained non-HKS ATS. It fails
+  on ownership/manifest drift and reports only counts, bounded age/school/term
+  buckets, and a deterministic actionable-queue SHA-256. It never emits a
+  deletion list, raw course IDs, or course content.
 - An inventory-read failure is a non-zero post-promotion incident: the upsert
   has succeeded, but no cleanup has been attempted and the run is not
   reconciliation-ready.
