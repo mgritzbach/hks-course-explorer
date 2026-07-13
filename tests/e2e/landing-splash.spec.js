@@ -37,6 +37,54 @@ test.describe('welcome landing page', () => {
     ).resolves.toBe(true)
   })
 
+  for (const [viewportName, viewport] of [
+    ['desktop', { width: 1280, height: 720 }],
+    ['mobile', { width: 390, height: 844 }],
+  ]) {
+    test(`moves focus into the application after keyboard Direct entry on ${viewportName}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport)
+      await page.goto('/')
+
+      const direct = page.getByRole('button', {
+        name: 'Continue directly and skip all tutorial boxes',
+      })
+      await direct.focus()
+      await page.keyboard.press('Enter')
+
+      await expect(page.locator('#main-content')).toBeFocused({ timeout: 15_000 })
+      await expect(page.getByRole('dialog')).toHaveCount(0)
+    })
+
+    test(`contains and restores focus for the keyboard tutorial on ${viewportName}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport)
+      await page.goto('/')
+
+      const tutorial = page.getByRole('button', { name: 'Continue with the guided tutorial' })
+      await tutorial.focus()
+      await page.keyboard.press('Enter')
+
+      const tour = page.getByRole('dialog', { name: 'Start with the Year' })
+      await expect(tour).toBeFocused({ timeout: 15_000 })
+      await expect(page.locator('#root')).toHaveAttribute('aria-hidden', 'true')
+      await expect.poll(() => page.locator('#root').evaluate((root) => root.inert)).toBe(true)
+
+      await page.keyboard.press('Shift+Tab')
+      await expect(tour.getByRole('button', { name: /next/i })).toBeFocused()
+      await page.keyboard.press('Tab')
+      await expect(tour.getByRole('button', { name: 'Close tour' })).toBeFocused()
+
+      await page.keyboard.press('Escape')
+      await expect(tour).toHaveCount(0)
+      await expect(page.locator('#main-content')).toBeFocused()
+      await expect(page.locator('#root')).not.toHaveAttribute('aria-hidden', 'true')
+      await expect.poll(() => page.locator('#root').evaluate((root) => root.inert)).toBe(false)
+    })
+  }
+
   test('a direct route visit shows only the landing dialog before the visitor decides', async ({
     page,
   }) => {
@@ -143,12 +191,12 @@ test.describe('welcome landing page', () => {
 
     await page.getByRole('button', { name: 'Continue with the guided tutorial' }).click()
 
-    await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible({
-      timeout: 15_000,
-    })
     await expect(page.getByRole('dialog', { name: 'Start with the Year' })).toBeVisible({
       timeout: 15_000,
     })
+    // The modal correctly removes the application root from the accessibility
+    // tree, so assert the rendered page heading through its DOM visibility.
+    await expect(page.locator('h2').filter({ hasText: 'Course Comparisons' })).toBeVisible()
     await expect(page.getByRole('dialog')).toHaveCount(1)
   })
 })

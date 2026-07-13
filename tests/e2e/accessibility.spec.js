@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { test, expect } from '@playwright/test'
+import { ALL_TUTORIAL_STORAGE_KEYS } from '../../src/lib/tutorialPreferences.js'
 import { installMockBackend } from './support/mockBackend.js'
 
 const SCHEDULE_READY_TIMEOUT_MS = 15_000
@@ -42,10 +43,10 @@ async function openVisitorRoute(page, route, marker, expectedTitle) {
 test.describe('built accessibility checks', () => {
   test.beforeEach(async ({ page }) => {
     await installMockBackend(page)
-    await page.addInitScript(() => {
+    await page.addInitScript((tutorialKeys) => {
       localStorage.setItem('hks-splash-shown', '1')
-      localStorage.setItem('hks-tour-home', '1')
-    })
+      for (const key of tutorialKeys) localStorage.setItem(key, '1')
+    }, ALL_TUTORIAL_STORAGE_KEYS)
   })
 
   test('provides a working keyboard skip link on every visitor route', async ({ page }) => {

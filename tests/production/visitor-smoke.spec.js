@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { MOBILE_MORE_NAV_ITEMS, MOBILE_PRIMARY_NAV_ITEMS } from '../../src/lib/visitorNavigation.js'
+import { ALL_TUTORIAL_STORAGE_KEYS } from '../../src/lib/tutorialPreferences.js'
 
 const minimumHksOfferings = Number(process.env.DEPLOY_MIN_HKS_OFFERINGS)
 
@@ -92,13 +93,11 @@ async function prepareReadOnlyBrowser(page) {
 }
 
 async function skipOnboarding(page) {
-  await page.addInitScript(() => {
+  await page.addInitScript((tutorialKeys) => {
     localStorage.clear()
     localStorage.setItem('hks-splash-shown', '1')
-    localStorage.setItem('hks-tour-home', '1')
-    localStorage.setItem('hks-tour-courses', '1')
-    localStorage.setItem('hks-tour-course-detail', '1')
-  })
+    for (const key of tutorialKeys) localStorage.setItem(key, '1')
+  }, ALL_TUTORIAL_STORAGE_KEYS)
 }
 
 test.describe('read-only production acceptance', () => {

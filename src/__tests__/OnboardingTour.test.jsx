@@ -92,4 +92,57 @@ describe('OnboardingTour', () => {
     expect(latestDone).toHaveBeenCalledTimes(1)
     expect(onStepChange).toHaveBeenCalledWith(1)
   })
+
+  it('contains modal focus, closes on Escape, and restores the invoking control', async () => {
+    const appRoot = document.createElement('div')
+    appRoot.id = 'root'
+    document.body.appendChild(appRoot)
+    const view = render(
+      <>
+        <button data-tour="available-target">Replay tour</button>
+        <OnboardingTour steps={[STEPS[0]]} storageKey="focus-tour" autoStart />
+      </>,
+      { container: appRoot },
+    )
+
+    const replay = screen.getByRole('button', { name: 'Replay tour' })
+    vi.spyOn(replay, 'getBoundingClientRect').mockReturnValue({
+      bottom: 40,
+      height: 24,
+      left: 20,
+      right: 120,
+      top: 16,
+      width: 100,
+    })
+    replay.focus()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400)
+    })
+
+    const dialog = screen.getByRole('dialog')
+    const close = screen.getByRole('button', { name: 'Close tour' })
+    const done = screen.getByRole('button', { name: /done/i })
+    expect(document.activeElement).toBe(dialog)
+    expect(appRoot.inert).toBe(true)
+    expect(appRoot.getAttribute('aria-hidden')).toBe('true')
+
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(done)
+    fireEvent.keyDown(dialog, { key: 'Tab' })
+    expect(document.activeElement).toBe(close)
+
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(Boolean(appRoot.inert)).toBe(false)
+    expect(appRoot.hasAttribute('aria-hidden')).toBe(false)
+    expect(document.activeElement).toBe(replay)
+
+    view.unmount()
+    appRoot.remove()
+  })
 })

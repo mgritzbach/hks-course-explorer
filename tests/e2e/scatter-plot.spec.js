@@ -1,13 +1,14 @@
 import { test, expect } from '@playwright/test'
+import { ALL_TUTORIAL_STORAGE_KEYS } from '../../src/lib/tutorialPreferences.js'
 import { installMockBackend } from './support/mockBackend.js'
 
 test.describe('Scatter Plot built-artifact regression', () => {
   test.beforeEach(async ({ page }) => {
     await installMockBackend(page)
-    await page.addInitScript(() => {
+    await page.addInitScript((tutorialKeys) => {
       localStorage.setItem('hks-splash-shown', '1')
-      localStorage.setItem('hks-tour-home', '1')
-    })
+      for (const key of tutorialKeys) localStorage.setItem(key, '1')
+    }, ALL_TUTORIAL_STORAGE_KEYS)
     await page.setViewportSize({ width: 1440, height: 1000 })
   })
 

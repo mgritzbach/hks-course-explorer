@@ -1,15 +1,14 @@
 import { test, expect } from '@playwright/test'
+import { ALL_TUTORIAL_STORAGE_KEYS } from '../../src/lib/tutorialPreferences.js'
 import { installMockBackend } from './support/mockBackend.js'
 
 test.describe('Course Explorer bidding history', () => {
   test.beforeEach(async ({ page }) => {
     await installMockBackend(page)
-    await page.addInitScript(() => {
+    await page.addInitScript((tutorialKeys) => {
       localStorage.setItem('hks-splash-shown', '1')
-      localStorage.setItem('hks-tour-home', '1')
-      localStorage.setItem('hks-tour-courses', '1')
-      localStorage.setItem('hks-tour-course-detail', '1')
-    })
+      for (const key of tutorialKeys) localStorage.setItem(key, '1')
+    }, ALL_TUTORIAL_STORAGE_KEYS)
   })
 
   test('loads the bidding trend after a student opens the history tab', async ({ page }) => {

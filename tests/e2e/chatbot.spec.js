@@ -1,14 +1,15 @@
 import { test, expect } from '@playwright/test'
 import config from '../../src/school.config.js'
+import { ALL_TUTORIAL_STORAGE_KEYS } from '../../src/lib/tutorialPreferences.js'
 import { installMockBackend } from './support/mockBackend.js'
 
 test.describe('course advisor lifecycle', () => {
   test.beforeEach(async ({ page }) => {
     await installMockBackend(page)
-    await page.addInitScript(() => {
+    await page.addInitScript((tutorialKeys) => {
       localStorage.setItem('hks-splash-shown', '1')
-      localStorage.setItem('hks-tour-home', '1')
-    })
+      for (const key of tutorialKeys) localStorage.setItem(key, '1')
+    }, ALL_TUTORIAL_STORAGE_KEYS)
   })
 
   test('welcomes once and restores trigger focus after either keyboard or button close', async ({
