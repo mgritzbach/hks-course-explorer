@@ -78,17 +78,34 @@ test.describe('local build navigation and static assets', () => {
         await page.getByRole('button', { name: 'Open filters' }).click()
       }
 
-      const replay = page.getByRole('button', { name: 'Replay tour' })
+      const replay = page.locator('button[aria-label="Replay tour"]:visible')
       await replay.focus()
-      await page.keyboard.press('Enter')
-      await expect(replay).toHaveAttribute('aria-disabled', 'true')
-      await expect(replay).toBeFocused()
+      await page.evaluate(() => {
+        window.__replayFocusAudit = { bodySeen: false, completed: false }
+        const sample = () => {
+          const active = document.activeElement
+          if (!active || active === document.body || active === document.documentElement) {
+            window.__replayFocusAudit.bodySeen = true
+          }
+          if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
+            window.__replayFocusAudit.completed = true
+            return
+          }
+          window.requestAnimationFrame(sample)
+        }
+        window.requestAnimationFrame(sample)
+      })
+      await replay.press('Enter')
 
       const tour = page.getByRole('dialog', { name: 'Set the Year' })
       await expect(tour).toBeFocused({ timeout: 15_000 })
+      await expect
+        .poll(() => page.evaluate(() => window.__replayFocusAudit))
+        .toEqual({ bodySeen: false, completed: true })
       await page.keyboard.press('Escape')
       await expect(tour).toHaveCount(0)
       await expect(replay).toBeFocused()
+      await expect(replay).toHaveAttribute('aria-disabled', 'false')
     }
   })
 
