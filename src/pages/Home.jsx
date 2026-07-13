@@ -14,6 +14,10 @@ import ErrorBoundary from '../components/ErrorBoundary.jsx'
 import OnboardingTour from '../components/OnboardingTour.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 import { useDocumentTitle } from '../lib/useDocumentTitle.js'
+import {
+  closedMobileDrawerAttributes,
+  shouldRestoreReplayDrawer,
+} from '../lib/mobileDrawerAccessibility.js'
 
 // Lazy-load ScatterPlot so the 4.8 MB Plotly bundle is only fetched
 // when the user opens the "Course Comparisons" tab — not on initial load.
@@ -413,7 +417,9 @@ export default function Home({
     if (!sidebarOpen) return undefined
 
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setSidebarOpen(false)
+      if (event.key === 'Escape' && !document.querySelector('[role="dialog"][aria-modal="true"]')) {
+        setSidebarOpen(false)
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -612,9 +618,13 @@ export default function Home({
           autoStart={replayTour}
           restoreFocusToMain={restoreWelcomeTourFocusToMain}
           onDone={() => {
+            const shouldRestoreDrawer = shouldRestoreReplayDrawer(
+              replayTour,
+              restoreWelcomeTourFocusToMain,
+            )
             setReplayTour(false)
             setRestoreWelcomeTourFocusToMain(false)
-            setSidebarOpen(false)
+            setSidebarOpen(shouldRestoreDrawer)
           }}
           onStepChange={handleTourStepChange}
         />
@@ -627,6 +637,7 @@ export default function Home({
 
       <div
         className={`mobile-drawer md:hidden ${sidebarOpen ? 'open' : ''}`}
+        {...closedMobileDrawerAttributes(sidebarOpen)}
         onTouchStart={handleDrawerTouchStart}
         onTouchEnd={handleDrawerTouchEnd}
       >
@@ -665,7 +676,7 @@ export default function Home({
         ref={mainRef}
         className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-6"
       >
-        <section className="panel-shell mb-5 overflow-hidden">
+        <section className="panel-shell mb-5 shrink-0 overflow-hidden">
           <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-5 md:px-7 md:py-7">
             <div className="min-w-0 flex-1">
               <p className="kicker mb-2">Independent HKS student tool</p>

@@ -66,6 +66,15 @@ export default function Sidebar({
     if (!drawer) return undefined
 
     const focusFirstElement = () => {
+      // Opening the drawer schedules its initial focus after the slide-in starts.
+      // Do not steal focus back to the first control if the visitor has already
+      // moved to another control inside the drawer (for example Replay tour).
+      if (
+        document.activeElement instanceof HTMLElement &&
+        containerRef.current?.contains(document.activeElement)
+      ) {
+        return
+      }
       const focusable = containerRef.current?.querySelector(
         'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       )
