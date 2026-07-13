@@ -240,6 +240,7 @@ export async function installMockBackend(
     liveCoursesResponse = liveCourses,
     liveCoursesResponseResolver,
     onLiveCoursesRequest,
+    waitForHistoricalCourses,
   } = {},
 ) {
   // The client requests catalogue pages in parallel. Returning the compact
@@ -251,6 +252,7 @@ export async function installMockBackend(
     const pathname = new URL(request.url()).pathname
 
     if (pathname.endsWith('/courses')) {
+      await waitForHistoricalCourses?.()
       const pageData = historicalPageServed ? [] : historicalCourses
       historicalPageServed = true
       return json(route, pageData)

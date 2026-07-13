@@ -364,7 +364,13 @@ export default function App() {
           ))}
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col px-4 py-6 md:px-6">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          aria-busy="true"
+          aria-live="polite"
+          className="flex min-w-0 flex-1 flex-col px-4 py-6 md:px-6"
+        >
           <div className="mb-5">
             <div className="skeleton-shimmer mb-3 h-4" style={{ width: 140 }} />
             <div className="skeleton-shimmer mb-3 h-10 max-w-[420px]" />
@@ -390,14 +396,16 @@ export default function App() {
               <SkeletonCard key={index} />
             ))}
           </div>
-        </div>
+        </main>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div
+      <main
+        id="main-content"
+        tabIndex={-1}
         className="flex h-screen flex-col items-center justify-center gap-4 px-8 text-center"
         style={{ background: 'transparent' }}
       >
@@ -421,7 +429,7 @@ export default function App() {
         >
           ↺ Retry
         </button>
-      </div>
+      </main>
     )
   }
 

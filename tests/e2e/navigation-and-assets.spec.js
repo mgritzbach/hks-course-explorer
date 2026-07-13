@@ -131,6 +131,30 @@ test.describe('local build navigation and static assets', () => {
     }
   })
 
+  test('keeps one semantic main landmark while the historical catalogue is delayed', async ({
+    page,
+  }) => {
+    let releaseHistoricalCourses
+    const historicalCoursesGate = new Promise((resolve) => {
+      releaseHistoricalCourses = resolve
+    })
+    await installMockBackend(page, {
+      waitForHistoricalCourses: () => historicalCoursesGate,
+    })
+
+    await page.goto('/resources')
+    const main = page.locator('#main-content')
+    await expect(main).toHaveCount(1)
+    await expect(page.getByRole('main')).toHaveCount(1)
+    await expect(main).toHaveAttribute('aria-busy', 'true')
+    await expect(main).toContainText('Connecting to database')
+    await expect(main).not.toContainText('HKS Resources')
+
+    releaseHistoricalCourses()
+    await expect(main).toContainText('HKS Resources', { timeout: 15_000 })
+    await expect(page.getByRole('main')).toHaveCount(1)
+  })
+
   test('keeps scheduling, degree planning, and secondary destinations reachable on mobile', async ({
     page,
   }) => {
