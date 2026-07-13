@@ -69,6 +69,34 @@ def stored_row(course_id="retained-1", **overrides):
     return row
 
 
+def observation_metadata(audit, results, *, outside_tokens=()):
+    tokens = {result.token for result in results}
+    reappeared = {
+        result.token for result in results if result.current_source_present is True
+    }
+    still = tokens - reappeared
+    outside = set(outside_tokens)
+    observed = still | outside
+    return {
+        "cohort_version": 1,
+        "token_domain": "retained-ats/id/v1",
+        "project_ref": audit.EXPECTED_SUPABASE_PROJECT_REF,
+        "key_id": "a" * 16,
+        "cohort_token_set_sha256": audit.queue_digest(tokens),
+        "still_actionable_frozen_count": len(still),
+        "still_actionable_frozen_token_sha256": audit.queue_digest(still),
+        "reappeared_frozen_count": len(reappeared),
+        "reappeared_frozen_token_sha256": audit.queue_digest(reappeared),
+        "observed_actionable_count": len(observed),
+        "observed_actionable_token_sha256": audit.queue_digest(observed),
+        "new_actionable_outside_cohort_count": len(outside),
+        "new_actionable_outside_cohort_token_sha256": audit.queue_digest(outside),
+        "new_actionable_outside_cohort_tokens": sorted(outside),
+        "observed_actionable_raw_id_sha256": "b" * 64,
+        "outside_cohort_blocks_completion": bool(outside),
+    }
+
+
 class PacerStub:
     def __init__(self):
         self.calls = 0
@@ -106,6 +134,7 @@ class QueueAndConfigurationTests(unittest.TestCase):
 
         class FakeSync:
             MIN_UNIQUE_COURSES = 1
+            GENERAL_SYNC_SCHOOLS = ("FAS",)
             supabase_upsert = Mock(side_effect=AssertionError("mutation called"))
 
             @staticmethod
@@ -176,6 +205,24 @@ class QueueAndConfigurationTests(unittest.TestCase):
             "1525-equivalent": [current, *baseline[:2]],
             "1527-equivalent": [current, *baseline, stored_row("retained-extra")],
             "duplicate": [current, baseline[0], baseline[0], baseline[1]],
+            "hks-school": [
+                current,
+                baseline[0],
+                stored_row("retained-1", school="HKS"),
+                baseline[2],
+            ],
+            "unknown-school": [
+                current,
+                baseline[0],
+                stored_row("retained-1", school="UNKNOWN"),
+                baseline[2],
+            ],
+            "missing-locator": [
+                current,
+                baseline[0],
+                stored_row("retained-1", term=""),
+                baseline[2],
+            ],
         }
         with (
             patch.object(self.audit, "EXPECTED_QUEUE_COUNT", 3),
@@ -232,7 +279,7 @@ class QueueAndConfigurationTests(unittest.TestCase):
         sentinel_id = "RAW-ID-SENTINEL"
         sentinel_key = "HARVARD-SECRET-SENTINEL"
         environment = {
-            "SUPABASE_URL": "https://example.supabase.co",
+            "SUPABASE_URL": "https://cbtroatixvydpwoviezf.supabase.co",
             "SUPABASE_KEY": "synthetic-supabase-key",
             "HARVARD_API_KEY": "synthetic-harvard-key",
         }
@@ -255,16 +302,69 @@ class QueueAndConfigurationTests(unittest.TestCase):
         self.assertNotIn(sentinel_key, combined)
 
     def test_supabase_configuration_requires_bare_https_origin(self):
-        self.audit._validate_supabase_url("https://example.supabase.co")
+        self.audit._validate_supabase_url("https://cbtroatixvydpwoviezf.supabase.co")
         for value in (
-            "http://example.supabase.co",
-            "https://example.supabase.co/rest/v1",
-            "https://user@example.supabase.co",
-            "https://example.supabase.co?key=secret",
+            "https://attacker.example",
+            "https://cbtroatixvydpwoviezf.supabase.co.evil.example",
+            "https://hks-course-explorer-staging.supabase.co",
+            "http://cbtroatixvydpwoviezf.supabase.co",
+            "https://cbtroatixvydpwoviezf.supabase.co/rest/v1",
+            "https://user@cbtroatixvydpwoviezf.supabase.co",
+            "https://cbtroatixvydpwoviezf.supabase.co?key=secret",
+            "https://cbtroatixvydpwoviezf.supabase.co:notaport",
         ):
             with self.subTest(value=value):
                 with self.assertRaises(self.audit.AuditFailure):
                     self.audit._validate_supabase_url(value)
+
+    def test_wrong_supabase_target_is_rejected_before_import_or_network(self):
+        load_sync = Mock()
+        environment = {
+            "HARVARD_API_KEY": "synthetic-harvard-key",
+            "SUPABASE_URL": "https://cbtroatixvydpwoviezf.supabase.co.evil.example",
+            "SUPABASE_KEY": "must-not-leave-process",
+            "RETAINED_ATS_AUDIT_HMAC_KEY": "x" * 40,
+        }
+        with (
+            patch.dict(os.environ, environment, clear=True),
+            patch.object(self.audit, "_load_sync_module", load_sync),
+            tempfile.TemporaryDirectory() as directory,
+        ):
+            with self.assertRaisesRegex(self.audit.AuditFailure, "invalid_configuration"):
+                self.audit.run_audit(history_path=Path(directory) / "history.jsonl")
+        load_sync.assert_not_called()
+
+    def test_runtime_transport_guard_allows_only_reviewed_get_targets(self):
+        transport = Mock(return_value=response([]))
+        with patch.object(requests.sessions.Session, "request", transport):
+            with self.audit.read_only_network_guard():
+                session = requests.Session()
+                session.get(
+                    "https://cbtroatixvydpwoviezf.supabase.co/rest/v1/live_courses"
+                )
+                session.get(
+                    "https://go.apis.huit.harvard.edu/ats/course/v2/search"
+                )
+                session.get(
+                    "https://go.prod.apis.huit.harvard.edu/ats/course/v2/search/scroll/cursor"
+                )
+                for method, url in (
+                    (
+                        "POST",
+                        "https://cbtroatixvydpwoviezf.supabase.co/rest/v1/live_courses",
+                    ),
+                    ("GET", "https://attacker.example/rest/v1/live_courses"),
+                    (
+                        "GET",
+                        "https://cbtroatixvydpwoviezf.supabase.co/auth/v1/admin/users",
+                    ),
+                ):
+                    with self.subTest(method=method, url=url):
+                        with self.assertRaisesRegex(
+                            self.audit.AuditFailure, "read_only_transport_violation"
+                        ):
+                            session.request(method, url)
+        self.assertEqual(transport.call_count, 3)
 
     def test_help_works_without_any_credentials(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -273,14 +373,15 @@ class QueueAndConfigurationTests(unittest.TestCase):
                     self.audit.parse_args(["--help"])
         self.assertEqual(exit_context.exception.code, 0)
 
-    def test_failed_positive_control_stops_before_retained_lookups_or_history(self):
+    def test_failed_positive_control_stops_lookups_and_records_bounded_attempt(self):
         control = stored_row("known-current")
         retained = stored_row("retained-1")
+        snapshot = Mock(control=control)
         exact_fetch = Mock(return_value=self.audit.ExactRead(False, reason="http_error"))
-        append = Mock()
+        append = Mock(return_value=[{"chain_hmac": "c" * 64}])
         environment = {
             "HARVARD_API_KEY": "synthetic-harvard-key",
-            "SUPABASE_URL": "https://example.supabase.co",
+            "SUPABASE_URL": "https://cbtroatixvydpwoviezf.supabase.co",
             "SUPABASE_KEY": "synthetic-supabase-key",
             "RETAINED_ATS_AUDIT_HMAC_KEY": "x" * 40,
         }
@@ -289,16 +390,271 @@ class QueueAndConfigurationTests(unittest.TestCase):
             patch.object(self.audit, "_provenance", return_value="a" * 40),
             patch.object(
                 self.audit,
-                "reconstruct_locked_queue",
-                return_value=([retained], {}, control),
+                "select_locked_cohort",
+                return_value=([retained], snapshot),
+            ),
+            patch.object(self.audit, "inventory_snapshot_digest", return_value="b" * 64),
+            patch.object(self.audit, "fetch_exact_instances", exact_fetch),
+            patch.object(self.audit, "append_history", append),
+        ):
+            with tempfile.TemporaryDirectory() as directory:
+                with self.assertRaisesRegex(self.audit.AuditFailure, "positive_control_failed"):
+                    self.audit.run_audit(history_path=Path(directory) / "history.jsonl")
+        self.assertEqual(exact_fetch.call_count, 1)
+        append.assert_called_once()
+        self.assertFalse(append.call_args.args[1]["valid"])
+        self.assertEqual(
+            append.call_args.args[1]["failure_reason"], "positive_control_failed"
+        )
+
+    def test_inventory_change_after_lookups_invalidates_the_run(self):
+        control = stored_row("known-current")
+        retained = stored_row("retained-1")
+        snapshot = Mock(control=control, source_ids=frozenset())
+        append = Mock(return_value=[{"chain_hmac": "c" * 64}])
+        exact_fetch = Mock(
+            side_effect=(
+                self.audit.ExactRead(True, (provider_row("known-current"),)),
+                self.audit.ExactRead(True, (provider_row("retained-1"),)),
+            )
+        )
+        environment = {
+            "HARVARD_API_KEY": "synthetic-harvard-key",
+            "SUPABASE_URL": "https://cbtroatixvydpwoviezf.supabase.co",
+            "SUPABASE_KEY": "synthetic-supabase-key",
+            "RETAINED_ATS_AUDIT_HMAC_KEY": "x" * 40,
+        }
+        with (
+            patch.dict(os.environ, environment, clear=True),
+            patch.object(self.audit, "_provenance", return_value="a" * 40),
+            patch.object(
+                self.audit,
+                "select_locked_cohort",
+                return_value=([retained], snapshot),
+            ),
+            patch.object(self.audit, "_reconstruct_inventory", return_value=snapshot),
+            patch.object(
+                self.audit,
+                "inventory_snapshot_digest",
+                side_effect=("a" * 64, "b" * 64),
             ),
             patch.object(self.audit, "fetch_exact_instances", exact_fetch),
             patch.object(self.audit, "append_history", append),
         ):
-            with self.assertRaisesRegex(self.audit.AuditFailure, "positive_control_failed"):
-                self.audit.run_audit(history_path=ROOT / "artifacts" / "unused.jsonl")
-        self.assertEqual(exact_fetch.call_count, 1)
-        append.assert_not_called()
+            with tempfile.TemporaryDirectory() as directory:
+                with self.assertRaisesRegex(
+                    self.audit.AuditFailure, "inventory_changed_during_audit"
+                ):
+                    self.audit.run_audit(history_path=Path(directory) / "history.jsonl")
+        self.assertEqual(exact_fetch.call_count, 2)
+        append.assert_called_once()
+        self.assertEqual(
+            append.call_args.args[1]["failure_reason"],
+            "inventory_changed_during_audit",
+        )
+
+
+class FixedCohortTests(unittest.TestCase):
+    def setUp(self):
+        self.audit = load_module()
+        self.secret = b"synthetic-secret-that-is-long-enough-for-cohort"
+        self.baseline = [stored_row("retained-a"), stored_row("retained-b")]
+        self.digest = self.audit.queue_digest(row["id"] for row in self.baseline)
+
+    def history_record(self):
+        results = [
+            self.audit.AuditResult(
+                self.audit.course_token(row["id"], self.secret),
+                "confirmed_absence",
+                baseline_hmac=self.audit.ownership_commitment(row, self.secret),
+                locator_hmac=self.audit.locator_commitment(row, self.secret),
+                baseline_active=row["active"],
+                current_source_present=False,
+            )
+            for row in self.baseline
+        ]
+        now = datetime(2026, 7, 13, tzinfo=timezone.utc)
+        with (
+            patch.object(self.audit, "EXPECTED_QUEUE_COUNT", 2),
+            patch.object(self.audit, "EXPECTED_QUEUE_SHA256", self.digest),
+        ):
+            metadata = observation_metadata(self.audit, results)
+            metadata["key_id"] = self.audit._audit_key_identifier(self.secret)
+            return self.audit.build_run_record(
+                started=now,
+                completed=now,
+                base_commit="a" * 40,
+                results=results,
+                observation_metadata=metadata,
+            )
+
+    def sync(self, *, source_ids=(), database=None):
+        control = stored_row("current-control")
+        source = {control["id"]: control}
+        for course_id in source_ids:
+            row = next(row for row in (database or self.baseline) if row["id"] == course_id)
+            source[course_id] = row
+        rows = list(database or [control, *self.baseline])
+        if control["id"] not in {row["id"] for row in rows}:
+            rows.insert(0, control)
+        audit = self.audit
+
+        class FakeSync:
+            MIN_UNIQUE_COURSES = 1
+            GENERAL_SYNC_SCHOOLS = ("FAS", "GSAS", "NONH")
+            collect_general_source_rows = staticmethod(
+                lambda: (source, [], [("FAS", "a")])
+            )
+            supabase_active_hks_source_course_ids = staticmethod(lambda: {"hks-owned"})
+            supabase_inventory_live_courses = staticmethod(lambda: rows)
+            supabase_inventory_catalogue_runs = staticmethod(lambda: [{"id": "run"}])
+
+            @staticmethod
+            def compare_live_course_inventory(source_rows, database_rows, _runs):
+                current_ids = {row["id"] for row in source_rows}
+                queue = [
+                    row
+                    for row in database_rows
+                    if row.get("source") == "ats"
+                    and row.get("is_hks") is False
+                    and not row.get("sync_run_id")
+                    and row["id"] not in current_ids
+                ]
+                return {
+                    "actionable_retained_non_hks_ats_count": len(queue),
+                    "actionable_queue_sha256": audit.queue_digest(
+                        row["id"] for row in queue
+                    ),
+                }
+
+        return FakeSync
+
+    def test_reappeared_member_stays_in_frozen_cohort_and_outside_rows_are_separate(self):
+        new_retained = stored_row("retained-new")
+        database = [stored_row("current-control"), *self.baseline, new_retained]
+        sync = self.sync(source_ids=("retained-a",), database=database)
+        history = [self.history_record()]
+        with (
+            patch.object(self.audit, "EXPECTED_QUEUE_COUNT", 2),
+            patch.object(self.audit, "EXPECTED_QUEUE_SHA256", self.digest),
+        ):
+            cohort, snapshot = self.audit.select_locked_cohort(
+                history, self.secret, sync
+            )
+            metadata = self.audit.build_observation_metadata(
+                cohort,
+                snapshot,
+                secret=self.secret,
+                supabase_url="https://cbtroatixvydpwoviezf.supabase.co",
+            )
+        self.assertEqual({row["id"] for row in cohort}, {"retained-a", "retained-b"})
+        self.assertEqual(metadata["reappeared_frozen_count"], 1)
+        self.assertEqual(metadata["still_actionable_frozen_count"], 1)
+        self.assertEqual(metadata["new_actionable_outside_cohort_count"], 1)
+        self.assertTrue(metadata["outside_cohort_blocks_completion"])
+
+    def test_missing_duplicate_or_ownership_changed_cohort_member_fails(self):
+        changed_rows = {
+            "missing": [stored_row("current-control"), self.baseline[0]],
+            "duplicate": [
+                stored_row("current-control"),
+                self.baseline[0],
+                self.baseline[0],
+                self.baseline[1],
+            ],
+            "hks-flag": [
+                stored_row("current-control"),
+                self.baseline[0],
+                stored_row("retained-b", is_hks=True),
+            ],
+            "myharvard": [
+                stored_row("current-control"),
+                self.baseline[0],
+                stored_row("retained-b", source="myharvard"),
+            ],
+            "run-owned": [
+                stored_row("current-control"),
+                self.baseline[0],
+                stored_row("retained-b", sync_run_id="run"),
+            ],
+            "hks-school": [
+                stored_row("current-control"),
+                self.baseline[0],
+                stored_row("retained-b", school="HKS"),
+            ],
+        }
+        history = [self.history_record()]
+        with (
+            patch.object(self.audit, "EXPECTED_QUEUE_COUNT", 2),
+            patch.object(self.audit, "EXPECTED_QUEUE_SHA256", self.digest),
+        ):
+            for label, database in changed_rows.items():
+                with self.subTest(label=label):
+                    with self.assertRaises(self.audit.AuditFailure):
+                        self.audit.select_locked_cohort(
+                            history,
+                            self.secret,
+                            self.sync(database=database),
+                        )
+
+    def test_reappeared_member_must_be_active(self):
+        history = [self.history_record()]
+        changed = stored_row("retained-a", active=False)
+        with (
+            patch.object(self.audit, "EXPECTED_QUEUE_COUNT", 2),
+            patch.object(self.audit, "EXPECTED_QUEUE_SHA256", self.digest),
+        ):
+            database = [stored_row("current-control"), changed, self.baseline[1]]
+            with self.assertRaisesRegex(
+                self.audit.AuditFailure, "cohort_snapshot_mismatch"
+            ):
+                self.audit.select_locked_cohort(
+                    history,
+                    self.secret,
+                    self.sync(source_ids=("retained-a",), database=database),
+                )
+
+    def test_verified_reappearance_may_update_locator_without_losing_cohort(self):
+        first = self.history_record()
+        changed = stored_row("retained-a", term="2027 Spring", session_code="2")
+        database = [stored_row("current-control"), changed, self.baseline[1]]
+        with (
+            patch.object(self.audit, "EXPECTED_QUEUE_COUNT", 2),
+            patch.object(self.audit, "EXPECTED_QUEUE_SHA256", self.digest),
+        ):
+            cohort, snapshot = self.audit.select_locked_cohort(
+                [first],
+                self.secret,
+                self.sync(source_ids=("retained-a",), database=database),
+            )
+            results = [
+                self.audit.AuditResult(
+                    self.audit.course_token(row["id"], self.secret),
+                    "exact_instance" if row["id"] == "retained-a" else "confirmed_absence",
+                    baseline_hmac=self.audit.ownership_commitment(row, self.secret),
+                    locator_hmac=self.audit.locator_commitment(row, self.secret),
+                    baseline_active=row["active"],
+                    current_source_present=row["id"] == "retained-a",
+                )
+                for row in cohort
+            ]
+            second = self.audit.build_run_record(
+                started=datetime(2026, 7, 14, tzinfo=timezone.utc),
+                completed=datetime(2026, 7, 14, tzinfo=timezone.utc),
+                base_commit="b" * 40,
+                results=results,
+                observation_metadata=self.audit.build_observation_metadata(
+                    cohort,
+                    snapshot,
+                    secret=self.secret,
+                    supabase_url="https://cbtroatixvydpwoviezf.supabase.co",
+                ),
+            )
+            state = self.audit.history_cohort_state([first, second])
+        token = self.audit.course_token("retained-a", self.secret)
+        self.assertEqual(
+            state.members[token][1], self.audit.locator_commitment(changed, self.secret)
+        )
 
 
 class ExactTransportTests(unittest.TestCase):
@@ -601,25 +957,69 @@ class OutcomeAndEvidenceTests(unittest.TestCase):
         self.assertNotEqual(token, hashlib.sha256(b"raw-id").hexdigest())
         self.assertNotIn("raw-id", token)
 
+    def test_complete_source_presence_dominates_disagreeing_exact_lookup(self):
+        stored = stored_row("present-in-source")
+        result = self.audit.classify_exact_read(
+            stored,
+            self.audit.ExactRead(True, ()),
+            secret=self.secret,
+            baseline_hmac=self.audit.ownership_commitment(stored, self.secret),
+            locator_hmac=self.audit.locator_commitment(stored, self.secret),
+            baseline_active=True,
+            current_source_present=True,
+        )
+        self.assertEqual(result.outcome, "unknown")
+        self.assertEqual(result.unknown_reason, "source_disagreement")
+
     def test_run_record_is_exhaustive_and_digest_deterministic(self):
         results = [
-            self.audit.AuditResult("c" * 64, "unknown", unknown_reason="http_error"),
-            self.audit.AuditResult("a" * 64, "confirmed_absence"),
-            self.audit.AuditResult("b" * 64, "exact_instance"),
+            self.audit.AuditResult(
+                "c" * 64,
+                "unknown",
+                unknown_reason="http_error",
+                baseline_hmac="d" * 64,
+                locator_hmac="1" * 64,
+                baseline_active=True,
+                current_source_present=False,
+            ),
+            self.audit.AuditResult(
+                "a" * 64,
+                "confirmed_absence",
+                baseline_hmac="e" * 64,
+                locator_hmac="2" * 64,
+                baseline_active=True,
+                current_source_present=False,
+            ),
+            self.audit.AuditResult(
+                "b" * 64,
+                "exact_instance",
+                baseline_hmac="f" * 64,
+                locator_hmac="3" * 64,
+                baseline_active=True,
+                current_source_present=True,
+            ),
         ]
         now = datetime(2026, 7, 13, tzinfo=timezone.utc)
         with patch.object(self.audit, "EXPECTED_QUEUE_COUNT", 3):
             first = self.audit.build_run_record(
-                started=now, completed=now, base_commit="a" * 40, results=results
+                started=now,
+                completed=now,
+                base_commit="a" * 40,
+                results=results,
+                observation_metadata=observation_metadata(self.audit, results),
             )
             second = self.audit.build_run_record(
-                started=now, completed=now, base_commit="a" * 40, results=list(reversed(results))
+                started=now,
+                completed=now,
+                base_commit="a" * 40,
+                results=list(reversed(results)),
+                observation_metadata=observation_metadata(self.audit, results),
             )
         self.assertEqual(first["result_digest"], second["result_digest"])
         self.assertEqual(sum(first["outcome_counts"].values()), 3)
         self.assertEqual(first["unknown_reasons"], {"http_error": 1})
 
-    def test_contradictory_result_metadata_cannot_enter_signed_evidence(self):
+    def test_contradictory_result_metadata_cannot_enter_authenticated_evidence(self):
         token = "a" * 64
         invalid = (
             self.audit.AuditResult(token, "exact_instance", unknown_reason="http_error"),
@@ -642,6 +1042,9 @@ class OutcomeAndEvidenceTests(unittest.TestCase):
                             completed=now,
                             base_commit="b" * 40,
                             results=[result],
+                            observation_metadata=observation_metadata(
+                                self.audit, [result]
+                            ),
                         )
 
 
@@ -650,16 +1053,70 @@ class HistoryAndBarrierTests(unittest.TestCase):
         self.audit = load_module()
         self.secret = b"synthetic-secret-that-is-long-enough-for-history"
 
-    def record(self, day, outcome="confirmed_absence", *, valid=True):
-        return {
-            "schema_version": 1,
-            "valid": valid,
+    def record(
+        self,
+        day,
+        outcome="confirmed_absence",
+        *,
+        valid=True,
+        current_source_present=None,
+        outside_tokens=(),
+    ):
+        common = {
+            "schema_version": 2,
+            "started_at": f"{day}T11:00:00+00:00",
             "completed_at": f"{day}T12:00:00+00:00",
+            "base_commit": "b" * 40,
+            "project_ref": self.audit.EXPECTED_SUPABASE_PROJECT_REF,
+            "key_id": "a" * 16,
             "queue_count": 1,
             "queue_sha256": "fixture-digest",
+            "endpoint_host": "go.apis.huit.harvard.edu",
             "planned_count": 1,
-            "completed_count": 1 if valid else 0,
-            "results": [{"token": "token-1", "outcome": outcome}] if valid else [],
+        }
+        if not valid:
+            return {
+                **common,
+                "record_type": "attempt",
+                "valid": False,
+                "failure_reason": "run_incomplete",
+                "completed_count": 0,
+                "outcome_counts": {name: 0 for name in self.audit.OUTCOMES},
+                "unknown_reasons": {},
+                "result_digest": self.audit._result_digest([]),
+                "results": [],
+            }
+        source_present = (
+            outcome in ("exact_instance", "moved_instance")
+            if current_source_present is None
+            else current_source_present
+        )
+        kwargs = {
+            "baseline_hmac": "c" * 64,
+            "locator_hmac": "d" * 64,
+            "baseline_active": True,
+            "current_source_present": source_present,
+        }
+        if outcome == "moved_instance":
+            kwargs["moved_fields"] = ("term",)
+        if outcome == "unknown":
+            kwargs["unknown_reason"] = "http_error"
+        result = self.audit.AuditResult("a" * 64, outcome, **kwargs)
+        metadata = observation_metadata(
+            self.audit, [result], outside_tokens=outside_tokens
+        )
+        return {
+            **common,
+            "record_type": "observation",
+            "valid": True,
+            "completed_count": 1,
+            "outcome_counts": {
+                name: int(name == outcome) for name in self.audit.OUTCOMES
+            },
+            "unknown_reasons": {"http_error": 1} if outcome == "unknown" else {},
+            "result_digest": self.audit._result_digest([result.as_dict()]),
+            "results": [result.as_dict()],
+            **metadata,
         }
 
     def candidates(self, records):
@@ -667,11 +1124,21 @@ class HistoryAndBarrierTests(unittest.TestCase):
             records, expected_count=1, expected_digest="fixture-digest"
         )
 
+    def append(self, path, record, *, expected_history=None, secret=None):
+        return self.audit.append_history(
+            path,
+            record,
+            secret or self.secret,
+            expected_history=expected_history,
+            expected_count=1,
+            expected_digest="fixture-digest",
+        )
+
     def test_history_is_atomic_chained_and_tamper_evident(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "history.jsonl"
-            first = self.audit.append_history(path, self.record("2026-07-10"), self.secret)
-            second = self.audit.append_history(path, self.record("2026-07-11"), self.secret)
+            first = self.append(path, self.record("2026-07-10"))
+            second = self.append(path, self.record("2026-07-11"))
             self.assertEqual(len(first), 1)
             self.assertEqual(len(second), 2)
             self.assertEqual(len(self.audit.read_history(path, self.secret)), 2)
@@ -680,14 +1147,93 @@ class HistoryAndBarrierTests(unittest.TestCase):
             with self.assertRaisesRegex(self.audit.AuditFailure, "history_integrity_failure"):
                 self.audit.read_history(path, self.secret)
 
+    def test_semantically_invalid_record_is_rejected_before_history_write(self):
+        invalid = self.record("2026-07-10")
+        invalid["completed_count"] = 0
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "history.jsonl"
+            with self.assertRaisesRegex(
+                self.audit.AuditFailure, "history_integrity_failure"
+            ):
+                self.append(path, invalid)
+            self.assertFalse(path.exists())
+
+    def test_wrong_hmac_key_stops_before_source_or_database_access(self):
+        inventory = Mock()
+        environment = {
+            "HARVARD_API_KEY": "synthetic-harvard-key",
+            "SUPABASE_URL": "https://cbtroatixvydpwoviezf.supabase.co",
+            "SUPABASE_KEY": "synthetic-supabase-key",
+            "RETAINED_ATS_AUDIT_HMAC_KEY": "different-secret-that-is-at-least-32-bytes",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "history.jsonl"
+            self.append(path, self.record("2026-07-10"))
+            with (
+                patch.dict(os.environ, environment, clear=True),
+                patch.object(self.audit, "_reconstruct_inventory", inventory),
+            ):
+                with self.assertRaisesRegex(
+                    self.audit.AuditFailure, "history_integrity_failure"
+                ):
+                    self.audit.run_audit(history_path=path)
+        inventory.assert_not_called()
+
+    def test_history_key_identity_must_match_current_secret_before_network(self):
+        inventory = Mock()
+        environment = {
+            "HARVARD_API_KEY": "synthetic-harvard-key",
+            "SUPABASE_URL": "https://cbtroatixvydpwoviezf.supabase.co",
+            "SUPABASE_KEY": "synthetic-supabase-key",
+            "RETAINED_ATS_AUDIT_HMAC_KEY": self.secret.decode("utf-8"),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "history.jsonl"
+            wrong_context = self.record("2026-07-10")
+            wrong_context["key_id"] = "f" * 16
+            self.append(path, wrong_context)
+            with (
+                patch.dict(os.environ, environment, clear=True),
+                patch.object(self.audit, "_reconstruct_inventory", inventory),
+            ):
+                with self.assertRaisesRegex(
+                    self.audit.AuditFailure, "history_integrity_failure"
+                ):
+                    self.audit.run_audit(history_path=path)
+        inventory.assert_not_called()
+
+    def test_exclusive_lock_and_stale_expected_history_prevent_lost_updates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "history.jsonl"
+            with self.audit.exclusive_history_lock(path):
+                with self.assertRaisesRegex(self.audit.AuditFailure, "audit_in_progress"):
+                    with self.audit.exclusive_history_lock(path):
+                        self.fail("a second audit acquired the same history lock")
+
+            first = self.append(path, self.record("2026-07-10"))
+            second = self.append(
+                path,
+                self.record("2026-07-11"),
+                expected_history=first,
+            )
+            with self.assertRaisesRegex(
+                self.audit.AuditFailure, "history_concurrent_modification"
+            ):
+                self.append(
+                    path,
+                    self.record("2026-07-12"),
+                    expected_history=first,
+                )
+            self.assertEqual(self.audit.read_history(path, self.secret), second)
+
     def test_failed_atomic_replace_preserves_original_and_removes_temp(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "history.jsonl"
-            self.audit.append_history(path, self.record("2026-07-10"), self.secret)
+            self.append(path, self.record("2026-07-10"))
             original = path.read_bytes()
             with patch.object(self.audit.os, "replace", side_effect=OSError("injected")):
                 with self.assertRaises(OSError):
-                    self.audit.append_history(path, self.record("2026-07-11"), self.secret)
+                    self.append(path, self.record("2026-07-11"))
             self.assertEqual(path.read_bytes(), original)
             self.assertEqual(list(path.parent.glob(f".{path.name}.*")), [])
 
@@ -720,7 +1266,7 @@ class HistoryAndBarrierTests(unittest.TestCase):
         two = [self.record("2026-07-10"), self.record("2026-07-11")]
         self.assertEqual(self.candidates(two), [])
         three = [*two, self.record("2026-07-12")]
-        self.assertEqual(self.candidates(three), ["token-1"])
+        self.assertEqual(self.candidates(three), ["a" * 64])
         reset = [*three, self.record("2026-07-13", "exact_instance")]
         self.assertEqual(self.candidates(reset), [])
         new_three = [
@@ -729,7 +1275,67 @@ class HistoryAndBarrierTests(unittest.TestCase):
             self.record("2026-07-15"),
             self.record("2026-07-16"),
         ]
-        self.assertEqual(self.candidates(new_three), ["token-1"])
+        self.assertEqual(self.candidates(new_three), ["a" * 64])
+
+    def test_observations_must_be_at_least_eighteen_hours_apart(self):
+        first = self.record("2026-07-10")
+        too_soon = self.record("2026-07-11")
+        too_soon["started_at"] = "2026-07-11T00:00:00+00:00"
+        too_soon["completed_at"] = "2026-07-11T01:00:00+00:00"
+        third = self.record("2026-07-12")
+        self.assertEqual(self.candidates([first, too_soon, third]), [])
+
+        eligible = copy.deepcopy(too_soon)
+        eligible["started_at"] = "2026-07-11T05:00:00+00:00"
+        eligible["completed_at"] = "2026-07-11T06:00:00+00:00"
+        self.assertEqual(self.candidates([first, eligible, third]), ["a" * 64])
+
+    def test_schema_one_history_is_validated_but_does_not_count_as_v2_evidence(self):
+        metadata_fields = {
+            "cohort_version",
+            "token_domain",
+            "project_ref",
+            "key_id",
+            "cohort_token_set_sha256",
+            "still_actionable_frozen_count",
+            "still_actionable_frozen_token_sha256",
+            "reappeared_frozen_count",
+            "reappeared_frozen_token_sha256",
+            "observed_actionable_count",
+            "observed_actionable_token_sha256",
+            "observed_actionable_raw_id_sha256",
+            "new_actionable_outside_cohort_count",
+            "new_actionable_outside_cohort_token_sha256",
+            "new_actionable_outside_cohort_tokens",
+            "outside_cohort_blocks_completion",
+        }
+
+        def as_schema_one(record):
+            legacy = copy.deepcopy(record)
+            legacy["schema_version"] = 1
+            legacy.pop("record_type", None)
+            for field in metadata_fields:
+                legacy.pop(field, None)
+            for result in legacy["results"]:
+                result.pop("baseline_hmac", None)
+                result.pop("locator_hmac", None)
+                result.pop("baseline_active", None)
+                result.pop("current_source_present", None)
+            legacy["result_digest"] = self.audit._result_digest(legacy["results"])
+            return legacy
+
+        legacy = [
+            as_schema_one(self.record("2026-07-10")),
+            as_schema_one(self.record("2026-07-11")),
+            as_schema_one(self.record("2026-07-12")),
+        ]
+        self.assertEqual(self.candidates(legacy), [])
+        v2 = [
+            self.record("2026-07-13"),
+            self.record("2026-07-14"),
+            self.record("2026-07-15"),
+        ]
+        self.assertEqual(self.candidates([*legacy, *v2]), ["a" * 64])
 
     def test_same_day_present_or_unknown_beats_absence(self):
         records = [
@@ -739,6 +1345,95 @@ class HistoryAndBarrierTests(unittest.TestCase):
             self.record("2026-07-12", "unknown"),
         ]
         self.assertEqual(self.candidates(records), [])
+
+    def test_current_source_presence_can_never_be_retirement_evidence(self):
+        contradictory = [
+            self.record(
+                day,
+                "confirmed_absence",
+                current_source_present=True,
+            )
+            for day in ("2026-07-10", "2026-07-11", "2026-07-12")
+        ]
+        with self.assertRaisesRegex(
+            self.audit.AuditFailure, "history_integrity_failure"
+        ):
+            self.candidates(contradictory)
+
+    def test_outside_cohort_row_blocks_the_day_until_three_new_clean_days(self):
+        outside = "f" * 64
+        blocked = [
+            self.record("2026-07-10"),
+            self.record("2026-07-11", outside_tokens=(outside,)),
+            self.record("2026-07-12"),
+        ]
+        self.assertEqual(self.candidates(blocked), [])
+        recovered = [
+            *blocked,
+            self.record("2026-07-13"),
+            self.record("2026-07-14"),
+            self.record("2026-07-15"),
+        ]
+        self.assertEqual(self.candidates(recovered), ["a" * 64])
+
+    def test_project_key_partition_and_unknown_field_drift_fail_closed(self):
+        base = self.record("2026-07-10")
+        mutations = {
+            "project": ("project_ref", "wrongproject"),
+            "partition": (
+                "still_actionable_frozen_token_sha256",
+                "0" * 64,
+            ),
+            "unknown_top": ("raw_course_id", "must-never-enter-history"),
+        }
+        for label, (field, value) in mutations.items():
+            with self.subTest(label=label):
+                changed = copy.deepcopy(base)
+                changed[field] = value
+                with self.assertRaisesRegex(
+                    self.audit.AuditFailure, "history_integrity_failure"
+                ):
+                    self.audit.history_cohort_state(
+                        [changed],
+                        expected_count=1,
+                        expected_digest="fixture-digest",
+                    )
+
+        changed_key = self.record("2026-07-11")
+        changed_key["key_id"] = "b" * 16
+        with self.assertRaisesRegex(
+            self.audit.AuditFailure, "history_integrity_failure"
+        ):
+            self.audit.history_cohort_state(
+                [base, changed_key],
+                expected_count=1,
+                expected_digest="fixture-digest",
+            )
+
+        nested = copy.deepcopy(base)
+        nested["results"][0]["raw_course_id"] = "must-never-enter-history"
+        with self.assertRaisesRegex(
+            self.audit.AuditFailure, "history_integrity_failure"
+        ):
+            self.audit.history_cohort_state(
+                [nested], expected_count=1, expected_digest="fixture-digest"
+            )
+
+    def test_schema_one_record_after_v2_genesis_is_rejected(self):
+        v2 = self.record("2026-07-10")
+        legacy = copy.deepcopy(v2)
+        legacy["schema_version"] = 1
+        legacy.pop("record_type")
+        for field in self.audit._OBSERVATION_METADATA_FIELDS:
+            legacy.pop(field, None)
+        for result in legacy["results"]:
+            for field in self.audit._RESULT_FIELDS_V2 - self.audit._RESULT_FIELDS_V1:
+                result.pop(field, None)
+        legacy["result_digest"] = self.audit._result_digest(legacy["results"])
+        with self.assertRaisesRegex(
+            self.audit.AuditFailure, "history_integrity_failure"
+        ):
+            self.candidates([v2, legacy])
 
     def test_invalid_full_audit_blocks_even_if_seen_before_first_valid_token(self):
         records = [
@@ -769,7 +1464,7 @@ class HistoryAndBarrierTests(unittest.TestCase):
                     self.record("2026-07-15"),
                     self.record("2026-07-16"),
                 ]
-                self.assertEqual(self.candidates(recovered), ["token-1"])
+                self.assertEqual(self.candidates(recovered), ["a" * 64])
 
     def test_source_contains_no_mutating_http_or_automation_hook(self):
         source = MODULE_PATH.read_text(encoding="utf-8")
