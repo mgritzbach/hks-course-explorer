@@ -202,6 +202,29 @@ jobs:
           --expected-source-commit "${{ steps.provenance.outputs.head_sha }}" \
           --csv "$RUNNER_TEMP/course-explorer-restored.csv"
 
+      - name: Exercise catalogue rollback only in an ephemeral clone
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          createdb -h 127.0.0.1 -U recovery_probe \
+            --template recovery_probe recovery_rollback_probe
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_rollback_probe \
+            -v ON_ERROR_STOP=1 -f scripts/verify_myharvard_rollback_exercise.sql
+
+      - name: Prove the source recovery database stayed byte-exact
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -v ON_ERROR_STOP=1 \
+            --csv -t -f scripts/export_course_explorer_restored_rows.sql \
+            > "$RUNNER_TEMP/course-explorer-restored-after-rollback.csv"
+          python scripts/verify_course_explorer_recovery.py verify \
+            --package "$RUNNER_TEMP/course-explorer-recovery.json" \
+            --expected-project-url "https://cbtroatixvydpwoviezf.supabase.co" \
+            --schema supabase/recovery/course_explorer_base.sql \
+            --expected-source-commit "${{ steps.provenance.outputs.head_sha }}" \
+            --csv "$RUNNER_TEMP/course-explorer-restored-after-rollback.csv"
+
       - name: Remove all decrypted recovery files and scratch payloads
         if: always()
         env:
@@ -211,6 +234,9 @@ jobs:
             "$RUNNER_TEMP/course-explorer-recovery.json" \
             "$RUNNER_TEMP/course-explorer-recovery.csv" \
             "$RUNNER_TEMP/course-explorer-schema-contract.txt" \
-            "$RUNNER_TEMP/course-explorer-restored.csv"
+            "$RUNNER_TEMP/course-explorer-restored.csv" \
+            "$RUNNER_TEMP/course-explorer-restored-after-rollback.csv"
+          dropdb -h 127.0.0.1 -U recovery_probe \
+            --if-exists --force recovery_rollback_probe || true
           psql -h 127.0.0.1 -U recovery_probe -d recovery_probe \
             -c "drop table if exists recovery_payloads" || true

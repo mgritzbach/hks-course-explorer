@@ -18,6 +18,7 @@ RECOVERY_CONTRACT_PATHS = (
     "scripts/verify_course_explorer_recovery.py",
     "scripts/recovery_ciphertext_hmac.py",
     "scripts/restore_course_explorer_recovery.sql",
+    "scripts/verify_myharvard_rollback_exercise.sql",
     "scripts/verify_course_explorer_schema.sql",
     "scripts/export_course_explorer_schema_contract.sql",
     "scripts/export_course_explorer_restored_rows.sql",
