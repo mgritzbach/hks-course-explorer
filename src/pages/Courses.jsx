@@ -29,6 +29,8 @@ import { useDocumentTitle } from '../lib/useDocumentTitle.js'
 
 const BiddingTrendChart = lazy(() => import('../components/BiddingTrendChart.jsx'))
 
+const closedMobileDrawerAttributes = (isOpen) => (isOpen ? {} : { 'aria-hidden': true, inert: '' })
+
 const COURSES_TOUR_STEPS = [
   {
     target: 'year-filter',
@@ -906,8 +908,9 @@ export default function Courses({
         storageKey="hks-tour-courses"
         autoStart={replayTour}
         onDone={() => {
+          const shouldRestoreReplayDrawer = replayTour
           setReplayTour(false)
-          setFilterOpen(false)
+          setFilterOpen(shouldRestoreReplayDrawer)
         }}
         onStepChange={handleTourStepChange}
       />
@@ -921,6 +924,7 @@ export default function Courses({
       />
       <div
         className={`mobile-drawer md:hidden ${filterOpen ? 'open' : ''}`}
+        {...closedMobileDrawerAttributes(filterOpen)}
         onTouchStart={handleDrawerTouchStart}
         onTouchEnd={handleDrawerTouchEnd}
       >

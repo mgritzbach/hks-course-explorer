@@ -67,6 +67,27 @@ test.describe('local build navigation and static assets', () => {
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
   })
 
+  test('keeps the closed mobile Course filters out of the accessibility tree', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/courses')
+
+    const drawer = page.locator('.mobile-drawer')
+    const close = drawer.getByRole('button', { name: 'Close' })
+    await expect(drawer).toHaveAttribute('aria-hidden', 'true')
+    await expect.poll(() => drawer.evaluate((element) => element.inert)).toBe(true)
+    await expect(close).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Open filters' }).click()
+    await expect(drawer).not.toHaveAttribute('aria-hidden', 'true')
+    await expect.poll(() => drawer.evaluate((element) => element.inert)).toBe(false)
+    await expect(close).toBeVisible()
+
+    await close.click()
+    await expect(drawer).toHaveAttribute('aria-hidden', 'true')
+    await expect.poll(() => drawer.evaluate((element) => element.inert)).toBe(true)
+    await expect(close).toHaveCount(0)
+  })
+
   test('restores the Course Explorer Replay control after keyboard dismissal', async ({ page }) => {
     for (const viewport of [
       { width: 1440, height: 1000 },
