@@ -42,6 +42,42 @@ const QUERY_STOP_WORDS = new Set([
   'who',
 ])
 
+const INDEPENDENT_SUBJECT_STOP_WORDS = new Set([
+  'about',
+  'also',
+  'difficult',
+  'difficulty',
+  'easy',
+  'easiest',
+  'former',
+  'he',
+  'her',
+  'hers',
+  'him',
+  'his',
+  'how',
+  'it',
+  'its',
+  'latter',
+  'light',
+  'lightest',
+  'one',
+  'ones',
+  'rating',
+  'ratings',
+  'same',
+  'score',
+  'scores',
+  'she',
+  'their',
+  'theirs',
+  'them',
+  'these',
+  'they',
+  'those',
+  'workload',
+])
+
 function searchableText(value) {
   return String(value || '')
     .normalize('NFKD')
@@ -186,7 +222,9 @@ export function selectRelevantHistory(courses, query, history, courseContext = [
 
 function hasIndependentDatabaseMatch(courses, query) {
   if (exactInstructorIdentities(courses, query).size > 0) return true
-  const keywords = meaningfulQueryTerms(query)
+  const keywords = meaningfulQueryTerms(query).filter(
+    (term) => !INDEPENDENT_SUBJECT_STOP_WORDS.has(term),
+  )
   if (keywords.length === 0) return false
   const queryText = searchableText(query)
   const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(

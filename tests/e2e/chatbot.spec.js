@@ -89,6 +89,8 @@ test.describe('course advisor lifecycle', () => {
       ['MLD-215-B', 'Negotiation and Leadership', 'Robert Wilkinson'],
       ['ENV-250', 'Climate Adaptation Policy', 'Ada Climate'],
       ['SUP-442', 'Housing Policy', 'Richard Light'],
+      ['API-206', 'How Do You Know It Works?', 'Jane Evidence'],
+      ['API-309', 'Networks, Complexity and Their Applications', 'John Networks'],
     ].map(([course_code, course_name, professor_display]) => ({
       id: `${course_code}-${professor_display}`,
       course_code,
@@ -143,6 +145,15 @@ test.describe('course advisor lifecycle', () => {
             content: 'The database records for Hong Qu show strong instructor ratings.',
           },
         ])
+      } else if (requestNumber === 4) {
+        expect(payload.message).toBe('Is it a good course?')
+        expect(payload.history).toEqual([
+          { role: 'user', content: 'How is their workload?' },
+          {
+            role: 'assistant',
+            content: 'Hong Qu’s course history contains the available workload data.',
+          },
+        ])
       } else {
         expect(payload.message).toBe('Which climate courses have light workloads?')
         expect(payload.history).toEqual([])
@@ -151,7 +162,7 @@ test.describe('course advisor lifecycle', () => {
         expect(payload.courses.some((course) => course.instructor === 'Richard Light')).toBe(false)
       }
 
-      if (requestNumber <= 3) {
+      if (requestNumber <= 4) {
         expect(
           payload.courses.every((course) => course.instructor === 'Hong Qu'),
           `Unexpected advisor context for request ${requestNumber} (${payload.message}), history ${JSON.stringify(payload.history)}: ${JSON.stringify(contextInstructors)}`,
@@ -175,7 +186,9 @@ test.describe('course advisor lifecycle', () => {
                 ? 'The database records for Hong Qu show strong instructor ratings.'
                 : requestNumber === 3
                   ? 'Hong Qu’s course history contains the available workload data.'
-                  : 'ENV-250 is a climate course with workload data.',
+                  : requestNumber === 4
+                    ? 'The grounded Hong Qu course records contain the available ratings.'
+                    : 'ENV-250 is a climate course with workload data.',
           source: 'openrouter',
           model: 'openai/gpt-oss-20b:free',
           cost: 0,
@@ -205,10 +218,16 @@ test.describe('course advisor lifecycle', () => {
       dialog.getByText('Hong Qu’s course history contains the available workload data.'),
     ).toBeVisible()
 
+    await input.fill('Is it a good course?')
+    await send.click()
+    await expect(
+      dialog.getByText('The grounded Hong Qu course records contain the available ratings.'),
+    ).toBeVisible()
+
     await input.fill('Which climate courses have light workloads?')
     await send.click()
     await expect(dialog.getByText('ENV-250 is a climate course with workload data.')).toBeVisible()
-    expect(requestNumber).toBe(4)
+    expect(requestNumber).toBe(5)
   })
 
   test('shows provider failure explicitly and never substitutes a canned answer', async ({
