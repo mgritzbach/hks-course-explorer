@@ -131,12 +131,7 @@ represent those states safely.
 | Name/binding | Required by | Purpose |
 |---|---|---|
 | `HARVARD_API_KEY` | Legacy `/api/harvard-courses` endpoint | Retained temporarily for a separately reviewed retirement; the deployed browser must not call it. Daily GitHub Actions sync is the only supported Harvard API consumer. |
-| `HKS_KV` binding | `/api/courses` | Protected catalogue payloads. |
-| `CHAT_RATE_LIMITER` Durable Object binding | Chat, OTP, and `/api/admin-verify` | Per-client/per-email atomic cooldown, OTP state, and failed-admin-attempt coordination. The binding must target the deployed `ChatRateLimiter` class. Every consumer fails closed when it is absent; the chat endpoint never substitutes a non-LLM answer. |
-| `JWT_SECRET` | Auth and protected catalogue | HMAC signing/verification. Rotate on a defined schedule. |
-| `RESEND_API_KEY` | Auth request | Preferred one-time-password delivery provider. |
-| `BREVO_API_KEY` | Auth request | Legacy one-time-password delivery fallback. |
-| `AUTH_FROM_EMAIL` | Auth request | Optional verified sender address; defaults to the current HKS Course Explorer sender. |
+| `CHAT_RATE_LIMITER` Durable Object binding | Chat and `/api/admin-verify` | Per-client chat cooldown and failed-admin-attempt coordination. The binding must target the deployed `ChatRateLimiter` class. Every consumer fails closed when it is absent; the chat endpoint never substitutes a non-LLM answer. |
 | `OPENROUTER_API_KEY` | Chat endpoint | Required for the Course Advisor. The endpoint calls only `openrouter/free` with an independent zero-price provider cap, validates the selected `:free` model and returned cost `0`, and returns a typed unavailable response instead of fabricated advice when the model service fails. Configure the OpenRouter key with a zero-dollar credit limit and no automatic credit purchase. |
 | `ADMIN_PASSWORD` | `/api/admin-verify` | Verifies the Admin UI password. Never expose it to the browser. |
 | `ADMIN_SESSION_SECRET` | Admin endpoints | Distinct, randomly generated HMAC secret (at least 32 characters) for 15-minute admin data sessions. Rotate it to invalidate all outstanding Admin sessions. |
@@ -144,15 +139,19 @@ represent those states safely.
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin upload/history | Server-only service-role/secret key. It is never bundled or returned by Pages Functions. |
 | `CATALOGUE_API_ENABLED` | `/api/catalogue` | Explicit `true` switch for the private, promoted `catalogue_current_v1` read contract. Keep `false` until the parity and rollback gates in `UNIFIED_CATALOGUE_ROLLOUT.md` have passed. |
 
-Cloudflare stores Production and Preview Pages bindings separately. Before a
-release candidate can be promoted, Preview must have its own
-`OPENROUTER_API_KEY` secret and a `CHAT_RATE_LIMITER` binding targeting the same
-deployed `ChatRateLimiter` class as Production. Secrets cannot be copied back
-out of Cloudflare after encryption, so configure both environments during key
-rotation and verify both with the named-instructor Course Advisor acceptance
-test. A missing binding is a release-blocking configuration error; the endpoint
-must continue to fail closed and must never replace the LLM with a canned
-answer.
+Cloudflare stores Production and Preview Pages bindings separately. The Course
+Advisor is optional and is not a core release gate: when Preview or Production
+does not provide `OPENROUTER_API_KEY`, acceptance requires the typed
+`AI_NOT_CONFIGURED` response and rejects any fabricated fallback. When it is
+configured, the named-instructor diagnostic still proves the selected model is
+free and the answer is grounded. The `CHAT_RATE_LIMITER` binding remains
+required for Admin brute-force protection and for any enabled chat traffic.
+
+The visitor application intentionally has no login, OTP delivery, visitor JWT,
+or protected-KV catalogue endpoint. Do not configure `JWT_SECRET`,
+`RESEND_API_KEY`, `BREVO_API_KEY`, `AUTH_FROM_EMAIL`, or `HKS_KV` for this
+application. The hidden Admin session is a separate boundary and uses only
+`ADMIN_PASSWORD` plus `ADMIN_SESSION_SECRET`.
 
 The deploy token needs only the account-scoped Pages and Workers permissions
 used by the release workflow. It must not receive Zone Settings Write, use a

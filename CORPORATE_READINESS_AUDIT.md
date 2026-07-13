@@ -5,6 +5,11 @@ ordered corporate change list. Local implementation progress is tracked in
 `GOAL_STATUS.md`; no release goal is considered complete without its stated
 production evidence.
 
+Scope update (2026-07-13): the original visitor-authentication recommendations
+below are superseded. The product has no visitor login, so the unused OTP/email,
+visitor JWT, and protected-KV catalogue paths were retired instead of expanded.
+The hidden Admin session remains a separate, short-lived operations control.
+
 ## Production inspection update: 2026-07-10
 
 Read-only inspection of the authorized `course-explorer-db` Supabase project
