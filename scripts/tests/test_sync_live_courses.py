@@ -68,6 +68,45 @@ class FetchSchoolTests(unittest.TestCase):
         )
         self.assertNotIn(self.sync.HKS_SCHOOL, self.sync.GENERAL_SYNC_SCHOOLS)
 
+    def test_shared_source_collection_preserves_grid_sessions_failures_and_merge(self):
+        sessions = []
+
+        def session_factory():
+            value = object()
+            sessions.append(value)
+            return value
+
+        def fetcher(school, query, session):
+            self.assertIn(session, sessions)
+            if query == "a":
+                return self.sync.FetchResult(
+                    school, query, [{"id": "shared", "title": "first"}], True
+                )
+            if query == "e":
+                return self.sync.FetchResult(
+                    school, query, [{"id": "shared", "description": "second"}], True
+                )
+            if query == "i":
+                return self.sync.FetchResult(school, query, [], False, "bounded failure")
+            raise RuntimeError("worker failure")
+
+        with (
+            patch.object(self.sync, "GENERAL_SYNC_SCHOOLS", ["FAS"]),
+            patch.object(self.sync, "SEED_QUERIES", ["a", "e", "i", "o"]),
+            patch.object(self.sync, "WORKERS", 1),
+        ):
+            rows, failures, tasks = self.sync.collect_general_source_rows(
+                fetcher=fetcher, session_factory=session_factory
+            )
+
+        self.assertEqual(tasks, [("FAS", "a"), ("FAS", "e"), ("FAS", "i"), ("FAS", "o")])
+        self.assertEqual(len(sessions), 4)
+        self.assertEqual(len({id(session) for session in sessions}), 4)
+        self.assertEqual(rows["shared"]["title"], "first")
+        self.assertEqual(rows["shared"]["description"], "second")
+        self.assertEqual(len(failures), 2)
+        self.assertEqual({failure.query for failure in failures}, {"i", "o"})
+
     def test_accepts_valid_list_response(self):
         response = Mock(ok=True)
         response.json.return_value = []
@@ -312,8 +351,9 @@ class FetchSchoolTests(unittest.TestCase):
         ]
         requests_seen = []
 
-        def request_get(url, headers, params, timeout):
+        def request_get(url, headers, params, timeout, allow_redirects):
             self.assertEqual(headers["Prefer"], "count=exact")
+            self.assertFalse(allow_redirects)
             requests_seen.append((headers["Range"], params))
             start = int(headers["Range"].split("-")[0])
             response = Mock(ok=True)
@@ -334,8 +374,8 @@ class FetchSchoolTests(unittest.TestCase):
                     "0-999",
                     {
                         "select": (
-                            "id,school,term,source,active,is_hks,sync_run_id,"
-                            "source_course_id,source_offering_id,synced_at"
+                            "id,school,term,course_code,session_code,source,active,is_hks,"
+                            "sync_run_id,source_course_id,source_offering_id,synced_at"
                         ),
                         "order": "id.asc",
                     },
@@ -344,8 +384,8 @@ class FetchSchoolTests(unittest.TestCase):
                     "1000-1999",
                     {
                         "select": (
-                            "id,school,term,source,active,is_hks,sync_run_id,"
-                            "source_course_id,source_offering_id,synced_at"
+                            "id,school,term,course_code,session_code,source,active,is_hks,"
+                            "sync_run_id,source_course_id,source_offering_id,synced_at"
                         ),
                         "order": "id.asc",
                     },
@@ -360,7 +400,8 @@ class FetchSchoolTests(unittest.TestCase):
         ]
         requests_seen = []
 
-        def request_get(url, headers, params, timeout):
+        def request_get(url, headers, params, timeout, allow_redirects):
+            self.assertFalse(allow_redirects)
             self.assertEqual(headers["Prefer"], "count=exact")
             requests_seen.append((url, headers["Range"], params))
             start = int(headers["Range"].split("-")[0])
@@ -450,7 +491,8 @@ class FetchSchoolTests(unittest.TestCase):
         ]
         requests_seen = []
 
-        def request_get(url, headers, params, timeout):
+        def request_get(url, headers, params, timeout, allow_redirects):
+            self.assertFalse(allow_redirects)
             self.assertEqual(headers["Prefer"], "count=exact")
             requests_seen.append((headers["Range"], params))
             start = int(headers["Range"].split("-")[0])

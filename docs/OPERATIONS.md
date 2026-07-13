@@ -361,6 +361,29 @@ separate, reviewed reconciliation with a tested backup and restore path.
   Retain that summary with the release/incident record; it is operational
   evidence, not a replacement for a database backup or rollback exercise.
 
+### Manual retained-ATS evidence run
+
+Use `scripts/audit_retained_ats.py` only from a clean reviewed commit and only
+when the frozen queue is expected to remain exactly 1,526 rows with the
+documented digest. The tool repeats the full source/ownership proof, runs a
+known-current positive control, then issues sequential exact-ID GET requests at
+no more than one provider request per second. It does not call an RPC, use a
+write HTTP method, touch Cloudflare, alter schedules, or publish an artifact.
+
+Keep `RETAINED_ATS_AUDIT_HMAC_KEY` in the operator environment or secure store.
+It must remain persistent so pseudonymous tokens are comparable across dates,
+but it must never be reused from Supabase, Harvard, or application secrets.
+Write history only under ignored `artifacts/` or to an absolute path outside the
+repository. The tool verifies the entire HMAC chain before an atomic append;
+an integrity failure stops the run.
+
+Review only aggregate output. `unknown` is a safe result, not a failure to be
+coerced into absence. Even three clean absence dates produce only a tokenized
+future-review candidate. Any later exact/moved instance, unknown, invalid run,
+or incomplete observation resets or blocks the three-day evidence barrier. A
+separate reviewed backup, rollback exercise, human decision, and mutation plan
+remain mandatory before any production change.
+
 ### Remaining production evidence
 
 `live_courses` is promoted through the service-only

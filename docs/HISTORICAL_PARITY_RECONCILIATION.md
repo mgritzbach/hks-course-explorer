@@ -72,6 +72,53 @@ row still needs authoritative source evidence and an explicit keep/retire
 decision. Until that review is complete, the sync retains the row and performs
 no delete or active-state change.
 
+### Exact retained-ATS observation audit
+
+The current actionable queue is frozen at **1,526 unique IDs** with SHA-256
+`fbd0a26cc18c195150f6f8d6e402db69edf28f0227c3ad5911814518c04312a5`.
+The manual `scripts/audit_retained_ats.py` tool refuses to inspect a subset: it
+reconstructs the complete current ATS source, authoritative HKS exclusions,
+database ownership partition, row count, and digest before the first retained
+lookup. Any source, manifest, ownership, count, duplicate, HKS-overlap, or
+digest mismatch stops the run as `queue_snapshot_mismatch` without history
+output.
+
+After a known-current positive control, the tool performs one sequential,
+paced Harvard search per retained ID. Each search uses exact `courseID`, never a
+`catalogSchool` facet, follows only exact allow-listed Harvard HTTPS scroll
+URLs, disables redirects, and consumes every page so a late duplicate cannot
+be missed. Every queue row receives exactly one outcome:
+
+- `exact_instance`: one exact ID and all stored locator fields agree;
+- `moved_instance`: one exact ID but school, term, course code, or session moved;
+- `confirmed_absence`: a complete valid search contained no exact ID; or
+- `unknown`: request, pagination, schema, identity, or locator evidence was
+  insufficient. Unknown is allowed and must never be converted into absence.
+
+The local JSONL history contains HMAC tokens, outcome names, moved field names,
+bounded reason codes, counts, provenance, and a chained HMAC—never raw IDs,
+descriptions, request URLs, response bodies, or credentials. A token can become
+a `future_retirement_review_candidate` only after its latest three eligible
+observations are clean absences on three distinct UTC dates. A later present,
+moved, unknown, invalid, or incomplete observation blocks that status until
+three newer clean absences exist. Candidate status is evidence for a future
+human review only; it does not mutate, hide, deactivate, delete, merge, enrich,
+or publish anything.
+
+Run only from a clean reviewed commit, with the persistent HMAC secret supplied
+through the operator environment:
+
+```powershell
+$env:SUPABASE_URL = 'https://your-project.supabase.co'
+$env:SUPABASE_KEY = '<service-role-or-secret-key>'
+$env:HARVARD_API_KEY = '<harvard-api-key>'
+$env:RETAINED_ATS_AUDIT_HMAC_KEY = '<unique-persistent-secret-at-least-32-bytes>'
+python scripts/audit_retained_ats.py --history "$PWD\artifacts\retained-ats-audit-history.jsonl"
+```
+
+Do not schedule this command, upload its history, or treat one successful run
+as G02 completion or retirement approval.
+
 ## Read-only operator review
 
 Run the audit with service-role credentials only in a controlled operator
