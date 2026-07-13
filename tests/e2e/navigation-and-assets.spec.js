@@ -131,6 +131,30 @@ test.describe('local build navigation and static assets', () => {
     }
   })
 
+  test('keeps one semantic main landmark while the historical catalogue is delayed', async ({
+    page,
+  }) => {
+    let releaseHistoricalCourses
+    const historicalCoursesGate = new Promise((resolve) => {
+      releaseHistoricalCourses = resolve
+    })
+    await installMockBackend(page, {
+      waitForHistoricalCourses: () => historicalCoursesGate,
+    })
+
+    await page.goto('/resources')
+    const main = page.locator('#main-content')
+    await expect(main).toHaveCount(1)
+    await expect(page.getByRole('main')).toHaveCount(1)
+    await expect(main).toHaveAttribute('aria-busy', 'true')
+    await expect(main).toContainText('Connecting to database')
+    await expect(main).not.toContainText('HKS Resources')
+
+    releaseHistoricalCourses()
+    await expect(main).toContainText('HKS Resources', { timeout: 15_000 })
+    await expect(page.getByRole('main')).toHaveCount(1)
+  })
+
   test('keeps scheduling, degree planning, and secondary destinations reachable on mobile', async ({
     page,
   }) => {
@@ -165,5 +189,71 @@ test.describe('local build navigation and static assets', () => {
     await expect(page).toHaveURL(/\/schedule-builder$/)
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
     await expect(page.locator('#mobile-more-navigation')).toHaveCount(0)
+  })
+})
+
+test.describe('delayed first-visit focus handoff', () => {
+  test('waits for stable application content before moving focus out of the landing page', async ({
+    page,
+  }) => {
+    let releaseHistoricalCourses
+    const historicalCoursesGate = new Promise((resolve) => {
+      releaseHistoricalCourses = resolve
+    })
+    await installMockBackend(page, {
+      waitForHistoricalCourses: () => historicalCoursesGate,
+    })
+    await page.addInitScript(() => window.localStorage.clear())
+
+    await page.goto('/resources')
+    const direct = page.getByRole('button', {
+      name: 'Continue directly and skip all tutorial boxes',
+    })
+    await page.evaluate(() => {
+      window.__busyMainReceivedFocus = false
+      document.addEventListener(
+        'focusin',
+        (event) => {
+          if (event.target?.matches?.('#main-content[aria-busy="true"]')) {
+            window.__busyMainReceivedFocus = true
+          }
+        },
+        true,
+      )
+    })
+    await direct.focus()
+    await page.keyboard.press('Enter')
+
+    const loadingMain = page.locator('#main-content[aria-busy="true"]')
+    await expect(loadingMain).toHaveCount(1)
+    await expect(loadingMain).not.toBeFocused()
+
+    // Exceed the former five-second observer window so this regression proves
+    // the focus handoff survives a genuinely slow first catalogue load.
+    await page.waitForTimeout(5_500)
+    releaseHistoricalCourses()
+    const stableMain = page.locator('#main-content:not([aria-busy="true"])')
+    await expect(stableMain).toBeFocused({ timeout: 15_000 })
+    await expect(stableMain).toContainText('Course Comparisons')
+    await expect(page.evaluate(() => window.__busyMainReceivedFocus)).resolves.toBe(false)
+  })
+
+  test('moves first-visit focus to the persistent error state when catalogue loading fails', async ({
+    page,
+  }) => {
+    await installMockBackend(page, { historicalCoursesTotal: 10_001 })
+    await page.addInitScript(() => window.localStorage.clear())
+
+    await page.goto('/')
+    const direct = page.getByRole('button', {
+      name: 'Continue directly and skip all tutorial boxes',
+    })
+    await direct.focus()
+    await page.keyboard.press('Enter')
+
+    const errorMain = page.locator('#main-content:not([aria-busy="true"])')
+    await expect(errorMain).toBeFocused({ timeout: 15_000 })
+    await expect(errorMain).toContainText('Failed to load course data')
+    await expect(errorMain.getByRole('button', { name: 'Retry' })).toBeVisible()
   })
 })

@@ -189,7 +189,11 @@ export default function App() {
     if (previousPathRef.current === location.pathname || isWelcomeDecisionPending) return undefined
     previousPathRef.current = location.pathname
     const frame = window.requestAnimationFrame(() => {
-      document.getElementById('main-content')?.focus()
+      // A global catalogue load can temporarily replace the application with
+      // a busy main landmark. Do not move focus to a node that will unmount;
+      // WelcomeEntryProvider completes first-visit focus once stable content
+      // (or the persistent error state) is available.
+      document.querySelector('#main-content:not([aria-busy="true"])')?.focus()
     })
     return () => window.cancelAnimationFrame(frame)
   }, [isWelcomeDecisionPending, location.pathname])
@@ -364,7 +368,13 @@ export default function App() {
           ))}
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col px-4 py-6 md:px-6">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          aria-busy="true"
+          aria-live="polite"
+          className="flex min-w-0 flex-1 flex-col px-4 py-6 md:px-6"
+        >
           <div className="mb-5">
             <div className="skeleton-shimmer mb-3 h-4" style={{ width: 140 }} />
             <div className="skeleton-shimmer mb-3 h-10 max-w-[420px]" />
@@ -390,14 +400,16 @@ export default function App() {
               <SkeletonCard key={index} />
             ))}
           </div>
-        </div>
+        </main>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div
+      <main
+        id="main-content"
+        tabIndex={-1}
         className="flex h-screen flex-col items-center justify-center gap-4 px-8 text-center"
         style={{ background: 'transparent' }}
       >
@@ -421,7 +433,7 @@ export default function App() {
         >
           ↺ Retry
         </button>
-      </div>
+      </main>
     )
   }
 
