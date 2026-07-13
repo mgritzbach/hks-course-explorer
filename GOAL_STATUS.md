@@ -40,9 +40,11 @@ retained non-HKS ATS queue, manual production accessibility acceptance,
 representative field performance evidence, and successor/on-call handover
 acceptance. The current custom-domain response-level cache preflight passes,
 but exact current master `9ca89ed` has not been promoted: release workflow
-`29268572090` passed four browser boundaries and correctly failed closed only
-because Preview did not provide `OPENROUTER_API_KEY`. Production deployment and
-every post-promotion check were skipped, so production was not mutated.
+`29268572090` passed four browser boundaries and correctly failed closed at the
+first observed blocker because Preview did not provide `OPENROUTER_API_KEY`.
+That early return did not exercise the Preview `CHAT_RATE_LIMITER` binding or
+later pre-promotion gates. Production deployment and every post-promotion check
+were skipped, so production was not mutated.
 Both catalogue and functional Pages rollback boundaries are exercised; the
 complete rollback/re-promotion smoke must be repeated after Preview parity and
 does not substitute for the remaining stateful or institutional evidence.
@@ -112,6 +114,6 @@ does not substitute for the remaining stateful or institutional evidence.
 | L59 | Conversational advisor grounding preserves only relevant prior context, resets for independent topics, isolates exact instructor/course identities, and remains bounded on real catalogue history. | 1 | PR #73, 45 focused context/Worker contracts, rebuilt nine-turn browser regression, exhaustive 516-instructor and 1,094-code audits, protected CI, production deployment `a9351956`, and live Hong-only request payload proof. |
 | L60 | The current my.harvard catalogue has an exercised, manifest-exact rollback path that cannot reach production during verification. | 1 | PR #77; fresh encrypted backup `29224666761`; exact-master PostgreSQL 17 recovery `29224720886`; isolated clone rollback restored 297 rows (141 Fall, 156 Spring) and the untouched source recovery database remained byte-exact. |
 | L61 | The source-aware retained-row classifier has completed against production after an exact-master non-HKS promotion without deleting or deactivating any course. | 1 | PR #78; exact-master sync `29226825986` promoted 6,092 current ATS offerings, classified the retained inventory, and produced a 1,526-row evidence queue with digest `fbd0a26cc18c195150f6f8d6e402db69edf28f0227c3ad5911814518c04312a5`. Keep/retire decisions remain outstanding. |
-| L62 | The current custom domain conforms to the reviewed response-level cache contract without requiring a paid Cloudflare cache feature or zone mutation. | 1 | Public GET-only preflight using exact-master code `0c986343d1d23f653710e39951379599ad451eab` passed for root HTML, fingerprinted JavaScript, and `sim_coords.json`; exact-master deployment `29251444607` still stopped before production because Preview lacked `OPENROUTER_API_KEY`. |
+| L62 | The current custom domain conforms to the reviewed response-level cache contract without requiring a paid Cloudflare cache feature or zone mutation. | 1 | Public GET-only preflight using exact-master code `0c986343d1d23f653710e39951379599ad451eab` passed for root HTML, fingerprinted JavaScript, and `sim_coords.json`; exact-master deployment `29251444607` still stopped before production at its first observed Preview blocker because `OPENROUTER_API_KEY` was unavailable. |
 | L63 | The complete current Course Explorer recovery contract and owned trigger function have fresh, production-relevant hardening evidence without changing application data. | 1 | Backup `29265287482`, PostgreSQL 17 restore `29265361894`, and committed migration `20260713150805_harden_refresh_synced_at_search_path.sql`, applied in production as Supabase history entry `20260713161314_harden_refresh_synced_at_search_path`: exact schema/access/row digests and rollback passed, the trigger remained functional, owned invariants were unchanged, and the mutable-search-path advisor finding was removed. |
 | L64 | Global catalogue loading exposes one semantic main landmark while first-visit focus waits for stable application or persistent error content. | 1 | PR #85; master `9ca89ed`; CI `29268334822`; 285 Vitest cases (284 passed, 1 documented skip) and 50/50 built-browser checks; delayed deep-link success and deterministic error focus regressions; independent controller and manager approval. RC `29268572090` passed routes, catalogue selectability, graph reset, and mobile navigation before the unrelated Preview chat configuration stop. |
