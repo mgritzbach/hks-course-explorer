@@ -189,7 +189,11 @@ export default function App() {
     if (previousPathRef.current === location.pathname || isWelcomeDecisionPending) return undefined
     previousPathRef.current = location.pathname
     const frame = window.requestAnimationFrame(() => {
-      document.getElementById('main-content')?.focus()
+      // A global catalogue load can temporarily replace the application with
+      // a busy main landmark. Do not move focus to a node that will unmount;
+      // WelcomeEntryProvider completes first-visit focus once stable content
+      // (or the persistent error state) is available.
+      document.querySelector('#main-content:not([aria-busy="true"])')?.focus()
     })
     return () => window.cancelAnimationFrame(frame)
   }, [isWelcomeDecisionPending, location.pathname])

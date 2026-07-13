@@ -26,7 +26,10 @@ export function WelcomeEntryProvider({ children }) {
     let focusFrame = 0
     let observer
     const focusWhenReady = () => {
-      const main = document.getElementById('main-content')
+      // The loading shell is a valid landmark for route readiness, but it is
+      // replaced when the catalogue arrives. Focusing that transient node
+      // would drop keyboard focus back to the document body on replacement.
+      const main = document.querySelector('#main-content:not([aria-busy="true"])')
       if (!main) return false
 
       // The landing portal restores #root before the next frame. Waiting for
@@ -44,7 +47,9 @@ export function WelcomeEntryProvider({ children }) {
       observer.observe(document.body, { childList: true, subtree: true })
     }
 
-    const timeout = window.setTimeout(() => observer?.disconnect(), 5_000)
+    // Cover the database client's bounded retry window so both a slow success
+    // and the eventual persistent error state can complete the focus handoff.
+    const timeout = window.setTimeout(() => observer?.disconnect(), 45_000)
     return () => {
       window.clearTimeout(timeout)
       window.cancelAnimationFrame(focusFrame)

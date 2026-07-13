@@ -191,3 +191,69 @@ test.describe('local build navigation and static assets', () => {
     await expect(page.locator('#mobile-more-navigation')).toHaveCount(0)
   })
 })
+
+test.describe('delayed first-visit focus handoff', () => {
+  test('waits for stable application content before moving focus out of the landing page', async ({
+    page,
+  }) => {
+    let releaseHistoricalCourses
+    const historicalCoursesGate = new Promise((resolve) => {
+      releaseHistoricalCourses = resolve
+    })
+    await installMockBackend(page, {
+      waitForHistoricalCourses: () => historicalCoursesGate,
+    })
+    await page.addInitScript(() => window.localStorage.clear())
+
+    await page.goto('/resources')
+    const direct = page.getByRole('button', {
+      name: 'Continue directly and skip all tutorial boxes',
+    })
+    await page.evaluate(() => {
+      window.__busyMainReceivedFocus = false
+      document.addEventListener(
+        'focusin',
+        (event) => {
+          if (event.target?.matches?.('#main-content[aria-busy="true"]')) {
+            window.__busyMainReceivedFocus = true
+          }
+        },
+        true,
+      )
+    })
+    await direct.focus()
+    await page.keyboard.press('Enter')
+
+    const loadingMain = page.locator('#main-content[aria-busy="true"]')
+    await expect(loadingMain).toHaveCount(1)
+    await expect(loadingMain).not.toBeFocused()
+
+    // Exceed the former five-second observer window so this regression proves
+    // the focus handoff survives a genuinely slow first catalogue load.
+    await page.waitForTimeout(5_500)
+    releaseHistoricalCourses()
+    const stableMain = page.locator('#main-content:not([aria-busy="true"])')
+    await expect(stableMain).toBeFocused({ timeout: 15_000 })
+    await expect(stableMain).toContainText('Course Comparisons')
+    await expect(page.evaluate(() => window.__busyMainReceivedFocus)).resolves.toBe(false)
+  })
+
+  test('moves first-visit focus to the persistent error state when catalogue loading fails', async ({
+    page,
+  }) => {
+    await installMockBackend(page, { historicalCoursesTotal: 10_001 })
+    await page.addInitScript(() => window.localStorage.clear())
+
+    await page.goto('/')
+    const direct = page.getByRole('button', {
+      name: 'Continue directly and skip all tutorial boxes',
+    })
+    await direct.focus()
+    await page.keyboard.press('Enter')
+
+    const errorMain = page.locator('#main-content:not([aria-busy="true"])')
+    await expect(errorMain).toBeFocused({ timeout: 15_000 })
+    await expect(errorMain).toContainText('Failed to load course data')
+    await expect(errorMain.getByRole('button', { name: 'Retry' })).toBeVisible()
+  })
+})

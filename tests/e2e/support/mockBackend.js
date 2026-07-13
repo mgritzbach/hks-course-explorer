@@ -218,11 +218,15 @@ const catalogueResults = [
   },
 ]
 
-function json(route, body, status = 200) {
+function json(route, body, status = 200, headers = {}) {
   return route.fulfill({
     status,
     contentType: 'application/json',
-    headers: { 'access-control-allow-origin': '*' },
+    headers: {
+      'access-control-allow-origin': '*',
+      'access-control-expose-headers': 'Content-Range',
+      ...headers,
+    },
     body: JSON.stringify(body),
   })
 }
@@ -240,6 +244,7 @@ export async function installMockBackend(
     liveCoursesResponse = liveCourses,
     liveCoursesResponseResolver,
     onLiveCoursesRequest,
+    historicalCoursesTotal,
     waitForHistoricalCourses,
   } = {},
 ) {
@@ -255,7 +260,15 @@ export async function installMockBackend(
       await waitForHistoricalCourses?.()
       const pageData = historicalPageServed ? [] : historicalCourses
       historicalPageServed = true
-      return json(route, pageData)
+      const countHeaders = Number.isInteger(historicalCoursesTotal)
+        ? { 'content-range': `0-${Math.max(0, pageData.length - 1)}/${historicalCoursesTotal}` }
+        : {}
+      return json(
+        route,
+        pageData,
+        Number.isInteger(historicalCoursesTotal) ? 206 : 200,
+        countHeaders,
+      )
     }
     if (pathname.endsWith('/live_courses')) {
       const requestUrl = new URL(request.url())
