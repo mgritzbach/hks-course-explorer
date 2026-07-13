@@ -169,16 +169,32 @@ function exactInstructorIdentities(courses, query) {
 }
 
 function exactCourseCodes(courses, query) {
-  const queryText = ` ${searchableText(query)} `
-  return new Set(
-    courses
-      .flatMap((course) => [course.course_code, course.course_code_base])
-      .filter(Boolean)
-      .filter((code) => {
-        const normalized = searchableText(code)
-        return normalized.split(/\s+/).length >= 2 && queryText.includes(` ${normalized} `)
-      }),
-  )
+  const queryTokens = searchableText(query).split(/\s+/).filter(Boolean)
+  const normalizedCodeFamilies = new Map()
+  for (const course of courses) {
+    const baseCode = course.course_code_base || course.course_code
+    for (const code of [course.course_code, course.course_code_base]) {
+      if (!code || !baseCode) continue
+      const normalized = searchableText(code)
+      if (normalized.split(/\s+/).length < 2) continue
+      if (!normalizedCodeFamilies.has(normalized)) normalizedCodeFamilies.set(normalized, new Set())
+      normalizedCodeFamilies.get(normalized).add(baseCode)
+    }
+  }
+  const candidates = [...normalizedCodeFamilies.entries()]
+    .map(([normalized, families]) => ({ tokens: normalized.split(/\s+/), families }))
+    .sort((left, right) => right.tokens.length - left.tokens.length)
+
+  const matchedFamilies = new Set()
+  for (let index = 0; index < queryTokens.length; index += 1) {
+    const match = candidates.find(({ tokens }) =>
+      tokens.every((token, offset) => queryTokens[index + offset] === token),
+    )
+    if (!match) continue
+    for (const family of match.families) matchedFamilies.add(family)
+    index += match.tokens.length - 1
+  }
+  return matchedFamilies
 }
 
 function priorInstructorIdentities(courses, history) {
@@ -393,9 +409,7 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
         : 0
       const courseHits = courseKeywords.filter((keyword) => courseTokens.has(keyword)).length
       const exactInstructor = focusedIdentities.has(instructorIdentity(c))
-      const exactCourse = [c.course_code, c.course_code_base].some((code) =>
-        matchedCourseCodes.has(code),
-      )
+      const exactCourse = matchedCourseCodes.has(c.course_code_base || c.course_code)
       return {
         c,
         exactInstructor,

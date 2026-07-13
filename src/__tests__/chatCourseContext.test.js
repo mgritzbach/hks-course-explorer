@@ -372,6 +372,46 @@ describe('chat course context', () => {
     )
   })
 
+  it('selects the longest explicitly mentioned course code without a shorter-family leak', () => {
+    const courses = [
+      {
+        course_code: 'API-202',
+        course_code_base: 'API-202',
+        course_name: 'Empirical Methods II',
+        professor_display: 'Professor Base',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'API-202-M-A',
+        course_code_base: 'API-202-M',
+        course_name: 'Methods Section A',
+        professor_display: 'Professor Module',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'API-202-M-B',
+        course_code_base: 'API-202-M',
+        course_name: 'Methods Section B',
+        professor_display: 'Professor Module',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+    ]
+
+    const specific = condenseCourses(courses, 'Tell me about API-202-M-A')
+    expect(new Set(specific.map((course) => course.base_code))).toEqual(new Set(['API-202-M']))
+
+    const explicitComparison = condenseCourses(courses, 'Compare API-202 and API-202-M-A')
+    expect(new Set(explicitComparison.map((course) => course.base_code))).toEqual(
+      new Set(['API-202', 'API-202-M']),
+    )
+  })
+
   it('preserves every offering and metric in a multi-decade instructor history', () => {
     const history = Array.from({ length: 36 }, (_, index) => ({
       course_code: index % 2 === 0 ? 'MLD-220-M' : 'MLD-220-M-A',
