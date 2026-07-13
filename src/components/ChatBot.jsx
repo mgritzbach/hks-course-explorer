@@ -42,6 +42,42 @@ const QUERY_STOP_WORDS = new Set([
   'who',
 ])
 
+const INDEPENDENT_SUBJECT_STOP_WORDS = new Set([
+  'about',
+  'also',
+  'difficult',
+  'difficulty',
+  'easy',
+  'easiest',
+  'former',
+  'he',
+  'her',
+  'hers',
+  'him',
+  'his',
+  'how',
+  'it',
+  'its',
+  'latter',
+  'light',
+  'lightest',
+  'one',
+  'ones',
+  'rating',
+  'ratings',
+  'same',
+  'score',
+  'scores',
+  'she',
+  'their',
+  'theirs',
+  'them',
+  'these',
+  'they',
+  'those',
+  'workload',
+])
+
 function searchableText(value) {
   return String(value || '')
     .normalize('NFKD')
@@ -54,6 +90,10 @@ function meaningfulQueryTerms(query) {
   return searchableText(query)
     .split(/\s+/)
     .filter((term) => term.length > 1 && !QUERY_STOP_WORDS.has(term))
+}
+
+function substantiveQueryTerms(query) {
+  return meaningfulQueryTerms(query).filter((term) => !INDEPENDENT_SUBJECT_STOP_WORDS.has(term))
 }
 
 function searchableTokens(value) {
@@ -128,6 +168,35 @@ function exactInstructorIdentities(courses, query) {
   )
 }
 
+function exactCourseCodes(courses, query) {
+  const queryTokens = searchableText(query).split(/\s+/).filter(Boolean)
+  const normalizedCodeFamilies = new Map()
+  for (const course of courses) {
+    const baseCode = course.course_code_base || course.course_code
+    for (const code of [course.course_code, course.course_code_base]) {
+      if (!code || !baseCode) continue
+      const normalized = searchableText(code)
+      if (normalized.split(/\s+/).length < 2) continue
+      if (!normalizedCodeFamilies.has(normalized)) normalizedCodeFamilies.set(normalized, new Set())
+      normalizedCodeFamilies.get(normalized).add(baseCode)
+    }
+  }
+  const candidates = [...normalizedCodeFamilies.entries()]
+    .map(([normalized, families]) => ({ tokens: normalized.split(/\s+/), families }))
+    .sort((left, right) => right.tokens.length - left.tokens.length)
+
+  const matchedFamilies = new Set()
+  for (let index = 0; index < queryTokens.length; index += 1) {
+    const match = candidates.find(({ tokens }) =>
+      tokens.every((token, offset) => queryTokens[index + offset] === token),
+    )
+    if (!match) continue
+    for (const family of match.families) matchedFamilies.add(family)
+    index += match.tokens.length - 1
+  }
+  return matchedFamilies
+}
+
 function priorInstructorIdentities(courses, history) {
   const priorUserQueries = (history || [])
     .filter((message) => message?.role === 'user' && typeof message.content === 'string')
@@ -139,6 +208,122 @@ function priorInstructorIdentities(courses, history) {
     if (identities.size > 0) return identities
   }
   return new Set()
+}
+
+function uniqueNameSwitchIdentities(courses, query) {
+  const queryText = searchableText(query)
+  const isNameSwitch =
+    /^(?:what about|how about)\b/.test(queryText) || queryText.split(/\s+/).length === 1
+  if (!isNameSwitch) return new Set()
+
+  const terms = substantiveQueryTerms(query)
+  if (terms.length !== 1) return new Set()
+  const [term] = terms
+  const overlapsCourseSubject = courses.some((course) => {
+    const tokens = searchableTokens([course.course_name, course.concentration].join(' '))
+    return tokens.has(term)
+  })
+  if (overlapsCourseSubject) return new Set()
+
+  const identities = new Set()
+  for (const course of courses) {
+    const tokens = searchableTokens(course.professor_display || course.professor)
+    if (tokens.has(term)) identities.add(instructorIdentity(course))
+  }
+  return identities.size === 1 ? identities : new Set()
+}
+
+export function selectRelevantHistory(courses, query, history, courseContext = []) {
+  if (!history?.length || !courses?.length || !courseContext?.length) return []
+
+  // A complete name makes the current question self-contained. Do not let an
+  // earlier conversation bias a new explicit question about that instructor.
+  if (exactInstructorIdentities(courses, query).size > 0) return []
+
+  const queryText = searchableText(query)
+  if (!/\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(queryText)) return []
+
+  const keywords = meaningfulQueryTerms(query)
+  const currentIdentities = new Set(
+    courses
+      .filter((course) => {
+        const tokens = searchableTokens(course.professor_display || course.professor)
+        return keywords.some((keyword) => tokens.has(keyword))
+      })
+      .map((course) => instructorIdentity(course))
+      .filter(Boolean),
+  )
+
+  // History is relevant only when the current partial name is ambiguous by
+  // itself and the prior conversation resolves it to the one instructor that
+  // was actually selected for this request. All other questions stay fresh.
+  if (currentIdentities.size < 2) return []
+  const priorIdentities = priorInstructorIdentities(courses, history)
+  const resolvedIdentities = new Set(
+    [...currentIdentities].filter((identity) => priorIdentities.has(identity)),
+  )
+  const contextIdentities = new Set(
+    courseContext.map((course) => searchableText(course.instructor)).filter(Boolean),
+  )
+
+  if (
+    resolvedIdentities.size === 1 &&
+    contextIdentities.size === 1 &&
+    contextIdentities.has([...resolvedIdentities][0])
+  ) {
+    return history
+  }
+  return []
+}
+
+function hasIndependentDatabaseMatch(courses, query) {
+  if (exactInstructorIdentities(courses, query).size > 0) return true
+  const courseKeywords = substantiveQueryTerms(query)
+  const instructorKeywords = meaningfulQueryTerms(query)
+  const queryText = searchableText(query)
+  const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
+    queryText,
+  )
+
+  const directMatch = courses.some((course) => {
+    const courseTokens = searchableTokens(
+      [course.course_name, course.course_code, course.course_code_base, course.concentration].join(
+        ' ',
+      ),
+    )
+    if (courseKeywords.some((keyword) => courseTokens.has(keyword))) return true
+    if (!asksAboutInstructor) return false
+    const instructorTokens = searchableTokens(course.professor_display || course.professor)
+    return instructorKeywords.some((keyword) => instructorTokens.has(keyword))
+  })
+  if (directMatch) return true
+
+  // A concise name-only switch such as "What about Wilkinson?" is an
+  // independent subject when that token identifies exactly one instructor.
+  return uniqueNameSwitchIdentities(courses, query).size === 1
+}
+
+function hasPersonReference(query) {
+  return /\b(?:he|she|they|him|her|them|his|hers|their|theirs)\b/.test(searchableText(query))
+}
+
+function isReferentialFollowup(query) {
+  const queryText = searchableText(query)
+  return (
+    hasPersonReference(query) ||
+    /\b(?:it|its|those|these|former|latter|same|one|ones)\b/.test(queryText) ||
+    /^(?:what about|how about)\b/.test(queryText)
+  )
+}
+
+function rebuildGroundedContext(courses, grounding) {
+  const groundedCodes = new Set(grounding?.courseCodes || [])
+  if (groundedCodes.size === 0) return []
+  const freshCourses = courses.filter((course) =>
+    groundedCodes.has(course.course_code_base || course.course_code),
+  )
+  if (freshCourses.length === 0) return []
+  return condenseCourses(freshCourses, grounding.query)
 }
 
 function compactInstructorHistory(courses) {
@@ -200,9 +385,16 @@ function compactInstructorHistory(courses) {
 
 export function condenseCourses(courses, query, shortlistedCodes = [], history = []) {
   if (!courses?.length) return []
-  const keywords = meaningfulQueryTerms(query)
+  const courseKeywords = substantiveQueryTerms(query)
+  const instructorKeywords = meaningfulQueryTerms(query)
   const shortlistedSet = new Set(shortlistedCodes)
   const exactIdentities = exactInstructorIdentities(courses, query)
+  const nameSwitchIdentities = uniqueNameSwitchIdentities(courses, query)
+  const focusedIdentities = new Set([...exactIdentities, ...nameSwitchIdentities])
+  const matchedCourseCodes = exactCourseCodes(courses, query)
+  const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
+    searchableText(query),
+  )
 
   const scoredCourses = courses
     .map((c) => {
@@ -212,18 +404,23 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
       )
       // Match whole normalized tokens. Substring matching made "good" select
       // Joshua Goodman and made "is" select Allison Shapira.
-      const instructorHits = keywords.filter((keyword) => instructorTokens.has(keyword)).length
-      const courseHits = keywords.filter((keyword) => courseTokens.has(keyword)).length
-      const exactInstructor = exactIdentities.has(instructorIdentity(c))
+      const instructorHits = asksAboutInstructor
+        ? instructorKeywords.filter((keyword) => instructorTokens.has(keyword)).length
+        : 0
+      const courseHits = courseKeywords.filter((keyword) => courseTokens.has(keyword)).length
+      const exactInstructor = focusedIdentities.has(instructorIdentity(c))
+      const exactCourse = matchedCourseCodes.has(c.course_code_base || c.course_code)
       return {
         c,
         exactInstructor,
+        exactCourse,
         instructorHits,
         score: instructorHits * 20 + courseHits * 5,
       }
     })
     .sort(
       (a, b) =>
+        Number(b.exactCourse) - Number(a.exactCourse) ||
         Number(b.exactInstructor) - Number(a.exactInstructor) ||
         b.score - a.score ||
         rankCourse(b.c) - rankCourse(a.c) ||
@@ -234,16 +431,15 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
   // from only the catalogue's globally newest year. Supplying unrelated rows
   // in this case caused the model/fallback to pad factual answers.
   const exactInstructorMatches = scoredCourses.filter(({ exactInstructor }) => exactInstructor)
+  const exactCourseMatches = scoredCourses.filter(({ exactCourse }) => exactCourse)
   // A follow-up can use only part of the name (for example, "Is Hong a good
   // professor?"). Once any instructor token matches, keep the context focused
   // on those instructors and never mix in incidental title matches from words
   // such as "good". The LLM receives the conversation history separately.
   const instructorMatches = scoredCourses.filter(({ instructorHits }) => instructorHits > 0)
-  const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
-    searchableText(query),
-  )
   let focusedInstructorMatches = exactInstructorMatches
   if (
+    exactCourseMatches.length === 0 &&
     focusedInstructorMatches.length === 0 &&
     asksAboutInstructor &&
     instructorMatches.length > 0
@@ -271,9 +467,11 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
     }
   }
   const relevantMatches =
-    focusedInstructorMatches.length > 0
-      ? focusedInstructorMatches
-      : scoredCourses.filter(({ score }) => score > 0).slice(0, 25)
+    exactCourseMatches.length > 0
+      ? exactCourseMatches
+      : focusedInstructorMatches.length > 0
+        ? focusedInstructorMatches
+        : scoredCourses.filter(({ score }) => score > 0).slice(0, 25)
 
   const recentYear = Math.max(
     ...courses
@@ -288,11 +486,13 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
     .map((course) => ({ c: course }))
 
   const keywordMatches =
-    focusedInstructorMatches.length > 0
-      ? compactInstructorHistory(focusedInstructorMatches.map(({ c }) => c))
-      : (relevantMatches.length > 0 ? relevantMatches : fallbackMatches).map(({ c }) =>
-          toCourseSummary(c),
-        )
+    exactCourseMatches.length > 0
+      ? compactInstructorHistory(exactCourseMatches.map(({ c }) => c))
+      : focusedInstructorMatches.length > 0
+        ? compactInstructorHistory(focusedInstructorMatches.map(({ c }) => c))
+        : (relevantMatches.length > 0 ? relevantMatches : fallbackMatches).map(({ c }) =>
+            toCourseSummary(c),
+          )
 
   const shortlistedCourses = courses
     .filter((course) => shortlistedSet.has(course.course_code_base || course.course_code))
@@ -300,7 +500,7 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
     .map((course) => toCourseSummary(course))
 
   return dedupeCourseSummaries(
-    focusedInstructorMatches.length > 0
+    exactCourseMatches.length > 0 || focusedInstructorMatches.length > 0
       ? keywordMatches
       : [...keywordMatches, ...shortlistedCourses],
     30,
@@ -379,12 +579,35 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         )
         .filter(Boolean)
 
-      const history = next
-        .slice(0, -1)
-        .filter((message) => message.role === 'user' || message.kind === 'ai')
-        .slice(-4)
-        .map((message) => ({ role: message.role, content: message.content }))
-      const courseContext = condenseCourses(courses, userMsg, shortlistedCodes, history)
+      const priorGroundedResponse = [...messages]
+        .reverse()
+        .find((message) => message.kind === 'ai' && message.grounding)
+      const candidateHistory = priorGroundedResponse
+        ? [
+            { role: 'user', content: priorGroundedResponse.userQuery },
+            { role: 'assistant', content: priorGroundedResponse.content },
+          ]
+        : []
+      const hasPriorGrounding = Boolean(priorGroundedResponse)
+      const referentialFollowup = hasPriorGrounding && isReferentialFollowup(userMsg)
+      const independentMatch = hasIndependentDatabaseMatch(courses, userMsg)
+      const useStructuredFollowup = referentialFollowup && !independentMatch
+      const useRelationalHistory =
+        referentialFollowup && independentMatch && hasPersonReference(userMsg)
+      const freshQueryContext = condenseCourses(
+        courses,
+        userMsg,
+        shortlistedCodes,
+        candidateHistory,
+      )
+      const priorGroundedContext = hasPriorGrounding
+        ? rebuildGroundedContext(courses, priorGroundedResponse.grounding)
+        : []
+      const courseContext = useStructuredFollowup
+        ? priorGroundedContext
+        : useRelationalHistory
+          ? dedupeCourseSummaries([...priorGroundedContext, ...freshQueryContext], 30)
+          : freshQueryContext
       if (courseContext.length === 0) {
         setMessages((prev) => [
           ...prev,
@@ -397,6 +620,21 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         ])
         return
       }
+      const history =
+        useStructuredFollowup || useRelationalHistory
+          ? candidateHistory
+          : selectRelevantHistory(courses, userMsg, candidateHistory, courseContext)
+      const grounding =
+        history.length > 0 && priorGroundedResponse
+          ? priorGroundedResponse.grounding
+          : {
+              query: userMsg,
+              courseCodes: [
+                ...new Set(
+                  courseContext.map((course) => course.base_code || course.code).filter(Boolean),
+                ),
+              ],
+            }
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -440,8 +678,10 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         {
           role: 'assistant',
           kind: 'ai',
+          userQuery: userMsg,
           content: data.reply,
           provenance: { model: data.model, cost: data.cost },
+          grounding,
         },
       ])
     } catch {

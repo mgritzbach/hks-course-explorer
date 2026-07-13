@@ -78,13 +78,25 @@ test.describe('course advisor lifecycle', () => {
     await expect(dialog.getByText(/Error:/)).toHaveCount(0)
   })
 
-  test('keeps a second-turn Hong question grounded only in Hong Qu records', async ({ page }) => {
+  test('uses history only for a genuine follow-up and resets it for a new question', async ({
+    page,
+  }) => {
     const advisorFixture = [
+      ['DPI-851-M', 'Data Visualization for Policy Analysis', 'Hong Qu'],
       ['DPI-852-M', 'Advanced Data and Information Visualization', 'Hong Qu'],
+      ['DPI-853-M', 'Interactive Data Visualization', 'Hong Qu'],
       ['MLD-223', 'Organizing for Good', 'Kessely Hong'],
-      ['API-202', 'Empirical Methods II', 'Joshua Goodman'],
+      ...Array.from({ length: 36 }, (_, index) => [
+        'API-202',
+        'Empirical Methods II',
+        `API Professor ${index % 12}`,
+      ]),
       ['DPI-802-M-D-2', 'The Arts of Communication', 'Allison Shapira'],
       ['MLD-215-B', 'Negotiation and Leadership', 'Robert Wilkinson'],
+      ['ENV-250', 'Climate Adaptation Policy', 'Ada Climate'],
+      ['SUP-442', 'Housing Policy', 'Richard Light'],
+      ['API-206', 'How Do You Know It Works?', 'Jane Evidence'],
+      ['API-309', 'Networks, Complexity and Their Applications', 'John Networks'],
     ].map(([course_code, course_name, professor_display]) => ({
       id: `${course_code}-${professor_display}`,
       course_code,
@@ -113,22 +125,17 @@ test.describe('course advisor lifecycle', () => {
     })
 
     let requestNumber = 0
+    const expectedHongCodes = ['DPI-851-M', 'DPI-852-M', 'DPI-853-M']
     await page.route('**/api/chat', async (route) => {
       requestNumber += 1
       const payload = route.request().postDataJSON()
       expect(payload.courses.length).toBeGreaterThan(0)
       const contextInstructors = [...new Set(payload.courses.map((course) => course.instructor))]
-      expect(
-        payload.courses.every((course) => course.instructor === 'Hong Qu'),
-        `Unexpected advisor context for request ${requestNumber} (${payload.message}), history ${JSON.stringify(payload.history)}: ${JSON.stringify(contextInstructors)}`,
-      ).toBe(true)
-      expect(payload.courses.some((course) => course.instructor === 'Allison Shapira')).toBe(false)
-      expect(payload.courses.some((course) => course.instructor === 'Robert Wilkinson')).toBe(false)
 
       if (requestNumber === 1) {
         expect(payload.message).toBe('What are Hong Qu’s courses?')
         expect(payload.history).toEqual([])
-      } else {
+      } else if (requestNumber === 2) {
         expect(payload.message).toBe('Is Hong a good professor?')
         expect(payload.history).toEqual(
           expect.arrayContaining([
@@ -136,16 +143,92 @@ test.describe('course advisor lifecycle', () => {
             { role: 'assistant', content: 'Hong Qu teaches the listed DPI courses.' },
           ]),
         )
+      } else if (requestNumber === 3) {
+        expect(payload.message).toBe('How is their workload?')
+        expect(payload.history).toEqual([
+          { role: 'user', content: 'Is Hong a good professor?' },
+          {
+            role: 'assistant',
+            content: 'The database records for Hong Qu show strong instructor ratings.',
+          },
+        ])
+      } else if (requestNumber === 4) {
+        expect(payload.message).toBe('Is it a good course?')
+        expect(payload.history).toEqual([
+          { role: 'user', content: 'How is their workload?' },
+          {
+            role: 'assistant',
+            content: 'Hong Qu’s course history contains the available workload data.',
+          },
+        ])
+      } else if (requestNumber === 5) {
+        expect(payload.message).toBe('Does she teach API-202?')
+        expect(payload.history).toEqual([
+          { role: 'user', content: 'Is it a good course?' },
+          {
+            role: 'assistant',
+            content: 'The grounded Hong Qu course records contain the available ratings.',
+          },
+        ])
+        const relationCodes = payload.courses.map((course) => course.base_code || course.code)
+        expect(new Set(relationCodes)).toEqual(new Set(['API-202', ...expectedHongCodes]))
+        expect(relationCodes.filter((code) => code === 'API-202')).toHaveLength(12)
+        expect(payload.courses).toHaveLength(15)
+      } else if (requestNumber === 6) {
+        expect(payload.message).toBe('What about Wilkinson?')
+        expect(payload.history).toEqual([])
+        expect(contextInstructors).toEqual(['Robert Wilkinson'])
+      } else if (requestNumber === 7) {
+        expect(payload.message).toBe('Also, show courses with light workloads')
+        expect(payload.history).toEqual([])
+        expect(payload.courses.length).toBeGreaterThan(1)
+        expect(payload.courses.every((course) => course.instructor === 'Robert Wilkinson')).toBe(
+          false,
+        )
+      } else if (requestNumber === 8) {
+        expect(payload.message).toBe('How is it for climate?')
+        expect(payload.history).toEqual([])
+        expect(contextInstructors).toEqual(['Ada Climate'])
+        expect(payload.courses.every((course) => /climate/i.test(course.name))).toBe(true)
+        expect(payload.courses.some((course) => course.instructor === 'Richard Light')).toBe(false)
+      } else {
+        expect(payload.message).toBe('Is light a good professor?')
+        expect(payload.history).toEqual([])
+        expect(contextInstructors).toEqual(['Richard Light'])
+      }
+
+      if (requestNumber <= 4) {
+        expect(
+          payload.courses.every((course) => course.instructor === 'Hong Qu'),
+          `Unexpected advisor context for request ${requestNumber} (${payload.message}), history ${JSON.stringify(payload.history)}: ${JSON.stringify(contextInstructors)}`,
+        ).toBe(true)
+        expect(payload.courses.some((course) => course.instructor === 'Allison Shapira')).toBe(
+          false,
+        )
+        expect(payload.courses.some((course) => course.instructor === 'Robert Wilkinson')).toBe(
+          false,
+        )
+        expect(payload.courses.map((course) => course.base_code || course.code).sort()).toEqual(
+          expectedHongCodes,
+        )
       }
 
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          reply:
-            requestNumber === 1
-              ? 'Hong Qu teaches the listed DPI courses.'
-              : 'The database records for Hong Qu show strong instructor ratings.',
+          reply: [
+            '',
+            'Hong Qu teaches the listed DPI courses.',
+            'The database records for Hong Qu show strong instructor ratings.',
+            'Hong Qu’s course history contains the available workload data.',
+            'The grounded Hong Qu course records contain the available ratings.',
+            'The database does not list Hong Qu for API-202.',
+            'Robert Wilkinson teaches the matching course.',
+            'Here are independently selected light-workload courses.',
+            'ENV-250 is a climate course with workload data.',
+            'Richard Light is the matching professor.',
+          ][requestNumber],
           source: 'openrouter',
           model: 'openai/gpt-oss-20b:free',
           cost: 0,
@@ -168,7 +251,41 @@ test.describe('course advisor lifecycle', () => {
     await expect(
       dialog.getByText('The database records for Hong Qu show strong instructor ratings.'),
     ).toBeVisible()
-    expect(requestNumber).toBe(2)
+
+    await input.fill('How is their workload?')
+    await send.click()
+    await expect(
+      dialog.getByText('Hong Qu’s course history contains the available workload data.'),
+    ).toBeVisible()
+
+    await input.fill('Is it a good course?')
+    await send.click()
+    await expect(
+      dialog.getByText('The grounded Hong Qu course records contain the available ratings.'),
+    ).toBeVisible()
+
+    await input.fill('Does she teach API-202?')
+    await send.click()
+    await expect(dialog.getByText('The database does not list Hong Qu for API-202.')).toBeVisible()
+
+    await input.fill('What about Wilkinson?')
+    await send.click()
+    await expect(dialog.getByText('Robert Wilkinson teaches the matching course.')).toBeVisible()
+
+    await input.fill('Also, show courses with light workloads')
+    await send.click()
+    await expect(
+      dialog.getByText('Here are independently selected light-workload courses.'),
+    ).toBeVisible()
+
+    await input.fill('How is it for climate?')
+    await send.click()
+    await expect(dialog.getByText('ENV-250 is a climate course with workload data.')).toBeVisible()
+
+    await input.fill('Is light a good professor?')
+    await send.click()
+    await expect(dialog.getByText('Richard Light is the matching professor.')).toBeVisible()
+    expect(requestNumber).toBe(9)
   })
 
   test('shows provider failure explicitly and never substitutes a canned answer', async ({

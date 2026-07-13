@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   condenseCourses,
   normalizeOptionalBoolean,
+  selectRelevantHistory,
   toCourseSummary,
 } from '../components/ChatBot.jsx'
 
@@ -227,25 +228,93 @@ describe('chat course context', () => {
         term: 'Spring',
         has_eval: true,
       },
+      {
+        course_code: 'ENV-250',
+        course_code_base: 'ENV-250',
+        course_name: 'Climate Adaptation Policy',
+        professor_display: 'Ada Climate',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'SUP-442',
+        course_code_base: 'SUP-442',
+        course_name: 'Housing Policy',
+        professor_display: 'Richard Light',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'API-206',
+        course_code_base: 'API-206',
+        course_name: 'How Do You Know It Works?',
+        professor_display: 'Jane Evidence',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'API-309',
+        course_code_base: 'API-309',
+        course_name: 'Networks, Complexity and Their Applications',
+        professor_display: 'John Networks',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
     ]
 
-    const context = condenseCourses(
-      courses,
-      'Is Hong a good professor?',
-      [],
-      [
-        { role: 'user', content: 'What are Hong Qu’s courses?' },
-        { role: 'assistant', content: 'Hong Qu teaches the listed DPI courses.' },
-      ],
-    )
+    const history = [
+      { role: 'user', content: 'What are Hong Qu’s courses?' },
+      { role: 'assistant', content: 'Hong Qu teaches the listed DPI courses.' },
+    ]
+    const context = condenseCourses(courses, 'Is Hong a good professor?', [], history)
 
     const firstTurnContext = condenseCourses(courses, 'What are Hong Qu’s courses?')
     expect(firstTurnContext).toHaveLength(1)
     expect(firstTurnContext[0]).toMatchObject({ code: 'DPI-852-M', instructor: 'Hong Qu' })
     expect(context).toHaveLength(1)
     expect(context[0]).toMatchObject({ code: 'DPI-852-M', instructor: 'Hong Qu' })
+    expect(selectRelevantHistory(courses, 'Is Hong a good professor?', history, context)).toEqual(
+      history,
+    )
 
     expect(condenseCourses(courses, 'Is Hong a good professor?')).toEqual([])
+
+    const independentContext = condenseCourses(courses, 'How is it for climate?', [], history)
+    expect(independentContext).toMatchObject([{ code: 'ENV-250', instructor: 'Ada Climate' }])
+    expect(independentContext.every((course) => /climate/i.test(course.name))).toBe(true)
+    expect(independentContext.some((course) => course.instructor === 'Richard Light')).toBe(false)
+    expect(
+      selectRelevantHistory(courses, 'How is it for climate?', history, independentContext),
+    ).toEqual([])
+
+    const lightProfessorContext = condenseCourses(
+      courses,
+      'Is light a good professor?',
+      [],
+      history,
+    )
+    expect(lightProfessorContext).toMatchObject([{ code: 'SUP-442', instructor: 'Richard Light' }])
+
+    const wilkinsonContext = condenseCourses(courses, 'What about Wilkinson?', [], history)
+    expect(wilkinsonContext).toMatchObject([{ code: 'MLD-215-B', instructor: 'Robert Wilkinson' }])
+
+    const additiveContext = condenseCourses(
+      courses,
+      'Also, show courses with light workloads',
+      [],
+      history,
+    )
+    expect(additiveContext.length).toBeGreaterThan(1)
+    expect(additiveContext.every((course) => course.instructor === 'Hong Qu')).toBe(false)
+
+    const explicitContext = condenseCourses(courses, 'Is Hong Qu a good professor?', [], history)
+    expect(
+      selectRelevantHistory(courses, 'Is Hong Qu a good professor?', history, explicitContext),
+    ).toEqual([])
 
     const genericContext = condenseCourses(courses, 'Who is a good professor?')
     expect(genericContext.length).toBeGreaterThan(1)
@@ -280,6 +349,67 @@ describe('chat course context', () => {
     expect(context).toHaveLength(30)
     expect(context[0]).toMatchObject({ code: 'ENV-250', name: 'Climate Adaptation Policy' })
     expect(context.some((course) => course.code === 'ENV-250')).toBe(true)
+  })
+
+  it('compacts a large exact-course history before applying the request row limit', () => {
+    const apiHistory = Array.from({ length: 36 }, (_, index) => ({
+      course_code: 'API-202',
+      course_code_base: 'API-202',
+      course_name: 'Empirical Methods II',
+      professor_display: `API Professor ${index % 12}`,
+      year: 2024 + (index % 3),
+      term: index % 2 === 0 ? 'Fall' : 'Spring',
+      has_eval: true,
+      metrics_pct: { Course_Rating: 70, Instructor_Rating: 75, Workload: 40 },
+    }))
+
+    const context = condenseCourses(apiHistory, 'Tell me about API-202')
+
+    expect(context).toHaveLength(12)
+    expect(context.every((course) => course.base_code === 'API-202')).toBe(true)
+    expect(context.every((course) => /Database offerings:/.test(course.offering_history))).toBe(
+      true,
+    )
+  })
+
+  it('selects the longest explicitly mentioned course code without a shorter-family leak', () => {
+    const courses = [
+      {
+        course_code: 'API-202',
+        course_code_base: 'API-202',
+        course_name: 'Empirical Methods II',
+        professor_display: 'Professor Base',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'API-202-M-A',
+        course_code_base: 'API-202-M',
+        course_name: 'Methods Section A',
+        professor_display: 'Professor Module',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+      {
+        course_code: 'API-202-M-B',
+        course_code_base: 'API-202-M',
+        course_name: 'Methods Section B',
+        professor_display: 'Professor Module',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
+    ]
+
+    const specific = condenseCourses(courses, 'Tell me about API-202-M-A')
+    expect(new Set(specific.map((course) => course.base_code))).toEqual(new Set(['API-202-M']))
+
+    const explicitComparison = condenseCourses(courses, 'Compare API-202 and API-202-M-A')
+    expect(new Set(explicitComparison.map((course) => course.base_code))).toEqual(
+      new Set(['API-202', 'API-202-M']),
+    )
   })
 
   it('preserves every offering and metric in a multi-decade instructor history', () => {
