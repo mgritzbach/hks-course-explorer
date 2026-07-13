@@ -425,6 +425,7 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
   const instructorMatches = scoredCourses.filter(({ instructorHits }) => instructorHits > 0)
   let focusedInstructorMatches = exactInstructorMatches
   if (
+    exactCourseMatches.length === 0 &&
     focusedInstructorMatches.length === 0 &&
     asksAboutInstructor &&
     instructorMatches.length > 0
@@ -472,7 +473,7 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
 
   const keywordMatches =
     exactCourseMatches.length > 0
-      ? exactCourseMatches.map(({ c }) => toCourseSummary(c))
+      ? compactInstructorHistory(exactCourseMatches.map(({ c }) => c))
       : focusedInstructorMatches.length > 0
         ? compactInstructorHistory(focusedInstructorMatches.map(({ c }) => c))
         : (relevantMatches.length > 0 ? relevantMatches : fallbackMatches).map(({ c }) =>
@@ -591,7 +592,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
       const courseContext = useStructuredFollowup
         ? priorGroundedContext
         : useRelationalHistory
-          ? dedupeCourseSummaries([...freshQueryContext, ...priorGroundedContext], 30)
+          ? dedupeCourseSummaries([...priorGroundedContext, ...freshQueryContext], 30)
           : freshQueryContext
       if (courseContext.length === 0) {
         setMessages((prev) => [

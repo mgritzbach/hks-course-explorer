@@ -86,7 +86,11 @@ test.describe('course advisor lifecycle', () => {
       ['DPI-852-M', 'Advanced Data and Information Visualization', 'Hong Qu'],
       ['DPI-853-M', 'Interactive Data Visualization', 'Hong Qu'],
       ['MLD-223', 'Organizing for Good', 'Kessely Hong'],
-      ['API-202', 'Empirical Methods II', 'Joshua Goodman'],
+      ...Array.from({ length: 36 }, (_, index) => [
+        'API-202',
+        'Empirical Methods II',
+        `API Professor ${index % 12}`,
+      ]),
       ['DPI-802-M-D-2', 'The Arts of Communication', 'Allison Shapira'],
       ['MLD-215-B', 'Negotiation and Leadership', 'Robert Wilkinson'],
       ['ENV-250', 'Climate Adaptation Policy', 'Ada Climate'],
@@ -166,10 +170,10 @@ test.describe('course advisor lifecycle', () => {
             content: 'The grounded Hong Qu course records contain the available ratings.',
           },
         ])
-        expect(payload.courses.map((course) => course.base_code || course.code).sort()).toEqual([
-          'API-202',
-          ...expectedHongCodes,
-        ])
+        const relationCodes = payload.courses.map((course) => course.base_code || course.code)
+        expect(new Set(relationCodes)).toEqual(new Set(['API-202', ...expectedHongCodes]))
+        expect(relationCodes.filter((code) => code === 'API-202')).toHaveLength(12)
+        expect(payload.courses).toHaveLength(15)
       } else if (requestNumber === 6) {
         expect(payload.message).toBe('What about Wilkinson?')
         expect(payload.history).toEqual([])

@@ -351,6 +351,27 @@ describe('chat course context', () => {
     expect(context.some((course) => course.code === 'ENV-250')).toBe(true)
   })
 
+  it('compacts a large exact-course history before applying the request row limit', () => {
+    const apiHistory = Array.from({ length: 36 }, (_, index) => ({
+      course_code: 'API-202',
+      course_code_base: 'API-202',
+      course_name: 'Empirical Methods II',
+      professor_display: `API Professor ${index % 12}`,
+      year: 2024 + (index % 3),
+      term: index % 2 === 0 ? 'Fall' : 'Spring',
+      has_eval: true,
+      metrics_pct: { Course_Rating: 70, Instructor_Rating: 75, Workload: 40 },
+    }))
+
+    const context = condenseCourses(apiHistory, 'Tell me about API-202')
+
+    expect(context).toHaveLength(12)
+    expect(context.every((course) => course.base_code === 'API-202')).toBe(true)
+    expect(context.every((course) => /Database offerings:/.test(course.offering_history))).toBe(
+      true,
+    )
+  })
+
   it('preserves every offering and metric in a multi-decade instructor history', () => {
     const history = Array.from({ length: 36 }, (_, index) => ({
       course_code: index % 2 === 0 ? 'MLD-220-M' : 'MLD-220-M-A',
