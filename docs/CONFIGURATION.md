@@ -77,6 +77,15 @@ Scheduled executions promote after validation. A manual workflow dispatch is
 staging-only by default; the operator must explicitly enable its `promote`
 input after reviewing the candidate source state.
 
+The my.harvard search has a bounded whole-snapshot retry for transient HTTP,
+invalid JSON/schema, below-floor totals, empty parsed pages, and
+mid-pagination count drift. Every retry discards all accumulated rows and
+starts again at page one. Redirects or a changed response URL—including its
+school, term, sort, page, and browse query—are refused. Exhausting the retry
+budget raises before detail enrichment, database inventory reads, staging, or
+promotion, so a transient empty/invalid search cannot replace the active
+catalogue or mix pages from separate attempts.
+
 Meeting data is read only from each offering's exact public my.harvard detail
 URL. Redirects and one URL claimed by distinct offering identities are refused,
 so a course-level response is never copied across section URLs. An empty detail

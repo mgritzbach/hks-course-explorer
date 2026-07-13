@@ -298,6 +298,16 @@ counts match the source; and `scheduled + schedule pending` equals every staged
 offering. Schedule-pending is not an error and must never remove an offering.
 Only an explicit follow-up with `promote=true` may change the active HKS run.
 
+The HKS search reader retries the complete snapshot up to three times with
+bounded backoff when my.harvard returns a transient HTTP failure, invalid
+response schema, below-floor total, empty parsed page, or a count that changes
+during pagination. Each retry clears every accumulated row and restarts at
+page one; no page from a failed attempt is reused. Redirects and any changed
+response URL identity—including school, term, sort, page, and browse query—are
+refused. If the final attempt is not a complete verified snapshot, the
+workflow exits before any Supabase staging or promotion; retain the current
+active catalogue and treat the run as an upstream incident.
+
 The my.harvard meeting parser is intentionally section-specific and
 fail-closed. It accepts one complete public weekday/time interval per exact
 offering URL. Redirected responses and duplicate URL ownership are refused. An

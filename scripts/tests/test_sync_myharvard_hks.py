@@ -115,6 +115,140 @@ class MyHarvardSyncTests(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual(len({row["id"] for row in rows}), 2)
         self.assertEqual(session.get.call_count, 2)
+        self.assertFalse(session.get.call_args.kwargs["allow_redirects"])
+
+    def test_retries_invalid_and_incomplete_search_payloads_before_returning(self):
+        invalid = Mock(ok=True, status_code=200)
+        invalid.json.return_value = {"unexpected": "payload"}
+        incomplete = Mock(ok=True, status_code=200)
+        incomplete.json.return_value = {"total_hits": 0, "hits": ""}
+        complete = Mock(ok=True, status_code=200)
+        complete.json.return_value = {"total_hits": 1, "hits": CARD}
+        session = Mock()
+        session.get.side_effect = [invalid, incomplete, complete]
+
+        with patch.object(self.sync.time, "sleep") as sleep:
+            rows = self.sync.fetch_all_hks_offerings(session)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(session.get.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_retries_changed_pagination_total_without_mixing_snapshots(self):
+        first = Mock(ok=True, status_code=200)
+        first.json.return_value = {"total_hits": 2, "hits": CARD}
+        changed = Mock(ok=True, status_code=200)
+        changed.json.return_value = {
+            "total_hits": 3,
+            "hits": CARD.replace("170000", "170009").replace("/A", "/Z"),
+        }
+        restarted_first = Mock(ok=True, status_code=200)
+        restarted_first.json.return_value = {
+            "total_hits": 2,
+            "hits": CARD.replace("170000", "170010").replace("/A", "/C"),
+        }
+        restarted_second = Mock(ok=True, status_code=200)
+        restarted_second.json.return_value = {
+            "total_hits": 2,
+            "hits": CARD.replace("170000", "170011").replace("/A", "/D"),
+        }
+        session = Mock()
+        session.get.side_effect = [first, changed, restarted_first, restarted_second]
+
+        with patch.object(self.sync.time, "sleep") as sleep:
+            rows = self.sync.fetch_all_hks_offerings(session)
+
+        self.assertEqual({row["source_course_id"] for row in rows}, {"170010", "170011"})
+        self.assertNotIn("170000", {row["source_course_id"] for row in rows})
+        self.assertEqual(session.get.call_count, 4)
+        sleep.assert_called_once()
+
+    def test_exhausted_invalid_search_never_reaches_staging(self):
+        invalid_responses = []
+        for _ in range(self.sync.SEARCH_MAX_ATTEMPTS):
+            response = Mock(ok=True, status_code=200)
+            response.json.return_value = {"total_hits": 0, "hits": ""}
+            invalid_responses.append(response)
+        session = Mock()
+        session.get.side_effect = invalid_responses
+
+        with patch.object(self.sync.time, "sleep"):
+            with self.assertRaisesRegex(RuntimeError, "after 3 attempts"):
+                self.sync.fetch_all_hks_offerings(session)
+
+        self.assertEqual(session.get.call_count, self.sync.SEARCH_MAX_ATTEMPTS)
+
+    def test_main_search_failure_prevents_inventory_stage_and_promotion(self):
+        with (
+            patch.object(
+                self.sync,
+                "fetch_all_hks_offerings",
+                side_effect=RuntimeError("search exhausted"),
+            ),
+            patch.object(self.sync, "enrich_offering_details") as enrich,
+            patch.object(self.sync, "fetch_active_hks_schedule_inventory") as inventory,
+            patch.object(self.sync, "stage") as stage,
+            patch.object(self.sync, "promote_and_verify") as promote,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "search exhausted"):
+                self.sync.main()
+
+        enrich.assert_not_called()
+        inventory.assert_not_called()
+        stage.assert_not_called()
+        promote.assert_not_called()
+
+    def test_search_rejects_redirects_without_retry(self):
+        redirect = Mock(ok=False, status_code=302)
+        session = Mock()
+        session.get.return_value = redirect
+
+        with patch.object(self.sync.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "search redirect was refused"):
+                self.sync.fetch_all_hks_offerings(session)
+
+        session.get.assert_called_once()
+        sleep.assert_not_called()
+
+    def test_search_rejects_changed_final_url_and_nonretryable_http(self):
+        changed = Mock(
+            ok=True,
+            status_code=200,
+            url="https://other.example/search/?school=HKS",
+        )
+        session = Mock()
+        session.get.return_value = changed
+        with patch.object(self.sync.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "search response URL changed"):
+                self.sync.fetch_all_hks_offerings(session)
+        session.get.assert_called_once()
+        sleep.assert_not_called()
+
+        wrong_query = Mock(
+            ok=True,
+            status_code=200,
+            url=(
+                "https://my.harvard.edu/search/"
+                "?q=&school=FAS&term=All&sort=subject_catalog&page=99&browseSchool=true"
+            ),
+        )
+        session = Mock()
+        session.get.return_value = wrong_query
+        with patch.object(self.sync.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "search response URL changed"):
+                self.sync.fetch_all_hks_offerings(session)
+        session.get.assert_called_once()
+        sleep.assert_not_called()
+
+        denied = Mock(ok=False, status_code=403)
+        denied.raise_for_status.side_effect = self.sync.requests.HTTPError("forbidden")
+        session = Mock()
+        session.get.return_value = denied
+        with patch.object(self.sync.time, "sleep") as sleep:
+            with self.assertRaises(self.sync.requests.HTTPError):
+                self.sync.fetch_all_hks_offerings(session)
+        session.get.assert_called_once()
+        sleep.assert_not_called()
 
     def test_parses_exact_credits_and_cross_registration_status(self):
         details = self.sync.parse_course_details(PENDING_DETAIL, pending_advertised=True)
