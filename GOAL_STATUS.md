@@ -34,13 +34,16 @@ are binary complete. Percentages are not release waivers.
 
 ## Current external certification blockers
 
-Production certification remains blocked by the Cloudflare zone-policy gate,
-evidence-backed resolution of the retained non-HKS ATS queue, manual production
-accessibility acceptance, representative field performance evidence, and
-successor/on-call handover acceptance. Both catalogue and functional Pages
-rollback boundaries are exercised; the complete cache-conformant
-production-smoke exercise must be repeated after the zone-policy fix and does
-not substitute for the remaining stateful or institutional evidence.
+Production certification remains blocked by Cloudflare Preview environment
+parity for the zero-cost Course Advisor, evidence-backed resolution of the
+retained non-HKS ATS queue, manual production accessibility acceptance,
+representative field performance evidence, and successor/on-call handover
+acceptance. The current custom-domain response-level cache preflight passes,
+but exact current master has not been promoted: its isolated release candidate
+correctly failed closed because Preview did not provide `OPENROUTER_API_KEY`.
+Both catalogue and functional Pages rollback boundaries are exercised; the
+complete rollback/re-promotion smoke must be repeated after Preview parity and
+does not substitute for the remaining stateful or institutional evidence.
 
 ## Completed local increments (not release sign-off)
 
@@ -103,7 +106,8 @@ not substitute for the remaining stateful or institutional evidence.
 | L55 | The complete five-table Course Explorer relational boundary has an encrypted no-cost backup and exact isolated restore proof. | 1 | Backup `29206580982` and PostgreSQL 17 recovery `29206612080` on exact master `ed81c24`: 14,543 exact rows, schema/access contract, FKs, rollback, RLS, grants, functions, indexes, triggers, zero-orphan linking, digests, and cleanup all passed. |
 | L56 | Residual PostgreSQL `MAINTAIN` and direct trigger-function execution are unavailable to browser roles without changing application data or service authority. | 1 | Production migration `20260712224500_harden_maintain_and_trigger_function_grants`; unchanged counts `5812/265/63/5/8398`, zero orphans, RLS enabled, browser privileges false, and `service_role` privileges true. |
 | L57 | Exact-master has a privacy-bounded, zero-cost LCP/INP/CLS field collector that remains outside the initial route bundle and preserves application availability when analytics fails. | 1 | PR #67; master `167e204`; CI `29208929319` with 252 unit tests, 38 browser flows, and bundle budgets; lazy `web-vitals` chunk 2.56 KiB gzip; release-candidate deployment `304ec26c`; and current production `19e854a` / `a9351956`. Representative field acceptance remains outstanding for G08. |
-| L58 | The reviewed Cloudflare Pages rollback and re-promotion mechanics are exercised against exact production artifacts without mutating Supabase, KV, secrets, or Durable Object state. | 1 | Production `19e854a` / deployment `a9351956` rolled back to `f3ce866` / `e4368292`; exact rollback Pages static smoke and custom-domain browser acceptance 5/5 passed; `19e854a` was re-promoted and exact Pages static smoke plus custom-domain browser acceptance 5/5 passed. The custom-domain static cache-policy assertion remains red and blocks G04/G09/G11. |
+| L58 | The reviewed Cloudflare Pages rollback and re-promotion mechanics are exercised against exact production artifacts without mutating Supabase, KV, secrets, or Durable Object state. | 1 | Production `19e854a` / deployment `a9351956` rolled back to `f3ce866` / `e4368292`; exact rollback Pages static smoke and custom-domain browser acceptance 5/5 passed; `19e854a` was re-promoted and exact Pages static smoke plus custom-domain browser acceptance 5/5 passed. The cache assertion that was red during this exercise is superseded by L62; the complete drill must still be repeated after exact-current-master promotion. |
 | L59 | Conversational advisor grounding preserves only relevant prior context, resets for independent topics, isolates exact instructor/course identities, and remains bounded on real catalogue history. | 1 | PR #73, 45 focused context/Worker contracts, rebuilt nine-turn browser regression, exhaustive 516-instructor and 1,094-code audits, protected CI, production deployment `a9351956`, and live Hong-only request payload proof. |
 | L60 | The current my.harvard catalogue has an exercised, manifest-exact rollback path that cannot reach production during verification. | 1 | PR #77; fresh encrypted backup `29224666761`; exact-master PostgreSQL 17 recovery `29224720886`; isolated clone rollback restored 297 rows (141 Fall, 156 Spring) and the untouched source recovery database remained byte-exact. |
 | L61 | The source-aware retained-row classifier has completed against production after an exact-master non-HKS promotion without deleting or deactivating any course. | 1 | PR #78; exact-master sync `29226825986` promoted 6,092 current ATS offerings, classified the retained inventory, and produced a 1,526-row evidence queue with digest `fbd0a26cc18c195150f6f8d6e402db69edf28f0227c3ad5911814518c04312a5`. Keep/retire decisions remain outstanding. |
+| L62 | The current custom domain conforms to the reviewed response-level cache contract without requiring a paid Cloudflare cache feature or zone mutation. | 1 | Public GET-only preflight using exact-master code `0c986343d1d23f653710e39951379599ad451eab` passed for root HTML, fingerprinted JavaScript, and `sim_coords.json`; exact-master deployment `29251444607` still stopped before production because Preview lacked `OPENROUTER_API_KEY`. |
