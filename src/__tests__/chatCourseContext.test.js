@@ -291,6 +291,26 @@ describe('chat course context', () => {
       selectRelevantHistory(courses, 'How is it for climate?', history, independentContext),
     ).toEqual([])
 
+    const lightProfessorContext = condenseCourses(
+      courses,
+      'Is light a good professor?',
+      [],
+      history,
+    )
+    expect(lightProfessorContext).toMatchObject([{ code: 'SUP-442', instructor: 'Richard Light' }])
+
+    const wilkinsonContext = condenseCourses(courses, 'What about Wilkinson?', [], history)
+    expect(wilkinsonContext).toMatchObject([{ code: 'MLD-215-B', instructor: 'Robert Wilkinson' }])
+
+    const additiveContext = condenseCourses(
+      courses,
+      'Also, show courses with light workloads',
+      [],
+      history,
+    )
+    expect(additiveContext.length).toBeGreaterThan(1)
+    expect(additiveContext.every((course) => course.instructor === 'Hong Qu')).toBe(false)
+
     const explicitContext = condenseCourses(courses, 'Is Hong Qu a good professor?', [], history)
     expect(
       selectRelevantHistory(courses, 'Is Hong Qu a good professor?', history, explicitContext),

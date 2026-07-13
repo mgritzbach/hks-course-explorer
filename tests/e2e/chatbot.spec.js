@@ -157,12 +157,40 @@ test.describe('course advisor lifecycle', () => {
             content: 'Hong Qu’s course history contains the available workload data.',
           },
         ])
-      } else {
+      } else if (requestNumber === 5) {
+        expect(payload.message).toBe('Does she teach API-202?')
+        expect(payload.history).toEqual([
+          { role: 'user', content: 'Is it a good course?' },
+          {
+            role: 'assistant',
+            content: 'The grounded Hong Qu course records contain the available ratings.',
+          },
+        ])
+        expect(payload.courses.map((course) => course.base_code || course.code).sort()).toEqual([
+          'API-202',
+          ...expectedHongCodes,
+        ])
+      } else if (requestNumber === 6) {
+        expect(payload.message).toBe('What about Wilkinson?')
+        expect(payload.history).toEqual([])
+        expect(contextInstructors).toEqual(['Robert Wilkinson'])
+      } else if (requestNumber === 7) {
+        expect(payload.message).toBe('Also, show courses with light workloads')
+        expect(payload.history).toEqual([])
+        expect(payload.courses.length).toBeGreaterThan(1)
+        expect(payload.courses.every((course) => course.instructor === 'Robert Wilkinson')).toBe(
+          false,
+        )
+      } else if (requestNumber === 8) {
         expect(payload.message).toBe('How is it for climate?')
         expect(payload.history).toEqual([])
         expect(contextInstructors).toEqual(['Ada Climate'])
         expect(payload.courses.every((course) => /climate/i.test(course.name))).toBe(true)
         expect(payload.courses.some((course) => course.instructor === 'Richard Light')).toBe(false)
+      } else {
+        expect(payload.message).toBe('Is light a good professor?')
+        expect(payload.history).toEqual([])
+        expect(contextInstructors).toEqual(['Richard Light'])
       }
 
       if (requestNumber <= 4) {
@@ -185,16 +213,18 @@ test.describe('course advisor lifecycle', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          reply:
-            requestNumber === 1
-              ? 'Hong Qu teaches the listed DPI courses.'
-              : requestNumber === 2
-                ? 'The database records for Hong Qu show strong instructor ratings.'
-                : requestNumber === 3
-                  ? 'Hong Qu’s course history contains the available workload data.'
-                  : requestNumber === 4
-                    ? 'The grounded Hong Qu course records contain the available ratings.'
-                    : 'ENV-250 is a climate course with workload data.',
+          reply: [
+            '',
+            'Hong Qu teaches the listed DPI courses.',
+            'The database records for Hong Qu show strong instructor ratings.',
+            'Hong Qu’s course history contains the available workload data.',
+            'The grounded Hong Qu course records contain the available ratings.',
+            'The database does not list Hong Qu for API-202.',
+            'Robert Wilkinson teaches the matching course.',
+            'Here are independently selected light-workload courses.',
+            'ENV-250 is a climate course with workload data.',
+            'Richard Light is the matching professor.',
+          ][requestNumber],
           source: 'openrouter',
           model: 'openai/gpt-oss-20b:free',
           cost: 0,
@@ -230,10 +260,28 @@ test.describe('course advisor lifecycle', () => {
       dialog.getByText('The grounded Hong Qu course records contain the available ratings.'),
     ).toBeVisible()
 
+    await input.fill('Does she teach API-202?')
+    await send.click()
+    await expect(dialog.getByText('The database does not list Hong Qu for API-202.')).toBeVisible()
+
+    await input.fill('What about Wilkinson?')
+    await send.click()
+    await expect(dialog.getByText('Robert Wilkinson teaches the matching course.')).toBeVisible()
+
+    await input.fill('Also, show courses with light workloads')
+    await send.click()
+    await expect(
+      dialog.getByText('Here are independently selected light-workload courses.'),
+    ).toBeVisible()
+
     await input.fill('How is it for climate?')
     await send.click()
     await expect(dialog.getByText('ENV-250 is a climate course with workload data.')).toBeVisible()
-    expect(requestNumber).toBe(5)
+
+    await input.fill('Is light a good professor?')
+    await send.click()
+    await expect(dialog.getByText('Richard Light is the matching professor.')).toBeVisible()
+    expect(requestNumber).toBe(9)
   })
 
   test('shows provider failure explicitly and never substitutes a canned answer', async ({
