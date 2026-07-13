@@ -67,6 +67,31 @@ test.describe('local build navigation and static assets', () => {
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
   })
 
+  test('restores the Course Explorer Replay control after keyboard dismissal', async ({ page }) => {
+    for (const viewport of [
+      { width: 1440, height: 1000 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await page.goto('/courses')
+      if (viewport.width < 768) {
+        await page.getByRole('button', { name: 'Open filters' }).click()
+      }
+
+      const replay = page.getByRole('button', { name: 'Replay tour' })
+      await replay.focus()
+      await page.keyboard.press('Enter')
+      await expect(replay).toHaveAttribute('aria-disabled', 'true')
+      await expect(replay).toBeFocused()
+
+      const tour = page.getByRole('dialog', { name: 'Set the Year' })
+      await expect(tour).toBeFocused({ timeout: 15_000 })
+      await page.keyboard.press('Escape')
+      await expect(tour).toHaveCount(0)
+      await expect(replay).toBeFocused()
+    }
+  })
+
   test('renders every visitor-facing SPA route from a direct URL', async ({ page }) => {
     const routes = [
       ['/courses', 'Course Explorer'],

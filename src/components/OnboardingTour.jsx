@@ -87,9 +87,23 @@ export default function OnboardingTour({
     // On mobile give 360ms for the 260ms drawer CSS transition to finish.
     setTick(-1)
     const delay = window.innerWidth < 768 ? 360 : 0
-    const t = setTimeout(() => setTick(0), delay)
+    const t = setTimeout(() => {
+      const currentStep = steps[index]
+      const targets = currentStep
+        ? document.querySelectorAll(`[data-tour="${currentStep.target}"]`)
+        : []
+      for (const target of targets) {
+        const bounds = target.getBoundingClientRect()
+        if (bounds.width <= 0 || bounds.height <= 0) continue
+        if (typeof target.scrollIntoView === 'function') {
+          target.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
+        }
+        break
+      }
+      setTick(0)
+    }, delay)
     return () => clearTimeout(t)
-  }, [index, onStepChange, visible])
+  }, [index, onStepChange, steps, visible])
 
   const step = steps[index]
   const rect = step

@@ -83,6 +83,35 @@ test.describe('welcome landing page', () => {
       await expect(page.locator('#root')).not.toHaveAttribute('aria-hidden', 'true')
       await expect.poll(() => page.locator('#root').evaluate((root) => root.inert)).toBe(false)
     })
+
+    test(`restores the actual Replay control after a keyboard tour on ${viewportName}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport)
+      await page.goto('/')
+      await page
+        .getByRole('button', { name: 'Continue directly and skip all tutorial boxes' })
+        .click()
+      await expect(page.locator('#main-content')).toBeFocused({ timeout: 15_000 })
+
+      if (viewportName === 'mobile') {
+        const openFilters = page.getByRole('button', { name: 'Open filters' })
+        await openFilters.focus()
+        await page.keyboard.press('Enter')
+        await expect(page.getByRole('button', { name: 'Close filter panel' })).toBeVisible()
+      }
+      const replay = page.getByRole('button', { name: 'Replay tour' })
+      await replay.focus()
+      await page.keyboard.press('Enter')
+      await expect(replay).toHaveAttribute('aria-disabled', 'true')
+      await expect(replay).toBeFocused()
+
+      const tour = page.getByRole('dialog', { name: 'Start with the Year' })
+      await expect(tour).toBeFocused({ timeout: 15_000 })
+      await page.keyboard.press('Escape')
+      await expect(tour).toHaveCount(0)
+      await expect(replay).toBeFocused()
+    })
   }
 
   test('a direct route visit shows only the landing dialog before the visitor decides', async ({

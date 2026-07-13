@@ -691,6 +691,7 @@ export default function Home({
 
             <button
               type="button"
+              aria-label="Open filters"
               onClick={() => setSidebarOpen(true)}
               className="md:hidden rounded-full border px-4 py-2.5 text-xs font-semibold text-label shadow-sm touch-manipulation"
               style={{
