@@ -78,13 +78,16 @@ test.describe('course advisor lifecycle', () => {
     await expect(dialog.getByText(/Error:/)).toHaveCount(0)
   })
 
-  test('keeps a second-turn Hong question grounded only in Hong Qu records', async ({ page }) => {
+  test('uses history only for a genuine follow-up and resets it for a new question', async ({
+    page,
+  }) => {
     const advisorFixture = [
       ['DPI-852-M', 'Advanced Data and Information Visualization', 'Hong Qu'],
       ['MLD-223', 'Organizing for Good', 'Kessely Hong'],
       ['API-202', 'Empirical Methods II', 'Joshua Goodman'],
       ['DPI-802-M-D-2', 'The Arts of Communication', 'Allison Shapira'],
       ['MLD-215-B', 'Negotiation and Leadership', 'Robert Wilkinson'],
+      ['ENV-250', 'Climate Adaptation Policy', 'Ada Climate'],
     ].map(([course_code, course_name, professor_display]) => ({
       id: `${course_code}-${professor_display}`,
       course_code,
@@ -118,23 +121,34 @@ test.describe('course advisor lifecycle', () => {
       const payload = route.request().postDataJSON()
       expect(payload.courses.length).toBeGreaterThan(0)
       const contextInstructors = [...new Set(payload.courses.map((course) => course.instructor))]
-      expect(
-        payload.courses.every((course) => course.instructor === 'Hong Qu'),
-        `Unexpected advisor context for request ${requestNumber} (${payload.message}), history ${JSON.stringify(payload.history)}: ${JSON.stringify(contextInstructors)}`,
-      ).toBe(true)
-      expect(payload.courses.some((course) => course.instructor === 'Allison Shapira')).toBe(false)
-      expect(payload.courses.some((course) => course.instructor === 'Robert Wilkinson')).toBe(false)
 
       if (requestNumber === 1) {
         expect(payload.message).toBe('What are Hong Qu’s courses?')
         expect(payload.history).toEqual([])
-      } else {
+      } else if (requestNumber === 2) {
         expect(payload.message).toBe('Is Hong a good professor?')
         expect(payload.history).toEqual(
           expect.arrayContaining([
             { role: 'user', content: 'What are Hong Qu’s courses?' },
             { role: 'assistant', content: 'Hong Qu teaches the listed DPI courses.' },
           ]),
+        )
+      } else {
+        expect(payload.message).toBe('Which climate courses have light workloads?')
+        expect(payload.history).toEqual([])
+        expect(contextInstructors).toEqual(['Ada Climate'])
+      }
+
+      if (requestNumber <= 2) {
+        expect(
+          payload.courses.every((course) => course.instructor === 'Hong Qu'),
+          `Unexpected advisor context for request ${requestNumber} (${payload.message}), history ${JSON.stringify(payload.history)}: ${JSON.stringify(contextInstructors)}`,
+        ).toBe(true)
+        expect(payload.courses.some((course) => course.instructor === 'Allison Shapira')).toBe(
+          false,
+        )
+        expect(payload.courses.some((course) => course.instructor === 'Robert Wilkinson')).toBe(
+          false,
         )
       }
 
@@ -145,7 +159,9 @@ test.describe('course advisor lifecycle', () => {
           reply:
             requestNumber === 1
               ? 'Hong Qu teaches the listed DPI courses.'
-              : 'The database records for Hong Qu show strong instructor ratings.',
+              : requestNumber === 2
+                ? 'The database records for Hong Qu show strong instructor ratings.'
+                : 'ENV-250 is a climate course with workload data.',
           source: 'openrouter',
           model: 'openai/gpt-oss-20b:free',
           cost: 0,
@@ -168,7 +184,11 @@ test.describe('course advisor lifecycle', () => {
     await expect(
       dialog.getByText('The database records for Hong Qu show strong instructor ratings.'),
     ).toBeVisible()
-    expect(requestNumber).toBe(2)
+
+    await input.fill('Which climate courses have light workloads?')
+    await send.click()
+    await expect(dialog.getByText('ENV-250 is a climate course with workload data.')).toBeVisible()
+    expect(requestNumber).toBe(3)
   })
 
   test('shows provider failure explicitly and never substitutes a canned answer', async ({

@@ -141,6 +141,49 @@ function priorInstructorIdentities(courses, history) {
   return new Set()
 }
 
+export function selectRelevantHistory(courses, query, history, courseContext = []) {
+  if (!history?.length || !courses?.length || !courseContext?.length) return []
+
+  // A complete name makes the current question self-contained. Do not let an
+  // earlier conversation bias a new explicit question about that instructor.
+  if (exactInstructorIdentities(courses, query).size > 0) return []
+
+  const queryText = searchableText(query)
+  if (!/\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(queryText)) return []
+
+  const keywords = meaningfulQueryTerms(query)
+  const currentIdentities = new Set(
+    courses
+      .filter((course) => {
+        const tokens = searchableTokens(course.professor_display || course.professor)
+        return keywords.some((keyword) => tokens.has(keyword))
+      })
+      .map((course) => instructorIdentity(course))
+      .filter(Boolean),
+  )
+
+  // History is relevant only when the current partial name is ambiguous by
+  // itself and the prior conversation resolves it to the one instructor that
+  // was actually selected for this request. All other questions stay fresh.
+  if (currentIdentities.size < 2) return []
+  const priorIdentities = priorInstructorIdentities(courses, history)
+  const resolvedIdentities = new Set(
+    [...currentIdentities].filter((identity) => priorIdentities.has(identity)),
+  )
+  const contextIdentities = new Set(
+    courseContext.map((course) => searchableText(course.instructor)).filter(Boolean),
+  )
+
+  if (
+    resolvedIdentities.size === 1 &&
+    contextIdentities.size === 1 &&
+    contextIdentities.has([...resolvedIdentities][0])
+  ) {
+    return history
+  }
+  return []
+}
+
 function compactInstructorHistory(courses) {
   const groups = new Map()
   for (const course of courses) {
@@ -379,12 +422,12 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         )
         .filter(Boolean)
 
-      const history = next
+      const candidateHistory = next
         .slice(0, -1)
         .filter((message) => message.role === 'user' || message.kind === 'ai')
         .slice(-4)
         .map((message) => ({ role: message.role, content: message.content }))
-      const courseContext = condenseCourses(courses, userMsg, shortlistedCodes, history)
+      const courseContext = condenseCourses(courses, userMsg, shortlistedCodes, candidateHistory)
       if (courseContext.length === 0) {
         setMessages((prev) => [
           ...prev,
@@ -397,6 +440,7 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         ])
         return
       }
+      const history = selectRelevantHistory(courses, userMsg, candidateHistory, courseContext)
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

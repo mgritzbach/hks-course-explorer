@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   condenseCourses,
   normalizeOptionalBoolean,
+  selectRelevantHistory,
   toCourseSummary,
 } from '../components/ChatBot.jsx'
 
@@ -227,25 +228,54 @@ describe('chat course context', () => {
         term: 'Spring',
         has_eval: true,
       },
+      {
+        course_code: 'ENV-250',
+        course_code_base: 'ENV-250',
+        course_name: 'Climate Adaptation Policy',
+        professor_display: 'Ada Climate',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
     ]
 
-    const context = condenseCourses(
-      courses,
-      'Is Hong a good professor?',
-      [],
-      [
-        { role: 'user', content: 'What are Hong Qu’s courses?' },
-        { role: 'assistant', content: 'Hong Qu teaches the listed DPI courses.' },
-      ],
-    )
+    const history = [
+      { role: 'user', content: 'What are Hong Qu’s courses?' },
+      { role: 'assistant', content: 'Hong Qu teaches the listed DPI courses.' },
+    ]
+    const context = condenseCourses(courses, 'Is Hong a good professor?', [], history)
 
     const firstTurnContext = condenseCourses(courses, 'What are Hong Qu’s courses?')
     expect(firstTurnContext).toHaveLength(1)
     expect(firstTurnContext[0]).toMatchObject({ code: 'DPI-852-M', instructor: 'Hong Qu' })
     expect(context).toHaveLength(1)
     expect(context[0]).toMatchObject({ code: 'DPI-852-M', instructor: 'Hong Qu' })
+    expect(selectRelevantHistory(courses, 'Is Hong a good professor?', history, context)).toEqual(
+      history,
+    )
 
     expect(condenseCourses(courses, 'Is Hong a good professor?')).toEqual([])
+
+    const independentContext = condenseCourses(
+      courses,
+      'Which climate courses have light workloads?',
+      [],
+      history,
+    )
+    expect(independentContext).toMatchObject([{ code: 'ENV-250', instructor: 'Ada Climate' }])
+    expect(
+      selectRelevantHistory(
+        courses,
+        'Which climate courses have light workloads?',
+        history,
+        independentContext,
+      ),
+    ).toEqual([])
+
+    const explicitContext = condenseCourses(courses, 'Is Hong Qu a good professor?', [], history)
+    expect(
+      selectRelevantHistory(courses, 'Is Hong Qu a good professor?', history, explicitContext),
+    ).toEqual([])
 
     const genericContext = condenseCourses(courses, 'Who is a good professor?')
     expect(genericContext.length).toBeGreaterThan(1)
