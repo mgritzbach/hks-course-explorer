@@ -71,6 +71,9 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.DEPLOY_VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.DEPLOY_VITE_SUPABASE_ANON_KEY }}
 
+      - name: Validate final Cloudflare Pages headers
+        run: npm run check:pages-headers
+
       - name: Install pinned Wrangler
         # 4.86.0 is the newest reviewed v4 release compatible with the
         # repository's pinned Node 20 deployment runner.
@@ -121,15 +124,11 @@ jobs:
             exit 1
           fi
 
-      - name: Enforce custom-domain browser cache policy
-        # Cloudflare's four-hour zone default can override Pages' deployment-
-        # safe revalidation header. Value 0 means Respect Existing Headers.
+      - name: Preflight current custom-domain cache safety
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: >-
-          python scripts/ensure_cloudflare_browser_cache.py
-          --zone hks-course-explorer.org
-          --apply
+          DEPLOY_SMOKE_URL: https://hks-course-explorer.org/
+          DEPLOY_PREFLIGHT_ONLY: 'true'
+        run: node scripts/smoke_deployed_site.mjs
 
       - name: Deploy atomic chat-rate limiter when changed
         if: steps.rate-limiter.outputs.changed == 'true'

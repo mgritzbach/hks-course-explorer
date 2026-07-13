@@ -124,6 +124,15 @@ test. A missing binding is a release-blocking configuration error; the endpoint
 must continue to fail closed and must never replace the LLM with a canned
 answer.
 
+The deploy token needs only the account-scoped Pages and Workers permissions
+used by the release workflow. It must not receive Zone Settings Write, use a
+global API key, or mutate `browser_cache_ttl`. The release smoke enforces the
+effective response policy instead: exact HTML and mutable JSON revalidate on
+every use, while only manifest-listed fingerprinted CSS/JavaScript may use a
+bounded browser TTL of at most four hours. This keeps deployment behavior
+verifiable on the free Pages path without a paid cache feature or hidden zone
+state dependency.
+
 ### Admin data Functions
 
 `/api/admin-verify` returns a 15-minute HMAC-signed `admin:data` bearer

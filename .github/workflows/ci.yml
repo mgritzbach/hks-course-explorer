@@ -75,6 +75,9 @@ jobs:
           VITE_SUPABASE_URL: https://ci.supabase.co
           VITE_SUPABASE_ANON_KEY: ci-public-anon-key
 
+      - name: Validate final Cloudflare Pages headers
+        run: npm run check:pages-headers
+
       - name: Enforce route bundle budgets
         run: npm run check:bundle-budget
 
