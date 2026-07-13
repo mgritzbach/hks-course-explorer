@@ -184,6 +184,47 @@ export function selectRelevantHistory(courses, query, history, courseContext = [
   return []
 }
 
+function hasIndependentDatabaseMatch(courses, query) {
+  if (exactInstructorIdentities(courses, query).size > 0) return true
+  const keywords = meaningfulQueryTerms(query)
+  if (keywords.length === 0) return false
+  const queryText = searchableText(query)
+  const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
+    queryText,
+  )
+
+  return courses.some((course) => {
+    const courseTokens = searchableTokens(
+      [course.course_name, course.course_code, course.course_code_base, course.concentration].join(
+        ' ',
+      ),
+    )
+    if (keywords.some((keyword) => courseTokens.has(keyword))) return true
+    if (!asksAboutInstructor) return false
+    const instructorTokens = searchableTokens(course.professor_display || course.professor)
+    return keywords.some((keyword) => instructorTokens.has(keyword))
+  })
+}
+
+function isReferentialFollowup(query) {
+  const queryText = searchableText(query)
+  return (
+    /\b(?:he|she|they|him|her|them|his|hers|their|theirs|it|its|those|these|former|latter|same|one|ones)\b/.test(
+      queryText,
+    ) || /^(?:and|also|what about|how about)\b/.test(queryText)
+  )
+}
+
+function rebuildGroundedContext(courses, grounding) {
+  const groundedCodes = new Set(grounding?.courseCodes || [])
+  if (groundedCodes.size === 0) return []
+  const freshCourses = courses.filter((course) =>
+    groundedCodes.has(course.course_code_base || course.course_code),
+  )
+  if (freshCourses.length === 0) return []
+  return condenseCourses(freshCourses, grounding.query)
+}
+
 function compactInstructorHistory(courses) {
   const groups = new Map()
   for (const course of courses) {
@@ -246,6 +287,9 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
   const keywords = meaningfulQueryTerms(query)
   const shortlistedSet = new Set(shortlistedCodes)
   const exactIdentities = exactInstructorIdentities(courses, query)
+  const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
+    searchableText(query),
+  )
 
   const scoredCourses = courses
     .map((c) => {
@@ -255,7 +299,9 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
       )
       // Match whole normalized tokens. Substring matching made "good" select
       // Joshua Goodman and made "is" select Allison Shapira.
-      const instructorHits = keywords.filter((keyword) => instructorTokens.has(keyword)).length
+      const instructorHits = asksAboutInstructor
+        ? keywords.filter((keyword) => instructorTokens.has(keyword)).length
+        : 0
       const courseHits = keywords.filter((keyword) => courseTokens.has(keyword)).length
       const exactInstructor = exactIdentities.has(instructorIdentity(c))
       return {
@@ -282,9 +328,6 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
   // on those instructors and never mix in incidental title matches from words
   // such as "good". The LLM receives the conversation history separately.
   const instructorMatches = scoredCourses.filter(({ instructorHits }) => instructorHits > 0)
-  const asksAboutInstructor = /\b(?:faculty|instructor|professor|teach|teaches|taught)\b/.test(
-    searchableText(query),
-  )
   let focusedInstructorMatches = exactInstructorMatches
   if (
     focusedInstructorMatches.length === 0 &&
@@ -422,12 +465,23 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         )
         .filter(Boolean)
 
-      const candidateHistory = next
-        .slice(0, -1)
-        .filter((message) => message.role === 'user' || message.kind === 'ai')
-        .slice(-4)
-        .map((message) => ({ role: message.role, content: message.content }))
-      const courseContext = condenseCourses(courses, userMsg, shortlistedCodes, candidateHistory)
+      const priorGroundedResponse = [...messages]
+        .reverse()
+        .find((message) => message.kind === 'ai' && message.grounding)
+      const candidateHistory = priorGroundedResponse
+        ? [
+            { role: 'user', content: priorGroundedResponse.grounding.query },
+            { role: 'assistant', content: priorGroundedResponse.content },
+          ]
+        : []
+      const useStructuredFollowup = Boolean(
+        priorGroundedResponse &&
+        isReferentialFollowup(userMsg) &&
+        !hasIndependentDatabaseMatch(courses, userMsg),
+      )
+      const courseContext = useStructuredFollowup
+        ? rebuildGroundedContext(courses, priorGroundedResponse.grounding)
+        : condenseCourses(courses, userMsg, shortlistedCodes, candidateHistory)
       if (courseContext.length === 0) {
         setMessages((prev) => [
           ...prev,
@@ -440,7 +494,9 @@ export default function ChatBot({ courses, favs, isLight = false }) {
         ])
         return
       }
-      const history = selectRelevantHistory(courses, userMsg, candidateHistory, courseContext)
+      const history = useStructuredFollowup
+        ? candidateHistory
+        : selectRelevantHistory(courses, userMsg, candidateHistory, courseContext)
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -486,6 +542,14 @@ export default function ChatBot({ courses, favs, isLight = false }) {
           kind: 'ai',
           content: data.reply,
           provenance: { model: data.model, cost: data.cost },
+          grounding: {
+            query: userMsg,
+            courseCodes: [
+              ...new Set(
+                courseContext.map((course) => course.base_code || course.code).filter(Boolean),
+              ),
+            ],
+          },
         },
       ])
     } catch {

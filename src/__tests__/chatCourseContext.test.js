@@ -237,6 +237,15 @@ describe('chat course context', () => {
         term: 'Spring',
         has_eval: true,
       },
+      {
+        course_code: 'SUP-442',
+        course_code_base: 'SUP-442',
+        course_name: 'Housing Policy',
+        professor_display: 'Richard Light',
+        year: 2026,
+        term: 'Spring',
+        has_eval: true,
+      },
     ]
 
     const history = [
@@ -263,6 +272,8 @@ describe('chat course context', () => {
       history,
     )
     expect(independentContext).toMatchObject([{ code: 'ENV-250', instructor: 'Ada Climate' }])
+    expect(independentContext.every((course) => /climate/i.test(course.name))).toBe(true)
+    expect(independentContext.some((course) => course.instructor === 'Richard Light')).toBe(false)
     expect(
       selectRelevantHistory(
         courses,
