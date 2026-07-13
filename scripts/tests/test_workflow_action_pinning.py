@@ -48,25 +48,29 @@ class WorkflowActionPinningTests(unittest.TestCase):
             "Verify active HKS catalogue manifest and exact row parity"
         )
         exact_build = deploy_workflow.index("Build exact CI commit")
+        pages_headers = deploy_workflow.index("Validate final Cloudflare Pages headers")
         candidate_deploy = deploy_workflow.index("Deploy isolated Pages release candidate")
         candidate_static = deploy_workflow.index("Smoke-test exact release-candidate artifact")
         browser_install = deploy_workflow.index("Install production smoke browser")
         candidate_browser = deploy_workflow.index("Exercise release candidate in a real browser")
         stale_guard = deploy_workflow.index("Refuse stale master promotion")
-        cache_policy = deploy_workflow.index("Enforce custom-domain browser cache policy")
+        custom_preflight = deploy_workflow.index("Preflight current custom-domain cache safety")
+        rate_limiter = deploy_workflow.index("Deploy atomic chat-rate limiter when changed")
         production_deploy = deploy_workflow.index("Deploy to Cloudflare Pages", candidate_browser)
         production_static = deploy_workflow.index("Smoke-test custom production domain")
         production_browser = deploy_workflow.index("Exercise production in a real browser")
         record_commit = deploy_workflow.index("Record deployed commit")
 
         self.assertLess(catalogue_manifest, exact_build)
-        self.assertLess(exact_build, candidate_deploy)
+        self.assertLess(exact_build, pages_headers)
+        self.assertLess(pages_headers, candidate_deploy)
         self.assertLess(candidate_deploy, candidate_static)
         self.assertLess(candidate_static, browser_install)
         self.assertLess(browser_install, candidate_browser)
         self.assertLess(candidate_browser, stale_guard)
-        self.assertLess(stale_guard, cache_policy)
-        self.assertLess(cache_policy, production_deploy)
+        self.assertLess(stale_guard, custom_preflight)
+        self.assertLess(custom_preflight, rate_limiter)
+        self.assertLess(rate_limiter, production_deploy)
         self.assertLess(stale_guard, production_deploy)
         self.assertLess(production_deploy, production_static)
         self.assertLess(production_static, production_browser)
@@ -79,10 +83,11 @@ class WorkflowActionPinningTests(unittest.TestCase):
         self.assertIn("git rev-parse origin/master", deploy_workflow)
         self.assertIn("github.event.workflow_run.head_sha", deploy_workflow)
         self.assertIn("Refusing stale release", deploy_workflow)
-        self.assertIn("ensure_cloudflare_browser_cache.py", deploy_workflow)
-        self.assertIn("--zone hks-course-explorer.org", deploy_workflow)
-        self.assertIn("--apply", deploy_workflow)
+        self.assertNotIn("ensure_cloudflare_browser_cache.py", deploy_workflow)
+        self.assertNotIn("browser_cache_ttl", deploy_workflow)
+        self.assertNotIn("/zones/", deploy_workflow)
         self.assertIn("Retain production browser diagnostics", deploy_workflow)
+        self.assertIn("npm run check:pages-headers", deploy_workflow)
         self.assertIn("python scripts/verify_live_hks_catalogue.py", deploy_workflow)
         self.assertIn("MAX_HKS_CATALOGUE_AGE_HOURS: '48'", deploy_workflow)
         catalogue_step = deploy_workflow.split(
@@ -90,6 +95,23 @@ class WorkflowActionPinningTests(unittest.TestCase):
         )[1].split("- name: Build exact CI commit", 1)[0]
         self.assertIn("SUPABASE_ANON_KEY", catalogue_step)
         self.assertNotIn("SUPABASE_KEY", catalogue_step)
+
+    def test_deployment_never_mutates_zone_cache_settings(self):
+        deployment_sources = [
+            (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8"),
+            *[
+                path.read_text(encoding="utf-8")
+                for path in sorted((ROOT / "scripts").glob("*.py"))
+            ],
+        ]
+        combined = "\n".join(deployment_sources)
+        for forbidden in (
+            "browser_cache_ttl",
+            "/zones/{zone_id}/settings",
+            "Zone Settings Write",
+            "global API key",
+        ):
+            self.assertNotIn(forbidden, combined)
 
     def test_all_official_actions_are_full_sha_pinned_with_a_readable_version(self):
         references = []

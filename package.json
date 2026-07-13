@@ -13,6 +13,7 @@
     "check:architecture": "node scripts/check_architecture.mjs",
     "check:ui-complexity": "node scripts/check_ui_complexity.mjs",
     "check:runtime-contracts": "node scripts/check_runtime_contracts.mjs",
+    "check:pages-headers": "node scripts/validate_pages_headers.mjs && vitest run --environment node scripts/validate_pages_headers.test.js",
     "check:contracts": "tsc --project tsconfig.contracts.json --noEmit",
     "check:format": "prettier --check \"{src,scripts,functions,tests}/**/*.{js,jsx,mjs,json}\" \"*.{js,json}\"",
     "format": "prettier --write \"{src,scripts,functions,tests}/**/*.{js,jsx,mjs,json}\" \"*.{js,json}\"",

@@ -42,23 +42,30 @@ leaves the production workflow red
 and retains Playwright diagnostics for seven days; do not treat the release as
 healthy until the failure is resolved or the prior deployment is restored.
 
-The production workflow also enforces the Cloudflare zone's **Browser Cache
-TTL** as **Respect Existing Headers** before it promotes the Pages candidate.
-Cloudflare represents that setting as `browser_cache_ttl = 0`. This prevents
-the zone's four-hour default from extending Pages' deployment-safe
-`Cache-Control: public, max-age=0, must-revalidate` policy. The control resolves
-exactly one active `hks-course-explorer.org` zone, refuses a non-editable or
-ambiguous target, applies only that setting, and requires a successful API
-read-back. The following custom-domain static smoke still validates every
-manifest asset's exact body, MIME type, and cache directives, so a separate
-Cache Rule override remains release-blocking.
+The production workflow treats the HTML entrypoint and content-fingerprinted
+assets as different cache classes. `/`, every direct SPA route, and mutable JSON
+must remain `public, max-age=0, must-revalidate` and byte-exact to the tested
+build. Only CSS and JavaScript paths enumerated by the exact build's Vite
+manifest and containing an eight-or-more-character content fingerprint may use
+a positive browser TTL. Their TTL is capped at four hours, their MIME type and
+decoded bytes must match the exact build, and stale/shared-cache directives are
+rejected. A missing asset that falls through to SPA HTML therefore fails on
+MIME and byte equality instead of being accepted as a cached chunk.
 
-The repository secret `CLOUDFLARE_API_TOKEN` must grant **Zone Read** and
-**Zone Settings Write** only for the `hks-course-explorer.org` zone, in addition
-to the existing Pages/Workers deployment permissions. Do not replace it with a
-global API key. The policy control retries transient rate-limit, server, and
-network failures twice with bounded backoff; permission, target-validation, and
-read-back failures are never retried into a broader mutation.
+This policy needs no zone mutation, Cache Rule, or **Zone Settings Write**
+permission. `CLOUDFLARE_API_TOKEN` remains account-scoped to the Pages and
+Workers deployment operations used by the workflow; do not replace it with a
+global API key. Every release rechecks both the Pages hostname and custom
+domain, so an external dashboard change becomes a red deployment rather than
+an unreviewed configuration mutation. The exact rollback and re-promotion
+exercise must repeat the same HTML, manifest-asset, mutable-data, route, and
+browser checks in both directions.
+The build also parses the final `dist/_headers`, enforces Cloudflare Pages'
+100-rule ceiling, rejects duplicate rule patterns, and rejects every authored
+`Cache-Control`, `CDN-Cache-Control`, or `Cloudflare-CDN-Cache-Control` header,
+including detached forms. This prevents overlapping rules or response-hidden
+CDN directives from creating an unreviewed policy; deployed response validation
+is the single cache-policy authority.
 
 ## Manual Cloudflare Pages rollback
 
