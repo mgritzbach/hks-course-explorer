@@ -291,6 +291,25 @@ GitHub will not run them simultaneously, so a recovery attempt cannot race the
 scheduled run's atomic promotion. Do not cancel an in-progress sync solely to
 start another one; wait for its summary and start the follow-up only if needed.
 
+Manual HKS workflow dispatches default to `promote=false`. Use that mode first
+after a meeting-parser or source-contract change. Accept the candidate only if
+the advertised, parsed, and staged counts match; the identity digest and term
+counts match the source; and `scheduled + schedule pending` equals every staged
+offering. Schedule-pending is not an error and must never remove an offering.
+Only an explicit follow-up with `promote=true` may change the active HKS run.
+
+The my.harvard meeting parser is intentionally section-specific and
+fail-closed. It accepts one complete public weekday/time interval per exact
+offering URL. Redirected responses and duplicate URL ownership are refused. An
+empty meeting block is pending only when the search card explicitly advertises
+TBA. Selected days without a complete interval, a time without selected days,
+reversed times, multiple distinct intervals, an exhausted detail request, or
+blanking a previously scheduled overlapping offering stop the run before
+staging/promotion. Do not borrow historical times, use the incomplete ATS HKS
+set, or copy one section's schedule to another. Extending the product to
+multiple intervals requires a reviewed meetings-array schema and matching
+Schedule Builder support.
+
 The non-HKS sync will upsert data only when every planned Harvard request
 succeeds and the configured minimum unique-course count is reached. Production
 uses a 5,000-row floor against the 5,607 non-HKS rows promoted by exact-master

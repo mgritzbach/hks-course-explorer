@@ -73,6 +73,19 @@ separately reviewed backup and restore plan.
 The separate my.harvard job stages every student-facing HKS offering under a
 run ID, verifies the upstream advertised count and configured minimum, then
 atomically deactivates the prior HKS set and promotes only the verified run.
+Scheduled executions promote after validation. A manual workflow dispatch is
+staging-only by default; the operator must explicitly enable its `promote`
+input after reviewing the candidate source state.
+
+Meeting data is read only from each offering's exact public my.harvard detail
+URL. Redirects and one URL claimed by distinct offering identities are refused,
+so a course-level response is never copied across section URLs. An empty detail
+schedule is valid only when the corresponding source card explicitly says TBA;
+that schedule-pending offering remains active/selectable. A partial meeting
+pattern, an unparseable interval, more than one distinct interval, or loss of a
+previously published schedule for the same active offering fails before
+staging because the current flat `live_courses` meeting columns cannot
+represent those states safely.
 
 ## Cloudflare Pages Functions
 

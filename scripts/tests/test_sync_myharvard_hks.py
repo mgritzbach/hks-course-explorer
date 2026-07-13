@@ -35,8 +35,31 @@ CARD = """
   <h2><a href="/course/API101/2026-Fall/A">Resources and Incentives</a></h2>
   <a href="/instructor/one"><span>J</span><span class="link-body">Juan Saavedra</span></a>
   <div class="course-description"><p>Microeconomic reasoning.</p></div>
-  <span>2026 Fall</span><span>Full Term</span><span>To Be Announced</span>
+  <span>2026 Fall</span><span>Full Term</span>
+  <!-- Week Days: To Be Announced --><span>To Be Announced</span>
 </div>
+"""
+
+PENDING_DETAIL = """
+<strong>Credits</strong><span>4</span>
+<strong>Cross Reg</strong><p>Not Available for Cross Registration</p></div></div>
+<div id="course-time">
+  <div role="group" aria-label="Week Days">
+    <div aria-label="Monday">M</div><div aria-label="Wednesday">W</div>
+  </div>
+</div><!-- End Time -->
+"""
+
+SCHEDULED_DETAIL = """
+<strong>Credits</strong><span>4</span>
+<strong>Cross Reg</strong><p>Available for Cross Registration</p></div></div>
+<div id="course-time">
+  <div role="group" aria-label="Week Days">
+    <div aria-label="Wednesday, selected">W</div>
+    <div aria-label="Monday, selected">M</div>
+  </div>
+  <div><span>10:30am - 11:45am</span></div>
+</div><!-- End Time -->
 """
 
 
@@ -54,6 +77,7 @@ class MyHarvardSyncTests(unittest.TestCase):
         self.assertEqual(rows[0]["term"], "2026 Fall")
         self.assertEqual(rows[0]["session_description"], "Full Term")
         self.assertIn("Juan Saavedra", rows[0]["instructors"])
+        self.assertTrue(rows[0]["_schedule_pending_advertised"])
 
     def test_formats_modular_and_year_long_suffixes_for_legacy_linking(self):
         self.assertEqual(self.sync.format_base_code("DPI810M"), "DPI-810-M")
@@ -93,12 +117,191 @@ class MyHarvardSyncTests(unittest.TestCase):
         self.assertEqual(session.get.call_count, 2)
 
     def test_parses_exact_credits_and_cross_registration_status(self):
-        details = self.sync.parse_course_details(
-            '<strong>Credits</strong><span>4</span>'
-            '<strong>Cross Reg</strong><p>Not Available for Cross Registration</p></div></div>'
+        details = self.sync.parse_course_details(PENDING_DETAIL, pending_advertised=True)
+
+        self.assertEqual(
+            details,
+            {
+                "credits": 4.0,
+                "cross_reg_eligible": "NOXREG",
+                "location": "",
+                "meeting_days": "",
+                "time_start": "",
+                "time_end": "",
+            },
         )
 
-        self.assertEqual(details, {"credits": 4.0, "cross_reg_eligible": "NOXREG"})
+    def test_parses_real_myharvard_selected_day_and_time_contract(self):
+        schedule = self.sync.parse_course_schedule(SCHEDULED_DETAIL)
+
+        self.assertEqual(schedule["state"], "scheduled")
+        self.assertEqual(schedule["meeting_days"], "MON/WED")
+        self.assertEqual(schedule["time_start"], "10:30")
+        self.assertEqual(schedule["time_end"], "11:45")
+        self.assertEqual(
+            schedule["meetings"],
+            [
+                {"day": "MON", "start": "10:30", "end": "11:45", "location": ""},
+                {"day": "WED", "start": "10:30", "end": "11:45", "location": ""},
+            ],
+        )
+
+    def test_tba_schedule_is_valid_pending_and_retained(self):
+        schedule = self.sync.parse_course_schedule(PENDING_DETAIL, pending_advertised=True)
+
+        self.assertEqual(schedule["state"], "pending")
+        self.assertEqual(schedule["meetings"], [])
+        self.assertEqual(schedule["meeting_days"], "")
+
+        with self.assertRaisesRegex(self.sync.ScheduleParseError, "without an explicit TBA"):
+            self.sync.parse_course_schedule(PENDING_DETAIL)
+
+    def test_rejects_partial_reversed_and_multi_interval_schedules(self):
+        selected_without_time = SCHEDULED_DETAIL.replace(
+            '<div><span>10:30am - 11:45am</span></div>', ""
+        )
+        time_without_selected = SCHEDULED_DETAIL.replace(", selected", "")
+        reversed_time = SCHEDULED_DETAIL.replace("10:30am - 11:45am", "11:45am - 10:30am")
+        multiple_times = SCHEDULED_DETAIL.replace(
+            "10:30am - 11:45am", "10:30am - 11:45am 12:00pm - 1:00pm"
+        )
+
+        for malformed in (
+            selected_without_time,
+            time_without_selected,
+            reversed_time,
+            multiple_times,
+        ):
+            with self.subTest(malformed=malformed):
+                with self.assertRaises(self.sync.ScheduleParseError):
+                    self.sync.parse_course_schedule(malformed)
+
+    def test_fetches_and_applies_schedule_per_exact_offering_url(self):
+        second_card = (
+            CARD.replace("170000", "170001")
+            .replace("/A\"", "/B\"")
+            .replace("Resources and Incentives", "Resources and Incentives B")
+        )
+        rows = self.sync.parse_cards(CARD + second_card)
+
+        def get_detail(url, **_kwargs):
+            response = Mock(ok=True, status_code=200)
+            response.text = SCHEDULED_DETAIL if url.endswith("/A") else PENDING_DETAIL
+            return response
+
+        with patch.object(self.sync.requests, "get", side_effect=get_detail) as request_get:
+            enriched = self.sync.enrich_offering_details(rows)
+
+        by_section = {row["section_code"]: row for row in enriched}
+        self.assertEqual(by_section["A"]["meeting_days"], "MON/WED")
+        self.assertEqual(by_section["B"]["meeting_days"], "")
+        self.assertNotIn("_schedule_pending_advertised", by_section["A"])
+        self.assertNotIn("_schedule_pending_advertised", by_section["B"])
+        self.assertEqual(request_get.call_count, 2)
+        self.assertEqual(self.sync.count_schedule_states(enriched), (1, 1))
+
+    def test_rejects_one_source_url_owned_by_distinct_offering_identities(self):
+        rows = self.sync.parse_cards(
+            CARD + CARD.replace("170000", "170001").replace("/A\"", "/B\"")
+        )
+        rows[1]["source_url"] = rows[0]["source_url"]
+
+        with patch.object(self.sync.requests, "get") as request_get:
+            with self.assertRaisesRegex(self.sync.ScheduleParseError, "share one source URL"):
+                self.sync.enrich_offering_details(rows)
+        request_get.assert_not_called()
+
+    def test_detail_fetch_retries_only_transient_failures(self):
+        transient = Mock(ok=False, status_code=503)
+        source_url = "https://my.harvard.edu/course/example"
+        success = Mock(ok=True, status_code=200, text=PENDING_DETAIL, url=source_url)
+        with (
+            patch.object(self.sync.requests, "get", side_effect=[transient, success]) as request_get,
+            patch.object(self.sync.time, "sleep") as sleep,
+        ):
+            html = self.sync.fetch_detail_html(source_url)
+
+        self.assertEqual(html, PENDING_DETAIL)
+        self.assertEqual(request_get.call_count, 2)
+        self.assertFalse(request_get.call_args.kwargs["allow_redirects"])
+        sleep.assert_called_once()
+
+        denied = Mock(ok=False, status_code=403)
+        denied.raise_for_status.side_effect = self.sync.requests.HTTPError("forbidden")
+        with patch.object(self.sync.requests, "get", return_value=denied) as request_get:
+            with self.assertRaises(self.sync.requests.HTTPError):
+                self.sync.fetch_detail_html("https://my.harvard.edu/course/denied")
+        request_get.assert_called_once()
+
+    def test_detail_fetch_rejects_redirects_and_changed_final_urls(self):
+        redirect = Mock(ok=False, status_code=302, url="https://my.harvard.edu/course/other")
+        with patch.object(self.sync.requests, "get", return_value=redirect) as request_get:
+            with self.assertRaisesRegex(RuntimeError, "redirect was refused"):
+                self.sync.fetch_detail_html("https://my.harvard.edu/course/original")
+        request_get.assert_called_once()
+
+        changed = Mock(
+            ok=True,
+            status_code=200,
+            text=PENDING_DETAIL,
+            url="https://my.harvard.edu/course/other",
+        )
+        with patch.object(self.sync.requests, "get", return_value=changed) as request_get:
+            with self.assertRaisesRegex(RuntimeError, "response URL changed"):
+                self.sync.fetch_detail_html("https://my.harvard.edu/course/original")
+        request_get.assert_called_once()
+
+    def test_schedule_partition_rejects_partial_normalized_rows(self):
+        row = self.sync.parse_cards(CARD)[0]
+        row.update({"meeting_days": "MON", "time_start": "10:30", "time_end": ""})
+
+        with self.assertRaisesRegex(self.sync.ScheduleParseError, "partial normalized"):
+            self.sync.count_schedule_states([row])
+
+    def test_refuses_to_blank_a_previously_scheduled_exact_offering(self):
+        pending = self.sync.parse_cards(CARD)[0]
+        pending.pop("_schedule_pending_advertised")
+
+        with self.assertRaisesRegex(self.sync.ScheduleParseError, "previously scheduled"):
+            self.sync.verify_schedule_non_regression([pending], {pending["id"]: True})
+
+        # A retired identity is outside the new authoritative set and does not
+        # block a normal term turnover; exact identity overlap is the guard.
+        self.sync.verify_schedule_non_regression([pending], {"retired-offering": True})
+
+    def test_reads_only_complete_authoritative_schedule_baselines(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = [
+            {
+                "id": "active-one",
+                "source_offering_id": "myh|one",
+                "source": "myharvard",
+                "meeting_days": "MON/WED",
+                "time_start": "10:30",
+                "time_end": "11:45",
+            },
+            {
+                "id": "active-two",
+                "source_offering_id": "myh|two",
+                "source": "myharvard",
+                "meeting_days": "",
+                "time_start": "",
+                "time_end": "",
+            },
+            {
+                "id": "legacy-ats",
+                "source_offering_id": "",
+                "source": "ats",
+                "meeting_days": "MON",
+                "time_start": "09:00",
+                "time_end": "10:00",
+            },
+        ]
+
+        inventory = self.sync.fetch_active_hks_schedule_inventory(Mock(return_value=response))
+
+        self.assertEqual(inventory, {"myh|one": True, "myh|two": False})
 
     def test_stages_before_optional_promotion(self):
         run_response = Mock(ok=True, content=b"yes")
@@ -106,8 +309,10 @@ class MyHarvardSyncTests(unittest.TestCase):
         stage_response = Mock(ok=True, content=b"yes")
         stage_response.json.return_value = 1
 
+        rows = self.sync.parse_cards(CARD)
+        rows[0].pop("_schedule_pending_advertised")
         with patch.object(self.sync.requests, "post", side_effect=[run_response, stage_response]) as post:
-            run_id, staged = self.sync.stage(self.sync.parse_cards(CARD))
+            run_id, staged = self.sync.stage(rows)
 
         self.assertEqual((run_id, staged), ("run-id", 1))
         self.assertIn("live_catalogue_runs", post.call_args_list[0].args[0])
@@ -115,6 +320,9 @@ class MyHarvardSyncTests(unittest.TestCase):
         run_manifest = post.call_args_list[0].kwargs["json"]
         self.assertEqual(len(run_manifest["identity_sha256"]), 64)
         self.assertEqual(run_manifest["term_counts"], {"2026 Fall": 1})
+
+        with self.assertRaisesRegex(RuntimeError, "must not be staged"):
+            self.sync.stage(self.sync.parse_cards(CARD))
 
     def test_reads_every_active_hks_identity_with_stable_pagination(self):
         self.sync.SUPABASE_PAGE_SIZE = 1
