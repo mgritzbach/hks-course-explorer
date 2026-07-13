@@ -402,8 +402,12 @@ def _fetch_course_page(
             last_error = f"HTTP {response.status_code}"
             if response.status_code not in RETRYABLE_STATUS_CODES:
                 break
-        except (requests.RequestException, ValueError) as exc:
-            last_error = str(exc)
+        except requests.RequestException:
+            # Provider exceptions can contain prepared URLs and query strings.
+            # Keep only a bounded reason code in logs and summaries.
+            last_error = "request failed"
+        except ValueError:
+            last_error = "invalid Harvard response"
 
         if attempt < HTTP_MAX_ATTEMPTS - 1:
             delay = min(30, 2 ** attempt)
@@ -587,12 +591,13 @@ def supabase_inventory_live_courses(request_get=requests.get):
             },
             params={
                 "select": (
-                    "id,school,term,source,active,is_hks,sync_run_id,"
-                    "source_course_id,source_offering_id,synced_at"
+                    "id,school,term,course_code,session_code,source,active,is_hks,"
+                    "sync_run_id,source_course_id,source_offering_id,synced_at"
                 ),
                 "order": "id.asc",
             },
             timeout=30,
+            allow_redirects=False,
         )
         if not response.ok:
             raise RuntimeError(f"Live-course inventory failed: HTTP {response.status_code}")
@@ -641,6 +646,7 @@ def supabase_inventory_catalogue_runs(request_get=requests.get):
             },
             params=params,
             timeout=30,
+            allow_redirects=False,
         )
         if not response.ok:
             raise RuntimeError(f"Catalogue-run inventory failed: HTTP {response.status_code}")
@@ -703,6 +709,7 @@ def supabase_active_hks_source_course_ids(request_get=requests.get):
             },
             params=params,
             timeout=30,
+            allow_redirects=False,
         )
         if not response.ok:
             raise RuntimeError(
@@ -749,6 +756,66 @@ def compare_live_course_inventory(source_rows, database_rows, catalogue_runs):
     return classify_live_course_inventory(source_rows, database_rows, catalogue_runs)
 
 
+def collect_general_source_rows(*, fetcher=None, session_factory=None):
+    """Collect the configured non-HKS ATS source without database I/O.
+
+    The daily sync and retained-row audit must reconstruct the current source
+    using the same schools, seed queries, pagination, retry, and duplicate-merge
+    rules. Keeping that boundary in one helper prevents audit drift.
+
+    The optional callables exist for deterministic offline tests and resolve at
+    call time so patches of ``fetch_school`` still exercise the production path.
+    """
+    fetcher = fetcher or fetch_school
+    session_factory = session_factory or requests.Session
+    all_rows: dict[str, dict] = {}
+    failures: list[FetchResult] = []
+    tasks = [
+        (school, query)
+        for school in GENERAL_SYNC_SCHOOLS
+        for query in SEED_QUERIES
+    ]
+    log.info("Total API calls planned: %d", len(tasks))
+
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        futures = {
+            # requests.Session is not documented as thread-safe; use an
+            # isolated session per request rather than sharing connection state.
+            pool.submit(fetcher, school, query, session_factory()): (school, query)
+            for school, query in tasks
+        }
+        for future in as_completed(futures):
+            school, query = futures[future]
+            try:
+                result = future.result()
+            except Exception:
+                # A worker exception can embed request/credential material.
+                result = FetchResult(school, query, [], False, "worker crashed")
+            if not result.success:
+                failures.append(result)
+                continue
+
+            new = 0
+            for row in result.rows:
+                if row["id"] not in all_rows:
+                    all_rows[row["id"]] = row
+                    new += 1
+                else:
+                    all_rows[row["id"]] = merge_duplicate_course(
+                        all_rows[row["id"]], row
+                    )
+            log.info(
+                "  %-6s q=%-6s → %d returned, %d new (total unique: %d)",
+                school,
+                query,
+                len(result.rows),
+                new,
+                len(all_rows),
+            )
+
+    return all_rows, failures, tasks
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -770,38 +837,7 @@ def main():
     log.info("Non-HKS schools: %s", GENERAL_SYNC_SCHOOLS)
     log.info("Seed queries: %s  Workers: %d", SEED_QUERIES, WORKERS)
 
-    all_rows: dict[str, dict] = {}  # id → row
-
-    failures: list[FetchResult] = []
-    tasks = [(school, q) for school in GENERAL_SYNC_SCHOOLS for q in SEED_QUERIES]
-    log.info("Total API calls planned: %d", len(tasks))
-
-    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        futures = {
-            # requests.Session is not documented as thread-safe; use an
-            # isolated session per request rather than sharing connection state.
-            pool.submit(fetch_school, school, q, requests.Session()): (school, q)
-            for school, q in tasks
-        }
-        for fut in as_completed(futures):
-            school, q = futures[fut]
-            try:
-                result = fut.result()
-            except Exception as exc:
-                result = FetchResult(school, q, [], False, f"worker crashed: {exc}")
-            if not result.success:
-                failures.append(result)
-                continue
-            rows = result.rows
-            new = 0
-            for row in rows:
-                if row["id"] not in all_rows:
-                    all_rows[row["id"]] = row
-                    new += 1
-                else:
-                    all_rows[row["id"]] = merge_duplicate_course(all_rows[row["id"]], row)
-            log.info("  %-6s q=%-6s → %d returned, %d new (total unique: %d)",
-                     school, q, len(rows), new, len(all_rows))
+    all_rows, failures, tasks = collect_general_source_rows()
 
     if failures:
         failed_calls = ", ".join(f"{result.school}/{result.query} ({result.error})" for result in failures)

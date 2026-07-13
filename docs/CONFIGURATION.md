@@ -39,6 +39,7 @@ Pages too if Pages can create builds outside this workflow.
 | `SUPABASE_URL` | Yes | REST/client endpoint for trusted data-sync scripts. |
 | `SUPABASE_KEY` | Yes | Supabase service-role/secret key for trusted scripts only. |
 | `HARVARD_API_KEY` | Yes | Harvard ATS API key used by the non-HKS sync script. |
+| `RETAINED_ATS_AUDIT_HMAC_KEY` | Manual retained-row audit only | Persistent operator-held secret of at least 32 UTF-8 bytes. It creates stable pseudonymous course tokens and authenticates the local history chain. Never reuse an application/database secret, put it on a command line, or add it to Cloudflare/GitHub. |
 | `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated non-HKS results required before the ATS sync writes. Script default: `1`; production uses `5000` against the reviewed 5,607-row accepted baseline from exact-master run `29189143811`. |
 | `SYNC_ALLOW_STALE_DELETE` | No | Retired safety flag. Any `true` value makes the sync fail before Harvard or database activity; this workflow never deletes rows. |
 | `MYHARVARD_MIN_HKS_OFFERINGS` | No | Minimum complete HKS offerings required before staging/promotion; production uses `285` against the current 297-row catalogue. |
@@ -49,7 +50,7 @@ course guard is not met. It accepts only the exact non-HKS school set in
 `GENERAL_SYNC_SCHOOLS`; before writing, it removes ATS course IDs present in
 the active authoritative my.harvard HKS set. The service-only RPC independently
 rejects both HKS-labelled rows and authoritative HKS course IDs, then explicitly
-activates accepted non-HKS rows. It requests Harvard's documented 1,000-record pages
+activates accepted non-HKS rows. It requests conservative 250-record Harvard pages
 and follows only provider-issued HTTPS scroll links. It never follows a redirect
 after attaching the Harvard API key; an invalid, repeated, redirected, or failed
 page aborts the whole run. It passes the complete validated payload to the
@@ -69,6 +70,14 @@ only counts, bounded age/school/term buckets, and a SHA-256 digest of the sorted
 actionable IDs; it never emits course IDs or content. That evidence does not
 authorize deletion or deactivation; any keep/retire decision requires a
 separately reviewed backup and restore plan.
+
+`scripts/audit_retained_ats.py` is a separate manual, local-only evidence tool.
+It requires the same three read credentials plus
+`RETAINED_ATS_AUDIT_HMAC_KEY`. It is intentionally absent from workflows and
+accepts no secret or course-ID command-line argument. Its only optional CLI
+input is a history path under ignored `artifacts/`, or an absolute path outside
+the repository. Supabase access is paginated GET-only; Harvard access is a
+single paced worker using exact `courseID` lookups without a school facet.
 
 The separate my.harvard job stages every student-facing HKS offering under a
 run ID, verifies the upstream advertised count and configured minimum, then
