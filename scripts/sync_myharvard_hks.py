@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sys
+import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html.parser import HTMLParser
@@ -27,6 +28,8 @@ PAGE_SIZE = 15
 SUPABASE_PAGE_SIZE = 1_000
 MAX_ACTIVE_HKS_ROWS = 10_000
 DETAIL_WORKERS = 4
+DETAIL_MAX_ATTEMPTS = 3
+DETAIL_RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
 MIN_HKS_OFFERINGS = int(os.environ.get("MYHARVARD_MIN_HKS_OFFERINGS", "250"))
 PROMOTE = os.environ.get("MYHARVARD_PROMOTE", "false").lower() == "true"
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -59,6 +62,120 @@ def plain_text(fragment: str) -> str:
     parser = TextExtractor()
     parser.feed(fragment)
     return parser.text()
+
+
+class ScheduleParseError(RuntimeError):
+    """Raised when a published meeting pattern cannot be represented safely."""
+
+
+DAY_LABELS = {
+    "sunday": "SUN",
+    "monday": "MON",
+    "tuesday": "TUE",
+    "wednesday": "WED",
+    "thursday": "THU",
+    "friday": "FRI",
+    "saturday": "SAT",
+}
+DAY_ORDER = tuple(DAY_LABELS.values())
+TIME_RANGE_PATTERN = re.compile(
+    r"(\d{1,2}:\d{2}\s*(?:am|pm))\s*[-\N{EN DASH}\N{EM DASH}]\s*"
+    r"(\d{1,2}:\d{2}\s*(?:am|pm))",
+    re.I,
+)
+
+
+def normalize_schedule_time(value: str) -> str:
+    """Normalize one explicit my.harvard 12-hour time to ``HH:MM``."""
+    match = re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*(am|pm)\s*", value, re.I)
+    if not match:
+        raise ScheduleParseError(f"Unsupported my.harvard meeting time: {value!r}")
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    if not 1 <= hour <= 12 or not 0 <= minute <= 59:
+        raise ScheduleParseError(f"Invalid my.harvard meeting time: {value!r}")
+    if match.group(3).lower() == "am":
+        hour = 0 if hour == 12 else hour
+    elif hour != 12:
+        hour += 12
+    return f"{hour:02d}:{minute:02d}"
+
+
+def parse_course_schedule(detail_html: str, *, pending_advertised: bool = False) -> dict:
+    """Parse one exact offering's public meeting pattern without guessing.
+
+    An offering with no selected weekdays and no time range is legitimately
+    schedule-pending.  Partial or multi-interval patterns fail closed because
+    the current ``live_courses`` columns can represent only one time interval.
+    """
+    block = re.search(
+        r'<div\b[^>]*\bid="course-time"[^>]*>(.*?)<!--\s*End Time\s*-->',
+        detail_html,
+        re.I | re.S,
+    )
+    if not block:
+        raise ScheduleParseError("my.harvard detail page is missing #course-time")
+
+    selected_labels = re.findall(
+        r'aria-label="\s*([A-Za-z]+)\s*,\s*selected\s*"',
+        block.group(1),
+        re.I,
+    )
+    selected_days = []
+    for label in selected_labels:
+        day = DAY_LABELS.get(label.lower())
+        if not day:
+            raise ScheduleParseError(f"Unknown selected my.harvard weekday: {label!r}")
+        if day not in selected_days:
+            selected_days.append(day)
+    selected_days.sort(key=DAY_ORDER.index)
+
+    raw_ranges = TIME_RANGE_PATTERN.findall(plain_text(block.group(1)))
+    normalized_ranges = {
+        (normalize_schedule_time(start), normalize_schedule_time(end))
+        for start, end in raw_ranges
+    }
+
+    if not selected_days and not normalized_ranges and pending_advertised:
+        return {
+            "state": "pending",
+            "meetings": [],
+            "meeting_days": "",
+            "time_start": "",
+            "time_end": "",
+            "location": "",
+        }
+    if not selected_days and not normalized_ranges:
+        raise ScheduleParseError(
+            "my.harvard detail meeting block is empty without an explicit TBA source signal"
+        )
+    if not selected_days or not normalized_ranges:
+        raise ScheduleParseError(
+            "my.harvard published a partial meeting pattern (selected days and time must both exist)"
+        )
+    if len(normalized_ranges) != 1:
+        raise ScheduleParseError(
+            "my.harvard published multiple meeting intervals that live_courses cannot represent"
+        )
+
+    start, end = next(iter(normalized_ranges))
+    start_minutes = int(start[:2]) * 60 + int(start[3:])
+    end_minutes = int(end[:2]) * 60 + int(end[3:])
+    if end_minutes <= start_minutes:
+        raise ScheduleParseError("my.harvard meeting end time must be after its start time")
+
+    meetings = [
+        {"day": day, "start": start, "end": end, "location": ""}
+        for day in selected_days
+    ]
+    return {
+        "state": "scheduled",
+        "meetings": meetings,
+        "meeting_days": "/".join(selected_days),
+        "time_start": start,
+        "time_end": end,
+        "location": "",
+    }
 
 
 def format_base_code(raw_code: str) -> str:
@@ -186,12 +303,22 @@ def parse_cards(hits_html: str) -> list[dict]:
                 "course_offer_nbr": offer_nbr.group(1),
                 "section_code": section_code,
                 "source_url": urljoin(MYHARVARD_BASE, source_url),
+                # This evidence is internal to the ingestion process and is
+                # removed before staging. An empty detail block is accepted as
+                # pending only when the offering card explicitly says TBA.
+                "_schedule_pending_advertised": bool(
+                    re.search(
+                        r"<!--\s*Week Days:\s*To Be Announced\s*-->",
+                        fragment,
+                        re.I,
+                    )
+                ),
             }
         )
     return cards
 
 
-def parse_course_details(detail_html: str) -> dict:
+def parse_course_details(detail_html: str, *, pending_advertised: bool = False) -> dict:
     credits_match = re.search(
         r">Credits</strong>\s*<span>([^<]+)</span>", detail_html, re.I | re.S
     )
@@ -212,23 +339,86 @@ def parse_course_details(detail_html: str) -> dict:
         cross_reg = "YESXREG"
     else:
         cross_reg = ""
-    return {"credits": credits, "cross_reg_eligible": cross_reg}
+    schedule = parse_course_schedule(
+        detail_html,
+        pending_advertised=pending_advertised,
+    )
+    return {
+        "credits": credits,
+        "cross_reg_eligible": cross_reg,
+        "location": schedule["location"],
+        "meeting_days": schedule["meeting_days"],
+        "time_start": schedule["time_start"],
+        "time_end": schedule["time_end"],
+    }
+
+
+def fetch_detail_html(source_url: str) -> str:
+    """Fetch one exact offering detail with bounded retry and fail-closed errors."""
+    last_error: Exception | None = None
+    for attempt in range(DETAIL_MAX_ATTEMPTS):
+        try:
+            response = requests.get(
+                source_url,
+                headers={"User-Agent": REQUEST_HEADERS["User-Agent"], "Accept": "text/html"},
+                timeout=30,
+                allow_redirects=False,
+            )
+            if 300 <= response.status_code < 400:
+                raise RuntimeError("my.harvard offering detail redirect was refused")
+            if response.ok:
+                final_url = getattr(response, "url", source_url)
+                if isinstance(final_url, str) and final_url.rstrip("/") != source_url.rstrip("/"):
+                    raise RuntimeError("my.harvard offering detail response URL changed")
+                return response.text
+            if response.status_code not in DETAIL_RETRYABLE_STATUS_CODES:
+                response.raise_for_status()
+            last_error = RuntimeError(
+                f"my.harvard detail request returned retryable HTTP {response.status_code}"
+            )
+        except requests.HTTPError:
+            # Authentication, authorization, or a changed exact source URL is
+            # not transient; retrying would only delay the fail-closed result.
+            raise
+        except requests.RequestException as exc:
+            last_error = exc
+        if attempt + 1 < DETAIL_MAX_ATTEMPTS:
+            time.sleep(0.25 * (2**attempt))
+    raise RuntimeError(
+        f"Could not verify my.harvard offering detail after {DETAIL_MAX_ATTEMPTS} attempts: "
+        f"{source_url}"
+    ) from last_error
 
 
 def enrich_offering_details(rows: list[dict]) -> list[dict]:
-    groups: dict[tuple[str, str, str], list[dict]] = {}
+    # Meeting schedules are section-specific.  Reuse a response only when the
+    # exact public source URL is identical; grouping by course identity can
+    # silently copy one section's time onto another section.
+    groups: dict[str, list[dict]] = {}
     for row in rows:
-        key = (row["term"], row["source_course_id"], row["course_offer_nbr"])
-        groups.setdefault(key, []).append(row)
+        source_url = row.get("source_url")
+        offering_id = row.get("id")
+        if not isinstance(source_url, str) or not source_url:
+            raise ScheduleParseError("HKS offering is missing its exact source URL")
+        if not isinstance(offering_id, str) or not offering_id:
+            raise ScheduleParseError("HKS offering is missing its exact identity")
+        group = groups.setdefault(source_url, [])
+        if group and any(existing.get("id") != offering_id for existing in group):
+            raise ScheduleParseError(
+                "Distinct HKS offering identities share one source URL; refusing schedule reuse"
+            )
+        group.append(row)
 
     def fetch_detail(group_rows: list[dict]) -> dict:
-        response = requests.get(
-            group_rows[0]["source_url"],
-            headers={"User-Agent": REQUEST_HEADERS["User-Agent"], "Accept": "text/html"},
-            timeout=30,
+        pending_signals = {
+            bool(row.get("_schedule_pending_advertised")) for row in group_rows
+        }
+        if len(pending_signals) != 1:
+            raise ScheduleParseError("Identical HKS offering rows disagree on their TBA signal")
+        details = parse_course_details(
+            fetch_detail_html(group_rows[0]["source_url"]),
+            pending_advertised=pending_signals.pop(),
         )
-        response.raise_for_status()
-        details = parse_course_details(response.text)
         if details["credits"] is None:
             raise RuntimeError(f"Credits missing from {group_rows[0]['source_url']}")
         return details
@@ -240,7 +430,27 @@ def enrich_offering_details(rows: list[dict]) -> list[dict]:
             details = future.result()
             for row in group_rows:
                 row.update(details)
+                row.pop("_schedule_pending_advertised", None)
     return rows
+
+
+def count_schedule_states(rows: list[dict]) -> tuple[int, int]:
+    """Prove every offering is either fully scheduled or fully pending."""
+    scheduled = 0
+    pending = 0
+    for row in rows:
+        fields = [row.get("meeting_days"), row.get("time_start"), row.get("time_end")]
+        if all(fields):
+            scheduled += 1
+        elif not any(fields):
+            pending += 1
+        else:
+            raise ScheduleParseError(
+                f"Offering {row.get('id')!r} contains a partial normalized meeting pattern"
+            )
+    if scheduled + pending != len(rows):
+        raise RuntimeError("Schedule-state partition did not cover every HKS offering")
+    return scheduled, pending
 
 
 def fetch_all_hks_offerings(session: requests.Session | None = None) -> list[dict]:
@@ -391,6 +601,82 @@ def fetch_active_hks_storage_inventory(request_get=requests.get) -> dict[str, st
         offset += SUPABASE_PAGE_SIZE
 
 
+def fetch_active_hks_schedule_inventory(request_get=requests.get) -> dict[str, bool]:
+    """Read the persisted schedule state for each active authoritative offering."""
+    inventory: dict[str, bool] = {}
+    offset = 0
+    while True:
+        response = request_get(
+            f"{SUPABASE_URL}/rest/v1/live_courses",
+            headers=supabase_headers(),
+            params={
+                "select": "id,source_offering_id,source,meeting_days,time_start,time_end",
+                "active": "eq.true",
+                "is_hks": "eq.true",
+                "order": "id.asc",
+                "limit": str(SUPABASE_PAGE_SIZE),
+                "offset": str(offset),
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, list) or any(not isinstance(row, dict) for row in payload):
+            raise RuntimeError("Supabase returned an invalid active HKS schedule inventory")
+        for row in payload:
+            # A legacy ATS rollback baseline has no authoritative my.harvard
+            # identity and therefore supplies no schedule-regression baseline.
+            if row.get("source") != "myharvard":
+                continue
+            offering_id = row.get("source_offering_id")
+            if not isinstance(offering_id, str) or not offering_id:
+                raise RuntimeError(
+                    "Supabase returned an active my.harvard schedule without a source identity"
+                )
+            if offering_id in inventory:
+                raise RuntimeError("Supabase returned a duplicate active HKS schedule identity")
+            fields = [row.get("meeting_days"), row.get("time_start"), row.get("time_end")]
+            if all(fields):
+                inventory[offering_id] = True
+            elif not any(fields):
+                inventory[offering_id] = False
+            else:
+                raise RuntimeError(
+                    "Supabase returned a partial active HKS schedule representation"
+                )
+        if len(inventory) > MAX_ACTIVE_HKS_ROWS:
+            raise RuntimeError("Active HKS schedule inventory exceeds the safe verification limit")
+        if len(payload) < SUPABASE_PAGE_SIZE:
+            return inventory
+        offset += SUPABASE_PAGE_SIZE
+
+
+def verify_schedule_non_regression(rows: list[dict], previous: dict[str, bool]) -> None:
+    """Refuse to blank a published schedule for the same active offering."""
+    current: dict[str, bool] = {}
+    for row in rows:
+        offering_id = row.get("id")
+        if not isinstance(offering_id, str) or not offering_id or offering_id in current:
+            raise ScheduleParseError("Current HKS schedule inventory has an invalid identity")
+        fields = [row.get("meeting_days"), row.get("time_start"), row.get("time_end")]
+        if all(fields):
+            current[offering_id] = True
+        elif not any(fields):
+            current[offering_id] = False
+        else:
+            raise ScheduleParseError("Current HKS schedule inventory contains a partial pattern")
+
+    lost_schedules = sum(
+        1
+        for offering_id, was_scheduled in previous.items()
+        if was_scheduled and offering_id in current and not current[offering_id]
+    )
+    if lost_schedules:
+        raise ScheduleParseError(
+            f"Refusing to blank {lost_schedules} previously scheduled active HKS offering(s)"
+        )
+
+
 def verify_promoted_inventory(rows: list[dict], inventory: dict[str, str]) -> str:
     """Require exact upstream-to-production identity equality and return its audit digest."""
     expected_ids = {row.get("id") for row in rows}
@@ -428,6 +714,8 @@ def build_manifest(rows: list[dict]) -> tuple[str, dict[str, int]]:
 
 
 def stage(rows: list[dict]) -> tuple[str, int]:
+    if any("_schedule_pending_advertised" in row for row in rows):
+        raise RuntimeError("Internal my.harvard TBA evidence must not be staged")
     digest, term_counts = build_manifest(rows)
     run_rows = post_json(
         "live_catalogue_runs?select=id",
@@ -492,7 +780,13 @@ def main() -> None:
     if not SUPABASE_URL or not SUPABASE_KEY:
         sys.exit("SUPABASE_URL and SUPABASE_KEY are required")
     rows = enrich_offering_details(fetch_all_hks_offerings())
+    scheduled, pending = count_schedule_states(rows)
+    verify_schedule_non_regression(rows, fetch_active_hks_schedule_inventory())
     counts = Counter(row["term"] for row in rows)
+    print(
+        f"Verified {len(rows)} HKS offering schedules: "
+        f"{scheduled} scheduled, {pending} schedule pending"
+    )
     run_id, staged = stage(rows)
     print(f"Staged {staged} HKS offerings in run {run_id}; terms: {dict(sorted(counts.items()))}")
     if PROMOTE:

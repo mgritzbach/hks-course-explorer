@@ -36,6 +36,10 @@ provider keys, OTP delivery, and JWT signing run outside the browser.
   Active HKS rows are owned only by the my.harvard promotion; the general ATS
   sync owns non-HKS rows. A failed sync must preserve the previously served
   catalogue.
+- HKS meeting facts are section-level: the sync reads each exact my.harvard
+  offering URL and never carries a course-level schedule across sections.
+  Unpublished/TBA meetings remain explicit schedule-pending rows rather than
+  being dropped or filled from older terms.
 - Browser local storage is a convenience copy for personal planning; it is not a
   substitute for a backed-up authenticated schedule service.
 - Term formats are intentionally different: live courses use `YYYY Semester`,

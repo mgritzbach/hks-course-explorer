@@ -28,6 +28,14 @@ class SyncWorkflowConfigTests(unittest.TestCase):
         self.assertIn("group: hks-production-catalogue-sync", myharvard)
         self.assertIn("MYHARVARD_MIN_HKS_OFFERINGS: '285'", myharvard)
 
+    def test_manual_hks_sync_is_staging_only_unless_explicitly_promoted(self):
+        myharvard = (ROOT / ".github" / "workflows" / "sync-myharvard-hks.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("promote:", myharvard)
+        self.assertIn("default: false", myharvard)
+        self.assertIn("github.event_name == 'schedule' || inputs.promote", myharvard)
+
 
 if __name__ == "__main__":
     unittest.main()

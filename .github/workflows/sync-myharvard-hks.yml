@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: '30 7 * * *'
   workflow_dispatch:
+    inputs:
+      promote:
+        description: 'Atomically promote after staging and verification'
+        required: true
+        type: boolean
+        default: false
 
 concurrency:
   group: hks-production-catalogue-sync
@@ -31,5 +37,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           MYHARVARD_MIN_HKS_OFFERINGS: '285'
-          MYHARVARD_PROMOTE: 'true'
+          # Scheduled runs keep the daily catalogue current. Manual runs are
+          # staging-only by default so a new parser/source state can be
+          # inspected without changing the active catalogue.
+          MYHARVARD_PROMOTE: ${{ github.event_name == 'schedule' || inputs.promote }}
         run: python scripts/sync_myharvard_hks.py
