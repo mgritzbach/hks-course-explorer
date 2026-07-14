@@ -288,9 +288,44 @@ export default function Home({
   // Mobile: scatter plot is hidden by default to show course list immediately
   const [showPlotMobile, setShowPlotMobile] = useState(false)
   // Mounting Plotly is intentionally separated from the toggle interaction.
-  // This lets the browser paint the expanded panel immediately, then performs
-  // the heavier chart work in a later task instead of charging it to INP.
+  // The toggle paints first, then the panel expands and performs the heavier
+  // chart work in later frames instead of charging it to INP.
   const [renderPlotMobile, setRenderPlotMobile] = useState(false)
+  const showPlotToggleFrames = useRef({ first: undefined, second: undefined })
+
+  const togglePlotMobile = useCallback(() => {
+    const { first, second } = showPlotToggleFrames.current
+    if (first !== undefined) window.cancelAnimationFrame(first)
+    if (second !== undefined) window.cancelAnimationFrame(second)
+    showPlotToggleFrames.current = { first: undefined, second: undefined }
+
+    if (showPlotMobile) {
+      setShowPlotMobile(false)
+      return
+    }
+
+    if (typeof window.requestAnimationFrame !== 'function') {
+      setShowPlotMobile(true)
+      return
+    }
+
+    showPlotToggleFrames.current.first = window.requestAnimationFrame(() => {
+      showPlotToggleFrames.current.second = window.requestAnimationFrame(() => {
+        showPlotToggleFrames.current = { first: undefined, second: undefined }
+        setShowPlotMobile(true)
+      })
+    })
+  }, [showPlotMobile])
+
+  useEffect(
+    () => () => {
+      const { first, second } = showPlotToggleFrames.current
+      if (first !== undefined) window.cancelAnimationFrame(first)
+      if (second !== undefined) window.cancelAnimationFrame(second)
+    },
+    [],
+  )
+
   const isMobileViewport = useMobileViewport()
   const shouldRenderPlot = !isMobileViewport || renderPlotMobile
 
@@ -848,7 +883,7 @@ export default function Home({
           {/* Mobile toggle for scatter plot */}
           <button
             type="button"
-            onClick={() => setShowPlotMobile((v) => !v)}
+            onClick={togglePlotMobile}
             className="md:hidden rounded-full border px-3 py-2 text-xs font-semibold transition-all"
             style={{
               borderColor: 'var(--line)',
