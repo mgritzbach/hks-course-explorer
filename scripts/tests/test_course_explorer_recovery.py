@@ -190,6 +190,30 @@ class CourseExplorerRecoveryTests(unittest.TestCase):
         self.assertEqual([row["id"] for row in validated], ["schedule-a", "schedule-z"])
         self.assertEqual([row["id"] for row in rows], ["schedule-z", "schedule-a"])
 
+    def test_pre_migration_backup_synthesizes_only_the_reviewed_nullable_column(self):
+        current = row_for(self.exporter, "live_courses", "live-current")
+        legacy = dict(current)
+        legacy.pop("source_last_seen_at")
+
+        validated = self.exporter._validate_rows("live_courses", [legacy])
+
+        self.assertEqual(validated[0]["id"], "live-current")
+        self.assertIn("source_last_seen_at", validated[0])
+        self.assertIsNone(validated[0]["source_last_seen_at"])
+        self.assertNotIn("source_last_seen_at", legacy)
+
+        missing_two = dict(legacy)
+        missing_two.pop("term")
+        with self.assertRaisesRegex(RuntimeError, "reviewed column contract"):
+            self.exporter._validate_rows("live_courses", [missing_two])
+
+        extra = {**legacy, "unexpected": None}
+        with self.assertRaisesRegex(RuntimeError, "reviewed column contract"):
+            self.exporter._validate_rows("live_courses", [extra])
+
+        with self.assertRaisesRegex(RuntimeError, "reviewed column contract"):
+            self.exporter._validate_rows("live_courses", [legacy, current])
+
     def test_validator_round_trip_and_tamper_fail_closed(self):
         from scripts import verify_course_explorer_recovery as verifier
 

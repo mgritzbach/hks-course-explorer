@@ -90,6 +90,14 @@ TABLE_COLUMNS = {
     ),
 }
 
+# A recovery point must exist before the migration that adds this nullable
+# column. The exporter accepts only this exact pre-migration shape and records
+# the absent value as null so the package can be restored into the reviewed
+# post-migration schema. No other missing or extra column is tolerated.
+PRE_MIGRATION_NULLABLE_COLUMNS = {
+    "live_courses": frozenset({"source_last_seen_at"}),
+}
+
 MINIMUM_ROWS = {
     "courses": 5_000,
     # Production held 265 retained rows when this boundary was reviewed. A
