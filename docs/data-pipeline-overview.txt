@@ -2,9 +2,20 @@ HKS COURSE EXPLORER DATA PIPELINE
 
 Historical evaluations:
   data/canonical_courses_enriched.csv
+  data/historical_parity_registry.json
     -> scripts/build_data.py
     -> public/courses.json and public/sim_coords.json
-    -> static CDN assets used by the React application
+    -> reviewed Supabase migration for one same-ID evaluation enrichment and
+       canonical-only observations
+    -> Supabase courses (course cards, comparisons, faculty, evaluation graphs)
+    -> public/sim_coords.json (content-similarity coordinates only)
+
+The parity registry is a versioned reconciliation manifest, not a second set of
+ratings. It retains an existing database ID only for a unique observation with
+the same course/professor/term identity, aggregate provenance, respondent count,
+ratings, and evaluation/bidding state. It separately preserves every database-
+only observation and every genuinely distinct canonical observation. It never
+deletes, rekeys, or transfers ratings between observations.
 
 Current offerings:
   my.harvard
@@ -29,9 +40,8 @@ Section meeting data:
 
 Safety rules:
 - The canonical CSV is reviewed input; build validation rejects fatal data errors.
-- Generated duplicate course IDs are reported with the conflicting IDs. They
-  retain legacy last-write-wins behavior during loading and must be resolved
-  before any controlled promotion.
+- Generated duplicate course IDs fail the trusted loader before a database
+  client is created; last-write-wins is not an accepted promotion behavior.
 - Any failed source request aborts a live-sync run before upsert or stale deletion.
 - The general ATS sync excludes HKS; only a count-verified my.harvard run may
   change the active HKS catalogue.

@@ -6,9 +6,12 @@ from pathlib import Path
 import re
 import math
 
+from historical_parity_reconciliation import apply_registry, load_registry
+
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_CSV = ROOT / "data" / "canonical_courses_enriched.csv"
+HISTORICAL_PARITY_REGISTRY = ROOT / "data" / "historical_parity_registry.json"
 OUTPUT_JSON = ROOT / "public" / "courses.json"
 SIM_HASH_FILE = ROOT / "data" / "sim_coords_source.md5"
 SIM_COORDINATE_FIELDS = (
@@ -25,6 +28,24 @@ def stable_source_hash(path):
     """Hash text input independently of the checkout platform's line endings."""
     normalized = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
     return hashlib.md5(normalized).hexdigest()
+
+
+def stable_source_sha256(path):
+    normalized = Path(path).read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.sha256(normalized).hexdigest()
+
+
+def catalogue_source_hash(paths):
+    """Hash every reviewed catalogue input, independent of line endings."""
+    digest = hashlib.md5()
+    for path in paths:
+        source = Path(path)
+        normalized = source.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        digest.update(source.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(normalized)
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 # Load school-specific config from data/school_config.json
 # Forks replace that file — no changes to this script needed.
@@ -620,6 +641,74 @@ def build_course(row, latest_bid_lookup):
     }
 
 
+def prepare_preserved_course(row):
+    """Convert one reviewed database-only row to the browser data contract.
+
+    The registry stores the exact public database representation for audit
+    provenance. This adapter restores frontend-only derived fields without
+    changing the immutable ID or any evaluation/bidding value.
+    """
+    metrics_raw = row.get("metrics_raw") if isinstance(row.get("metrics_raw"), dict) else {}
+    metrics_pct = row.get("metrics_pct") if isinstance(row.get("metrics_pct"), dict) else {}
+    metrics_score = {}
+    for metric in METRICS:
+        key = metric["key"]
+        if metric.get("bid_metric"):
+            metrics_score[key] = None
+            continue
+        raw_value = parse_float(metrics_raw.get(key))
+        metrics_score[key] = round(raw_value / 5.0 * 100, 1) if raw_value is not None else None
+
+    course_code = clean_text(row.get("course_code"))
+    course_code_base = clean_text(row.get("course_code_base")) or course_code
+    professor = clean_text(row.get("professor"))
+    return {
+        "id": clean_text(row.get("id")),
+        "course_code": course_code,
+        "course_code_base": course_code_base,
+        "historical_code": course_code_base if course_code_base in HISTORICAL_CODE_MAP else None,
+        "canonical_code_base": HISTORICAL_CODE_MAP.get(course_code_base, course_code_base),
+        "concentration": concentration_from_code(course_code_base or course_code),
+        "year": parse_year(row.get("year")),
+        "term": clean_text(row.get("term")),
+        "professor": professor,
+        "professor_display": clean_text(row.get("professor_display")) or professor_display(professor),
+        "course_name": clean_text(row.get("course_name")),
+        "description": clean_text(row.get("description")),
+        "course_url": clean_text(row.get("course_url")),
+        "is_stem": parse_bool(row.get("is_stem")),
+        "is_core": parse_bool(row.get("is_core")),
+        "is_average": parse_bool(row.get("is_average")),
+        "year_range": nullable_text(row.get("year_range")),
+        "n_terms": parse_int(row.get("n_terms")),
+        "has_eval": parse_bool(row.get("has_eval")),
+        "has_bidding": parse_bool(row.get("has_bidding")),
+        "ever_bidding": parse_bool(row.get("ever_bidding")),
+        "n_respondents": parse_int(row.get("n_respondents")),
+        "metrics_raw": metrics_raw,
+        "metrics_pct": metrics_pct,
+        "metrics_score": metrics_score,
+        "instructor_label": instructor_label(metrics_raw.get("Instructor_Rating")),
+        "workload_label": workload_label(metrics_raw.get("Workload")),
+        "last_bid_price": parse_float(row.get("last_bid_price")),
+        "last_bid_acad": nullable_text(row.get("last_bid_acad")),
+        "last_bid_term": nullable_text(row.get("last_bid_term")),
+        "last_bid_capacity": parse_int(row.get("last_bid_capacity")),
+        "last_bid_n_bids": parse_int(row.get("last_bid_n_bids")),
+        "bid_clearing_price": parse_float(row.get("bid_clearing_price")),
+        "bid_academic_year": nullable_text(row.get("bid_academic_year")),
+        "bid_capacity": parse_int(row.get("bid_capacity")),
+        "bid_n_bids": parse_int(row.get("bid_n_bids")),
+        "stem_group": nullable_text(row.get("stem_group")),
+        "stem_school": nullable_text(row.get("stem_school")),
+        "faculty_title": nullable_text(row.get("faculty_title")),
+        "faculty_category": nullable_text(row.get("faculty_category")),
+        "meeting_days": parse_meeting_days(row.get("meeting_days")),
+        "meeting_time": nullable_text(row.get("time_start") or row.get("meeting_time")),
+        "meeting_time_end": nullable_text(row.get("time_end") or row.get("meeting_time_end")),
+    }
+
+
 def find_duplicate_course_ids(courses):
     """Return stable duplicate generated IDs for a source-data remediation queue."""
     seen = set()
@@ -697,6 +786,10 @@ def validate_rows(rows):
 def main():
     if not SOURCE_CSV.exists():
         raise FileNotFoundError(f"Canonical CSV not found: {SOURCE_CSV}")
+    if not HISTORICAL_PARITY_REGISTRY.exists():
+        raise FileNotFoundError(
+            f"Historical parity registry not found: {HISTORICAL_PARITY_REGISTRY}"
+        )
 
     with SOURCE_CSV.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle, delimiter=";"))
@@ -749,6 +842,29 @@ def main():
         if not course.get("meeting_time_end") and override.get("meeting_time_end"):
             course["meeting_time_end"] = override["meeting_time_end"]
 
+    reconciliation_registry = load_registry(HISTORICAL_PARITY_REGISTRY)
+    if stable_source_sha256(SOURCE_CSV) != reconciliation_registry["source"].get(
+        "canonical_source_sha256"
+    ):
+        raise RuntimeError(
+            "Canonical CSV drifted from the historical reconciliation registry; "
+            "regenerate and review the registry before building."
+        )
+    courses = apply_registry(courses, reconciliation_registry, prepare_preserved_course)
+    print(
+        "  Historical parity: "
+        f"{reconciliation_registry['result']['same_id_source_preservation_count']} "
+        "same-ID source rows preserved, "
+        f"{reconciliation_registry['result']['same_id_canonical_enrichment_count']} "
+        "same-ID canonical row enriched, "
+        f"{reconciliation_registry['result']['exact_observation_id_override_count']} "
+        "existing IDs retained, "
+        f"{reconciliation_registry['result']['preserved_database_only_count']} "
+        "database-only observations preserved, "
+        f"{reconciliation_registry['result']['additive_canonical_only_count']} "
+        "canonical-only observations retained"
+    )
+
     duplicate_ids = find_duplicate_course_ids(courses)
     if duplicate_ids:
         preview = ", ".join(duplicate_ids[:20])
@@ -762,7 +878,7 @@ def main():
     SIM_JSON = ROOT / "public" / "sim_coords.json"
     SIM_SRC  = ROOT / "src" / "data" / "sim_coords.json"
 
-    csv_hash = stable_source_hash(SOURCE_CSV)
+    csv_hash = catalogue_source_hash((SOURCE_CSV, HISTORICAL_PARITY_REGISTRY))
     cached_hash = SIM_HASH_FILE.read_text(encoding="utf-8").strip() if SIM_HASH_FILE.exists() else ""
     sim_coords_cached = SIM_JSON.exists() and SIM_SRC.exists() and csv_hash == cached_hash
 

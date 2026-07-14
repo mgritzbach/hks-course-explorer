@@ -117,6 +117,7 @@ Harvard Q-guide PDFs
        |  (Chrome extension scraper + AI cleaning pipeline)
        v
 data/canonical_courses_enriched.csv   <- ground truth
+data/historical_parity_registry.json  <- reviewed, non-destructive ID/observation reconciliation
        |  python scripts/build_data.py
        v
 public/courses.json  +  public/sim_coords.json
@@ -135,6 +136,13 @@ Harvard sections ---------------------------------------------------------------
 Both upstream catalogues are ingestion sources, not browser search
 dependencies. A failed daily sync leaves the prior verified catalogue in
 place; a student search never falls back to an on-demand upstream request.
+
+Historical reconciliation preserves all existing database observations. It
+reuses an existing immutable ID only for a unique, exact normalized
+observation; same-ID evaluation enrichment is explicitly digest-locked. It
+retains distinct section evaluations, bidding-only records, and one-sided
+history separately. No build step deletes, rekeys, or moves ratings between
+courses or professors.
 ```
 
 Full pipeline documentation: [docs/data-pipeline-overview.txt](docs/data-pipeline-overview.txt)
