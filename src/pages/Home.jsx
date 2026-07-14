@@ -298,18 +298,24 @@ export default function Home({
     if (!isMobileViewport || !showPlotMobile || renderPlotMobile) return undefined
 
     let timeoutId
-    const mountAfterPaint = () => {
-      timeoutId = window.setTimeout(() => setRenderPlotMobile(true), 0)
-    }
+    let secondFrameId
     const frameId =
       typeof window.requestAnimationFrame === 'function'
-        ? window.requestAnimationFrame(mountAfterPaint)
+        ? window.requestAnimationFrame(() => {
+            // A callback queued from inside rAF runs in the following frame.
+            // That guarantees the lightweight expanded state paints once
+            // before Plotly can begin its layout work.
+            secondFrameId = window.requestAnimationFrame(() => setRenderPlotMobile(true))
+          })
         : undefined
 
-    if (frameId === undefined) mountAfterPaint()
+    if (frameId === undefined) {
+      timeoutId = window.setTimeout(() => setRenderPlotMobile(true), 0)
+    }
 
     return () => {
       if (frameId !== undefined) window.cancelAnimationFrame(frameId)
+      if (secondFrameId !== undefined) window.cancelAnimationFrame(secondFrameId)
       if (timeoutId !== undefined) window.clearTimeout(timeoutId)
     }
   }, [isMobileViewport, renderPlotMobile, showPlotMobile])
