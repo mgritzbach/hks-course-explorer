@@ -13,7 +13,7 @@ smoke, and rollback evidence; goal completion never waives either constraint.
 | ID  | Priority | Canonical goal            | Verified progress | Status | Evidence required to mark 1                                                                                                                     |
 | --- | -------- | ------------------------- | ----------------: | -----: | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | G01 | P0       | Foundations / governance  |              100% |      1 | Protected release ownership, CI controls, fresh setup/review evidence, and final governance sign-off.                                           |
-| G02 | P0       | Data integrity            |               97% |      0 | Historical exact-ID parity. Protected ATS manifest rollout, recovery, HKS isolation, and live visibility are now proven.                       |
+| G02 | P0       | Data integrity            |              100% |      1 | Historical exact-ID parity, additive reconciliation, exact live verification, protected deployment, and pre/post recovery are proven.         |
 | G03 | P0       | Supabase reliability      |              100% |      1 | Production migration/RLS exercise, backup/restore proof, and continued database-health evidence.                                                |
 | G04 | P0       | Security                  |              100% |      1 | Owned Supabase/Cloudflare hardening, explicit shared-project advisor ownership, exact-commit release checks, and production smoke are complete. |
 | G05 | P1       | Navigation / usability    |              100% |      1 | Full visitor-flow acceptance across desktop/mobile plus production smoke evidence.                                                              |
@@ -26,9 +26,9 @@ smoke, and rollback evidence; goal completion never waives either constraint.
 
 The exact evidence and conservative audit behind this snapshot are recorded in
 [`docs/RELEASE_EVIDENCE_2026-07-12.md`](docs/RELEASE_EVIDENCE_2026-07-12.md).
-The evidence-weighted total is approximately 99.7%; ten of eleven goals are
-binary complete. G02 is the only incomplete goal. Percentages are not release
-waivers.
+The evidence-weighted total is 100%; all eleven goals are binary complete.
+Percentages are not release waivers, and every future release remains subject
+to the exact-commit, zero-cost, smoke, and rollback controls below.
 
 ## Required engineering loop
 
@@ -40,13 +40,17 @@ waivers.
 
 ## Current release boundary
 
-G02 is the only remaining corporate-readiness blocker. The retained non-HKS ATS
+All eleven corporate-readiness goals are complete. The retained non-HKS ATS
 population has a formal KEEP/no-delete disposition, and the current-only
 manifest has completed protected production rollout, recovery before and after
 promotion, exact master-only read-back, HKS-isolation verification, and focused
-live visibility proof. Historical exact-ID parity remains unresolved, so the
-data-integrity goal remains `0`. Course Advisor model quality is an optional,
-zero-cost product enhancement and is explicitly outside these goals.
+live visibility proof. Historical reconciliation then preserved all 5,812
+existing immutable IDs, enriched one exact same-ID observation in seven
+evaluation fields, added 20 distinct observations, and reached 5,832 unique
+IDs. Exact before/after verification, protected deployment, production browser
+smoke, and encrypted clean-room recovery passed. Course Advisor model quality
+is an optional, zero-cost product enhancement and is explicitly outside these
+goals.
 
 Named human screen-reader testing and acceptance by a future institutional
 successor remain valuable external acceptance activities, but neither event is

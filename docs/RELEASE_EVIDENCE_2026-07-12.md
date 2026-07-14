@@ -75,6 +75,7 @@ This historical snapshot is retained for audit provenance. Its former release bl
 | Source-aware non-HKS reconciliation  | Exact-master sync `29226825986` on master `14603f0`                                                                                                                                                                               | All 120 planned Harvard requests succeeded; 6,092 current ATS offerings were atomically upserted. The read-only ownership classifier then completed with 1,526 retained non-HKS ATS rows and queue digest `fbd0a26cc18c195150f6f8d6e402db69edf28f0227c3ad5911814518c04312a5`. No row was deleted or deactivated; later complete-source evidence supports the formal KEEP/no-delete disposition below.                                                                                             |
 | Protected ATS visibility rollout     | PR #97 / `b5c006a`; migration history `20260714105622`; sync `29327185269`; PR #98 / `4426024`; CI `29330676310`; deployment `29330914876`                                                                                       | The function-scoped 60-second promotion timeout retained `search_path=""`, browser execution remained denied, all 120 free public Harvard API calls succeeded, and 6,101 current ATS offerings were atomically promoted. The follow-up verifier is master-only, exact-SHA, read-only, serialized with catalogue writes, origin-locked, redirect-resistant, and aggregate-only. No Harvard login or personal session was used. Rollback is `ALTER FUNCTION public.sync_live_courses_atomically(jsonb) RESET statement_timeout;`.                                        |
 | ATS rollout recovery and live proof  | Pre-change backup/restore `29326913184`/`29326957582`; post-change backup/restore `29328037364`/`29328086860`; protected verifier `29331189018`                                                                                   | Both PostgreSQL 17 clean-room restores passed exact schema, row, digest, rollback, HKS-isolation, and cleanup checks. The verifier recomputed active run `ffe9d882-988f-4cee-9895-28a6ebb2bb6d`: 6,101 active rows and digest `957cc9bbec1d96ba1627e35cb56e086740b7ce274a85cc4a43739d500d76450d`; 1,723 retained non-HKS rows stayed inactive with zero missing observation timestamps. HKS remained exact at 299 active rows and digest `deefa600d6d73988d3466d262cf2281f60683fe7c62125cef79d92e5f91ee073`. The live browser reconstructed the exact 1,829-row Fall ATS digest and proved a current course addable. |
+| Historical exact-ID reconciliation   | PR #100 / merge `446c5bf`; CI `29338574305`; PostgreSQL proof `29338571496`; pre-change backup/restore `29339225257`/`29339293479`; before verifier `29339361329`; migration history `20260714141134`; after verifier `29339773695`; deployment `29338857347` attempt 2; post-change backup/restore `29340208881`/`29340273975` | The SHA-verified migration `2d73b99ae4bd31bdf1e6a4a1ef0c075a00481865af14700da359fac3bd11163c` preserved every existing observation and immutable ID, updated only seven evaluation fields on one exact same-ID/full-preimage row, inserted 20 distinct observations, and reached 5,832 rows with 5,832 unique IDs. The exact after verifier proved all 20 inserted payloads, the single full target, and byte-stable payloads for the other 5,811 original rows. Exact-commit production browser smoke and both encrypted PostgreSQL 17 clean-room restores passed. No paid feature, Harvard login, deletion, rekey, upsert, or cross-course/professor/term transfer was used. |
 
 The pre-rollout complete production observation `29320150415` found 5,230
 current ATS offerings and 2,397 retained rows. Across three complete
@@ -106,7 +107,7 @@ no-cost recovery-point window, not durable archival retention.
 | Goal                          | Progress | Status | Acceptance decision                                                                                                                                                                                                    |
 | ----------------------------- | -------: | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | G01 Foundations / governance  |     100% |      1 | Protected ruleset, named accountable owner, CODEOWNERS, private vulnerability intake, zero-cost/incident contracts, exact-master clean CI, and final manager/controller review are complete.                           |
-| G02 Data integrity            |      97% |      0 | Source promotion, disaster recovery, HKS rollback, and protected ATS manifest visibility are proven. Historical exact-ID parity is the sole remaining gap.                                                            |
+| G02 Data integrity            |     100% |      1 | Historical exact-ID parity is proven by additive same-ID reconciliation, exact before/after payload verification, protected production smoke, and successful recovery before and after the migration.                 |
 | G03 Supabase reliability      |     100% |      1 | Production RLS/privilege exercises, unchanged health counts, zero orphans, an exact-master encrypted five-table backup, and a complete isolated schema/relationship/policy restore are proven.                         |
 | G04 Security                  |     100% |      1 | The owned database/Cloudflare boundary is hardened, the complete advisor inventory has an accountable disposition, and exact release/security/production checks pass.                                                  |
 | G05 Navigation / usability    |     100% |      1 | The custom production domain passes the full desktop/mobile visitor acceptance boundary.                                                                                                                               |
@@ -117,14 +118,15 @@ no-cost recovery-point window, not durable archival retention.
 | G10 Maintainable architecture |     100% |      1 | Bounded modules/contracts, architecture/complexity/runtime ratchets, exact-master quality gates, and independent final review are complete.                                                                            |
 | G11 Operations / deployment   |     100% |      1 | Sole-maintainer ownership, zero-cost limits, setup, deployment, smoke, recovery, rollback/re-promotion, and incident procedures are documented and exercised without claiming a future institutional transfer.         |
 
-The evidence-weighted total is approximately 99.7%; ten of eleven goals are
-binary complete. G02 is the only incomplete goal. Percentages are not release
-waivers.
+The evidence-weighted total is 100%; all eleven goals are binary complete.
+Percentages are not release waivers, and future releases remain subject to the
+same exact-commit, zero-cost, smoke, and rollback controls.
 
 ## Required next evidence
 
-1. Resolve the remaining historical exact-ID parity review without deleting,
-   rekeying, or attaching evaluation data across unverified identities.
+No evidence remains outstanding for G01-G11. Future code or data changes must
+earn fresh boundary-specific evidence under the required engineering loop; this
+snapshot does not pre-approve later releases.
 
 Course Advisor model quality is explicitly excluded from these corporate-
 readiness goals and remains an optional zero-cost product enhancement. Named
