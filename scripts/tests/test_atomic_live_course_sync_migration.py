@@ -13,6 +13,12 @@ ATS_MANIFEST = (
     / "migrations"
     / "20260714075356_persist_ats_source_manifest.sql"
 )
+ATS_PROMOTION_TIMEOUT = (
+    ROOT
+    / "supabase"
+    / "migrations"
+    / "20260714102702_raise_ats_promotion_statement_timeout.sql"
+)
 
 
 class AtomicLiveCourseSyncMigrationTests(unittest.TestCase):
@@ -21,6 +27,9 @@ class AtomicLiveCourseSyncMigrationTests(unittest.TestCase):
         self.serialization = SERIALIZATION.read_text(encoding="utf-8").lower()
         self.source_isolation = SOURCE_ISOLATION.read_text(encoding="utf-8").lower()
         self.ats_manifest = ATS_MANIFEST.read_text(encoding="utf-8").lower()
+        self.ats_promotion_timeout = ATS_PROMOTION_TIMEOUT.read_text(
+            encoding="utf-8"
+        ).lower()
 
     def test_uses_one_service_only_atomic_function(self):
         self.assertIn("create or replace function public.sync_live_courses_atomically(p_rows jsonb)", self.sql)
@@ -101,6 +110,22 @@ class AtomicLiveCourseSyncMigrationTests(unittest.TestCase):
             "grant execute on function public.sync_live_courses_atomically(jsonb) to service_role",
             sql,
         )
+
+    def test_ats_promotion_timeout_is_bounded_and_function_only(self):
+        sql = self.ats_promotion_timeout
+        self.assertIn(
+            "alter function public.sync_live_courses_atomically(jsonb)",
+            sql,
+        )
+        self.assertIn("set statement_timeout to '60s'", sql)
+        self.assertIn("statement_timeout=60s", sql)
+        self.assertIn("search_path=\"\"", sql)
+        self.assertIn("has_function_privilege", sql)
+        self.assertNotIn("alter role", sql)
+        self.assertNotIn("alter database", sql)
+        self.assertNotIn("lock_timeout", sql.replace("lock_timeout remains unchanged", ""))
+        self.assertNotIn("delete from", sql)
+        self.assertNotIn("drop table", sql)
 
 
 if __name__ == "__main__":

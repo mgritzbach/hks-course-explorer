@@ -353,6 +353,10 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
         self.assertIn("verify_myharvard_rollback_exercise.sql", restore)
         self.assertIn("verify_ats_manifest_exercise.sql", restore)
         self.assertIn("verify_ats_manifest_migration_isolation.sql", restore)
+        self.assertIn(
+            "20260714102702_raise_ats_promotion_statement_timeout.sql",
+            restore,
+        )
         self.assertIn("--template recovery_probe recovery_ats_probe", restore)
         self.assertIn("--template recovery_probe recovery_ats_migration_probe", restore)
         self.assertIn("--if-exists --force recovery_rollback_probe", restore)
@@ -417,6 +421,10 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
         self.assertIn("scripts/verify_ats_manifest_exercise.sql", RECOVERY_CONTRACT_PATHS)
         self.assertIn(
             "scripts/verify_ats_manifest_migration_isolation.sql",
+            RECOVERY_CONTRACT_PATHS,
+        )
+        self.assertIn(
+            "supabase/migrations/20260714102702_raise_ats_promotion_statement_timeout.sql",
             RECOVERY_CONTRACT_PATHS,
         )
         for path in migration_paths:

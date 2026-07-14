@@ -178,6 +178,7 @@ begin
           coalesce(proconfig, '{}'::text[]) @> array['search_path=""']
           or coalesce(proconfig, '{}'::text[]) @> array['search_path=']
         )
+        and coalesce(proconfig, '{}'::text[]) @> array['statement_timeout=60s']
       from pg_proc where oid=to_regprocedure(service_rpc)
     ) then
       raise exception 'Recovery service RPC execution context is unsafe for %', service_rpc;
