@@ -344,7 +344,7 @@ separate, reviewed reconciliation with a tested backup and restore path.
 
 - Any failed Harvard source request causes a non-zero exit before database writes.
 - After a successful atomic upsert, the job reads the complete ownership fields
-  for `live_courses` and the my.harvard run manifests. It partitions every row
+  for `live_courses` and both the my.harvard and ATS run manifests. It partitions every row
   exactly once into current non-HKS ATS, the protected active my.harvard
   snapshot, its one row-bearing rollback snapshot, protected legacy HKS
   fallback, or actionable retained non-HKS ATS. It fails
@@ -365,60 +365,59 @@ separate, reviewed reconciliation with a tested backup and restore path.
   Retain that summary with the release/incident record; it is operational
   evidence, not a replacement for a database backup or rollback exercise.
 
-### Manual retained-ATS evidence run
+### ATS current/retained visibility contract
 
-Use `scripts/audit_retained_ats.py` only from a clean reviewed commit. On the
-first successful schema-v2 run, the current actionable queue must be exactly
-1,526 rows with the documented digest. Later runs retain those exact cohort
-members even if they reappear in the current source, while reporting any newly
-actionable outside-cohort rows as a separate G02 blocker. The tool repeats the
-full source/ownership proof, runs a known-current positive control, then issues
-sequential exact-ID GET requests at no more than one provider request per
-second. It does not call an RPC, use a write HTTP method, touch Cloudflare,
-alter schedules, or publish an artifact. Confirm the expected request volume
-fits the provider's free quota with no paid overage before starting a manual
-run. A successful run performs two complete general-source sweeps plus one
-positive control and 1,526 exact searches, with additional pagination and
-bounded retries. Do not overlap the scheduled 07:00 UTC catalogue sync.
+Every complete ATS promotion creates an exact run manifest. The transaction
+marks the prior ATS population inactive, upserts the complete current source as
+active/run-owned, supersedes the prior run, and activates the new run. Missing
+rows are retained physically and keep `source_last_seen_at`; they are not
+presented as current by the public `active=true` query.
 
-The audit accepts only the exact production Supabase origin
-`https://cbtroatixvydpwoviezf.supabase.co`. Its runtime network guard rejects
-every non-GET request, arbitrary/lookalike host, non-REST Supabase path, and
-unreviewed Harvard host before the underlying transport can send credentials.
-Each schema-v2 record is bound to that project and the current audit-key
-identifier. Schema-v1 records are accepted only as a legacy prefix; once any v2
-record exists, a later v1 record is an integrity failure.
+The production count floor remains 5,000 at both the sync caller and database
+boundary once a production-sized catalogue exists. Stop immediately if the
+current ATS IDs differ from the active run manifest, a retained ATS row remains
+active, any HKS ownership changes, or any row is deleted.
 
-Keep `RETAINED_ATS_AUDIT_HMAC_KEY` in the operator environment or secure store.
-It must remain persistent so pseudonymous tokens are comparable across dates,
-but it must never be reused from Supabase, Harvard, or application secrets.
-Write history only under ignored `artifacts/` or to an absolute path outside the
-repository. The tool verifies the entire HMAC chain before an atomic append;
-an integrity failure stops the run before source/database work. It holds an
-exclusive sidecar lock for the full audit and rereads the source/database
-inventory before accepting evidence. If a process crashes and leaves the lock,
-verify that no audit process is running before manually removing only the
-matching `.lock` file.
+The retained population is formally KEEP/no-delete because complete source runs
+have moved hundreds of identities between current and retained while cumulative
+inventory remained stable. A future retirement decision requires new explicit
+approval, an authoritative source policy, an encrypted recovery point, and an
+exercised rollback. It does not require routine per-course Harvard searches.
 
-The HMAC chain is authenticated with a shared secret; it is not a digital
-signature, and a secret holder could rewrite both records and chain. After each
-successful or recorded failed run, copy the aggregate terminal receipt and its
-`history_chain_head`
-to an access-controlled change ticket or equivalent external record. Do not
-copy the history file, raw course identifiers, response bodies, request URLs,
-or credentials. A later mismatch between the external head and local chain is
-an incident and invalidates the evidence until investigated.
+The recovery workflow rebuilds the reviewed migration chain in PostgreSQL 17
+and exercises the ATS change in two disposable clones. The pre-migration clone
+must prove HKS rows remain byte-identical and the ATS observation-time backfill
+is ATS-only. The post-migration clone must prove current-to-retained transition,
+duplicate-payload rejection, protected-ID collision rejection, transaction
+rollback, and the visibility failback. Neither clone receives a production
+endpoint or credential, and both must leave the source recovery database
+unchanged.
 
-Review only aggregate output. `unknown` is a safe result, not a failure to be
-coerced into absence. Even three clean absence dates produce only a tokenized
-future-review candidate. Any later exact/moved instance, unknown, invalid run,
-or incomplete observation resets or blocks the three-day evidence barrier; the
-three clean observations must also be at least 18 hours apart. Pre-v2 history is
-validated for compatibility but cannot satisfy this barrier, current-source
-presence always blocks retirement evidence, and any outside-cohort row makes
-that observation ineligible. A
-separate reviewed backup, rollback exercise, human decision, and mutation plan
-remain mandatory before any production change.
+### Emergency ATS visibility failback
+
+Use `scripts/rollback_ats_manifest_visibility.sql` only when the new ATS
+current/retained presentation has caused a production incident and restoring
+the previous all-retained-visible behavior is safer than continuing. It is a
+no-delete visibility failback, not a byte-exact database restore.
+
+1. Disable both scheduled catalogue-sync workflows and wait for any active run
+   to finish. Do not let a sync race the failback.
+2. Confirm that a fresh encrypted five-table recovery artifact exists for the
+   exact release and is within its seven-day retention window.
+3. Verify that exactly one active ATS run exists, that its row ownership is
+   internally consistent, and that the protected my.harvard HKS manifest is
+   unchanged.
+4. Run `scripts/rollback_ats_manifest_visibility.sql` as the database owner.
+   The transaction takes the shared catalogue advisory lock, refuses protected
+   ownership drift, restores every non-HKS ATS row to `active=true` with no run
+   owner, and supersedes the ATS manifest. It never deletes a course row.
+5. Read back that all non-HKS ATS rows are active with `sync_run_id=null`, no
+   active ATS manifest remains, and the HKS manifest count, identity digest,
+   term counts, and owned rows are unchanged.
+6. Keep both scheduled sync workflows disabled until a reviewed corrective
+   migration has passed the complete protected release path. If exact row or
+   schema restoration is required, use the encrypted recovery workflow instead
+   of this visibility failback.
 
 ### Remaining production evidence
 

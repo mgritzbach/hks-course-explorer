@@ -18,6 +18,9 @@ RECOVERY_CONTRACT_PATHS = (
     "scripts/verify_course_explorer_recovery.py",
     "scripts/recovery_ciphertext_hmac.py",
     "scripts/restore_course_explorer_recovery.sql",
+    "scripts/rollback_ats_manifest_visibility.sql",
+    "scripts/verify_ats_manifest_exercise.sql",
+    "scripts/verify_ats_manifest_migration_isolation.sql",
     "scripts/verify_myharvard_rollback_exercise.sql",
     "scripts/verify_course_explorer_schema.sql",
     "scripts/export_course_explorer_schema_contract.sql",
@@ -37,6 +40,7 @@ RECOVERY_CONTRACT_PATHS = (
     "supabase/migrations/20260712213500_assert_course_sections_browser_grant_postconditions.sql",
     "supabase/migrations/20260712224500_harden_maintain_and_trigger_function_grants.sql",
     "supabase/migrations/20260713150805_harden_refresh_synced_at_search_path.sql",
+    "supabase/migrations/20260714075356_persist_ats_source_manifest.sql",
 )
 TABLE_ORDER = (
     "courses",
@@ -81,7 +85,7 @@ TABLE_COLUMNS = {
             "description", "location", "meeting_days", "time_start", "time_end", "school",
             "is_hks", "synced_at", "session_code", "session_description", "cross_reg_eligible",
             "source", "source_course_id", "course_offer_nbr", "section_code", "source_url",
-            "sync_run_id", "active", "source_offering_id",
+            "sync_run_id", "active", "source_offering_id", "source_last_seen_at",
         }
     ),
 }

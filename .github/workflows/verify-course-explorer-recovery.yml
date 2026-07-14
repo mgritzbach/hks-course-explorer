@@ -127,6 +127,26 @@ jobs:
             "${psql[@]}" -f "$migration"
           done
 
+      - name: Prove the ATS migration leaves existing HKS rows unchanged
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          createdb -h 127.0.0.1 -U recovery_probe \
+            --template recovery_probe recovery_ats_migration_probe
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_ats_migration_probe \
+            -v ON_ERROR_STOP=1 -f scripts/verify_ats_manifest_migration_isolation.sql
+          source_rows="$(psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -Atc \
+            "select count(*) from public.live_courses")"
+          test "$source_rows" = "0"
+
+      - name: Apply reviewed ATS manifest migration to the recovery source
+        env:
+          PGPASSWORD: recovery_probe
+        run: >-
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_probe
+          -v ON_ERROR_STOP=1
+          -f supabase/migrations/20260714075356_persist_ats_source_manifest.sql
+
       - name: Prove exact recovery schema contract
         env:
           PGPASSWORD: recovery_probe
@@ -137,6 +157,18 @@ jobs:
           diff -u \
             supabase/recovery/course_explorer_schema_contract.txt \
             "$RUNNER_TEMP/course-explorer-schema-contract.txt"
+
+      - name: Exercise ATS manifest transition and visibility rollback only in an ephemeral clone
+        env:
+          PGPASSWORD: recovery_probe
+        run: |
+          createdb -h 127.0.0.1 -U recovery_probe \
+            --template recovery_probe recovery_ats_probe
+          psql -h 127.0.0.1 -U recovery_probe -d recovery_ats_probe \
+            -v ON_ERROR_STOP=1 -f scripts/verify_ats_manifest_exercise.sql
+          source_rows="$(psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -Atc \
+            "select count(*) from public.live_courses")"
+          test "$source_rows" = "0"
 
       - name: Prove foreign-key enforcement and transaction rollback
         env:
@@ -239,5 +271,9 @@ jobs:
             "$RUNNER_TEMP/course-explorer-restored-after-rollback.csv"
           dropdb -h 127.0.0.1 -U recovery_probe \
             --if-exists --force recovery_rollback_probe || true
+          dropdb -h 127.0.0.1 -U recovery_probe \
+            --if-exists --force recovery_ats_probe || true
+          dropdb -h 127.0.0.1 -U recovery_probe \
+            --if-exists --force recovery_ats_migration_probe || true
           psql -h 127.0.0.1 -U recovery_probe -d recovery_probe \
             -c "drop table if exists recovery_payloads" || true

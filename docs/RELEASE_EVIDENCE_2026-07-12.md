@@ -72,7 +72,27 @@ This historical snapshot is retained for audit provenance. Its former release bl
 | Fresh complete isolated recovery     | Restore `29265361894` from backup `29265287482`                                                                                                                                                                                   | PostgreSQL 17 verified provenance and decryption, rebuilt the exact schema/access contract, proved FK rejection and transaction rollback, restored all five tables atomically, matched every row count and digest, exercised the catalogue rollback boundary, proved the source recovery database remained byte-exact, and removed decrypted material.                                                                                                                                                |
 | Isolated catalogue rollback exercise | Recovery `29224720886` on master `1e896c2`                                                                                                                                                                                        | PostgreSQL 17 restored all five tables, cloned only the verified recovery database, rolled the clone back to the persisted predecessor manifest, restored exactly 297 HKS offerings (141 Fall, 156 Spring), rejected invalid/repeated rollback paths, and proved the untouched source recovery database remained byte-exact. No production write credential or endpoint was present.                                                                                                                  |
 | Trigger search-path hardening        | Committed migration `20260713150805_harden_refresh_synced_at_search_path.sql`, applied in production as Supabase history entry `20260713161314_harden_refresh_synced_at_search_path`, plus pre/post read-back                     | `public.refresh_synced_at()` now uses `search_path=pg_catalog`; a transaction-wrapped ordinary `live_courses` update still advanced `synced_at` and rolled back. Counts remained `courses=5812`, `course_sections=265`, `schedules=63`, `live_catalogue_runs=6`, and `live_courses=8443`; orphans remained `0`; one active 298-offering manifest and digest `e08e764d8ab38ddd8a401f1b807121e2b331c03788c9f63b0dd51baa531f3f57` remained exact. The owned mutable-search-path advisor finding is gone. |
-| Source-aware non-HKS reconciliation  | Exact-master sync `29226825986` on master `14603f0`                                                                                                                                                                               | All 120 planned Harvard requests succeeded; 6,092 current ATS offerings were atomically upserted. The read-only ownership classifier then completed with 1,526 retained non-HKS ATS rows and queue digest `fbd0a26cc18c195150f6f8d6e402db69edf28f0227c3ad5911814518c04312a5`. No row was deleted or deactivated; the queue still requires evidence-backed keep/retire decisions.                                                                                                                      |
+| Source-aware non-HKS reconciliation  | Exact-master sync `29226825986` on master `14603f0`                                                                                                                                                                               | All 120 planned Harvard requests succeeded; 6,092 current ATS offerings were atomically upserted. The read-only ownership classifier then completed with 1,526 retained non-HKS ATS rows and queue digest `fbd0a26cc18c195150f6f8d6e402db69edf28f0227c3ad5911814518c04312a5`. No row was deleted or deactivated; later complete-source evidence supports the formal KEEP/no-delete disposition below.                                                                                             |
+
+The latest complete production observation `29320150415` found 5,230 current
+ATS offerings and 2,397 retained rows, with retained digest
+`2dd352c11b2884ee2ac1c0b225a51dfb5eb5687f44fffacdb913589ba776807a`.
+Across the last three complete observations, current counts moved from 6,092 to
+5,414 to 5,230 while cumulative ATS inventory moved only from 7,618 to 7,619 to
+7,627. This supports a formal
+KEEP/no-delete disposition. The reviewed current-only visibility migration was
+exercised against disposable PostgreSQL 17 clones built from the exact recovery
+migration chain. The migration-isolation clone proved that an existing HKS row
+remains byte-identical, only existing non-HKS ATS rows receive the observation
+timestamp backfill, and the source recovery database remains empty. The
+post-migration clone proved a two-offering to one-offering manifest transition,
+physical retention of the missing offering, transaction rollback for duplicate
+payloads and protected-ID collisions, and the no-delete visibility failback.
+The generated recovery schema contract exactly matched SHA-256
+`84556e865e86a79056956b740237d0eb1b4cceedc19e2e56436f23bbb3d7ba33`.
+This is exact local PostgreSQL evidence, not production evidence; the protected
+rollout, post-sync manifest readback, HKS-isolation check, and encrypted
+recovery gate must still pass.
 
 This recovery proof covers the complete Course Explorer relational boundary in
 the shared project. It intentionally excludes unrelated shared-project data and
@@ -84,7 +104,7 @@ no-cost recovery-point window, not durable archival retention.
 | Goal                          | Progress | Status | Acceptance decision                                                                                                                                                                                                    |
 | ----------------------------- | -------: | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | G01 Foundations / governance  |     100% |      1 | Protected ruleset, named accountable owner, CODEOWNERS, private vulnerability intake, zero-cost/incident contracts, exact-master clean CI, and final manager/controller review are complete.                           |
-| G02 Data integrity            |      97% |      0 | Source promotion/parity, full disaster recovery, and catalogue-promotion rollback are proven; retained non-HKS ATS rows still require source-aware classification and evidence-backed keep/retire decisions.           |
+| G02 Data integrity            |      97% |      0 | Source promotion, disaster recovery, and HKS rollback are proven. Historical exact-ID parity and protected production rollout of ATS manifest visibility remain open.                                                   |
 | G03 Supabase reliability      |     100% |      1 | Production RLS/privilege exercises, unchanged health counts, zero orphans, an exact-master encrypted five-table backup, and a complete isolated schema/relationship/policy restore are proven.                         |
 | G04 Security                  |     100% |      1 | The owned database/Cloudflare boundary is hardened, the complete advisor inventory has an accountable disposition, and exact release/security/production checks pass.                                                  |
 | G05 Navigation / usability    |     100% |      1 | The custom production domain passes the full desktop/mobile visitor acceptance boundary.                                                                                                                               |
@@ -101,9 +121,12 @@ waivers.
 
 ## Required next evidence
 
-1. Classify every retained row by source ownership, verify protected HKS
-   populations against their persisted manifests, and complete evidence-backed
-   keep/retire decisions for the true retained non-HKS ATS queue.
+1. Roll out the reviewed ATS manifest migration through the protected release
+   path, prove that the active ATS rows exactly match the promoted manifest,
+   prove every retained row remains stored but inactive, prove HKS is unchanged,
+   and exercise the encrypted recovery path.
+2. Resolve the remaining historical exact-ID parity review without deleting,
+   rekeying, or attaching evaluation data across unverified identities.
 
 Course Advisor model quality is explicitly excluded from these corporate-
 readiness goals and remains an optional zero-cost product enhancement. Named

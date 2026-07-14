@@ -375,7 +375,8 @@ class FetchSchoolTests(unittest.TestCase):
                     {
                         "select": (
                             "id,school,term,course_code,session_code,source,active,is_hks,"
-                            "sync_run_id,source_course_id,source_offering_id,synced_at"
+                            "sync_run_id,source_course_id,source_offering_id,synced_at,"
+                            "source_last_seen_at"
                         ),
                         "order": "id.asc",
                     },
@@ -385,7 +386,8 @@ class FetchSchoolTests(unittest.TestCase):
                     {
                         "select": (
                             "id,school,term,course_code,session_code,source,active,is_hks,"
-                            "sync_run_id,source_course_id,source_offering_id,synced_at"
+                            "sync_run_id,source_course_id,source_offering_id,synced_at,"
+                            "source_last_seen_at"
                         ),
                         "order": "id.asc",
                     },
@@ -393,10 +395,10 @@ class FetchSchoolTests(unittest.TestCase):
             ],
         )
 
-    def test_catalogue_run_inventory_is_complete_and_myharvard_only(self):
+    def test_catalogue_run_inventory_is_complete_for_both_owned_sources(self):
         records = [
             {"id": "run-a", "source": "myharvard"},
-            {"id": "run-b", "source": "myharvard"},
+            {"id": "run-b", "source": "ats"},
         ]
         requests_seen = []
 
@@ -419,7 +421,7 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertEqual(inventory, records)
         self.assertEqual([item[1] for item in requests_seen], ["0-0", "1-1"])
         self.assertEqual(requests_seen[0][0], "https://example.supabase.co/rest/v1/live_catalogue_runs")
-        self.assertEqual(requests_seen[0][2]["source"], "eq.myharvard")
+        self.assertNotIn("source", requests_seen[0][2])
         self.assertEqual(
             requests_seen[0][2]["select"],
             "id,source,status,offering_count,identity_sha256,term_counts",

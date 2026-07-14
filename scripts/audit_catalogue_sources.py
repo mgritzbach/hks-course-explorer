@@ -271,6 +271,248 @@ def manual_nonaggregate_section_code_change_review_rows(review_rows):
     return sorted(queue, key=lambda row: (row["source_course_code"], row["source_id"]))
 
 
+HISTORICAL_ACCOUNTING_CATEGORIES = (
+    "same_id_same_observation",
+    "same_id_nonidentity_drift",
+    "exact_technical_rekey",
+    "section_or_code_change_review",
+    "ambiguous_no_shared_id",
+    "database_only",
+    "canonical_only",
+    "professor_unavailable",
+    "identity_conflict_review",
+)
+
+
+def _is_average_history_row(row):
+    return str(row.get("is_average", False)).strip().casefold() == "true"
+
+
+def _historical_observation_identity(row):
+    if not isinstance(row, dict):
+        return None
+    code = normalise_course_code(row.get("course_code") or row.get("course_code_base"))
+    year_value = row.get("year")
+    year = str(year_value).strip() if year_value is not None else ""
+    term = str(row.get("term") or "").strip().casefold()
+    professor = normalise_instructor_name(
+        row.get("professor") or row.get("professor_display")
+    )
+    if not all((code, year, term, professor)):
+        return None
+    return code, year, term, professor, _is_average_history_row(row)
+
+
+def _aggregate_provenance(row):
+    return (
+        str(row.get("year_range") or "").strip().casefold(),
+        str(row.get("n_terms") if row.get("n_terms") is not None else "").strip(),
+    )
+
+
+def _professor_unavailable_key(row):
+    if not isinstance(row, dict):
+        return None
+    if normalise_instructor_name(row.get("professor") or row.get("professor_display")):
+        return None
+    code = normalise_course_code(row.get("course_code") or row.get("course_code_base"))
+    year_value = row.get("year")
+    year = str(year_value).strip() if year_value is not None else ""
+    term = str(row.get("term") or "").strip().casefold()
+    title = normalise_course_title(row.get("course_name"))
+    if not all((code, year, term, title)):
+        return None
+    return (
+        code,
+        year,
+        term,
+        title,
+        _is_average_history_row(row),
+        *_aggregate_provenance(row),
+    )
+
+
+def _unique_history_rows_by_id(rows, label):
+    result = {}
+    for index, row in enumerate(rows):
+        row_id = row.get("id") if isinstance(row, dict) else None
+        if not isinstance(row_id, str) or not row_id.strip():
+            raise RuntimeError(f"{label} row {index} has no immutable id")
+        if row_id in result:
+            raise RuntimeError(f"{label} contains duplicate immutable id {row_id}")
+        result[row_id] = row
+    return result
+
+
+def deterministic_historical_accounting(source_rows, canonical_rows):
+    """Classify every immutable history row without equating or rewriting it."""
+    source_by_id = _unique_history_rows_by_id(source_rows, "historical source")
+    canonical_by_id = _unique_history_rows_by_id(canonical_rows, "canonical history")
+    categories = {
+        name: {
+            "group_count": 0,
+            "source_row_count": 0,
+            "canonical_row_count": 0,
+        }
+        for name in HISTORICAL_ACCOUNTING_CATEGORIES
+    }
+
+    def account(name, source=(), canonical=()):
+        categories[name]["group_count"] += 1
+        categories[name]["source_row_count"] += len(source)
+        categories[name]["canonical_row_count"] += len(canonical)
+
+    remaining_source = dict(source_by_id)
+    remaining_canonical = dict(canonical_by_id)
+    for row_id in sorted(set(source_by_id) & set(canonical_by_id)):
+        source = source_by_id[row_id]
+        canonical = canonical_by_id[row_id]
+        source_key = historical_semantic_key(source)
+        canonical_key = historical_semantic_key(canonical)
+        if source_key is None or canonical_key is None:
+            unavailable_key = _professor_unavailable_key(source)
+            if unavailable_key and unavailable_key == _professor_unavailable_key(canonical):
+                account("professor_unavailable", [source], [canonical])
+            else:
+                account("identity_conflict_review", [source], [canonical])
+        elif source_key == canonical_key:
+            if (
+                _historical_observation_identity(source)
+                != _historical_observation_identity(canonical)
+            ):
+                account("identity_conflict_review", [source], [canonical])
+            elif (
+                _is_average_history_row(source)
+                and _aggregate_provenance(source) != _aggregate_provenance(canonical)
+            ):
+                account("identity_conflict_review", [source], [canonical])
+            else:
+                account("same_id_same_observation", [source], [canonical])
+        elif (
+            not _is_average_history_row(source)
+            and not _is_average_history_row(canonical)
+            and _historical_observation_identity(source)
+            == _historical_observation_identity(canonical)
+        ):
+            account("same_id_nonidentity_drift", [source], [canonical])
+        else:
+            account("identity_conflict_review", [source], [canonical])
+        del remaining_source[row_id]
+        del remaining_canonical[row_id]
+
+    source_by_key = {}
+    canonical_by_key = {}
+    source_without_key = []
+    canonical_without_key = []
+    for row in remaining_source.values():
+        key = historical_semantic_key(row)
+        if key:
+            source_by_key.setdefault(key, []).append(row)
+        else:
+            source_without_key.append(row)
+    for row in remaining_canonical.values():
+        key = historical_semantic_key(row)
+        if key:
+            canonical_by_key.setdefault(key, []).append(row)
+        else:
+            canonical_without_key.append(row)
+
+    for key in sorted(set(source_by_key) | set(canonical_by_key)):
+        source = source_by_key.get(key, [])
+        canonical = canonical_by_key.get(key, [])
+        if source and canonical:
+            if len(source) == len(canonical) == 1:
+                source_row = source[0]
+                canonical_row = canonical[0]
+                source_code = raw_course_code_from_row_id(source_row["id"])
+                canonical_code = raw_course_code_from_row_id(canonical_row["id"])
+                if (
+                    _is_average_history_row(source_row)
+                    and _is_average_history_row(canonical_row)
+                    and _aggregate_provenance(source_row)
+                    == _aggregate_provenance(canonical_row)
+                    and source_code
+                    and canonical_code
+                    and source_code.casefold() == canonical_code.casefold()
+                ):
+                    account("exact_technical_rekey", source, canonical)
+                elif (
+                    source_code
+                    and canonical_code
+                    and source_code.casefold() != canonical_code.casefold()
+                ):
+                    account("section_or_code_change_review", source, canonical)
+                else:
+                    account("ambiguous_no_shared_id", source, canonical)
+            else:
+                account("ambiguous_no_shared_id", source, canonical)
+        elif source:
+            account("database_only", source, [])
+        else:
+            account("canonical_only", [], canonical)
+
+    source_unavailable = {}
+    canonical_unavailable = {}
+    invalid_source = []
+    invalid_canonical = []
+    for row in source_without_key:
+        key = _professor_unavailable_key(row)
+        if key:
+            source_unavailable.setdefault(key, []).append(row)
+        else:
+            invalid_source.append(row)
+    for row in canonical_without_key:
+        key = _professor_unavailable_key(row)
+        if key:
+            canonical_unavailable.setdefault(key, []).append(row)
+        else:
+            invalid_canonical.append(row)
+
+    for key in sorted(set(source_unavailable) | set(canonical_unavailable)):
+        source = source_unavailable.get(key, [])
+        canonical = canonical_unavailable.get(key, [])
+        if source and canonical:
+            category = (
+                "professor_unavailable"
+                if len(source) == len(canonical) == 1
+                else "ambiguous_no_shared_id"
+            )
+            account(category, source, canonical)
+        elif source:
+            account("database_only", source, [])
+        else:
+            account("canonical_only", [], canonical)
+    for row in invalid_source:
+        account("identity_conflict_review", [row], [])
+    for row in invalid_canonical:
+        account("identity_conflict_review", [], [row])
+
+    classified_source = sum(
+        item["source_row_count"] for item in categories.values()
+    )
+    classified_canonical = sum(
+        item["canonical_row_count"] for item in categories.values()
+    )
+    unclassified_source = len(source_rows) - classified_source
+    unclassified_canonical = len(canonical_rows) - classified_canonical
+    if unclassified_source or unclassified_canonical:
+        raise RuntimeError(
+            "Historical accounting did not close "
+            f"(source-unclassified={unclassified_source}, "
+            f"canonical-unclassified={unclassified_canonical})"
+        )
+    return {
+        "source_row_count": len(source_rows),
+        "canonical_row_count": len(canonical_rows),
+        "classified_source_row_count": classified_source,
+        "classified_canonical_row_count": classified_canonical,
+        "unclassified_source_row_count": 0,
+        "unclassified_canonical_row_count": 0,
+        "zero_unclassified_identities": True,
+        "categories": categories,
+    }
+
+
 def write_semantic_reconciliation_review(path, source_rows, canonical_rows):
     """Write a local-only review export; this function never contacts Supabase."""
     destination = Path(path)
@@ -352,6 +594,9 @@ def audit_catalogue(offerings, historical_rows, aliases, canonical_rows=None):
     if canonical_rows is not None:
         report.update(historical_source_parity(historical_rows, canonical_rows))
         report.update(semantic_history_reconciliation(historical_rows, canonical_rows))
+        report["deterministic_historical_accounting"] = (
+            deterministic_historical_accounting(historical_rows, canonical_rows)
+        )
         report["manual_nonaggregate_section_code_change_review_count"] = len(
             manual_nonaggregate_section_code_change_review_rows(
                 semantic_reconciliation_review_rows(historical_rows, canonical_rows)

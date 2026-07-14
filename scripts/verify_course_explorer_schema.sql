@@ -3,6 +3,8 @@
 do $$
 declare
   active_run public.live_catalogue_runs%rowtype;
+  active_ats_run public.live_catalogue_runs%rowtype;
+  active_ats_run_count integer;
   actual_digest text;
   actual_terms jsonb;
   actual_rows integer;
@@ -131,6 +133,8 @@ begin
      or to_regclass('public.live_courses_active_term_school_idx') is null
      or to_regclass('public.live_courses_sync_run_idx') is null
      or to_regclass('public.live_catalogue_runs_one_active_myharvard') is null
+     or to_regclass('public.live_catalogue_runs_one_active_ats') is null
+     or to_regclass('public.live_courses_source_active_term_idx') is null
      or to_regclass('public.course_sections_course_code_base_term_idx') is null then
     raise exception 'Recovery schema is missing a required operational index';
   end if;
@@ -168,7 +172,16 @@ begin
        or not has_function_privilege('service_role', service_rpc, 'EXECUTE') then
       raise exception 'Recovery service RPC grants are unsafe for %', service_rpc;
     end if;
-    if not (
+    if service_rpc = 'public.sync_live_courses_atomically(jsonb)' and not (
+      select prosecdef
+        and (
+          coalesce(proconfig, '{}'::text[]) @> array['search_path=""']
+          or coalesce(proconfig, '{}'::text[]) @> array['search_path=']
+        )
+      from pg_proc where oid=to_regprocedure(service_rpc)
+    ) then
+      raise exception 'Recovery service RPC execution context is unsafe for %', service_rpc;
+    elsif service_rpc <> 'public.sync_live_courses_atomically(jsonb)' and not (
       select prosecdef and coalesce(proconfig, '{}'::text[]) @> array['search_path=public']
       from pg_proc where oid=to_regprocedure(service_rpc)
     ) then
@@ -225,6 +238,47 @@ begin
      or actual_digest is distinct from active_run.identity_sha256
      or actual_terms is distinct from active_run.term_counts then
     raise exception 'Recovery active my.harvard manifest does not match restored offerings';
+  end if;
+
+  select count(*) into active_ats_run_count
+  from public.live_catalogue_runs where source='ats' and status='active';
+  if active_ats_run_count > 1 then
+    raise exception 'Recovery data contains multiple active ATS runs';
+  end if;
+  if active_ats_run_count = 1 then
+    select * into active_ats_run from public.live_catalogue_runs
+    where source='ats' and status='active';
+    select count(*), encode(
+      extensions.digest(string_agg(id, E'\n' order by id), 'sha256'),
+      'hex'
+    ) into actual_rows, actual_digest
+    from public.live_courses
+    where sync_run_id=active_ats_run.id and source='ats' and active and not is_hks;
+    select coalesce(jsonb_object_agg(term, offering_count order by term), '{}'::jsonb)
+      into actual_terms
+    from (
+      select term, count(*)::integer as offering_count from public.live_courses
+      where sync_run_id=active_ats_run.id and source='ats' and active and not is_hks
+      group by term
+    ) terms;
+    if actual_rows <> active_ats_run.offering_count
+       or actual_digest is distinct from active_ats_run.identity_sha256
+       or actual_terms is distinct from active_ats_run.term_counts
+       or exists (
+         select 1 from public.live_courses
+         where source='ats' and not is_hks
+           and (
+             (sync_run_id=active_ats_run.id and not active)
+             or (sync_run_id is distinct from active_ats_run.id and active)
+           )
+       ) then
+      raise exception 'Recovery active ATS manifest or retained visibility is inconsistent';
+    end if;
+  elsif exists (
+    select 1 from public.live_courses
+    where source='ats' and sync_run_id is not null
+  ) then
+    raise exception 'Recovery legacy ATS state unexpectedly contains run ownership';
   end if;
 
   if not exists (

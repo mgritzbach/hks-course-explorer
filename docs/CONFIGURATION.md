@@ -39,7 +39,6 @@ Pages too if Pages can create builds outside this workflow.
 | `SUPABASE_URL` | Yes | REST/client endpoint for trusted data-sync scripts. |
 | `SUPABASE_KEY` | Yes | Supabase service-role/secret key for trusted scripts only. |
 | `HARVARD_API_KEY` | Yes | Harvard ATS API key used by the non-HKS sync script. |
-| `RETAINED_ATS_AUDIT_HMAC_KEY` | Manual retained-row audit only | Persistent operator-held secret of at least 32 UTF-8 bytes. It creates stable pseudonymous course tokens and authenticates the local history chain. Never reuse an application/database secret, put it on a command line, or add it to Cloudflare/GitHub. |
 | `SYNC_MIN_UNIQUE_COURSES` | No | Minimum deduplicated non-HKS results required before the ATS sync writes. Script default: `1`; production uses `5000` against the reviewed 5,607-row accepted baseline from exact-master run `29189143811`. |
 | `SYNC_ALLOW_STALE_DELETE` | No | Retired safety flag. Any `true` value makes the sync fail before Harvard or database activity; this workflow never deletes rows. |
 | `MYHARVARD_MIN_HKS_OFFERINGS` | No | Minimum complete HKS offerings required before staging/promotion; production uses `285` against the current 297-row catalogue. |
@@ -49,56 +48,36 @@ The ATS job fails closed if any required source request fails or the minimum
 course guard is not met. It accepts only the exact non-HKS school set in
 `GENERAL_SYNC_SCHOOLS`; before writing, it removes ATS course IDs present in
 the active authoritative my.harvard HKS set. The service-only RPC independently
-rejects both HKS-labelled rows and authoritative HKS course IDs, then explicitly
-activates accepted non-HKS rows. It requests conservative 250-record Harvard pages
-and follows only provider-issued HTTPS scroll links. It never follows a redirect
-after attaching the Harvard API key; an invalid, repeated, redirected, or failed
-page aborts the whole run. It passes the complete validated payload to the
-server-only `sync_live_courses_atomically(jsonb)` RPC, which validates IDs and
-upserts in one Postgres transaction. It must run with a service account
-restricted to the minimum required database privileges. The default schedule
-does not delete historical rows, because a 200 response alone does not prove
-an upstream search was complete. After each successful atomic promotion it
-inventories the entire `live_courses` table with a service-only, paginated read
-and reads the my.harvard run manifests. The read-only classifier must assign
-every row exactly once to the current non-HKS ATS source, the protected active
-my.harvard snapshot, its one row-bearing rollback snapshot, a protected legacy
-HKS fallback, or the actionable retained non-HKS ATS queue. It fails on an
-unowned row, a current source row that is missing/inactive, or HKS manifest
-drift. The summary exposes
-only counts, bounded age/school/term buckets, and a SHA-256 digest of the sorted
-actionable IDs; it never emits course IDs or content. That evidence does not
-authorize deletion or deactivation; any keep/retire decision requires a
-separately reviewed backup and restore plan.
+rejects HKS-labelled rows and authoritative HKS course IDs. It requests
+conservative 250-record Harvard pages and follows only provider-issued HTTPS
+scroll links. It never follows a redirect after attaching the Harvard API key;
+an invalid, repeated, redirected, or failed page aborts the whole run.
 
-`scripts/audit_retained_ats.py` is a separate manual, local-only evidence tool.
-It requires the same three connection secrets plus
-`RETAINED_ATS_AUDIT_HMAC_KEY`. It is intentionally absent from workflows and
-accepts no secret or course-ID command-line argument. Its only optional CLI
-input is a history path under ignored `artifacts/`, or an absolute path outside
-the repository. Supabase access from this tool is paginated GET-only; Harvard
-access is a single paced worker using exact `courseID` lookups without a school
-facet. Prefer a dedicated, least-privilege server-side read credential when the
-project supports one; never expose the configured secret to browser code.
+The complete validated payload is promoted through
+`sync_live_courses_atomically(jsonb)`. The RPC validates IDs, terms, the
+production count floor, and the exact ID/term manifest. In one Postgres
+transaction it deactivates prior ATS visibility, upserts the complete current
+manifest as active/run-owned, and preserves every absent row physically with
+its last source-observation timestamp. It must run with a service account
+restricted to the minimum required database privileges.
 
-For this production evidence tool, `SUPABASE_URL` is restricted to the exact
-reviewed production origin `https://cbtroatixvydpwoviezf.supabase.co`; a staging,
-lookalike, arbitrary, credential-bearing, or path-bearing URL fails before the
-sync module is imported or any network request is made. A runtime guard then
-allows only GET requests to that Supabase REST origin and the reviewed Harvard
-ATS hosts.
+After promotion, a service-only paginated read inventories all `live_courses`
+rows and both my.harvard and ATS run manifests. The classifier must assign every
+row exactly once to the current ATS manifest, protected active HKS snapshot,
+single HKS rollback snapshot, protected legacy HKS fallback, or inactive
+retained ATS population. It fails on unowned rows, missing/inactive/run-mismatched
+current rows, active retained rows, or either source manifest drifting. Output
+contains only counts, bounded age/school/term buckets, and a SHA-256 digest.
 
-The first successful schema-v2 history record fixes the 1,526-member HMAC token
-cohort plus separate ownership and locator commitments. Ownership stays fixed;
-a locator/active-state transition is accepted only while the complete current
-source independently proves that member present. The same HMAC key and history
-file must be used for every later observation. A different key, changed cohort,
-changed baseline, malformed record, duplicate token, non-monotonic timestamp,
-schema-v1 downgrade, unknown history field, project change, or concurrent audit
-fails closed before evidence is accepted. The HMAC chain is
-shared-secret authentication, not a digital signature. Retain the printed
-aggregate `history_chain_head` in a separate access-controlled change record if
-independent tamper evidence is required.
+The retained population has an explicit KEEP/no-delete disposition because
+successive complete source runs demonstrably fluctuate. Retirement requires a
+separately reviewed source decision, backup, restore proof, and migration. No
+per-course Harvard login or three-day lookup process is part of normal
+operation.
+
+There is no retained-row HMAC key, per-course Harvard audit, or audit-history
+file. Current-versus-retained ownership comes only from each complete ATS
+manifest and the atomic database promotion described above.
 
 The separate my.harvard job stages every student-facing HKS offering under a
 run ID, verifies the upstream advertised count and configured minimum, then

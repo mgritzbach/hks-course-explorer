@@ -93,6 +93,7 @@ COLUMN|live_courses|23|source_url|text|not_null=f|default=<NULL>
 COLUMN|live_courses|24|sync_run_id|uuid|not_null=f|default=<NULL>
 COLUMN|live_courses|25|active|boolean|not_null=t|default=true
 COLUMN|live_courses|26|source_offering_id|text|not_null=f|default=<NULL>
+COLUMN|live_courses|27|source_last_seen_at|timestamp with time zone|not_null=f|default=<NULL>
 COLUMN|schedules|1|id|uuid|not_null=t|default=gen_random_uuid()
 COLUMN|schedules|2|user_id|uuid|not_null=t|default=<NULL>
 COLUMN|schedules|3|plan_name|text|not_null=t|default=<NULL>
@@ -110,6 +111,7 @@ INDEX|courses|CREATE INDEX courses_is_average_idx ON public.courses USING btree 
 INDEX|courses|CREATE UNIQUE INDEX courses_pkey ON public.courses USING btree (id)
 INDEX|courses|CREATE INDEX courses_professor_idx ON public.courses USING btree (professor)
 INDEX|courses|CREATE INDEX courses_year_idx ON public.courses USING btree (year)
+INDEX|live_catalogue_runs|CREATE UNIQUE INDEX live_catalogue_runs_one_active_ats ON public.live_catalogue_runs USING btree (source) WHERE ((source = 'ats'::text) AND (status = 'active'::text))
 INDEX|live_catalogue_runs|CREATE UNIQUE INDEX live_catalogue_runs_one_active_myharvard ON public.live_catalogue_runs USING btree (source) WHERE ((source = 'myharvard'::text) AND (status = 'active'::text))
 INDEX|live_catalogue_runs|CREATE UNIQUE INDEX live_catalogue_runs_pkey ON public.live_catalogue_runs USING btree (id)
 INDEX|live_courses|CREATE INDEX live_courses_active_term_school_idx ON public.live_courses USING btree (active, term, school, id)
@@ -119,6 +121,7 @@ INDEX|live_courses|CREATE INDEX live_courses_meeting_days_idx ON public.live_cou
 INDEX|live_courses|CREATE UNIQUE INDEX live_courses_pkey ON public.live_courses USING btree (id)
 INDEX|live_courses|CREATE UNIQUE INDEX live_courses_run_offering_identity ON public.live_courses USING btree (sync_run_id, source_offering_id) WHERE ((sync_run_id IS NOT NULL) AND (source_offering_id IS NOT NULL))
 INDEX|live_courses|CREATE INDEX live_courses_school_idx ON public.live_courses USING btree (school)
+INDEX|live_courses|CREATE INDEX live_courses_source_active_term_idx ON public.live_courses USING btree (source, active, term, id)
 INDEX|live_courses|CREATE INDEX live_courses_sync_run_idx ON public.live_courses USING btree (sync_run_id) WHERE (sync_run_id IS NOT NULL)
 INDEX|live_courses|CREATE INDEX live_courses_term_idx ON public.live_courses USING btree (term)
 INDEX|schedules|CREATE UNIQUE INDEX schedules_pkey ON public.schedules USING btree (id)
@@ -126,7 +129,7 @@ INDEX|schedules|CREATE INDEX schedules_user_id_idx ON public.schedules USING btr
 INDEX|schedules|CREATE UNIQUE INDEX schedules_user_plan_idx ON public.schedules USING btree (user_id, plan_name)
 CONSTRAINT|course_sections|course_sections_pkey|type=p|validated=t|PRIMARY KEY (id)
 CONSTRAINT|courses|courses_pkey|type=p|validated=t|PRIMARY KEY (id)
-CONSTRAINT|live_catalogue_runs|live_catalogue_runs_manifest_required|type=c|validated=t|CHECK (source <> 'myharvard'::text OR (status <> ALL (ARRAY['staged'::text, 'active'::text])) OR identity_sha256 IS NOT NULL AND term_counts IS NOT NULL AND identity_sha256 ~ '^[0-9a-f]{64}$'::text AND jsonb_typeof(term_counts) = 'object'::text AND term_counts <> '{}'::jsonb)
+CONSTRAINT|live_catalogue_runs|live_catalogue_runs_manifest_required|type=c|validated=t|CHECK ((status <> ALL (ARRAY['staged'::text, 'active'::text])) OR identity_sha256 IS NOT NULL AND term_counts IS NOT NULL AND identity_sha256 ~ '^[0-9a-f]{64}$'::text AND jsonb_typeof(term_counts) = 'object'::text AND term_counts <> '{}'::jsonb)
 CONSTRAINT|live_catalogue_runs|live_catalogue_runs_offering_count_check|type=c|validated=t|CHECK (offering_count > 0)
 CONSTRAINT|live_catalogue_runs|live_catalogue_runs_pkey|type=p|validated=t|PRIMARY KEY (id)
 CONSTRAINT|live_catalogue_runs|live_catalogue_runs_source_check|type=c|validated=t|CHECK (source = ANY (ARRAY['myharvard'::text, 'ats'::text]))
@@ -643,6 +646,7 @@ COLUMN_PRIVILEGE|live_courses|anon|source_url|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|anon|sync_run_id|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|anon|active|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|anon|source_offering_id|SELECT|grantable=NO
+COLUMN_PRIVILEGE|live_courses|anon|source_last_seen_at|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|id|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|course_code|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|course_code_base|SELECT|grantable=NO
@@ -669,6 +673,7 @@ COLUMN_PRIVILEGE|live_courses|authenticated|source_url|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|sync_run_id|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|active|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|source_offering_id|SELECT|grantable=NO
+COLUMN_PRIVILEGE|live_courses|authenticated|source_last_seen_at|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|id|INSERT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|id|REFERENCES|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|id|SELECT|grantable=NO
@@ -773,6 +778,10 @@ COLUMN_PRIVILEGE|live_courses|service_role|source_offering_id|INSERT|grantable=N
 COLUMN_PRIVILEGE|live_courses|service_role|source_offering_id|REFERENCES|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|source_offering_id|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|source_offering_id|UPDATE|grantable=NO
+COLUMN_PRIVILEGE|live_courses|service_role|source_last_seen_at|INSERT|grantable=NO
+COLUMN_PRIVILEGE|live_courses|service_role|source_last_seen_at|REFERENCES|grantable=NO
+COLUMN_PRIVILEGE|live_courses|service_role|source_last_seen_at|SELECT|grantable=NO
+COLUMN_PRIVILEGE|live_courses|service_role|source_last_seen_at|UPDATE|grantable=NO
 COLUMN_PRIVILEGE|schedules|service_role|id|INSERT|grantable=NO
 COLUMN_PRIVILEGE|schedules|service_role|id|REFERENCES|grantable=NO
 COLUMN_PRIVILEGE|schedules|service_role|id|SELECT|grantable=NO
@@ -1001,7 +1010,7 @@ FUNCTION|public.promote_myharvard_hks_run(uuid)|security_definer=t|volatility=v|
 FUNCTION|public.refresh_synced_at()|security_definer=f|volatility=v|parallel=u|config=search_path=pg_catalog|definition_sha256=d21b19fedbb62cdcf59f265f7f32a769c9a18ca678343f7f6571476ad0827a05
 FUNCTION|public.rollback_myharvard_hks_run(uuid)|security_definer=t|volatility=v|parallel=u|config=search_path=public|definition_sha256=16d0e2d908d946029cb0d77cfe7bbee22e247b8463ac2974192812ef75e4360d
 FUNCTION|public.stage_myharvard_hks_offerings(uuid,jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path=public|definition_sha256=44adb1e09c20c5cb45a3014023fbb22fe0fcdb9b999625974cc3a34422e6bed4
-FUNCTION|public.sync_live_courses_atomically(jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path=public|definition_sha256=ec5ad7ef4517b88aa31185078390cfabbac51292bfbcce3b9b2c772f2ceab6c4
+FUNCTION|public.sync_live_courses_atomically(jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path=""|definition_sha256=601047128a4dfb5befafd3e2964f58b0f0ede27b0c1d4cb16afba4f972dd245a
 FUNCTION_PRIVILEGE|public.keep_ats_hks_inactive_after_myharvard()|anon|EXECUTE|f
 FUNCTION_PRIVILEGE|public.keep_ats_hks_inactive_after_myharvard()|authenticated|EXECUTE|f
 FUNCTION_PRIVILEGE|public.keep_ats_hks_inactive_after_myharvard()|service_role|EXECUTE|t

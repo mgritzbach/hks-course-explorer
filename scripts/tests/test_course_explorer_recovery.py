@@ -327,7 +327,12 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
         self.assertIn("--template recovery_probe recovery_rollback_probe", restore)
         self.assertIn("Prove the source recovery database stayed byte-exact", restore)
         self.assertIn("verify_myharvard_rollback_exercise.sql", restore)
+        self.assertIn("verify_ats_manifest_exercise.sql", restore)
+        self.assertIn("verify_ats_manifest_migration_isolation.sql", restore)
+        self.assertIn("--template recovery_probe recovery_ats_probe", restore)
+        self.assertIn("--template recovery_probe recovery_ats_migration_probe", restore)
         self.assertIn("--if-exists --force recovery_rollback_probe", restore)
+        self.assertIn("--if-exists --force recovery_ats_probe", restore)
         self.assertNotIn("SUPABASE_URL:", restore)
         self.assertNotIn("SUPABASE_KEY:", restore)
         for unrelated in ("orders", "availability", "vouchers", "profiles"):
@@ -384,6 +389,12 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
             path for path in RECOVERY_CONTRACT_PATHS if path.startswith("supabase/migrations/")
         ]
         self.assertGreater(len(migration_paths), 0)
+        self.assertIn("scripts/rollback_ats_manifest_visibility.sql", RECOVERY_CONTRACT_PATHS)
+        self.assertIn("scripts/verify_ats_manifest_exercise.sql", RECOVERY_CONTRACT_PATHS)
+        self.assertIn(
+            "scripts/verify_ats_manifest_migration_isolation.sql",
+            RECOVERY_CONTRACT_PATHS,
+        )
         for path in migration_paths:
             self.assertIn(path, workflow)
 
@@ -420,6 +431,45 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
             ROOT / "scripts/verify_course_explorer_schema.sql"
         ).read_text(encoding="utf-8").lower()
         self.assertIn("refresh_synced_at search_path is unsafe", verifier)
+
+    def test_ats_manifest_exercise_is_clone_only_and_restores_visibility(self):
+        probe = (ROOT / "scripts/verify_ats_manifest_exercise.sql").read_text(
+            encoding="utf-8"
+        ).lower()
+        rollback = (ROOT / "scripts/rollback_ats_manifest_visibility.sql").read_text(
+            encoding="utf-8"
+        ).lower()
+        workflow = (ROOT / ".github/workflows/verify-course-explorer-recovery.yml").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("sync_live_courses_atomically", probe)
+        self.assertIn("collides with a protected row", probe)
+        self.assertIn("contains duplicate ids", probe)
+        self.assertIn("changed the protected hks row", probe)
+        self.assertIn("rollback_ats_manifest_visibility.sql", probe)
+        self.assertIn("disable trigger live_courses_refresh_synced_at", rollback)
+        self.assertIn("set active = true", rollback)
+        self.assertIn("sync_run_id = null", rollback)
+        self.assertNotIn("delete from", probe + rollback)
+        self.assertIn("-d recovery_ats_probe", workflow)
+        self.assertNotIn("-d recovery_probe -f scripts/verify_ats_manifest_exercise.sql", workflow)
+
+        isolation = (
+            ROOT / "scripts/verify_ats_manifest_migration_isolation.sql"
+        ).read_text(encoding="utf-8").lower()
+        self.assertIn("ats migration changed an existing hks row", isolation)
+        self.assertIn("backfilled the hks observation timestamp", isolation)
+        self.assertIn("'ats_synced_at', to_jsonb(synced_at)", isolation)
+        self.assertIn("to_jsonb(source_last_seen_at) is distinct from", isolation)
+        self.assertIn("where name = 'ats_synced_at'", isolation)
+        self.assertIn("is_nullable <> 'yes'", isolation)
+        self.assertNotIn("delete from", isolation)
+        self.assertIn("-d recovery_ats_migration_probe", workflow)
+        self.assertNotIn(
+            "-d recovery_probe -f scripts/verify_ats_manifest_migration_isolation.sql",
+            workflow,
+        )
 
     def test_catalogue_rollback_exercise_is_clone_only_and_manifest_exact(self):
         probe = (ROOT / "scripts/verify_myharvard_rollback_exercise.sql").read_text(
