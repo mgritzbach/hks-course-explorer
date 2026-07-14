@@ -18,6 +18,7 @@ import {
   closedMobileDrawerAttributes,
   shouldRestoreReplayDrawer,
 } from '../lib/mobileDrawerAccessibility.js'
+import { currentAcademicSeasonLabel } from '../lib/homeSummary.js'
 
 // Lazy-load ScatterPlot so the 4.8 MB Plotly bundle is only fetched
 // when the user opens the "Course Comparisons" tab — not on initial load.
@@ -461,19 +462,8 @@ export default function Home({
   const bidYear = filters.year === biddingYearNum
   const PRESETS = useMemo(() => buildPresets(biddingYearNum), [biddingYearNum])
   const activeFilterCount = countFilterBadges(filters)
-
-  // Derive "last updated" label dynamically from the data
-  const lastUpdatedLabel = useMemo(() => {
-    const evalYears = courses.filter((c) => c.has_eval && !c.is_average && c.year && c.term)
-    if (!evalYears.length) return 'Spring 2025'
-    const maxYear = Math.max(...evalYears.map((c) => c.year))
-    const termsInMaxYear = [
-      ...new Set(evalYears.filter((c) => c.year === maxYear).map((c) => c.term)),
-    ]
-    const termOrder = { Spring: 2, Fall: 1, January: 0 }
-    const latestTerm = termsInMaxYear.sort((a, b) => (termOrder[b] ?? -1) - (termOrder[a] ?? -1))[0]
-    return latestTerm ? `${latestTerm} ${maxYear}` : `${maxYear}`
-  }, [courses])
+  const [summaryOpen, setSummaryOpen] = useState(false)
+  const lastUpdatedLabel = useMemo(() => currentAcademicSeasonLabel(), [])
 
   useDocumentTitle(pageTitle(filters))
 
@@ -779,55 +769,72 @@ export default function Home({
             </button>
           </div>
 
-          <div
-            className="grid grid-cols-2 gap-2 border-t px-5 py-4 md:flex md:flex-wrap md:gap-3 md:px-7"
-            style={{ borderColor: 'var(--line)', background: 'var(--panel-subtle)' }}
-          >
-            <div
-              className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
-              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+          <div className="border-t" style={{ borderColor: 'var(--line)' }}>
+            <button
+              type="button"
+              aria-expanded={summaryOpen}
+              onClick={() => setSummaryOpen((open) => !open)}
+              className="flex w-full items-center justify-between px-5 py-3 text-left text-xs font-semibold tracking-[0.12em] text-label md:px-7"
+              style={{ background: 'var(--panel-subtle)', minHeight: 44 }}
             >
-              <span style={{ color: 'var(--text-muted)' }}>View</span>
-              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
-                {avgMode ? 'All-years avg' : bidYear ? 'Active bidding' : 'Current courses'}
-              </p>
-            </div>
-            <div
-              className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
-              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
-            >
-              <span style={{ color: 'var(--text-muted)' }}>Matching</span>
-              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
-                {filtered.length} course{filtered.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <div
-              className="hidden rounded-2xl border px-4 py-3 text-sm md:block"
-              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
-            >
-              <span style={{ color: 'var(--text-muted)' }}>Built for</span>
-              <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>
-                Harvard Kennedy School students
-              </p>
-            </div>
-            <div
-              className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
-              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
-            >
-              <span style={{ color: 'var(--text-muted)' }}>Updated</span>
-              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
-                {lastUpdatedLabel}
-              </p>
-            </div>
-            <div
-              className="rounded-2xl border px-3 py-2.5 text-xs md:hidden"
-              style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
-            >
-              <span style={{ color: 'var(--text-muted)' }}>Built for</span>
-              <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
-                HKS students
-              </p>
-            </div>
+              <span>Overview</span>
+              <span aria-hidden="true" className="text-base leading-none">
+                {summaryOpen ? '-' : '+'}
+              </span>
+            </button>
+
+            {summaryOpen && (
+              <div
+                className="grid grid-cols-2 gap-2 px-5 pb-4 md:flex md:flex-wrap md:gap-3 md:px-7"
+                style={{ background: 'var(--panel-subtle)' }}
+              >
+                <div
+                  className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
+                  style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+                >
+                  <span style={{ color: 'var(--text-muted)' }}>View</span>
+                  <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                    {avgMode ? 'All-years avg' : bidYear ? 'Active bidding' : 'Current courses'}
+                  </p>
+                </div>
+                <div
+                  className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
+                  style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+                >
+                  <span style={{ color: 'var(--text-muted)' }}>Matching</span>
+                  <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                    {filtered.length} course{filtered.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div
+                  className="hidden rounded-2xl border px-4 py-3 text-sm md:block"
+                  style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+                >
+                  <span style={{ color: 'var(--text-muted)' }}>Built for</span>
+                  <p className="mt-1 font-medium" style={{ color: 'var(--text)' }}>
+                    HKS students
+                  </p>
+                </div>
+                <div
+                  className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
+                  style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+                >
+                  <span style={{ color: 'var(--text-muted)' }}>Updated</span>
+                  <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                    {lastUpdatedLabel}
+                  </p>
+                </div>
+                <div
+                  className="rounded-2xl border px-3 py-2.5 text-xs md:hidden"
+                  style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
+                >
+                  <span style={{ color: 'var(--text-muted)' }}>Built for</span>
+                  <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
+                    HKS students
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
