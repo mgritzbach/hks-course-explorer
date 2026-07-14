@@ -4,19 +4,17 @@ import process from 'node:process'
 const baseURL = process.env.DEPLOY_SMOKE_URL
 
 if (!baseURL) {
-  throw new Error('DEPLOY_SMOKE_URL is required for the production browser smoke test.')
+  throw new Error('DEPLOY_SMOKE_URL is required for the ATS production proof.')
 }
 
 export default defineConfig({
   testDir: './tests/production',
-  // The ATS close-out spec needs aggregate evidence produced by the protected
-  // service-role verifier and runs only through its dedicated fail-closed config.
-  testIgnore: '**/ats-catalogue-closeout.spec.js',
+  testMatch: 'ats-catalogue-closeout.spec.js',
   fullyParallel: false,
   forbidOnly: true,
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   workers: 1,
-  globalTimeout: 240_000,
+  globalTimeout: 120_000,
   timeout: 90_000,
   reporter: 'list',
   use: {
@@ -26,5 +24,5 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
-  projects: [{ name: 'production-chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [{ name: 'ats-production-chromium', use: { ...devices['Desktop Chrome'] } }],
 })
