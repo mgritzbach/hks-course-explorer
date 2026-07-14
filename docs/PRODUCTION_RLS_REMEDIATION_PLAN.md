@@ -261,3 +261,32 @@ database policy/data only under an incident owner’s approval. Reintroducing an
 unrestricted browser `ALL` policy is not a routine rollback; a secure
 authenticated plan-sync design is the successor feature. Set a documented
 retention decision for the legacy schedule records before eventual deletion.
+
+## Live security-advisor ownership disposition (2026-07-13)
+
+The production Supabase advisor was reviewed after the exact-master release.
+The reviewed Course Explorer boundary has no unresolved error-level finding.
+The complete live inventory is dispositioned below so unrelated objects in the
+shared project are not modified under this application's no-breakage rule.
+
+| Advisor object | Finding / exposure | Course Explorer disposition | Accountable owner |
+| --- | --- | --- | --- |
+| `public.schedules` | Informational: RLS enabled with no policy | Accepted by design. Visitor plans are local-only, browser grants are revoked, and no Course Explorer client accesses this table. | Course Explorer owner |
+| `public.voucher_assignments` | Shared-project advisor notice | No Course Explorer code, migration, or production request references this object. Remediation belongs to the application that owns the voucher workflow. | Shared-project / CASA Michele application owner |
+| `public.availability` | Shared-project advisor notice | No Course Explorer code, migration, or production request references this object. Do not change it from a Course Explorer release. | Shared-project / CASA Michele application owner |
+| `public.orders` | Shared-project advisor notice | No Course Explorer code, migration, or production request references this object. Do not change it from a Course Explorer release. | Shared-project / CASA Michele application owner |
+| `public.claim_voucher` (`anon`) | Shared-project function notice | Outside the Course Explorer runtime and database contract. Review with the voucher application owner. | Shared-project / CASA Michele application owner |
+| `public.claim_voucher` (`authenticated`) | Shared-project function notice | Outside the Course Explorer runtime and database contract. Review with the voucher application owner. | Shared-project / CASA Michele application owner |
+| `public.upsert_profile` (`anon`) | Shared-project function notice | Outside the Course Explorer runtime and database contract. Review with the profile application owner. | Shared-project / CASA Michele application owner |
+| `public.upsert_profile` (`authenticated`) | Shared-project function notice | Outside the Course Explorer runtime and database contract. Review with the profile application owner. | Shared-project / CASA Michele application owner |
+
+Exact-master CI run `29288833042` and deployment run `29289035733` passed the
+release-candidate checks, response-security/cache preflight, production Pages
+and custom-domain smoke, and production browser acceptance. The retired visitor
+authentication/KV endpoints returned the required non-cacheable JSON `404`
+responses while the Admin boundary remained operational. Course Advisor
+provider perfection is explicitly outside the corporate-readiness goals; its
+documented fail-closed `503` state is not treated as an owned security defect.
+
+Advisor remediation guidance remains available in the
+[Supabase Database Advisors documentation](https://supabase.com/docs/guides/database/database-advisors).
