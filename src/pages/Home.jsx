@@ -287,9 +287,32 @@ export default function Home({
   )
   // Mobile: scatter plot is hidden by default to show course list immediately
   const [showPlotMobile, setShowPlotMobile] = useState(false)
+  // Mounting Plotly is intentionally separated from the toggle interaction.
+  // This lets the browser paint the expanded panel immediately, then performs
+  // the heavier chart work in a later task instead of charging it to INP.
+  const [renderPlotMobile, setRenderPlotMobile] = useState(false)
   const isMobileViewport = useMobileViewport()
-  const shouldRenderPlot = !isMobileViewport || showPlotMobile
+  const shouldRenderPlot = !isMobileViewport || renderPlotMobile
 
+  useEffect(() => {
+    if (!isMobileViewport || !showPlotMobile || renderPlotMobile) return undefined
+
+    let timeoutId
+    const mountAfterPaint = () => {
+      timeoutId = window.setTimeout(() => setRenderPlotMobile(true), 0)
+    }
+    const frameId =
+      typeof window.requestAnimationFrame === 'function'
+        ? window.requestAnimationFrame(mountAfterPaint)
+        : undefined
+
+    if (frameId === undefined) mountAfterPaint()
+
+    return () => {
+      if (frameId !== undefined) window.cancelAnimationFrame(frameId)
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId)
+    }
+  }, [isMobileViewport, renderPlotMobile, showPlotMobile])
   // The welcome page hands off an explicit tutorial request only once. Keeping
   // the active state here lets the tour continue after App consumes the
   // request, while Direct visitors retain the normal "already seen" state.
@@ -835,6 +858,21 @@ export default function Home({
 
         {/* Scatter plot: always visible on desktop, toggle-controlled on mobile */}
         <div className={showPlotMobile ? '' : 'hidden md:block'}>
+          {isMobileViewport && showPlotMobile && !shouldRenderPlot && (
+            <div
+              role="status"
+              style={{
+                height: 420,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-muted)',
+                fontSize: 13,
+              }}
+            >
+              Loading chart...
+            </div>
+          )}
           {shouldRenderPlot && (
             <Suspense
               fallback={
