@@ -136,7 +136,9 @@ class BuildDataContractTests(unittest.TestCase):
 
     def test_similarity_source_hash_is_tracked_and_matches_the_canonical_input(self):
         build_data = load_module()
-        expected = build_data.stable_source_hash(build_data.SOURCE_CSV)
+        expected = build_data.catalogue_source_hash(
+            (build_data.SOURCE_CSV, build_data.HISTORICAL_PARITY_REGISTRY)
+        )
 
         self.assertEqual(build_data.SIM_HASH_FILE, ROOT / "data" / "sim_coords_source.md5")
         self.assertEqual(build_data.SIM_HASH_FILE.read_text(encoding="utf-8").strip(), expected)

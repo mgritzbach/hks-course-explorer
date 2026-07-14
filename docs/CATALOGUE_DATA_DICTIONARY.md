@@ -22,7 +22,7 @@ or break a teaching lineage.
 | --- | --- | --- | --- |
 | `live_courses` | Daily Harvard sync | Current offerings | Never overwritten by snapshot publishing |
 | `course_sections` | Section import/sync | Meeting-time enrichment | Never keyed only by stripped course code |
-| `courses` | Reviewed historical imports | Evaluations and bidding observations | Remains immutable to catalogue materialisation |
+| `courses` | Reviewed historical imports plus parity reconciliation | Evaluations and bidding observations | IDs remain immutable; one exact same-ID evaluation enrichment and distinct canonical additions are guarded explicitly |
 | `catalogue_sync_runs` | Opt-in snapshot publisher | Promotion/rollback record | New, private, versioned table |
 | `catalogue_snapshot_v1` | Opt-in snapshot publisher | One row per current offering | New, private, versioned table |
 
@@ -73,3 +73,22 @@ Every catalogue response must retain `offering_id`, `source_snapshot_at`,
 `match_status`, `match_method`, `historical_course_codes`, and the observed
 evaluation years/counts. This lets the site explain what data it is showing and
 lets an operator trace it back to the raw source records.
+
+## Historical parity registry
+
+`data/historical_parity_registry.json` reconciles storage identity without
+declaring a course-family alias. A generated observation may retain an existing
+database ID only when one source row and one canonical row have the same
+normalized code, professor, title, term/year, aggregate window, respondent
+count, ratings, and evaluation/bidding state. Multiplicity or any observation
+drift fails closed. If the immutable ID is already shared but the production
+row contains an evaluation missing from the generated row, the registry
+digest-locks and preserves that exact production row instead of hiding its
+evaluation. The inverse, a canonical evaluation on the same immutable
+bidding-only source row, is retained as a same-ID enrichment. All other
+same-ID observation drift aborts registry generation. Database-only rows
+remain independent preserved rows; canonical-only rows remain independent
+additive rows. Therefore an A/B/C
+evaluation cannot be collapsed into an unsuffixed bidding record, and the
+registry cannot authorize evaluation data to cross a professor or observation
+boundary.

@@ -1,0 +1,47 @@
+name: Verify live historical parity
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: Exact catalogue state to verify
+        required: true
+        default: after
+        type: choice
+        options:
+          - before
+          - after
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hks-production-historical-parity
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Read-only exact historical parity
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact master revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Install hash-locked read-only dependency
+        run: pip install --require-hashes -r requirements/workflows.txt
+
+      - name: Verify exact live historical manifest and payload preservation
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.DEPLOY_VITE_SUPABASE_ANON_KEY }}
+        run: python scripts/verify_live_historical_parity.py --phase "${{ inputs.phase }}"

@@ -1,0 +1,109 @@
+name: Verify historical parity reconciliation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/verify-historical-parity-reconciliation.yml'
+      - 'data/historical_parity_registry.json'
+      - 'public/courses.json'
+      - 'scripts/build_data.py'
+      - 'scripts/build_historical_parity_registry.py'
+      - 'scripts/historical_parity_reconciliation.py'
+      - 'scripts/render_historical_parity_migration.py'
+      - 'scripts/tests/test_historical_parity_*.py'
+      - 'supabase/migrations/20260714124737_reconcile_historical_catalogue_additively.sql'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/verify-historical-parity-reconciliation.yml'
+      - 'data/historical_parity_registry.json'
+      - 'public/courses.json'
+      - 'scripts/build_data.py'
+      - 'scripts/build_historical_parity_registry.py'
+      - 'scripts/historical_parity_reconciliation.py'
+      - 'scripts/render_historical_parity_migration.py'
+      - 'scripts/tests/test_historical_parity_*.py'
+      - 'supabase/migrations/20260714124737_reconcile_historical_catalogue_additively.sql'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-proof:
+    name: Additive PostgreSQL proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.24@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        env:
+          POSTGRES_DB: parity_probe
+          POSTGRES_USER: parity_probe
+          POSTGRES_PASSWORD: parity_probe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U parity_probe -d parity_probe"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: parity_probe
+      PGUSER: parity_probe
+      PGPASSWORD: parity_probe
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Build production-shape historical baseline
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/recovery/course_explorer_base.sql
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          registry = json.loads(
+              Path('data/historical_parity_registry.json').read_text(encoding='utf-8')
+          )
+          rows = registry['same_id_canonical_enrichments']
+          if len(rows) != 1:
+              raise SystemExit('Expected exactly one reviewed same-ID enrichment source row')
+          payload = json.dumps(rows[0]['row'], ensure_ascii=False, separators=(',', ':'))
+          if '$probe_row$' in payload:
+              raise SystemExit('Probe payload conflicts with SQL delimiter')
+          Path('/tmp/enrichment-source.sql').write_text(
+              "insert into public.courses "
+              "select (jsonb_populate_record(null::public.courses, item)).* "
+              f"from jsonb_array_elements($probe_row$[{payload}]$probe_row$::jsonb) "
+              "as rows(item);\n",
+              encoding='utf-8',
+          )
+          PY
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          insert into public.courses(id)
+          select 'baseline-' || value
+          from generate_series(1, 5811) as value;
+          SQL
+          psql -v ON_ERROR_STOP=1 -f /tmp/enrichment-source.sql
+
+      - name: Apply guarded additive reconciliation
+        run: >-
+          psql -v ON_ERROR_STOP=1
+          -f supabase/migrations/20260714124737_reconcile_historical_catalogue_additively.sql
+
+      - name: Verify exact additive postconditions and fail-closed replay
+        run: |
+          test "$(psql -Atc 'select count(*) from public.courses')" = "5832"
+          test "$(psql -Atc "select count(*) from public.courses where id not like 'baseline-%'")" = "21"
+          if psql -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/20260714124737_reconcile_historical_catalogue_additively.sql; then
+            echo "Migration replay unexpectedly succeeded." >&2
+            exit 1
+          fi
+          test "$(psql -Atc 'select count(*) from public.courses')" = "5832"

@@ -430,6 +430,42 @@ ATS rollout now also has production recovery evidence: pre-change backup/restore
 `29331189018`. These runs prove the current/retained ATS boundary; G02 remains
 incomplete only because historical exact-ID parity is unresolved.
 
+### Historical parity additive release
+
+The parity change is deliberately sequenced so either the old or new frontend
+is safe against either database state:
+
+1. Run the full local/CI build and the path-scoped **Verify historical parity
+   reconciliation** PostgreSQL proof. Confirm the generated manifest is 5,832
+   unique IDs and the migration replay fails without changing its 5,832-row
+   postcondition.
+2. Create and clean-room-restore an encrypted five-table Course Explorer
+   recovery package from the exact pre-change production state.
+3. Merge through protected `master`; require exact-commit CI and deployment.
+   The new static similarity manifest safely contains the 20 not-yet-inserted
+   IDs while the browser continues to read the unchanged 5,812 database rows.
+4. Dispatch **Verify live historical parity** with `phase=before`. Require
+   5,812 unique IDs plus the exact complete registry ID and row-payload digests
+   immediately before applying
+   `20260714124737_reconcile_historical_catalogue_additively.sql` as a reviewed
+   Supabase migration.
+5. Require 5,832 unique database IDs, exact equality with the generated
+   `public/courses.json` ID manifest, zero omitted pre-change IDs, unchanged
+   row payloads for 5,811 pre-change IDs, the exact reviewed same-ID evaluation
+   enrichment target, and exact payload equality for the 20 additions. Dispatch
+   the same verifier with `phase=after` for protected evidence.
+6. Run focused live browser checks for catalogue load, course search/detail,
+   comparison, shortlist, graphs, and content-similarity lookup. Then create
+   and clean-room-restore the post-change recovery package.
+
+The migration contains one exact-preimage, same-ID update restricted to seven
+evaluation fields; it contains no delete, upsert, or ID rewrite. If any
+precondition differs, stop: do not weaken the guard. Before the database step,
+rollback is the normal Cloudflare deployment rollback. After the additive
+database step, prefer frontend rollback while retaining the 20 valid distinct
+observations; a database restore is reserved for demonstrated data corruption
+and requires the encrypted recovery procedure and owner approval.
+
 ### Manual live-course backup
 
 Before any separately approved reconciliation, RLS migration, or recovery
