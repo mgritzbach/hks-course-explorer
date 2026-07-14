@@ -21,6 +21,7 @@ from course_explorer_recovery_format import (
     MAXIMUM_ROWS,
     MAXIMUM_TOTAL_ROWS,
     MINIMUM_ROWS,
+    PRE_MIGRATION_NULLABLE_COLUMNS,
     RECOVERY_FORMAT,
     SOURCE_COMMIT_PATTERN,
     TABLE_COLUMNS,
@@ -114,9 +115,25 @@ def _validate_rows(table: str, rows: list[dict]) -> list[dict]:
             f"{table} row count {len(rows)} is outside the reviewed "
             f"{MINIMUM_ROWS[table]}..{MAXIMUM_ROWS[table]} range"
         )
-    if any(set(row) != TABLE_COLUMNS[table] for row in rows):
+    expected_columns = TABLE_COLUMNS[table]
+    row_shapes = {frozenset(row) for row in rows}
+    if not rows:
+        normalized_rows = rows
+    elif row_shapes == {expected_columns}:
+        normalized_rows = rows
+    else:
+        nullable_columns = PRE_MIGRATION_NULLABLE_COLUMNS.get(table, frozenset())
+        pre_migration_columns = expected_columns - nullable_columns
+        if nullable_columns and row_shapes == {pre_migration_columns}:
+            normalized_rows = [
+                {**row, **{column: None for column in nullable_columns}}
+                for row in rows
+            ]
+        else:
+            raise RuntimeError(f"{table} does not match the reviewed column contract")
+    if any(set(row) != expected_columns for row in normalized_rows):
         raise RuntimeError(f"{table} does not match the reviewed column contract")
-    identities = [str(row.get("id") or "") for row in rows]
+    identities = [str(row.get("id") or "") for row in normalized_rows]
     if any(not identity for identity in identities):
         raise RuntimeError(f"{table} contains a blank identity")
     if len(set(identities)) != len(identities):
@@ -127,7 +144,7 @@ def _validate_rows(table: str, rows: list[dict]) -> list[dict]:
     # can disagree for punctuation or non-ASCII course identities. Canonicalize
     # the completed, uniqueness-checked capture locally so package hashes are
     # stable without treating a safe database collation as data corruption.
-    return sorted(rows, key=lambda row: str(row["id"]))
+    return sorted(normalized_rows, key=lambda row: str(row["id"]))
 
 
 def write_recovery_package(
