@@ -208,6 +208,277 @@ class CatalogueAuditTests(unittest.TestCase):
 
         self.assertEqual(report["manual_nonaggregate_section_code_change_review_count"], 1)
 
+    @staticmethod
+    def history(row_id, code, year, term, professor, title, **extra):
+        return {
+            "id": row_id,
+            "course_code": code,
+            "course_code_base": code,
+            "year": year,
+            "term": term,
+            "professor": professor,
+            "course_name": title,
+            "is_average": extra.pop("is_average", False),
+            **extra,
+        }
+
+    def test_deterministic_accounting_closes_every_safe_population(self):
+        source = [
+            self.history("same", "API-101", 2024, "Fall", "Avery Example", "Policy"),
+            self.history(
+                "title-drift",
+                "API-102",
+                2024,
+                "Fall",
+                "Avery Example",
+                "Old title",
+            ),
+            self.history(
+                "missing-professor",
+                "API-103",
+                2024,
+                "Fall",
+                "",
+                "Institutions",
+            ),
+            self.history(
+                "API-104||0||Average||Avery Example",
+                "API-104",
+                0,
+                "Average",
+                "Avery Example",
+                "Methods",
+                is_average=True,
+                year_range="2020-2024",
+                n_terms=5,
+            ),
+            self.history(
+                "DPI-820-M-A||2025||Fall||Avery Example",
+                "DPI-820-M",
+                2025,
+                "Fall",
+                "Avery Example",
+                "Memo",
+            ),
+            self.history(
+                "ambiguous-source-a",
+                "API-105",
+                0,
+                "Average",
+                "Avery Example",
+                "Leadership",
+                is_average=True,
+            ),
+            self.history(
+                "ambiguous-source-b",
+                "API-105",
+                0,
+                "Average",
+                "Avery Example",
+                "Leadership",
+                is_average=True,
+            ),
+            self.history(
+                "database-only",
+                "API-106",
+                2025,
+                "Fall",
+                "Avery Example",
+                "Evidence",
+            ),
+            self.history(
+                "missing-professor-old",
+                "API-107",
+                0,
+                "Average",
+                "",
+                "Organizations",
+                is_average=True,
+                year_range="2020-2024",
+                n_terms=5,
+            ),
+        ]
+        canonical = [
+            self.history("same", "API-101", 2024, "Fall", "Avery Example", "Policy"),
+            self.history(
+                "title-drift",
+                "API-102",
+                2024,
+                "Fall",
+                "Avery Example",
+                "New title",
+            ),
+            self.history(
+                "missing-professor",
+                "API-103",
+                2024,
+                "Fall",
+                "",
+                "Institutions",
+            ),
+            self.history(
+                "API-104||0||Average||Avery Example||aggregate-digest",
+                "API-104",
+                0,
+                "Average",
+                "Avery Example",
+                "Methods",
+                is_average=True,
+                year_range="2020-2024",
+                n_terms=5,
+            ),
+            self.history(
+                "DPI-820-M||2025||Fall||Avery Example",
+                "DPI-820-M",
+                2025,
+                "Fall",
+                "Avery Example",
+                "Memo",
+            ),
+            self.history(
+                "ambiguous-canonical",
+                "API-105",
+                0,
+                "Average",
+                "Avery Example",
+                "Leadership",
+                is_average=True,
+            ),
+            self.history(
+                "canonical-only",
+                "API-108",
+                2025,
+                "Fall",
+                "Avery Example",
+                "Implementation",
+            ),
+            self.history(
+                "missing-professor-new",
+                "API-107",
+                0,
+                "Average",
+                "",
+                "Organizations",
+                is_average=True,
+                year_range="2020-2024",
+                n_terms=5,
+            ),
+            self.history(
+                "canonical-only-no-professor",
+                "API-109",
+                0,
+                "Average",
+                "",
+                "Governance",
+                is_average=True,
+            ),
+        ]
+        accounting = self.audit.deterministic_historical_accounting(source, canonical)
+        self.assertTrue(accounting["zero_unclassified_identities"])
+        self.assertEqual(accounting["classified_source_row_count"], len(source))
+        self.assertEqual(accounting["classified_canonical_row_count"], len(canonical))
+        expected = {
+            "same_id_same_observation": (1, 1, 1),
+            "same_id_nonidentity_drift": (1, 1, 1),
+            "exact_technical_rekey": (1, 1, 1),
+            "section_or_code_change_review": (1, 1, 1),
+            "ambiguous_no_shared_id": (1, 2, 1),
+            "database_only": (1, 1, 0),
+            "canonical_only": (2, 0, 2),
+            "professor_unavailable": (2, 2, 2),
+            "identity_conflict_review": (0, 0, 0),
+        }
+        for name, (groups, source_count, canonical_count) in expected.items():
+            self.assertEqual(
+                accounting["categories"][name],
+                {
+                    "group_count": groups,
+                    "source_row_count": source_count,
+                    "canonical_row_count": canonical_count,
+                },
+            )
+
+    def test_same_id_multirow_keys_are_not_genuine_ambiguities(self):
+        source = [
+            self.history(
+                "shared-a", "API-101", 2024, "Fall", "Avery Example", "Policy"
+            ),
+            self.history(
+                "shared-b", "API-101", 2024, "Fall", "Avery Example", "Policy"
+            ),
+        ]
+        accounting = self.audit.deterministic_historical_accounting(
+            source, [dict(row) for row in source]
+        )
+        self.assertEqual(
+            accounting["categories"]["same_id_same_observation"]["source_row_count"],
+            2,
+        )
+        self.assertEqual(
+            accounting["categories"]["ambiguous_no_shared_id"]["group_count"], 0
+        )
+
+    def test_accounting_rejects_duplicate_or_missing_immutable_ids(self):
+        duplicate = [
+            self.history("same", "API-101", 2024, "Fall", "Avery Example", "Policy"),
+            self.history(
+                "same", "API-102", 2024, "Fall", "Avery Example", "Economics"
+            ),
+        ]
+        with self.assertRaisesRegex(RuntimeError, "duplicate immutable id"):
+            self.audit.deterministic_historical_accounting(duplicate, [])
+        with self.assertRaisesRegex(RuntimeError, "has no immutable id"):
+            self.audit.deterministic_historical_accounting(
+                [{"course_code": "API-101"}], []
+            )
+
+    def test_shared_id_raw_section_drift_requires_identity_review(self):
+        source = self.history(
+            "shared",
+            "DPI-820-M-A",
+            2025,
+            "Fall",
+            "Avery Example",
+            "Policy Memo",
+        )
+        source["course_code_base"] = "DPI-820-M"
+        canonical = self.history(
+            "shared",
+            "DPI-820-M",
+            2025,
+            "Fall",
+            "Avery Example",
+            "Policy Memo",
+        )
+        canonical["course_code_base"] = "DPI-820-M"
+
+        accounting = self.audit.deterministic_historical_accounting(
+            [source], [canonical]
+        )
+
+        self.assertEqual(
+            accounting["categories"]["identity_conflict_review"],
+            {
+                "group_count": 1,
+                "source_row_count": 1,
+                "canonical_row_count": 1,
+            },
+        )
+        self.assertEqual(
+            accounting["categories"]["same_id_same_observation"]["group_count"], 0
+        )
+
+    def test_audit_report_includes_count_closing_accounting(self):
+        source = [
+            self.history(
+                "history-a", "API-101", 2024, "Fall", "Avery Example", "Policy"
+            )
+        ]
+        report = self.audit.audit_catalogue([], source, {}, [dict(source[0])])
+        accounting = report["deterministic_historical_accounting"]
+        self.assertTrue(accounting["zero_unclassified_identities"])
+        self.assertEqual(accounting["classified_source_row_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

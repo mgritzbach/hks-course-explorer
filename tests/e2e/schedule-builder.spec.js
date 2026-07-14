@@ -199,6 +199,7 @@ test.describe('Schedule Builder critical flows', () => {
 
     await page.getByLabel('School filter').selectOption('Non-HKS')
     await expect(results).toContainText('ECON-50')
+    await expect(results).not.toContainText('ECON-999')
     await expect(results).toContainText('1 live course · 1 scheduled')
 
     await page.getByLabel('School filter').selectOption('HKS')

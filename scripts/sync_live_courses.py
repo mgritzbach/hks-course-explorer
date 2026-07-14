@@ -592,7 +592,8 @@ def supabase_inventory_live_courses(request_get=requests.get):
             params={
                 "select": (
                     "id,school,term,course_code,session_code,source,active,is_hks,"
-                    "sync_run_id,source_course_id,source_offering_id,synced_at"
+                    "sync_run_id,source_course_id,source_offering_id,synced_at,"
+                    "source_last_seen_at"
                 ),
                 "order": "id.asc",
             },
@@ -626,14 +627,13 @@ def supabase_inventory_live_courses(request_get=requests.get):
 
 
 def supabase_inventory_catalogue_runs(request_get=requests.get):
-    """Read every my.harvard run needed to prove protected HKS ownership."""
+    """Read every HKS and ATS run needed to prove source ownership."""
     rows = []
     seen_ids = set()
     expected_total = None
     endpoint = f"{SUPABASE_URL}/rest/v1/live_catalogue_runs"
     params = {
         "select": "id,source,status,offering_count,identity_sha256,term_counts",
-        "source": "eq.myharvard",
         "order": "id.asc",
     }
     for start in range(0, MAX_INVENTORY_ROWS, INVENTORY_PAGE_SIZE):

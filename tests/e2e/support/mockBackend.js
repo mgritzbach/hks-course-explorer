@@ -129,6 +129,26 @@ const liveCourses = [
     cross_reg_eligible: 'YESXREG',
   },
   {
+    id: 'retained-econ-999',
+    course_code: 'ECON-999',
+    course_code_base: 'ECON-999',
+    title: 'Retained Source Snapshot Only',
+    term: '2026 Spring',
+    credits: 4,
+    instructors: ['Historical Instructor'],
+    meeting_days: 'FRI',
+    time_start: '09:00',
+    time_end: '10:15',
+    location: 'Archive',
+    school: 'FAS',
+    is_hks: false,
+    session_code: 'FULL',
+    session_description: 'Full Term',
+    cross_reg_eligible: 'YESXREG',
+    source: 'ats',
+    active: false,
+  },
+  {
     id: 'myh|HKS|2027-Spring|january1|1|A',
     course_code: 'IGA-299-A',
     course_code_base: 'IGA-299',
@@ -277,9 +297,13 @@ export async function installMockBackend(
         const resolved = await liveCoursesResponseResolver(requestUrl, liveCoursesResponse)
         return json(route, resolved?.body ?? [], resolved?.status ?? 200)
       }
+      const visibleRows =
+        requestUrl.searchParams.get('active') === 'eq.true'
+          ? liveCoursesResponse.filter((row) => row.active !== false)
+          : liveCoursesResponse
       return json(
         route,
-        liveCoursesStatus === 200 ? liveCoursesResponse : { error: 'unavailable' },
+        liveCoursesStatus === 200 ? visibleRows : { error: 'unavailable' },
         liveCoursesStatus,
       )
     }
