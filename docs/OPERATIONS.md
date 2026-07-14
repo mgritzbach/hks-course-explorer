@@ -419,14 +419,16 @@ no-delete visibility failback, not a byte-exact database restore.
    schema restoration is required, use the encrypted recovery workflow instead
    of this visibility failback.
 
-### Remaining production evidence
+### Production recovery evidence
 
 `live_courses` is promoted through the service-only
 `sync_live_courses_atomically(jsonb)` Postgres RPC. A rejected payload or
-database error therefore leaves the prior live catalogue intact. This does not
-by itself prove production recovery: a database owner must still provide and
-test backup/restore, and the future versioned catalogue path must prove a
-staged rollback before G02 can be marked complete.
+database error therefore leaves the prior live catalogue intact. The protected
+ATS rollout now also has production recovery evidence: pre-change backup/restore
+`29326913184`/`29326957582`, post-change backup/restore
+`29328037364`/`29328086860`, and exact-master read/browser verification
+`29331189018`. These runs prove the current/retained ATS boundary; G02 remains
+incomplete only because historical exact-ID parity is unresolved.
 
 ### Manual live-course backup
 

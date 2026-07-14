@@ -34,21 +34,25 @@ review items rather than silent matches.
 
 ## ATS current/retained visibility
 
-The latest complete production observation (workflow `29320150415`) contained
-5,230 current ATS offerings and 2,397 retained ATS rows, with retained queue
-digest
-`2dd352c11b2884ee2ac1c0b225a51dfb5eb5687f44fffacdb913589ba776807a`.
-The two preceding complete observations contained 5,414 current plus 2,205
-retained, and 6,092 current plus 1,526 retained. Cumulative inventory moved only
-from 7,618 to 7,619 to 7,627 while hundreds of identities moved between current
-and retained. This proves upstream result volatility, not retirement.
+The protected exact-master verifier `29331189018` is the current production
+observation. It recomputed 6,101 active ATS offerings and 1,723 retained inactive
+ATS rows, with zero missing observation timestamps and active-manifest digest
+`957cc9bbec1d96ba1627e35cb56e086740b7ce274a85cc4a43739d500d76450d`.
+It also reconstructed the exact 1,829-row Fall ATS digest from public browser
+responses and proved a current course addable.
 
-All 2,397 retained rows therefore have a formal **KEEP/no-delete** disposition.
-They remain stored for recovery but must be inactive so the public
-`active=true` query cannot present them as currently offered. Each complete
-promotion persists an exact ATS row-count, sorted-ID SHA-256, and term-count
-manifest. The same transaction deactivates prior ATS visibility and activates
-only the complete new run-owned manifest.
+Earlier complete observations contained 5,230 current plus 2,397 retained,
+5,414 current plus 2,205 retained, and 6,092 current plus 1,526 retained.
+Cumulative inventory moved only from 7,618 to 7,619 to 7,627 while hundreds of
+identities moved between current and retained. This proves upstream result
+volatility, not retirement.
+
+Every retained row therefore has a formal **KEEP/no-delete** disposition. The
+current 1,723 retained rows remain stored for recovery but inactive so the
+public `active=true` query cannot present them as currently offered. Each
+complete promotion persists an exact ATS row-count, sorted-ID SHA-256, and
+term-count manifest. The same transaction deactivates prior ATS visibility and
+activates only the complete new run-owned manifest.
 
 The post-promotion classifier fails if:
 
