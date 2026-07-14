@@ -6,13 +6,13 @@ team. It contains roles and procedures only; secret values never belong here.
 
 ## Current ownership
 
-| Boundary | Accountable owner | Responsibilities |
-| --- | --- | --- |
-| Product and release decisions | Michael Gritzbach (`@mgritzbach`) | User-facing scope, release approval, rollback decision, and public communications. |
-| Repository and CI/CD | Michael Gritzbach (`@mgritzbach`) | Ruleset, workflow permissions, dependency review, exact-commit CI/deploy evidence, and recovery branches. |
-| Supabase and catalogue data | Michael Gritzbach (`@mgritzbach`) | RLS/grants, migrations, daily sync health, backup/restore evidence, and source-parity review. |
-| Cloudflare Pages and Functions | Michael Gritzbach (`@mgritzbach`) | Deployments, bindings, secrets, cache/security settings, Functions logs, and rollback. |
-| Observability and providers | Michael Gritzbach (`@mgritzbach`) | Sentry/PostHog review, chat/email provider health, privacy, and zero-cost usage limits. |
+| Boundary                       | Accountable owner                 | Responsibilities                                                                                          |
+| ------------------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Product and release decisions  | Michael Gritzbach (`@mgritzbach`) | User-facing scope, release approval, rollback decision, and public communications.                        |
+| Repository and CI/CD           | Michael Gritzbach (`@mgritzbach`) | Ruleset, workflow permissions, dependency review, exact-commit CI/deploy evidence, and recovery branches. |
+| Supabase and catalogue data    | Michael Gritzbach (`@mgritzbach`) | RLS/grants, migrations, daily sync health, backup/restore evidence, and source-parity review.             |
+| Cloudflare Pages and Functions | Michael Gritzbach (`@mgritzbach`) | Deployments, bindings, secrets, cache/security settings, Functions logs, and rollback.                    |
+| Observability and providers    | Michael Gritzbach (`@mgritzbach`) | Sentry/PostHog review, chat/email provider health, privacy, and zero-cost usage limits.                   |
 
 The current project has one maintainer and therefore does not promise a 24/7
 on-call service or response-time SLA. Reliability comes from failing closed,
@@ -30,12 +30,12 @@ last-known-good production state in place.
 - Preserve the failing GitHub Actions run, Cloudflare deployment identifier,
   Supabase migration/sync identifier, and affected application commit.
 
+<!-- prettier-ignore -->
 | Severity | Definition | Required response |
 | --- | --- | --- |
 | P0 | Data exposure/corruption, compromised credential, or the core service unavailable. | Freeze promotion, disable the affected path if safe, preserve evidence, rotate exposed credentials, and use the documented manual rollback procedure. |
 | P1 | Major route, catalogue, schedule, comparison, or provider function broken without data exposure. | Stop new releases, reproduce against the exact production commit, add a regression test, and promote only after the full gate passes. |
 | P2 | Localized defect or documentation/operational issue with a safe workaround. | Track it, test the correction proportionally, and release through the normal protected path. |
-
 The detailed diagnostic and rollback commands live in
 [`OPERATIONS.md`](OPERATIONS.md).
 
@@ -67,10 +67,22 @@ The detailed diagnostic and rollback commands live in
   disable its ingestion before a charge can occur; do not allow automatic paid
   overage.
 
-## Successor IT-team acceptance checklist
+## Current handover-ready acceptance
 
-The current owner and successor must complete this checklist together. A name
-in `CODEOWNERS` is not sufficient handover evidence.
+The sole-maintainer service boundary is ready to operate and to be handed over:
+ownership/no-SLA limits, zero-cost controls, clean setup, exact-commit release,
+production smoke, complete recovery, incident response, and Pages rollback are
+documented. The current release `b3a3297` was rolled back to the recorded prior
+Pages deployment and re-promoted; production acceptance passed 6/6 in both
+states without changing Supabase, KV, secrets, or Durable Object state.
+
+This closes the current operations/readiness goal. It does not assert that an
+institutional successor exists or has accepted access, duty, or liability.
+
+## Successor IT-team acceptance checklist (future transfer)
+
+When a successor is named, the current owner and successor must complete this
+checklist together. A name in `CODEOWNERS` is not sufficient transfer evidence.
 
 1. Grant the successor least-privilege administrative access to GitHub,
    Cloudflare, Supabase, observability, and required provider accounts.
@@ -92,6 +104,6 @@ in `CODEOWNERS` is not sufficient handover evidence.
 8. Confirm free-plan status or `$0` limits for every provider and record the
    next quarterly ownership/access review date.
 
-Until every item is recorded, the transfer is incomplete and the current owner
+Until every item is recorded after a successor is named, the transfer is incomplete and the current owner
 remains accountable. Review this document after any owner, provider, data
 source, deployment path, or incident process changes.

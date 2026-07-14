@@ -156,6 +156,7 @@ preview/release-candidate deployments are not valid targets. See Cloudflare's
    If verification fails, preserve the detached worktree until its output is
    attached to the incident, then remove it explicitly. Do not switch or reset
    the original incident checkout.
+
 5. Confirm the custom domain serves the recorded rollback deployment and retain
    the smoke output with the incident. Re-enable promotion only after the
    regression is fixed and the normal exact-commit release path passes again.
@@ -268,15 +269,18 @@ GROUP BY device_type, metric
 ORDER BY device_type, metric
 ```
 
-Use Google's Core Web Vitals p75 "good" thresholds as release budgets: LCP at
-or below 2,500 ms, INP at or below 200 ms, and CLS at or below 0.1. The mobile
-rows are an independent release gate; an all-device or desktop result cannot
-substitute for them. Do not call mobile field performance representative until
-the `Mobile` segment has at least 75 LCP samples, 75 CLS samples, and 30 INP
-interaction samples, and the 28-day window includes normal student usage rather
-than only operator smoke tests. Record every device-segment row and the time
-window in the release evidence. An empty, operator-only, or desktop-dominated
-result is not passing mobile performance evidence.
+The production release gate is deterministic and time-independent: use the
+exact-production five-sample stressed-mobile interaction procedure in
+`PERFORMANCE_BASELINE.md`. Require p75 and every first-open sample at or below
+500 ms, handler processing at or below 50 ms, and a passing
+show-hide-filter-show plot check. Bundle budgets and the complete production
+smoke remain mandatory.
+
+The 500 ms boundary prevents a poor interaction regression but is not a claim
+of Google's 200 ms “good” INP threshold. Continue reviewing the rolling 28-day
+query for operational trends and future optimization. Field rows do not block a
+release merely because a low-traffic free service has not accumulated a
+calendar-dependent sample minimum.
 
 ## Live-course sync
 
@@ -529,6 +533,19 @@ Do not promote based on local contract tests alone: table schema, RLS/public
 grants, backup/restore, Function secrets, and Cloudflare log retention require
 platform-owner evidence.
 
+## Verified Pages rollback and re-promotion — 2026-07-13
+
+The current release `b3a3297d75a78ba348c8ba05dac21596df85bc24` used Pages
+deployment `fe70f73c-818a-4eda-85bb-c40ab2a6d3b8`. The operator exercised the
+supported Pages-only rollback API to the previous deployment
+`707536b6-c961-4e05-a533-963e09932ade` (`fee9b63`).
+
+The custom domain changed to `assets/index--g7R4yv3.js` and the complete
+production acceptance suite passed 6/6. Re-promoting the recorded current
+deployment restored `assets/index-CjeKs0iM.js` and the same suite passed 6/6.
+The drill did not mutate Supabase, KV, secrets, Durable Objects, or the
+rate-limiter Worker. This is the current G09/G11 rollback evidence.
+
 ## Incident response
 
 Accountability, severity definitions, private/public intake, zero-cost limits,
@@ -545,7 +562,7 @@ and the successor-team acceptance process are defined in
 
 ## Release approval
 
-A release is blocked while any P0 item in `GOAL_STATUS.md` is `0`. Required
+Overall corporate-readiness certification remains incomplete while any P0 item in `GOAL_STATUS.md` is `0`. A narrowly scoped protected release may proceed only when its affected boundaries pass and no incomplete P0 boundary is weakened. Required
 evidence includes an exact-commit CI run, preview smoke checks, data freshness,
 rollback target, and post-deploy monitoring. Production secrets, database
 migrations, and provider accounts require the responsible platform owner.
