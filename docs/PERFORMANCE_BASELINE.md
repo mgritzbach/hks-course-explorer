@@ -9,11 +9,11 @@ Supabase configuration before changing performance budgets or loading strategy.
 Target: local Vite production preview, Home route (`/`), cold navigation,
 Chrome DevTools, no CPU or network throttling.
 
-| Metric | Observed value | Notes |
-| --- | ---: | --- |
-| LCP | 409 ms | Text LCP; 8 ms TTFB and 401 ms render delay. |
-| CLS | 0.00 | No layout shift observed. |
-| TTFB | 8 ms | Local-preview measurement only. |
+| Metric | Observed value | Notes                                        |
+| ------ | -------------: | -------------------------------------------- |
+| LCP    |         409 ms | Text LCP; 8 ms TTFB and 401 ms render delay. |
+| CLS    |           0.00 | No layout shift observed.                    |
+| TTFB   |           8 ms | Local-preview measurement only.              |
 
 DevTools found no render-blocking request with measurable FCP/LCP savings.
 Third-party analytics work was measured but did not have an estimated FCP or
@@ -21,15 +21,20 @@ LCP saving in this trace: PostHog used 72 ms main-thread time, while Tally used
 6 ms. Do not remove analytics or forms based on this local result alone;
 reassess them with a production mobile trace before making a product tradeoff.
 
-## Remaining production evidence
+## Production release gate
 
-This baseline does not complete G08. Before production certification, collect:
+G08 uses a deterministic, zero-cost release gate rather than waiting for a
+calendar-dependent field-data window:
 
-1. a mobile-throttled trace against the deployed domain;
-2. deployed cache-header evidence for static assets and Functions;
-3. API latency evidence for catalogue, Harvard, and chat failure states; and
-4. real-user LCP/INP/CLS data or a documented free alternative if RUM is not
-   enabled.
+1. exact-commit CI, build, and bundle budgets must pass;
+2. five first-open Home-chart interactions run on the exact custom-domain
+   production release at a 390 x 844 viewport, Fast 4G, and 4x CPU;
+3. p75 and every interaction must be at or below 500 ms;
+4. handler processing must be at or below 50 ms; and
+5. show-hide-filter-show must retain a nonzero plot before and after.
+
+The 500 ms limit is a release-safety boundary, not Google's 200 ms “good” INP
+threshold. The 200 ms level remains a future optimization target.
 
 ## 2026-07-11 production mobile trace
 
@@ -38,11 +43,11 @@ cache-revalidating navigation at a 390 x 844 mobile viewport with Fast 4G
 network emulation and 4x CPU throttling. This is one reproducible lab trace,
 not real-user data; a fully cache-cold production trace remains outstanding.
 
-| Metric | Observed value | Status |
-| --- | ---: | --- |
-| LCP | 1,407 ms | Good lab result |
-| CLS | 0.00 | Good lab result |
-| TTFB | 31 ms | Good lab result |
+| Metric | Observed value | Status          |
+| ------ | -------------: | --------------- |
+| LCP    |       1,407 ms | Good lab result |
+| CLS    |           0.00 | Good lab result |
+| TTFB   |          31 ms | Good lab result |
 
 The LCP was text. Its 1,376 ms render delay dominated the result; network
 delivery was not the bottleneck. The longest critical request path was 601 ms:
@@ -70,11 +75,11 @@ in the initial Home graph.
 Target: `https://hks-course-explorer.org/`, Home route, 390 x 844 mobile
 viewport, Fast 4G network emulation, and 4x CPU throttling.
 
-| Metric | Observed value | Status |
-| --- | ---: | --- |
-| LCP | 1,389 ms | Good lab result |
-| CLS | 0.00 | Good lab result |
-| TTFB | 675 ms | Revalidate before certification |
+| Metric | Observed value | Status                          |
+| ------ | -------------: | ------------------------------- |
+| LCP    |       1,389 ms | Good lab result                 |
+| CLS    |           0.00 | Good lab result                 |
+| TTFB   |         675 ms | Revalidate before certification |
 
 The LCP was text and spent 713 ms in render delay. DevTools reported 524 ms of
 PostHog main-thread work and a 31 ms forced reflow attributed to its recorder,
@@ -102,6 +107,28 @@ back/forward-cache restores. Even that conservative ceiling remains far below
 the existing free event allowance and adds no paid service. PostHog's mutable
 built-in Web Vitals collector is explicitly disabled to prevent duplicates.
 `catalogue_ready` remains a separate bounded event for catalogue-load latency.
-G08 remains incomplete until the release is deployed and representative 28-day
-field data is available and reviewed; the implementation and lab results alone
-are not production certification.
+G08 is complete under the deterministic exact-production release gate.
+
+## 2026-07-13 exact-production interaction acceptance
+
+Target: exact production `b3a3297d75a78ba348c8ba05dac21596df85bc24` on
+`https://hks-course-explorer.org/` at 390 x 844, Fast 4G, and 4x CPU.
+
+| Evidence                |                Observed result | Gate                         |
+| ----------------------- | -----------------------------: | ---------------------------- |
+| Five first-open samples |    `96, 456, 240, 248, 320 ms` | Pass                         |
+| p75                     |                       `320 ms` | Pass, at or below 500 ms     |
+| Maximum                 |                       `456 ms` | Pass, no sample above 500 ms |
+| Handler processing      |                      `4-16 ms` | Pass, at or below 50 ms      |
+| Functional sequence     | Show → Hide → Top Rated → Show | Pass                         |
+| Plot size before/after  |          `356x340` / `356x340` | Pass                         |
+
+Five cold production page traces also recorded LCP `706, 635, 641, 670, 722
+ms` (p75 `706 ms`), TTFB `35, 35, 37, 34, 36 ms` (p75 `36 ms`), and CLS
+`0`. Exact CI `29301945483`, deploy `29302086430`, bundle budgets, and
+production smoke are green.
+
+The zero-cost field collector remains useful for operational monitoring and
+future optimization, but a 28-day sample window is not a release dependency.
+This evidence does not claim Google field-INP certification or universal
+real-user performance.
