@@ -8,6 +8,7 @@ const Admin = lazy(() => import('./pages/Admin.jsx'))
 import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import SkeletonCard from './components/SkeletonCard.jsx'
+import SupportProjectPrompt from './components/SupportProjectPrompt.jsx'
 import WelcomeHome from './components/WelcomeHome.jsx'
 import { useWelcomeEntry } from './components/WelcomeEntryProvider.jsx'
 import { COURSES_CACHE_KEY, STORAGE_VERSION, TALLY_FORM_ID } from './lib/appConstants.js'
@@ -1000,6 +1001,7 @@ export default function App() {
           {pageRoutes}
         </main>
 
+        <SupportProjectPrompt mobileNavExpanded={favs.count > 0} />
         {mobileBottomNav}
       </div>
     )
@@ -1149,6 +1151,7 @@ export default function App() {
           {pageRoutes}
         </main>
 
+        <SupportProjectPrompt mobileNavExpanded={favs.count > 0} />
         {mobileBottomNav}
       </div>
     </div>
