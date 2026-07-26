@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -39,7 +39,10 @@ jobs:
         run: npm run check:vendor-integrity
 
       - name: Block moderate-or-higher production dependency findings
-        run: npm audit --omit=dev --audit-level=moderate
+        run: |
+          audit_report="$RUNNER_TEMP/production-audit.json"
+          npm audit --omit=dev --json > "$audit_report" || true
+          node scripts/check_production_dependencies.mjs "$audit_report"
 
       - name: Lint
         run: npm run lint
