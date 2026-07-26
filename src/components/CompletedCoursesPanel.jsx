@@ -54,12 +54,18 @@ export default function CompletedCoursesPanel({
 
   function addSearchResult(course) {
     const courseCode = course.course_code_base || course.course_code
+    const sectionInfo = sectionInfoMap.get(courseCode)
     if (!completedCourseCodes.has(courseCode)) {
       onAddCompleted({
         courseCode,
         title: course.course_name,
         instructors: [course.professor_display || course.professor].filter(Boolean),
-        credits: 4,
+        credits: Number(
+          course.credits ?? course.credits_min ?? course.credits_max ?? sectionInfo?.credits ?? 4,
+        ),
+        year: course.year ?? null,
+        term: course.term ?? null,
+        sessionDescription: course.session_description ?? '',
         sections: [],
         enrichment: {},
       })
@@ -102,6 +108,8 @@ export default function CompletedCoursesPanel({
           Number(
             matchingCourse.credits_min ?? matchingCourse.credits_max ?? matchingCourse.credits ?? 4,
           ) || 4,
+        year: matchingCourse.year ?? null,
+        term: matchingCourse.term ?? null,
         sections: [],
         is_stem: matchingCourse.is_stem,
         is_core: matchingCourse.is_core,

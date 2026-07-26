@@ -59,6 +59,9 @@ describe('CompletedCoursesPanel', () => {
       title: 'Policy Analysis',
       instructors: ['Professor Example'],
       credits: 4,
+      year: 2025,
+      term: null,
+      sessionDescription: '',
       sections: [],
       enrichment: {},
     })

@@ -46,6 +46,7 @@ export function toScheduleSearchItem(row) {
     instructors: Array.isArray(row?.instructors) ? row.instructors : [],
     credits: row?.credits,
     sections: [],
+    meetings: Array.isArray(row?.meetings) ? row.meetings : [],
     meeting_days: row?.meeting_days || null,
     time_start: row?.time_start || null,
     time_end: row?.time_end || null,

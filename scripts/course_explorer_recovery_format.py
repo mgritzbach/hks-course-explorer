@@ -83,7 +83,7 @@ TABLE_COLUMNS = {
     "live_courses": frozenset(
         {
             "id", "course_code", "course_code_base", "title", "term", "credits", "instructors",
-            "description", "location", "meeting_days", "time_start", "time_end", "school",
+            "description", "location", "meetings", "meeting_days", "time_start", "time_end", "school",
             "is_hks", "synced_at", "session_code", "session_description", "cross_reg_eligible",
             "source", "source_course_id", "course_offer_nbr", "section_code", "source_url",
             "sync_run_id", "active", "source_offering_id", "source_last_seen_at",
@@ -91,12 +91,16 @@ TABLE_COLUMNS = {
     ),
 }
 
-# A recovery point must exist before the migration that adds this nullable
-# column. The exporter accepts only this exact pre-migration shape and records
+# A recovery point can predate migrations that add these reviewed
+# columns. The exporter accepts only explicitly reviewed missing columns and records
 # the absent value as null so the package can be restored into the reviewed
 # post-migration schema. No other missing or extra column is tolerated.
+PRE_MIGRATION_COLUMN_DEFAULTS = {
+    "live_courses": {"source_last_seen_at": None, "meetings": []},
+}
 PRE_MIGRATION_NULLABLE_COLUMNS = {
-    "live_courses": frozenset({"source_last_seen_at"}),
+    table: frozenset(defaults)
+    for table, defaults in PRE_MIGRATION_COLUMN_DEFAULTS.items()
 }
 
 MINIMUM_ROWS = {

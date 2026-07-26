@@ -127,7 +127,7 @@ export function useScheduleData(semesterYear, semester) {
         .from('live_courses')
         .select(
           'id,course_code,course_code_base,title,term,credits,instructors,' +
-            'meeting_days,time_start,time_end,school,is_hks,session_code,' +
+            'meetings,meeting_days,time_start,time_end,school,is_hks,session_code,' +
             'session_description,cross_reg_eligible,source,source_course_id,' +
             'course_offer_nbr,section_code,source_url,active',
         )

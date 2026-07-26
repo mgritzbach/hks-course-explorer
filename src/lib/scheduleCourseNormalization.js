@@ -122,6 +122,59 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(next) ? next : fallback
 }
 
+export function getCourseMeetings(course) {
+  const source = Array.isArray(course?.meetings) ? course.meetings : []
+  const normalized = source
+    .map((meeting) => {
+      if (!meeting || typeof meeting !== 'object') return null
+      const day = normalizeDayToken(meeting.day || meeting.weekday)
+      const start = meeting.start || meeting.time_start || meeting.startTime || ''
+      const end = meeting.end || meeting.time_end || meeting.endTime || ''
+      const startMinutes = minutesFromValue(start)
+      const endMinutes = minutesFromValue(end)
+      if (!day || startMinutes == null || endMinutes == null || endMinutes <= startMinutes)
+        return null
+      return { day, start, end, location: meeting.location || '' }
+    })
+    .filter(Boolean)
+
+  if (normalized.length) {
+    const seen = new Set()
+    return normalized.filter((meeting) => {
+      const key = `${meeting.day}|${meeting.start}|${meeting.end}|${meeting.location}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
+  const start = course?.time_start || course?.meeting_time || ''
+  const end = course?.time_end || course?.meeting_time_end || ''
+  if (minutesFromValue(start) == null || minutesFromValue(end) == null) return []
+  return extractDays(course?.meeting_days).map((day) => ({
+    day,
+    start,
+    end,
+    location: course?.location || '',
+  }))
+}
+
+function meetingSummary(meetings) {
+  if (!meetings.length) return { meeting_days: '', time_start: '', time_end: '', location: '' }
+  const meetingDays = [...new Set(meetings.map((meeting) => meeting.day))]
+    .sort((left, right) => DAY_INDEX[left] - DAY_INDEX[right])
+    .join('/')
+  const intervals = new Map()
+  meetings.forEach((meeting) => intervals.set(`${meeting.start}|${meeting.end}`, meeting))
+  const onlyInterval = intervals.size === 1 ? intervals.values().next().value : null
+  return {
+    meeting_days: meetingDays,
+    time_start: onlyInterval?.start || '',
+    time_end: onlyInterval?.end || '',
+    location: meetings.find((meeting) => meeting.location)?.location || '',
+  }
+}
+
 export function normalizeSection(section, course) {
   if (!section || typeof section !== 'object') return null
   const code =
@@ -131,6 +184,25 @@ export function normalizeSection(section, course) {
     section.name ||
     section.title ||
     'Section'
+  const meeting_days =
+    section.meeting_days ||
+    section.meetingDays ||
+    section.days ||
+    section.pattern ||
+    course?.meeting_days ||
+    ''
+  const time_start =
+    section.time_start || section.start || section.start_time || course?.time_start || ''
+  const time_end = section.time_end || section.end || section.end_time || course?.time_end || ''
+  const location = section.location || course?.location || ''
+  const meetings = getCourseMeetings({
+    meetings: section.meetings || course?.meetings,
+    meeting_days,
+    time_start,
+    time_end,
+    location,
+  })
+  const summary = meetingSummary(meetings)
   return {
     id: section.id || code,
     code,
@@ -138,17 +210,11 @@ export function normalizeSection(section, course) {
     instructors: Array.isArray(section.instructors)
       ? section.instructors.filter(Boolean)
       : [section.instructor, section.professor, section.faculty].filter(Boolean),
-    meeting_days:
-      section.meeting_days ||
-      section.meetingDays ||
-      section.days ||
-      section.pattern ||
-      course?.meeting_days ||
-      '',
-    time_start:
-      section.time_start || section.start || section.start_time || course?.time_start || '',
-    time_end: section.time_end || section.end || section.end_time || course?.time_end || '',
-    location: section.location || '',
+    meetings,
+    meeting_days: meeting_days || summary.meeting_days,
+    time_start: time_start || summary.time_start,
+    time_end: time_end || summary.time_end,
+    location: location || summary.location,
   }
 }
 
@@ -157,6 +223,14 @@ export function normalizeCourse(raw, index = 0) {
     .map((section) => normalizeSection(section, raw))
     .filter(Boolean)
   const main = sections[0] || null
+  const meetings = getCourseMeetings({
+    meetings: raw?.meetings || main?.meetings,
+    meeting_days: raw?.meeting_days || main?.meeting_days,
+    time_start: raw?.time_start || main?.time_start,
+    time_end: raw?.time_end || main?.time_end,
+    location: raw?.location || main?.location,
+  })
+  const summary = meetingSummary(meetings)
   const rawCredits = raw?.credits ?? raw?.credits_min ?? raw?.credits_max
   return {
     id:
@@ -182,10 +256,11 @@ export function normalizeCourse(raw, index = 0) {
     credits: rawCredits == null ? 4 : toNumber(rawCredits, 4),
     sections,
     selectedSectionId: raw?.selectedSectionId || main?.id || '',
-    meeting_days: raw?.meeting_days || main?.meeting_days || '',
-    time_start: raw?.time_start || main?.time_start || '',
-    time_end: raw?.time_end || main?.time_end || '',
-    location: raw?.location || main?.location || '',
+    meetings,
+    meeting_days: raw?.meeting_days || main?.meeting_days || summary.meeting_days,
+    time_start: raw?.time_start || main?.time_start || summary.time_start,
+    time_end: raw?.time_end || main?.time_end || summary.time_end,
+    location: raw?.location || main?.location || summary.location,
     isOnGrid: Boolean(raw?.isOnGrid),
     year: raw?.year ?? null,
     term: raw?.term ?? null,
@@ -216,9 +291,5 @@ export function getActiveSection(course) {
 }
 
 export function courseHasSchedule(course) {
-  return (
-    extractDays(course?.meeting_days).length > 0 &&
-    minutesFromValue(course?.time_start) != null &&
-    minutesFromValue(course?.time_end) != null
-  )
+  return getCourseMeetings(course).length > 0
 }

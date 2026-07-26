@@ -21,6 +21,7 @@ from course_explorer_recovery_format import (
     MAXIMUM_ROWS,
     MAXIMUM_TOTAL_ROWS,
     MINIMUM_ROWS,
+    PRE_MIGRATION_COLUMN_DEFAULTS,
     PRE_MIGRATION_NULLABLE_COLUMNS,
     RECOVERY_FORMAT,
     SOURCE_COMMIT_PATTERN,
@@ -123,10 +124,23 @@ def _validate_rows(table: str, rows: list[dict]) -> list[dict]:
         normalized_rows = rows
     else:
         nullable_columns = PRE_MIGRATION_NULLABLE_COLUMNS.get(table, frozenset())
-        pre_migration_columns = expected_columns - nullable_columns
-        if nullable_columns and row_shapes == {pre_migration_columns}:
+        row_shape = next(iter(row_shapes)) if len(row_shapes) == 1 else frozenset()
+        missing_columns = expected_columns - row_shape
+        extra_columns = row_shape - expected_columns
+        if (
+            nullable_columns
+            and missing_columns
+            and missing_columns <= nullable_columns
+            and not extra_columns
+        ):
             normalized_rows = [
-                {**row, **{column: None for column in nullable_columns}}
+                {
+                    **row,
+                    **{
+                        column: PRE_MIGRATION_COLUMN_DEFAULTS[table][column]
+                        for column in missing_columns
+                    },
+                }
                 for row in rows
             ]
         else:
