@@ -264,6 +264,9 @@ export function normalizeCourse(raw, index = 0) {
     isOnGrid: Boolean(raw?.isOnGrid),
     year: raw?.year ?? null,
     term: raw?.term ?? null,
+    grade: raw?.grade ?? '',
+    drmAcademicYear: raw?.drmAcademicYear ?? null,
+    drmSection: raw?.drmSection ?? null,
     // Keep an explicit source classification. Undefined remains possible for
     // user-entered historical courses, which are not current catalogue rows.
     is_hks: typeof raw?.is_hks === 'boolean' ? raw.is_hks : undefined,
@@ -275,6 +278,7 @@ export function normalizeCourse(raw, index = 0) {
     enrichment: {
       is_core: Boolean(raw?.enrichment?.is_core ?? raw?.is_core),
       is_stem: Boolean(raw?.enrichment?.is_stem ?? raw?.is_stem),
+      stem_group: raw?.enrichment?.stem_group ?? raw?.stem_group ?? null,
       metrics_pct: raw?.enrichment?.metrics_pct ?? raw?.metrics_pct ?? null,
       bid_clearing_price: raw?.enrichment?.bid_clearing_price ?? raw?.bid_clearing_price ?? null,
       last_bid_price: raw?.enrichment?.last_bid_price ?? raw?.last_bid_price ?? null,

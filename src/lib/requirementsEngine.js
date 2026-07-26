@@ -1,4 +1,5 @@
 import programRequirements from '../data/programRequirements.json'
+import { getDrmCourseKey } from './drmPathway.js'
 
 function normalizeCode(value) {
   return String(value || '')
@@ -8,7 +9,9 @@ function normalizeCode(value) {
 }
 
 function normalizeCourse(course, index) {
-  const credits = Number(course?.credits ?? course?.credits_min ?? course?.credits_max ?? 4) || 4
+  const rawCredits = course?.credits ?? course?.credits_min ?? course?.credits_max
+  const parsedCredits = rawCredits == null || rawCredits === '' ? 0 : Number(rawCredits)
+  const credits = Number.isFinite(parsedCredits) && parsedCredits > 0 ? parsedCredits : 0
   // Support both snake_case (Supabase rows) and camelCase (ScheduleBuilder plan objects)
   const courseCode =
     course?.course_code ||
@@ -22,8 +25,10 @@ function normalizeCourse(course, index) {
     ...course,
     _index: index,
     _credits: credits,
+    _creditsMissing: credits === 0,
     _courseCode: courseCode,
     _courseCodeNormalized: normalizeCode(courseCode),
+    _requirementKey: getDrmCourseKey(course),
   }
 }
 
@@ -144,9 +149,13 @@ export function computeProgress(
 
   const computedCategories = categories.map((category) => {
     // nonExclusive categories (e.g. STEM) see all courses and don't consume usedIndices
-    const available = category.nonExclusive
+    const excludedKeys = new Set(options.categoryExclusions?.[category.id] || [])
+    const availableBeforeExclusions = category.nonExclusive
       ? normalizedCourses
       : normalizedCourses.filter((course) => !usedIndices.has(course._index))
+    const available = availableBeforeExclusions.filter(
+      (course) => !excludedKeys.has(course._requirementKey),
+    )
     let matchedCourses
     let chosenArea = null
 

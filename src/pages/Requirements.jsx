@@ -10,12 +10,16 @@ import {
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
 import { applyCourseCreditMap, withResolvedCourseCredits } from '../lib/courseCredits.js'
 import { useCourseCreditMap } from '../hooks/useCourseCreditMap.js'
+import DrmPathwayPanel from '../components/DrmPathwayPanel.jsx'
 import MldCertificatePanel from '../components/MldCertificatePanel.jsx'
+import { computeDrmProgress, getDrmCategoryExclusions } from '../lib/drmPathway.js'
 import { useDocumentTitle } from '../lib/useDocumentTitle.js'
 import config from '../school.config.js'
 
 const PROGRAM_STORAGE_KEY = 'hks_req_program'
 const PAC_AREA_STORAGE_KEY = 'hks_pac_area'
+const DRM_ASSIGNMENTS_STORAGE_KEY = 'hks_drm_assignments'
+const DRM_COLLAPSED_STORAGE_KEY = 'hks_drm_collapsed'
 
 function getUrlProgram() {
   if (typeof window === 'undefined') return null
@@ -84,6 +88,19 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
     if (typeof window === 'undefined') return null
     return window.localStorage.getItem(PAC_AREA_STORAGE_KEY) || null
   })
+  const [drmAssignments, setDrmAssignments] = useState(() => {
+    if (typeof window === 'undefined') return {}
+    try {
+      return JSON.parse(window.localStorage.getItem(DRM_ASSIGNMENTS_STORAGE_KEY) || '{}')
+    } catch {
+      return {}
+    }
+  })
+  const [drmCollapsed, setDrmCollapsed] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.localStorage.getItem(DRM_COLLAPSED_STORAGE_KEY) === 'true',
+  )
   const [openSuggestions, setOpenSuggestions] = useState({})
   const [addedToPlan, setAddedToPlan] = useState(() => {
     const codes = new Set(getPlanCourses(DEFAULT_PLAN).map(getCourseCode).filter(Boolean))
@@ -150,6 +167,48 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
     const next = completedCourses.filter((course) => getCourseCode(course) !== courseCode)
     setCompletedCourses(next)
     saveCompleted(next)
+  }
+
+  const updateDrmCourse = (record, changes) => {
+    if (record.source === 'completed') {
+      setCompletedCourses((current) => {
+        const next = current.map((course, index) =>
+          index === record.sourceIndex ? { ...course, ...changes } : course,
+        )
+        saveCompleted(next)
+        return next
+      })
+      return
+    }
+
+    const plan = loadPlan(activePlan)
+    const nextCourses = plan.courses.map((course, index) =>
+      index === record.sourceIndex ? { ...course, ...changes } : course,
+    )
+    savePlan(activePlan, { ...plan, courses: nextCourses })
+    setScheduledCourses(nextCourses)
+  }
+
+  const handleDrmAssignmentChange = (courseKey, allocation) => {
+    setDrmAssignments((current) => {
+      const next = { ...current }
+      if (allocation === 'auto') delete next[courseKey]
+      else next[courseKey] = allocation
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(DRM_ASSIGNMENTS_STORAGE_KEY, JSON.stringify(next))
+      }
+      return next
+    })
+  }
+
+  const toggleDrmCollapsed = () => {
+    setDrmCollapsed((current) => {
+      const next = !current
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(DRM_COLLAPSED_STORAGE_KEY, String(next))
+      }
+      return next
+    })
   }
 
   useEffect(() => {
@@ -238,12 +297,34 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
     [completedCourses, creditsByOffering],
   )
 
+  const drmProgress = useMemo(
+    () =>
+      computeDrmProgress(selectedProgram, creditedScheduledCourses, creditedCompletedCourses, {
+        assignments: drmAssignments,
+        preferredPacArea,
+      }),
+    [
+      creditedScheduledCourses,
+      selectedProgram,
+      creditedCompletedCourses,
+      drmAssignments,
+      preferredPacArea,
+    ],
+  )
+
   const progress = useMemo(
     () =>
       computeProgress(selectedProgram, creditedScheduledCourses, creditedCompletedCourses, {
         preferredPacArea,
+        categoryExclusions: getDrmCategoryExclusions(drmProgress),
       }),
-    [creditedScheduledCourses, selectedProgram, creditedCompletedCourses, preferredPacArea],
+    [
+      creditedScheduledCourses,
+      selectedProgram,
+      creditedCompletedCourses,
+      preferredPacArea,
+      drmProgress,
+    ],
   )
 
   const suggestionMap = useMemo(() => {
@@ -666,6 +747,17 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
           programId={selectedProgram}
         />
 
+        <DrmPathwayPanel
+          progress={drmProgress}
+          degreeProgress={progress}
+          collapsed={drmCollapsed}
+          onToggle={toggleDrmCollapsed}
+          onAssignmentChange={handleDrmAssignmentChange}
+          onUpdateCourse={updateDrmCourse}
+          preferredPacArea={preferredPacArea}
+          onPreferredPacAreaChange={handlePacAreaChange}
+        />
+
         <div data-tour="req-cards" className="grid gap-5 lg:grid-cols-2">
           {progress.categories.map((category) => {
             const accentColor = COLOR_MAP[category.color] || 'var(--accent)'
@@ -675,7 +767,6 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
             return (
               <section
                 key={category.id}
-                data-tour={category.id === 'stem' ? 'req-stem' : undefined}
                 className="rounded-[24px] p-5"
                 style={{
                   background: category.isComplete
@@ -765,12 +856,6 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
                       </button>
                     )}
                   </div>
-                )}
-                {category.id === 'stem' && category.overlapExceeded && (
-                  <p style={{ fontSize: 11, color: 'var(--gold)', marginTop: 4 }}>
-                    ⚠ Only 8 STEM credits may count toward other requirements —{' '}
-                    {category.overlapCredits} credits currently overlap.
-                  </p>
                 )}
 
                 <div className="mt-4 flex flex-wrap gap-2">
