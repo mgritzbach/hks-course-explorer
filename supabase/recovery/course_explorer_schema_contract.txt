@@ -94,6 +94,7 @@ COLUMN|live_courses|24|sync_run_id|uuid|not_null=f|default=<NULL>
 COLUMN|live_courses|25|active|boolean|not_null=t|default=true
 COLUMN|live_courses|26|source_offering_id|text|not_null=f|default=<NULL>
 COLUMN|live_courses|27|source_last_seen_at|timestamp with time zone|not_null=f|default=<NULL>
+COLUMN|live_courses|28|meetings|jsonb|not_null=t|default='[]'::jsonb
 COLUMN|schedules|1|id|uuid|not_null=t|default=gen_random_uuid()
 COLUMN|schedules|2|user_id|uuid|not_null=t|default=<NULL>
 COLUMN|schedules|3|plan_name|text|not_null=t|default=<NULL>
@@ -134,6 +135,7 @@ CONSTRAINT|live_catalogue_runs|live_catalogue_runs_offering_count_check|type=c|v
 CONSTRAINT|live_catalogue_runs|live_catalogue_runs_pkey|type=p|validated=t|PRIMARY KEY (id)
 CONSTRAINT|live_catalogue_runs|live_catalogue_runs_source_check|type=c|validated=t|CHECK (source = ANY (ARRAY['myharvard'::text, 'ats'::text]))
 CONSTRAINT|live_catalogue_runs|live_catalogue_runs_status_check|type=c|validated=t|CHECK (status = ANY (ARRAY['staged'::text, 'active'::text, 'superseded'::text, 'failed'::text, 'rolled_back'::text]))
+CONSTRAINT|live_courses|live_courses_meetings_is_array|type=c|validated=t|CHECK (jsonb_typeof(meetings) = 'array'::text)
 CONSTRAINT|live_courses|live_courses_pkey|type=p|validated=t|PRIMARY KEY (id)
 CONSTRAINT|live_courses|live_courses_sync_run_id_fkey|type=f|validated=t|FOREIGN KEY (sync_run_id) REFERENCES live_catalogue_runs(id)
 CONSTRAINT|schedules|schedules_pkey|type=p|validated=t|PRIMARY KEY (id)
@@ -647,6 +649,7 @@ COLUMN_PRIVILEGE|live_courses|anon|sync_run_id|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|anon|active|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|anon|source_offering_id|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|anon|source_last_seen_at|SELECT|grantable=NO
+COLUMN_PRIVILEGE|live_courses|anon|meetings|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|id|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|course_code|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|course_code_base|SELECT|grantable=NO
@@ -674,6 +677,7 @@ COLUMN_PRIVILEGE|live_courses|authenticated|sync_run_id|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|active|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|source_offering_id|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|authenticated|source_last_seen_at|SELECT|grantable=NO
+COLUMN_PRIVILEGE|live_courses|authenticated|meetings|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|id|INSERT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|id|REFERENCES|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|id|SELECT|grantable=NO
@@ -782,6 +786,10 @@ COLUMN_PRIVILEGE|live_courses|service_role|source_last_seen_at|INSERT|grantable=
 COLUMN_PRIVILEGE|live_courses|service_role|source_last_seen_at|REFERENCES|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|source_last_seen_at|SELECT|grantable=NO
 COLUMN_PRIVILEGE|live_courses|service_role|source_last_seen_at|UPDATE|grantable=NO
+COLUMN_PRIVILEGE|live_courses|service_role|meetings|INSERT|grantable=NO
+COLUMN_PRIVILEGE|live_courses|service_role|meetings|REFERENCES|grantable=NO
+COLUMN_PRIVILEGE|live_courses|service_role|meetings|SELECT|grantable=NO
+COLUMN_PRIVILEGE|live_courses|service_role|meetings|UPDATE|grantable=NO
 COLUMN_PRIVILEGE|schedules|service_role|id|INSERT|grantable=NO
 COLUMN_PRIVILEGE|schedules|service_role|id|REFERENCES|grantable=NO
 COLUMN_PRIVILEGE|schedules|service_role|id|SELECT|grantable=NO
@@ -1009,8 +1017,8 @@ FUNCTION|public.keep_ats_hks_inactive_after_myharvard()|security_definer=f|volat
 FUNCTION|public.promote_myharvard_hks_run(uuid)|security_definer=t|volatility=v|parallel=u|config=search_path=public|definition_sha256=b6f4c552ffed31f48d285253e85e6ece98a8839141b9d8555ca3630525b37765
 FUNCTION|public.refresh_synced_at()|security_definer=f|volatility=v|parallel=u|config=search_path=pg_catalog|definition_sha256=d21b19fedbb62cdcf59f265f7f32a769c9a18ca678343f7f6571476ad0827a05
 FUNCTION|public.rollback_myharvard_hks_run(uuid)|security_definer=t|volatility=v|parallel=u|config=search_path=public|definition_sha256=16d0e2d908d946029cb0d77cfe7bbee22e247b8463ac2974192812ef75e4360d
-FUNCTION|public.stage_myharvard_hks_offerings(uuid,jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path=public|definition_sha256=44adb1e09c20c5cb45a3014023fbb22fe0fcdb9b999625974cc3a34422e6bed4
-FUNCTION|public.sync_live_courses_atomically(jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path="",statement_timeout=60s|definition_sha256=5b78bca0be6ef12250c6d464b1d6e2d4c8119dffac8e8a1e9dbe179a7b93bb54
+FUNCTION|public.stage_myharvard_hks_offerings(uuid,jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path=""|definition_sha256=98faec99912b3d9d4442c2707785da894cd31b07056dfcd2f5b6bf668ea22591
+FUNCTION|public.sync_live_courses_atomically(jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path=""|definition_sha256=23ba885ba1ff7ca65c58f04a869e8e2123cacf4de06f1310ceca4e2f53cc6b71
 FUNCTION_PRIVILEGE|public.keep_ats_hks_inactive_after_myharvard()|anon|EXECUTE|f
 FUNCTION_PRIVILEGE|public.keep_ats_hks_inactive_after_myharvard()|authenticated|EXECUTE|f
 FUNCTION_PRIVILEGE|public.keep_ats_hks_inactive_after_myharvard()|service_role|EXECUTE|t

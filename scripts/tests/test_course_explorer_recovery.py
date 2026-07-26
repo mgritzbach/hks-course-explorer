@@ -429,6 +429,10 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
             "supabase/migrations/20260714102702_raise_ats_promotion_statement_timeout.sql",
             RECOVERY_CONTRACT_PATHS,
         )
+        self.assertIn(
+            "supabase/migrations/20260726203607_store_live_course_meeting_intervals.sql",
+            RECOVERY_CONTRACT_PATHS,
+        )
         for path in migration_paths:
             self.assertIn(path, workflow)
 

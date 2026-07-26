@@ -37,7 +37,7 @@ class MeetingIntervalsMigrationTests(unittest.TestCase):
         self.assertIn("if: ${{ failure() }}", self.workflow)
         self.assertIn("gh issue create", self.workflow)
         self.assertIn("--assignee \"$ALERT_ASSIGNEE\"", self.workflow)
-        self.assertIn("if: ${{ success() }}", self.workflow)
+        self.assertIn("if: ${{ success() && (github.event_name == 'schedule' || inputs.promote) }}", self.workflow)
         self.assertIn("gh issue close", self.workflow)
 
 

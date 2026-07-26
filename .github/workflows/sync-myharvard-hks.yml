@@ -52,9 +52,9 @@ jobs:
           ALERT_ASSIGNEE: ${{ github.repository_owner }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          title="🚨 Daily HKS catalogue sync is failing"
+          title="Daily HKS catalogue sync is failing"
           issue_number="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
-          body="The automated daily HKS catalogue refresh failed. Course additions, credits, and meeting times may now be stale.\n\nFailed run: ${RUN_URL}\n\n@${ALERT_ASSIGNEE} — this needs attention before relying on the Schedule Builder."
+          body="The automated daily HKS catalogue refresh failed. Course additions, credits, and meeting times may now be stale.\n\nFailed run: ${RUN_URL}\n\n@${ALERT_ASSIGNEE} -- this needs attention before relying on the Schedule Builder."
           if [ -n "$issue_number" ]; then
             gh issue comment "$issue_number" --body "$body"
             gh issue edit "$issue_number" --add-assignee "$ALERT_ASSIGNEE"
@@ -63,13 +63,13 @@ jobs:
           fi
 
       - name: Close the HKS sync failure alert after recovery
-        if: ${{ success() }}
+        if: ${{ success() && (github.event_name == 'schedule' || inputs.promote) }}
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          title="🚨 Daily HKS catalogue sync is failing"
+          title="Daily HKS catalogue sync is failing"
           issue_number="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
           if [ -n "$issue_number" ]; then
             gh issue close "$issue_number" --comment "The daily HKS catalogue sync recovered successfully: ${RUN_URL}"
