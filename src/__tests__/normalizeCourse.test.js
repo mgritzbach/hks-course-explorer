@@ -87,6 +87,13 @@ describe('schedule course normalization', () => {
     expect(normalizeCourse({ courseCode: 'IGA-000', credits: 0 }).credits).toBe(0)
   })
 
+  it('preserves the visible offering code while exposing its canonical base identity', () => {
+    expect(normalizeCourse({ courseCode: 'DPI-681-M-001' })).toMatchObject({
+      courseCode: 'DPI-681-M-001',
+      courseCodeBase: 'DPI-681-M',
+    })
+  })
+
   it('preserves and recognizes multiple meeting intervals without flattening them', () => {
     const course = normalizeCourse({
       courseCode: 'API-201-A',

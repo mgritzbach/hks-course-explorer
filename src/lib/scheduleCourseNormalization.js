@@ -234,17 +234,21 @@ export function normalizeCourse(raw, index = 0) {
   })
   const summary = meetingSummary(meetings)
   const rawCredits = raw?.credits ?? raw?.credits_min ?? raw?.credits_max
-  const baseCourseCode =
-    getBaseCourseCode(
+  const detailedCourseCode = String(
+    raw?.courseCode ||
+      raw?.course_code ||
       raw?.courseCodeBase ||
-        raw?.course_code_base ||
-        raw?.courseCode ||
-        raw?.course_code ||
-        raw?.code,
-    ) || `course-${index}`
+      raw?.course_code_base ||
+      raw?.code,
+  ).trim()
+  const baseCourseCode =
+    getBaseCourseCode({
+      courseCode: detailedCourseCode,
+      courseCodeBase: raw?.courseCodeBase || raw?.course_code_base,
+    }) || `course-${index}`
   return {
-    id: raw?.id || `${baseCourseCode || 'course'}-${index}`,
-    courseCode: baseCourseCode,
+    id: raw?.id || `${detailedCourseCode || baseCourseCode}-${index}`,
+    courseCode: detailedCourseCode || baseCourseCode,
     courseCodeBase: baseCourseCode,
     title: raw?.title || raw?.course_name || raw?.name || 'Untitled course',
     instructors: Array.isArray(raw?.instructors)

@@ -23,7 +23,7 @@ describe('schedule plan mutations', () => {
 
     expect(result).toMatchObject({
       name: 'Spring Plan',
-      courses: [{ courseCode: 'DPI-802-M', isOnGrid: false }],
+      courses: [{ courseCode: 'DPI-802-M-A', courseCodeBase: 'DPI-802-M', isOnGrid: false }],
     })
   })
 
@@ -62,7 +62,11 @@ describe('schedule plan mutations', () => {
     const completed = addCompletedCourse([], course)
 
     expect(completed).toEqual([
-      expect.objectContaining({ courseCode: 'DPI-802-M', _isCompleted: true }),
+      expect.objectContaining({
+        courseCode: 'DPI-802-M-A',
+        courseCodeBase: 'DPI-802-M',
+        _isCompleted: true,
+      }),
     ])
     expect(addCompletedCourse(completed, { ...course, courseCode: 'DPI-802-M-001' })).toBe(
       completed,
