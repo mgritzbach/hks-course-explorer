@@ -35,6 +35,9 @@ class SyncWorkflowConfigTests(unittest.TestCase):
         self.assertIn("promote:", myharvard)
         self.assertIn("default: false", myharvard)
         self.assertIn("github.event_name == 'schedule' || inputs.promote", myharvard)
+        self.assertIn("success() && (github.event_name == 'schedule' || inputs.promote)", myharvard)
+        self.assertIn("issues: write", myharvard)
+        self.assertIn("Daily HKS catalogue sync is failing", myharvard)
 
 
 if __name__ == "__main__":

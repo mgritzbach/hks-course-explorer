@@ -303,6 +303,7 @@ def normalise_course(c: dict, school: str) -> dict:
         "instructors":         instructors,
         "description":         str(c.get("courseDescription") or c.get("description") or ""),
         "location":            meetings[0]["location"] if meetings else "",
+        "meetings":            meetings,
         "meeting_days":        all_days,
         "time_start":          meetings[0]["start"] if meetings else "",
         "time_end":            meetings[0]["end"]   if meetings else "",

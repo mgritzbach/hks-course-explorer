@@ -31,6 +31,44 @@ describe('Requirements', () => {
     window.history.replaceState(null, '', '/')
   })
 
+  it('repairs credits from the selected catalogue offering and removes completed courses', async () => {
+    window.localStorage.setItem(
+      'hks_completed_courses',
+      JSON.stringify([
+        {
+          courseCode: 'DPI-681-M',
+          year: 2025,
+          term: 'Spring',
+          credits: 4,
+          enrichment: { is_stem: true },
+        },
+      ]),
+    )
+    const courseCreditMap = new Map([
+      ['DPI-681-M|2025|SPRING', 2],
+      ['DPI-681-M', 2],
+    ])
+
+    render(<Requirements courseCreditMap={courseCreditMap} />)
+
+    expect(screen.getByText('2 / 16 cr')).toBeTruthy()
+    await waitFor(() => {
+      const saved = JSON.parse(window.localStorage.getItem('hks_completed_courses'))
+      expect(saved[0].credits).toBe(2)
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove completed course DPI-681-M' })[0])
+    expect(JSON.parse(window.localStorage.getItem('hks_completed_courses'))).toEqual([])
+  })
+
+  it('removes planned courses directly from My Courses', () => {
+    savePlan('Plan A', [{ ...planCourse('IGA-108'), credits: 4 }])
+
+    render(<Requirements />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove IGA-108 from Plan A' })[0])
+
+    expect(JSON.parse(window.localStorage.getItem('hks_plan_Plan A')).courses).toEqual([])
+  })
   it('refreshes scheduled and completed state after plan and storage updates', async () => {
     savePlan('Plan A', [planCourse('API-101')])
     savePlan('Plan B', [planCourse('API-201'), planCourse('API-202')])

@@ -1,3 +1,5 @@
+import { getCourseMeetings, minutesFromValue } from './scheduleCourseNormalization.js'
+
 const DAY_ALIASES = {
   m: 'M',
   mon: 'M',
@@ -94,26 +96,34 @@ function parseTimeToMinutes(value) {
   return hours * 60 + minutes
 }
 
-function parseMeetingWindow(course) {
-  return {
-    days: parseMeetingDays(course?.meeting_days),
-    start: parseTimeToMinutes(course?.time_start),
-    end: parseTimeToMinutes(course?.time_end),
+function parseMeetingWindows(course) {
+  const meetings = getCourseMeetings(course)
+  if (meetings.length) {
+    return meetings.map((meeting) => ({
+      days: parseMeetingDays(meeting.day),
+      start: minutesFromValue(meeting.start),
+      end: minutesFromValue(meeting.end),
+    }))
   }
+  return [
+    {
+      days: parseMeetingDays(course?.meeting_days),
+      start: parseTimeToMinutes(course?.time_start),
+      end: parseTimeToMinutes(course?.time_end),
+    },
+  ]
 }
 
 export function meetingsConflict(left, right) {
-  const first = parseMeetingWindow(left)
-  const second = parseMeetingWindow(right)
-
-  if (!first.days.size || !second.days.size) return false
-  if (first.start == null || first.end == null || second.start == null || second.end == null)
-    return false
-
-  const sameDay = [...first.days].some((day) => second.days.has(day))
-  if (!sameDay) return false
-
-  return first.start < second.end && second.start < first.end
+  return parseMeetingWindows(left).some((first) =>
+    parseMeetingWindows(right).some((second) => {
+      if (!first.days.size || !second.days.size) return false
+      if (first.start == null || first.end == null || second.start == null || second.end == null)
+        return false
+      const sameDay = [...first.days].some((day) => second.days.has(day))
+      return sameDay && first.start < second.end && second.start < first.end
+    }),
+  )
 }
 
 export function findConflicts(courses) {

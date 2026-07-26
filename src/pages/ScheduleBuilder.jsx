@@ -15,9 +15,9 @@ import config from '../school.config.js'
 import {
   DAY_INDEX,
   courseHasSchedule,
-  extractDays,
   formatClockLabel,
   getActiveSection,
+  getCourseMeetings,
   minutesFromValue,
   normalizeCourse,
   parseTimeParts,
@@ -35,6 +35,8 @@ import {
 } from '../lib/scheduleHistoryLinking.js'
 import { useFavorites } from '../useFavorites'
 import { useScheduleData } from '../hooks/useScheduleData.js'
+import { useCourseCreditMap } from '../hooks/useCourseCreditMap.js'
+import { applyCourseCreditMap } from '../lib/courseCredits.js'
 import { escapeIcsText } from '../lib/calendarText.js'
 import { sectionCodeKey } from '../lib/sectionCatalogueIndexes.js'
 import {
@@ -58,6 +60,35 @@ const WEEKEND_LABELS = ['Sat', 'Sun']
 const TERM_OPTIONS = ['Q1', 'Q2', 'FULL']
 const EMPTY_LIVE_SEARCH_STATUS = { stale: false, partial: false }
 const DEFAULT_SCHEDULE_TERM = getDefaultScheduleTerm()
+const DAY_ABBR = { MON: 'M', TUE: 'Tu', WED: 'W', THU: 'Th', FRI: 'F', SAT: 'Sa', SUN: 'Su' }
+
+function getMeetingGroups(course) {
+  const groups = new Map()
+  getCourseMeetings(course).forEach((meeting) => {
+    const key = `${meeting.start}|${meeting.end}|${meeting.location || ''}`
+    const existing = groups.get(key) || {
+      days: [],
+      start: meeting.start,
+      end: meeting.end,
+      location: meeting.location || '',
+    }
+    if (!existing.days.includes(meeting.day)) existing.days.push(meeting.day)
+    groups.set(key, existing)
+  })
+  return [...groups.values()].map((group) => ({
+    ...group,
+    days: group.days.sort((left, right) => DAY_INDEX[left] - DAY_INDEX[right]),
+  }))
+}
+
+function formatMeetingSchedule(course) {
+  return getMeetingGroups(course)
+    .map(
+      (group) =>
+        `${group.days.map((day) => DAY_ABBR[day] || day).join('/')} ${formatClockLabel(group.start)}–${formatClockLabel(group.end)}`,
+    )
+    .join(' · ')
+}
 
 function fallbackSearch(q, allCourses, filters = {}) {
   const query = String(q || '')
@@ -125,6 +156,7 @@ function fallbackSearch(q, allCourses, filters = {}) {
       instructors: [c.professor_display || c.professor].filter(Boolean),
       credits: Number(c.credits_min ?? c.credits_max ?? c.credits ?? 4) || 4,
       sections: [],
+      meetings: Array.isArray(c.meetings) ? c.meetings : [],
       meeting_days: c.meeting_days || null,
       time_start: c.time_start || null,
       time_end: c.time_end || null,
@@ -257,25 +289,25 @@ function buildIcs(courses, term = 'FULL', semester = 'Spring') {
   courses
     .filter((c) => c.isOnGrid && courseHasSchedule(c))
     .forEach((course, index) => {
-      const start = parseTimeParts(course.time_start)
-      const end = parseTimeParts(course.time_end)
-      const days = extractDays(course.meeting_days)
-        .map((day) => dayMap[day])
-        .filter(Boolean)
-      if (!start || !end || !days.length) return
-      lines.push('BEGIN:VEVENT')
-      lines.push(`UID:${course.courseCode}-${index}@hks-course-explorer`)
-      lines.push(`DTSTAMP:${stamp}`)
-      lines.push(`SUMMARY:${escapeIcsText(course.courseCode)} ${escapeIcsText(course.title)}`)
-      lines.push(
-        `DTSTART;TZID=America/New_York:${dateBase}T${String(start.hours).padStart(2, '0')}${String(start.minutes).padStart(2, '0')}00`,
-      )
-      lines.push(
-        `DTEND;TZID=America/New_York:${dateBase}T${String(end.hours).padStart(2, '0')}${String(end.minutes).padStart(2, '0')}00`,
-      )
-      lines.push(`RRULE:FREQ=WEEKLY;BYDAY=${days.join(',')};COUNT=${weekCount}`)
-      if (course.location) lines.push(`LOCATION:${escapeIcsText(course.location)}`)
-      lines.push('END:VEVENT')
+      getMeetingGroups(course).forEach((meeting, meetingIndex) => {
+        const start = parseTimeParts(meeting.start)
+        const end = parseTimeParts(meeting.end)
+        const days = meeting.days.map((day) => dayMap[day]).filter(Boolean)
+        if (!start || !end || !days.length) return
+        lines.push('BEGIN:VEVENT')
+        lines.push(`UID:${course.courseCode}-${index}-${meetingIndex}@hks-course-explorer`)
+        lines.push(`DTSTAMP:${stamp}`)
+        lines.push(`SUMMARY:${escapeIcsText(course.courseCode)} ${escapeIcsText(course.title)}`)
+        lines.push(
+          `DTSTART;TZID=America/New_York:${dateBase}T${String(start.hours).padStart(2, '0')}${String(start.minutes).padStart(2, '0')}00`,
+        )
+        lines.push(
+          `DTEND;TZID=America/New_York:${dateBase}T${String(end.hours).padStart(2, '0')}${String(end.minutes).padStart(2, '0')}00`,
+        )
+        lines.push(`RRULE:FREQ=WEEKLY;BYDAY=${days.join(',')};COUNT=${weekCount}`)
+        if (meeting.location) lines.push(`LOCATION:${escapeIcsText(meeting.location)}`)
+        lines.push('END:VEVENT')
+      })
     })
   lines.push('END:VCALENDAR')
   return new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' })
@@ -315,6 +347,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   const [activePlan, setActivePlan] = useState(DEFAULT_PLAN)
   const [planData, setPlanData] = useState(() => loadPlan(DEFAULT_PLAN))
   const [completedCourses, setCompletedCourses] = useState(() => loadCompleted())
+  const creditsByOffering = useCourseCreditMap()
   const [term, setTerm] = useState('FULL')
   const [semesterYear, setSemesterYear] = useState(DEFAULT_SCHEDULE_TERM.year)
   const [semester, setSemester] = useState(DEFAULT_SCHEDULE_TERM.semester) // Spring | Fall | Summer | January
@@ -426,6 +459,17 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   useEffect(() => {
     saveCompleted(completedCourses)
   }, [completedCourses])
+
+  useEffect(() => {
+    if (creditsByOffering.size === 0) return
+    setPlanData((current) => {
+      const correctedCourses = applyCourseCreditMap(current?.courses, creditsByOffering)
+      return correctedCourses === current?.courses
+        ? current
+        : { ...current, courses: correctedCourses }
+    })
+    setCompletedCourses((current) => applyCourseCreditMap(current, creditsByOffering))
+  }, [creditsByOffering])
 
   useEffect(() => {
     if (!reqProgram && programs[0]?.id) setReqProgram(programs[0].id)
@@ -611,6 +655,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
       return {
         ...course,
+        meetings,
         meeting_days: allDays,
         time_start: meetings[0].start,
         time_end: meetings[0].end,
@@ -672,7 +717,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       }
       allResults = liveRows.map((row, index) => {
         const norm = normalizeCourse(toScheduleSearchItem(row), index)
-        if (norm.meeting_days && norm.time_start) norm._hasLiveTimes = true
+        if (courseHasSchedule(norm)) norm._hasLiveTimes = true
         return norm
       })
     } else {
@@ -688,17 +733,20 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     const results = allResults.filter((course) => {
       // --- Day filter ---
       if (searchDays.length > 0) {
-        const days = extractDays(course.meeting_days)
+        const days = [...new Set(getCourseMeetings(course).map((meeting) => meeting.day))]
         if (days.length === 0) return false
-        const upperDays = days.map((d) => String(d).toUpperCase().slice(0, 3))
-        if (!upperDays.every((d) => searchDays.includes(d))) return false
+        if (!days.every((day) => searchDays.includes(day))) return false
       }
       // --- Time from/to filter ---
       if (fromMinutes != null || toMinutes != null) {
-        const startMin = minutesFromValue(course.time_start)
-        if (startMin == null) return false
-        if (fromMinutes != null && startMin < fromMinutes) return false
-        if (toMinutes != null && startMin >= toMinutes) return false
+        const matchesTime = getCourseMeetings(course).some((meeting) => {
+          const startMin = minutesFromValue(meeting.start)
+          if (startMin == null) return false
+          if (fromMinutes != null && startMin < fromMinutes) return false
+          if (toMinutes != null && startMin >= toMinutes) return false
+          return true
+        })
+        if (!matchesTime) return false
       }
       // --- Credit filter ---
       if (searchCredits && course.credits != null) {
@@ -759,10 +807,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
 
   const normalizedPlanCourses = useMemo(
     () =>
-      (Array.isArray(planData?.courses) ? planData.courses : []).map((course, index) =>
-        normalizeCourse(course, index),
-      ),
-    [planData],
+      applyCourseCreditMap(
+        Array.isArray(planData?.courses) ? planData.courses : [],
+        creditsByOffering,
+      ).map((course, index) => normalizeCourse(course, index)),
+    [planData, creditsByOffering],
   )
   // Enrich plan courses with Supabase meeting times + historical ratings where missing.
   const planCoursesEnriched = useMemo(
@@ -791,6 +840,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         const allDays = [...new Set(meetings.map((m) => m.day))].join('/')
         return {
           ...enriched,
+          meetings,
           meeting_days: allDays,
           time_start: meetings[0].start,
           time_end: meetings[0].end,
@@ -832,8 +882,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     return next
   }, [conflicts])
   const normalizedCompletedCourses = useMemo(
-    () => completedCourses.map((c, i) => normalizeCourse({ ...c, _isCompleted: true }, i)),
-    [completedCourses],
+    () =>
+      applyCourseCreditMap(completedCourses, creditsByOffering).map((course, index) =>
+        normalizeCourse({ ...course, _isCompleted: true }, index),
+      ),
+    [completedCourses, creditsByOffering],
   )
   const progress = useMemo(
     () =>
@@ -876,23 +929,34 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       }
       if (deduped.length >= 6) break
     }
-    return deduped.map((c) => ({
-      courseCode: c.course_code_base || c.course_code,
-      title: c.course_name,
-      instructors: [c.professor_display || c.professor].filter(Boolean),
-      credits: 4,
-      sections: [],
-      sessionDescription: '',
-      enrichment: {
-        is_core: c.is_core,
-        is_stem: c.is_stem,
-        metrics_pct: c.metrics_pct,
-        bid_clearing_price: c.bid_clearing_price,
-        last_bid_price: c.last_bid_price,
-      },
-      _fromDB: true,
-    }))
-  }, [favorites, courses, addedCourseCodes])
+    return deduped.map((c) => {
+      const courseCode = c.course_code_base || c.course_code
+      return {
+        courseCode,
+        title: c.course_name,
+        instructors: [c.professor_display || c.professor].filter(Boolean),
+        credits: Number(
+          c.credits ??
+            c.credits_min ??
+            c.credits_max ??
+            sectionInfoMap.get(courseCode)?.credits ??
+            4,
+        ),
+        year: c.year ?? null,
+        term: c.term ?? null,
+        sections: [],
+        sessionDescription: '',
+        enrichment: {
+          is_core: c.is_core,
+          is_stem: c.is_stem,
+          metrics_pct: c.metrics_pct,
+          bid_clearing_price: c.bid_clearing_price,
+          last_bid_price: c.last_bid_price,
+        },
+        _fromDB: true,
+      }
+    })
+  }, [favorites, courses, addedCourseCodes, sectionInfoMap])
 
   const switchPlan = (planName) => {
     setActivePlan(planName)
@@ -940,6 +1004,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         if (normalized.courseCode !== courseCode) return course
         return {
           ...normalized,
+          meetings: edit.days.map((day) => ({
+            day,
+            start: edit.start,
+            end: edit.end,
+            location: '',
+          })),
           meeting_days: edit.days.join('/'),
           time_start: edit.start,
           time_end: edit.end,
@@ -998,6 +1068,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         return {
           ...normalized,
           selectedSectionId: sectionId,
+          meetings: nextSection?.meetings || [],
           meeting_days: nextSection?.meeting_days || '',
           time_start: nextSection?.time_start || '',
           time_end: nextSection?.time_end || '',
@@ -1160,22 +1231,29 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     () =>
       planCoursesEnriched
         .filter((course) => course.isOnGrid && courseHasSchedule(course))
-        .flatMap((course) => {
-          const start = clampMinutes(minutesFromValue(course.time_start))
-          const end = clampMinutes(minutesFromValue(course.time_end))
-          if (start == null || end == null || end <= start) return []
-          const sh = Math.floor(start / 60)
-          const sm = start % 60
-          const eh = Math.floor(end / 60)
-          const em = end % 60
-          return extractDays(course.meeting_days).map((day) => ({
-            key: `${course.courseCode}-${day}`,
-            course,
-            day,
-            top: timeToY(sh, sm),
-            height: durationToH(sh, sm, eh, em),
-          }))
-        }),
+        .flatMap((course) =>
+          getCourseMeetings(course).flatMap((meeting, meetingIndex) => {
+            const start = clampMinutes(minutesFromValue(meeting.start))
+            const end = clampMinutes(minutesFromValue(meeting.end))
+            if (start == null || end == null || end <= start) return []
+            const sh = Math.floor(start / 60)
+            const sm = start % 60
+            const eh = Math.floor(end / 60)
+            const em = end % 60
+            return [
+              {
+                key: `${course.courseCode}-${meeting.day}-${meetingIndex}`,
+                course,
+                day: meeting.day,
+                start: meeting.start,
+                end: meeting.end,
+                location: meeting.location,
+                top: timeToY(sh, sm),
+                height: durationToH(sh, sm, eh, em),
+              },
+            ]
+          }),
+        ),
     [planCoursesEnriched],
   )
 
@@ -2067,28 +2145,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                     {course.sections.length > 1 ? 's' : ''}
                                   </Chip>
                                 ) : courseHasSchedule(course) ? (
-                                  (() => {
-                                    const DAY_ABBR = {
-                                      MON: 'M',
-                                      TUE: 'Tu',
-                                      WED: 'W',
-                                      THU: 'Th',
-                                      FRI: 'F',
-                                      SAT: 'Sa',
-                                      SUN: 'Su',
-                                    }
-                                    const days = extractDays(course.meeting_days)
-                                      .map((d) => DAY_ABBR[d] || d)
-                                      .join('/')
-                                    return (
-                                      <Chip tone="success">
-                                        {days}
-                                        {course.time_start
-                                          ? ` ${formatClockLabel(course.time_start)}`
-                                          : ''}
-                                      </Chip>
-                                    )
-                                  })()
+                                  <Chip tone="success">{formatMeetingSchedule(course)}</Chip>
                                 ) : sectionTimesLoading ? (
                                   <Chip tone="default">Times loading</Chip>
                                 ) : (
@@ -2345,28 +2402,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                     {course.sections.length > 1 ? 's' : ''}
                                   </Chip>
                                 ) : courseHasSchedule(course) ? (
-                                  (() => {
-                                    const DAY_ABBR = {
-                                      MON: 'M',
-                                      TUE: 'Tu',
-                                      WED: 'W',
-                                      THU: 'Th',
-                                      FRI: 'F',
-                                      SAT: 'Sa',
-                                      SUN: 'Su',
-                                    }
-                                    const days = extractDays(course.meeting_days)
-                                      .map((d) => DAY_ABBR[d] || d)
-                                      .join('/')
-                                    return (
-                                      <Chip tone="success">
-                                        {days}
-                                        {course.time_start
-                                          ? ` ${formatClockLabel(course.time_start)}`
-                                          : ''}
-                                      </Chip>
-                                    )
-                                  })()
+                                  <Chip tone="success">{formatMeetingSchedule(course)}</Chip>
                                 ) : sectionTimesLoading ? (
                                   <Chip tone="default">Times loading</Chip>
                                 ) : (
@@ -2676,7 +2712,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                           ))}
                         </div>
                       ))}
-                      {blocks.map(({ key, course, day, top, height }) => {
+                      {blocks.map(({ key, course, day, start, end, location, top, height }) => {
                         const conflict = conflictSet.has(course.courseCode)
                         const active = expandedBlock === course.courseCode
                         const section = getActiveSection(course)
@@ -2801,15 +2837,15 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                   ).join(', ') || 'Instructor TBA'}
                                 </p>
                                 <p className="mt-2 text-xs" style={{ color: 'var(--text-soft)' }}>
-                                  {formatClockLabel(course.time_start)} –{' '}
-                                  {formatClockLabel(course.time_end)} · {course.meeting_days || ''}
+                                  {formatClockLabel(start)} – {formatClockLabel(end)} ·{' '}
+                                  {DAY_ABBR[day] || day}
                                 </p>
-                                {course.location && (
+                                {(location || course.location) && (
                                   <p
                                     className="mt-1 text-xs"
                                     style={{ color: 'var(--text-muted)' }}
                                   >
-                                    📍 {course.location}
+                                    📍 {location || course.location}
                                   </p>
                                 )}
                                 <p className="mt-2 text-xs" style={{ color: 'var(--text-soft)' }}>
@@ -3039,30 +3075,14 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                     >
                                       {course.title}
                                     </p>
-                                    {courseHasSchedule(course) &&
-                                      (() => {
-                                        const DAY_ABBR = {
-                                          MON: 'M',
-                                          TUE: 'Tu',
-                                          WED: 'W',
-                                          THU: 'Th',
-                                          FRI: 'F',
-                                          SAT: 'Sa',
-                                          SUN: 'Su',
-                                        }
-                                        const days = extractDays(course.meeting_days)
-                                          .map((d) => DAY_ABBR[d] || d)
-                                          .join('/')
-                                        return (
-                                          <p
-                                            className="mt-1 text-[11px]"
-                                            style={{ color: 'var(--text-soft)' }}
-                                          >
-                                            🕐 {days} {formatClockLabel(course.time_start)}–
-                                            {formatClockLabel(course.time_end)}
-                                          </p>
-                                        )
-                                      })()}
+                                    {courseHasSchedule(course) && (
+                                      <p
+                                        className="mt-1 text-[11px]"
+                                        style={{ color: 'var(--text-soft)' }}
+                                      >
+                                        🕐 {formatMeetingSchedule(course)}
+                                      </p>
+                                    )}
                                     {hasRatings && (
                                       <p
                                         className="mt-1 text-[11px]"

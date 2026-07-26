@@ -62,6 +62,22 @@ SCHEDULED_DETAIL = """
 </div><!-- End Time -->
 """
 
+MULTI_INTERVAL_DETAIL = """
+<strong>Credits</strong><span>4</span>
+<strong>Cross Reg</strong><p>Available for Cross Registration</p></div></div>
+<div id="course-time">
+  <div role="group" aria-label="Week Days">
+    <div aria-label="Tuesday, selected">T</div>
+    <div aria-label="Thursday, selected">Th</div>
+  </div>
+  <div><span>9:00am - 10:15am</span></div>
+  <div role="group" aria-label="Week Days">
+    <div aria-label="Tuesday, selected">T</div>
+  </div>
+  <div><span>4:30pm - 5:45pm</span></div>
+</div><!-- End Time -->
+"""
+
 
 class MyHarvardSyncTests(unittest.TestCase):
     def setUp(self):
@@ -259,6 +275,7 @@ class MyHarvardSyncTests(unittest.TestCase):
                 "credits": 4.0,
                 "cross_reg_eligible": "NOXREG",
                 "location": "",
+                "meetings": [],
                 "meeting_days": "",
                 "time_start": "",
                 "time_end": "",
@@ -277,6 +294,22 @@ class MyHarvardSyncTests(unittest.TestCase):
             [
                 {"day": "MON", "start": "10:30", "end": "11:45", "location": ""},
                 {"day": "WED", "start": "10:30", "end": "11:45", "location": ""},
+            ],
+        )
+
+    def test_preserves_multiple_published_meeting_intervals(self):
+        schedule = self.sync.parse_course_schedule(MULTI_INTERVAL_DETAIL)
+
+        self.assertEqual(schedule["state"], "scheduled")
+        self.assertEqual(schedule["meeting_days"], "TUE/THU")
+        self.assertEqual(schedule["time_start"], "")
+        self.assertEqual(schedule["time_end"], "")
+        self.assertEqual(
+            schedule["meetings"],
+            [
+                {"day": "TUE", "start": "09:00", "end": "10:15", "location": ""},
+                {"day": "THU", "start": "09:00", "end": "10:15", "location": ""},
+                {"day": "TUE", "start": "16:30", "end": "17:45", "location": ""},
             ],
         )
 

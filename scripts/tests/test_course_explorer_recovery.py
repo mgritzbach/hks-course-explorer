@@ -192,6 +192,7 @@ class CourseExplorerRecoveryTests(unittest.TestCase):
 
     def test_pre_migration_backup_synthesizes_only_the_reviewed_nullable_column(self):
         current = row_for(self.exporter, "live_courses", "live-current")
+        current["meetings"] = []
         legacy = dict(current)
         legacy.pop("source_last_seen_at")
 
@@ -200,6 +201,7 @@ class CourseExplorerRecoveryTests(unittest.TestCase):
         self.assertEqual(validated[0]["id"], "live-current")
         self.assertIn("source_last_seen_at", validated[0])
         self.assertIsNone(validated[0]["source_last_seen_at"])
+        self.assertEqual(validated[0]["meetings"], [])
         self.assertNotIn("source_last_seen_at", legacy)
 
         missing_two = dict(legacy)
@@ -425,6 +427,10 @@ class CourseExplorerRecoveryWorkflowTests(unittest.TestCase):
         )
         self.assertIn(
             "supabase/migrations/20260714102702_raise_ats_promotion_statement_timeout.sql",
+            RECOVERY_CONTRACT_PATHS,
+        )
+        self.assertIn(
+            "supabase/migrations/20260726203607_store_live_course_meeting_intervals.sql",
             RECOVERY_CONTRACT_PATHS,
         )
         for path in migration_paths:

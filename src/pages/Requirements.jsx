@@ -8,6 +8,9 @@ import {
   saveCompleted,
 } from '../lib/scheduleStorage.js'
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
+import { applyCourseCreditMap, withResolvedCourseCredits } from '../lib/courseCredits.js'
+import { useCourseCreditMap } from '../hooks/useCourseCreditMap.js'
+import MldCertificatePanel from '../components/MldCertificatePanel.jsx'
 import { useDocumentTitle } from '../lib/useDocumentTitle.js'
 import config from '../school.config.js'
 
@@ -55,8 +58,10 @@ function getPlanCourses(planName = DEFAULT_PLAN) {
   return Array.isArray(plan?.courses) ? plan.courses : []
 }
 
-export default function Requirements({ courses = [] }) {
+export default function Requirements({ courses = [], courseCreditMap = null }) {
   useDocumentTitle(`${config.appTitle} - My Degree`)
+  const loadedCourseCreditMap = useCourseCreditMap()
+  const creditsByOffering = courseCreditMap instanceof Map ? courseCreditMap : loadedCourseCreditMap
   const getCourseCode = useCallback(
     (course) =>
       course?.course_code_base || course?.course_code || course?.courseCode || course?.code || null,
@@ -111,7 +116,8 @@ export default function Requirements({ courses = [] }) {
     if (!courseCode) return
     const already = plan.courses.some((c) => getCourseCode(c) === courseCode)
     if (already) return
-    const nextCourses = [...plan.courses, course]
+    const creditedCourse = withResolvedCourseCredits(course, creditsByOffering)
+    const nextCourses = [...plan.courses, creditedCourse]
     savePlan(activePlan, { ...plan, courses: nextCourses })
     setAddedToPlan((prev) => new Set([...prev, courseCode]))
     setScheduledCourses(nextCourses)
@@ -133,11 +139,36 @@ export default function Requirements({ courses = [] }) {
     const code = getCourseCode(course)
     if (!code) return
     if (completedSetForDisplay.has(code)) return
-    const next = [...completedCourses, course]
+    const creditedCourse = withResolvedCourseCredits(course, creditsByOffering)
+    const next = [...completedCourses, creditedCourse]
     setCompletedCourses(next)
     saveCompleted(next)
     setCourseSearch('')
   }
+
+  const removeFromCompleted = (courseCode) => {
+    const next = completedCourses.filter((course) => getCourseCode(course) !== courseCode)
+    setCompletedCourses(next)
+    saveCompleted(next)
+  }
+
+  useEffect(() => {
+    if (creditsByOffering.size === 0) return
+
+    setCompletedCourses((current) => {
+      const corrected = applyCourseCreditMap(current, creditsByOffering)
+      if (corrected === current) return current
+      saveCompleted(corrected)
+      return corrected
+    })
+
+    const plan = loadPlan(activePlan)
+    const correctedPlanCourses = applyCourseCreditMap(plan.courses, creditsByOffering)
+    if (correctedPlanCourses !== plan.courses) {
+      savePlan(activePlan, { ...plan, courses: correctedPlanCourses })
+      setScheduledCourses(correctedPlanCourses)
+    }
+  }, [activePlan, creditsByOffering])
 
   useEffect(() => {
     return () => {
@@ -198,10 +229,21 @@ export default function Requirements({ courses = [] }) {
     }
   }, [selectedProgram, activePlan, getCourseCode])
 
+  const creditedScheduledCourses = useMemo(
+    () => applyCourseCreditMap(scheduledCourses, creditsByOffering),
+    [scheduledCourses, creditsByOffering],
+  )
+  const creditedCompletedCourses = useMemo(
+    () => applyCourseCreditMap(completedCourses, creditsByOffering),
+    [completedCourses, creditsByOffering],
+  )
+
   const progress = useMemo(
     () =>
-      computeProgress(selectedProgram, scheduledCourses, completedCourses, { preferredPacArea }),
-    [scheduledCourses, selectedProgram, completedCourses, preferredPacArea],
+      computeProgress(selectedProgram, creditedScheduledCourses, creditedCompletedCourses, {
+        preferredPacArea,
+      }),
+    [creditedScheduledCourses, selectedProgram, creditedCompletedCourses, preferredPacArea],
   )
 
   const suggestionMap = useMemo(() => {
@@ -210,12 +252,12 @@ export default function Requirements({ courses = [] }) {
     return Object.fromEntries(
       progress.categories.map((category) => [
         category.id,
-        findCompletingCourses(selectedProgram, scheduledCourses, courses, category.id, {
+        findCompletingCourses(selectedProgram, creditedScheduledCourses, courses, category.id, {
           preferredPacArea,
         }),
       ]),
     )
-  }, [courses, progress, scheduledCourses, selectedProgram, preferredPacArea])
+  }, [courses, progress, creditedScheduledCourses, selectedProgram, preferredPacArea])
 
   const completedSetForDisplay = new Set(
     completedCourses
@@ -401,6 +443,22 @@ export default function Requirements({ courses = [] }) {
                           · {name.length > 28 ? name.slice(0, 28) + '…' : name}
                         </span>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={() => removeFromCompleted(code)}
+                        aria-label={`Remove completed course ${code}`}
+                        className="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full"
+                        style={{
+                          background: 'color-mix(in srgb, var(--success) 18%, transparent)',
+                          color: 'var(--success)',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: 11,
+                          fontWeight: 700,
+                        }}
+                      >
+                        ×
+                      </button>
                     </span>
                   )
                 })}
@@ -441,6 +499,22 @@ export default function Requirements({ courses = [] }) {
                             · {name.length > 28 ? name.slice(0, 28) + '…' : name}
                           </span>
                         ) : null}
+                        <button
+                          type="button"
+                          onClick={() => removeFromPlan(code)}
+                          aria-label={`Remove ${code} from ${activePlan}`}
+                          className="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full"
+                          style={{
+                            background: 'var(--line-strong)',
+                            color: 'var(--text-muted)',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: 11,
+                            fontWeight: 700,
+                          }}
+                        >
+                          ×
+                        </button>
                       </span>
                     )
                   })}
@@ -586,6 +660,12 @@ export default function Requirements({ courses = [] }) {
           </div>
         </div>
 
+        <MldCertificatePanel
+          scheduledCourses={creditedScheduledCourses}
+          completedCourses={creditedCompletedCourses}
+          programId={selectedProgram}
+        />
+
         <div data-tour="req-cards" className="grid gap-5 lg:grid-cols-2">
           {progress.categories.map((category) => {
             const accentColor = COLOR_MAP[category.color] || 'var(--accent)'
@@ -708,8 +788,16 @@ export default function Requirements({ courses = [] }) {
                         {course._courseCode}
                         <button
                           type="button"
-                          onClick={() => removeFromPlan(course._courseCode)}
-                          aria-label={`Remove ${course._courseCode} from ${activePlan}`}
+                          onClick={() =>
+                            course._isCompleted
+                              ? removeFromCompleted(course._courseCode)
+                              : removeFromPlan(course._courseCode)
+                          }
+                          aria-label={
+                            course._isCompleted
+                              ? `Remove completed course ${course._courseCode}`
+                              : `Remove ${course._courseCode} from ${activePlan}`
+                          }
                           className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70"
                           style={{
                             background: 'var(--line-strong)',

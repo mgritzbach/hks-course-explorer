@@ -85,6 +85,14 @@ describe('live catalogue search', () => {
     })
   })
 
+  it('passes lossless meeting intervals into scheduling', () => {
+    const meetings = [
+      { day: 'TUE', start: '09:00', end: '10:15' },
+      { day: 'TUE', start: '16:30', end: '17:45' },
+    ]
+    expect(toScheduleSearchItem({ ...rows[0], meetings }).meetings).toEqual(meetings)
+  })
+
   it('keeps the Schedule Builder on the synced catalogue path', () => {
     const source = readFileSync(
       resolve(globalThis.process.cwd(), 'src/pages/ScheduleBuilder.jsx'),

@@ -146,6 +146,7 @@ jobs:
           psql=(psql -h 127.0.0.1 -U recovery_probe -d recovery_probe -v ON_ERROR_STOP=1)
           "${psql[@]}" -f supabase/migrations/20260714075356_persist_ats_source_manifest.sql
           "${psql[@]}" -f supabase/migrations/20260714102702_raise_ats_promotion_statement_timeout.sql
+          "${psql[@]}" -f supabase/migrations/20260726203607_store_live_course_meeting_intervals.sql
 
       - name: Prove exact recovery schema contract
         env:
