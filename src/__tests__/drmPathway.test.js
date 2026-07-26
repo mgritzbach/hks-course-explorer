@@ -68,6 +68,10 @@ describe('official DRM pathway rules', () => {
       status: 'qualifying',
       group: 'B',
     })
+    expect(getDrmEligibility(course('API-203M-B', { credits: 2 }))).toMatchObject({
+      status: 'qualifying',
+      group: 'B',
+    })
     expect(getDrmEligibility(course('API-203M', { credits: 2 }))).toMatchObject({
       status: 'section-required',
       group: null,
@@ -129,6 +133,21 @@ describe('official DRM pathway rules', () => {
     expect(result.verifiedCredits).toBe(4)
     expect(result.pendingGradeCredits).toBe(4)
     expect(result.courses.find((item) => item.code === 'IGA-108').gradeStatus).toBe('below-minimum')
+  })
+
+  it('counts a base course only once across section variants and planned/completed lists', () => {
+    const result = computeDrmProgress(
+      'MPA_2YR',
+      [
+        course('DPI-681-M', { year: 2025, term: 'Spring', credits: 2 }),
+        course('DPI-681-M-001', { year: 2025, term: 'Spring', credits: 2 }),
+      ],
+      [course('DPI-681-M-A', { year: 2025, term: 'Spring', credits: 2, grade: 'A' })],
+    )
+
+    expect(result.courses).toHaveLength(1)
+    expect(result.verifiedCredits).toBe(2)
+    expect(result.projectedCredits).toBe(2)
   })
 
   it('does not invent four credits when the selected offering has no credit value', () => {

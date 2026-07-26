@@ -1,4 +1,5 @@
 import programRequirements from '../data/programRequirements.json'
+import { getBaseCourseCode, getBaseCourseKey } from './courseIdentity.js'
 import { getDrmCourseKey } from './drmPathway.js'
 
 function normalizeCode(value) {
@@ -13,13 +14,7 @@ function normalizeCourse(course, index) {
   const parsedCredits = rawCredits == null || rawCredits === '' ? 0 : Number(rawCredits)
   const credits = Number.isFinite(parsedCredits) && parsedCredits > 0 ? parsedCredits : 0
   // Support both snake_case (Supabase rows) and camelCase (ScheduleBuilder plan objects)
-  const courseCode =
-    course?.course_code ||
-    course?.course_code_base ||
-    course?.courseCode ||
-    course?.code ||
-    course?.id ||
-    `course-${index}`
+  const courseCode = getBaseCourseCode(course) || `course-${index}`
 
   return {
     ...course,
@@ -28,6 +23,7 @@ function normalizeCourse(course, index) {
     _creditsMissing: credits === 0,
     _courseCode: courseCode,
     _courseCodeNormalized: normalizeCode(courseCode),
+    _baseCourseKey: getBaseCourseKey(courseCode),
     _requirementKey: getDrmCourseKey(course),
   }
 }
@@ -141,7 +137,13 @@ export function computeProgress(
     ...normalizeCourse({ ...c, _isCompleted: true }, 100000 + i),
     _isCompleted: true,
   }))
-  const normalizedCourses = [...normalizedScheduled, ...normalizedCompleted]
+  const coursesByBase = new Map()
+  ;[...normalizedScheduled, ...normalizedCompleted].forEach((course) => {
+    const key = course._baseCourseKey || `index-${course._index}`
+    const previous = coursesByBase.get(key)
+    if (!previous || course._isCompleted) coursesByBase.set(key, course)
+  })
+  const normalizedCourses = [...coursesByBase.values()]
   const categories = [...(program.categories || [])].sort(
     (left, right) => (left.displayOrder || 0) - (right.displayOrder || 0),
   )

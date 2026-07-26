@@ -1,3 +1,4 @@
+import { getBaseCourseKey } from './courseIdentity.js'
 import { normalizeCourse } from './scheduleCourseNormalization.js'
 
 /**
@@ -13,7 +14,8 @@ function coursesFromPlan(plan) {
 }
 
 function hasCourseCode(courses, courseCode) {
-  return courses.some((course) => normalizeCourse(course).courseCode === courseCode)
+  const baseKey = getBaseCourseKey(courseCode)
+  return courses.some((course) => getBaseCourseKey(course) === baseKey)
 }
 
 /** Adds a normalized course unless the plan already has the same course code. */
@@ -26,13 +28,22 @@ export function addCourseToPlan(plan, course, planName) {
 
 /** Removes every persisted variant that normalizes to the selected course code. */
 export function removeCourseFromPlan(plan, courseCode, planName) {
+  const baseKey = getBaseCourseKey(courseCode)
   return {
     ...plan,
     name: planName,
-    courses: coursesFromPlan(plan).filter(
-      (course) => normalizeCourse(course).courseCode !== courseCode,
-    ),
+    courses: coursesFromPlan(plan).filter((course) => getBaseCourseKey(course) !== baseKey),
   }
+}
+
+/** Removes planned copies of courses already recorded as completed. */
+export function removeCompletedCoursesFromPlan(plan, completedCourses, planName) {
+  const completedKeys = new Set((completedCourses || []).map(getBaseCourseKey).filter(Boolean))
+  const courses = coursesFromPlan(plan)
+  const nextCourses = courses.filter((course) => !completedKeys.has(getBaseCourseKey(course)))
+  return nextCourses.length === courses.length
+    ? plan
+    : { ...plan, name: planName, courses: nextCourses }
 }
 
 /** Adds a completed course once, preserving the existing list reference on a duplicate. */
@@ -43,8 +54,17 @@ export function addCompletedCourse(completedCourses, course) {
   return [...courses, { ...normalized, _isCompleted: true }]
 }
 
+/** Updates every persisted variant of one completed base course. */
+export function updateCompletedCourse(completedCourses, courseCode, changes) {
+  const baseKey = getBaseCourseKey(courseCode)
+  return (Array.isArray(completedCourses) ? completedCourses : []).map((course) =>
+    getBaseCourseKey(course) === baseKey ? { ...course, ...changes } : course,
+  )
+}
+
 /** Removes every completed-course variant that normalizes to the selected code. */
 export function removeCompletedCourse(completedCourses, courseCode) {
   const courses = Array.isArray(completedCourses) ? completedCourses : []
-  return courses.filter((course) => normalizeCourse(course).courseCode !== courseCode)
+  const baseKey = getBaseCourseKey(courseCode)
+  return courses.filter((course) => getBaseCourseKey(course) !== baseKey)
 }

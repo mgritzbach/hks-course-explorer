@@ -80,6 +80,27 @@ describe('Requirements', () => {
     expect(screen.getByRole('button', { name: 'IGA' }).getAttribute('aria-pressed')).toBe('true')
   })
 
+  it('repairs duplicate base courses and keeps the completed copy only', async () => {
+    savePlan('Plan A', [
+      { courseCode: 'DPI-681-M-001', credits: 2 },
+      { courseCode: 'DPI-681-M-A', credits: 2 },
+    ])
+    window.localStorage.setItem(
+      'hks_completed_courses',
+      JSON.stringify([{ courseCode: 'DPI-681-M', credits: 2, grade: 'A' }]),
+    )
+
+    render(<Requirements />)
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem('hks_plan_Plan A')).courses).toEqual([])
+    })
+    expect(
+      screen.getAllByRole('button', { name: 'Remove completed course DPI-681-M' }),
+    ).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: 'Remove DPI-681-M from Plan A' })).toBeNull()
+  })
+
   it('removes planned courses directly from My Courses', () => {
     savePlan('Plan A', [{ ...planCourse('IGA-108'), credits: 4 }])
 

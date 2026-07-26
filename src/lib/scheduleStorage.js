@@ -1,3 +1,5 @@
+import { dedupeCoursesByBase } from './courseIdentity.js'
+
 export const PLANS = ['Plan A', 'Plan B', 'Plan C', 'Plan D']
 export const DEFAULT_PLAN = 'Plan A'
 const COMPLETED_KEY = 'hks_completed_courses'
@@ -6,7 +8,8 @@ export function loadCompleted() {
   if (typeof window === 'undefined') return []
   try {
     const raw = window.localStorage.getItem(COMPLETED_KEY)
-    return Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : []
+    const parsed = JSON.parse(raw)
+    return dedupeCoursesByBase(Array.isArray(parsed) ? parsed : [])
   } catch {
     return []
   }
@@ -14,7 +17,7 @@ export function loadCompleted() {
 
 export function saveCompleted(courses) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(COMPLETED_KEY, JSON.stringify(Array.isArray(courses) ? courses : []))
+  window.localStorage.setItem(COMPLETED_KEY, JSON.stringify(dedupeCoursesByBase(courses)))
 }
 
 function storageKey(planName) {
@@ -25,7 +28,7 @@ function normalizePlan(planName, value) {
   if (Array.isArray(value)) {
     return {
       name: planName,
-      courses: value,
+      courses: dedupeCoursesByBase(value),
       updatedAt: null,
     }
   }
@@ -33,7 +36,7 @@ function normalizePlan(planName, value) {
   if (value && typeof value === 'object') {
     return {
       name: value.name || planName,
-      courses: Array.isArray(value.courses) ? value.courses : [],
+      courses: dedupeCoursesByBase(Array.isArray(value.courses) ? value.courses : []),
       updatedAt: value.updatedAt || null,
     }
   }

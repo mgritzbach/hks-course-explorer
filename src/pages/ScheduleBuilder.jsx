@@ -26,7 +26,9 @@ import {
   addCompletedCourse,
   addCourseToPlan,
   removeCompletedCourse,
+  removeCompletedCoursesFromPlan,
   removeCourseFromPlan,
+  updateCompletedCourse,
 } from '../lib/schedulePlanMutations.js'
 import { isHksCourseCode as isHksCourse } from '../lib/hksCourseCodes.js'
 import {
@@ -904,6 +906,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     () => new Set(normalizedCompletedCourses.map((c) => c.courseCode)),
     [normalizedCompletedCourses],
   )
+  useEffect(() => {
+    setPlanData((current) =>
+      removeCompletedCoursesFromPlan(current, normalizedCompletedCourses, activePlan),
+    )
+  }, [activePlan, normalizedCompletedCourses])
+
   const visibleDayLabels = showWeekends ? [...WEEKDAY_LABELS, ...WEEKEND_LABELS] : WEEKDAY_LABELS
   const numDays = visibleDayLabels.length
   const gridCols = `52px repeat(${numDays}, minmax(0, 1fr))`
@@ -967,6 +975,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   }
   const addToShortlist = (course) => {
     const normalized = normalizeCourse(course)
+    if (completedCourseCodes.has(normalized.courseCode)) {
+      announce(`${normalized.courseCode} is already completed and cannot be taken again`)
+      return
+    }
+
     setPlanData((current) => addCourseToPlan(current, normalized, activePlan))
     announce(`Added ${normalized.courseCode} to plan`)
     setGridMessages((current) => {
@@ -989,18 +1002,15 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   }
   const addToCompleted = (course) => {
     const normalized = normalizeCourse(course)
+    setPlanData((current) => removeCourseFromPlan(current, normalized.courseCode, activePlan))
     setCompletedCourses((current) => addCompletedCourse(current, normalized))
-    announce('Marked as completed')
+    announce(`Marked ${normalized.courseCode} as completed and removed it from the plan`)
   }
   const removeFromCompleted = (courseCode) => {
     setCompletedCourses((current) => removeCompletedCourse(current, courseCode))
   }
   const updateCompleted = (courseCode, changes) => {
-    setCompletedCourses((current) =>
-      current.map((course) =>
-        normalizeCourse(course).courseCode === courseCode ? { ...course, ...changes } : course,
-      ),
-    )
+    setCompletedCourses((current) => updateCompletedCourse(current, courseCode, changes))
   }
   const applyManualTime = (courseCode) => {
     const edit = manualTimeEdit[courseCode]
