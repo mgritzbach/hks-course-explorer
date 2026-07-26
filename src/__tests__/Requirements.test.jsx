@@ -51,14 +51,33 @@ describe('Requirements', () => {
 
     render(<Requirements courseCreditMap={courseCreditMap} />)
 
-    expect(screen.getByText('2 / 16 cr')).toBeTruthy()
+    expect(screen.getByText('0 verified · 2 projected / 16 cr')).toBeTruthy()
     await waitFor(() => {
       const saved = JSON.parse(window.localStorage.getItem('hks_completed_courses'))
       expect(saved[0].credits).toBe(2)
     })
 
+    fireEvent.change(screen.getByRole('combobox', { name: 'Grade for DPI-681-M' }), {
+      target: { value: 'B-' },
+    })
+    await waitFor(() => {
+      const saved = JSON.parse(window.localStorage.getItem('hks_completed_courses'))
+      expect(saved[0].grade).toBe('B-')
+    })
+
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove completed course DPI-681-M' })[0])
     expect(JSON.parse(window.localStorage.getItem('hks_completed_courses'))).toEqual([])
+  })
+
+  it('lets MPP Year 1 students declare the PAC used by the official overlap allowance', () => {
+    window.history.replaceState(null, '', '/requirements?p=MPP_Y1')
+
+    render(<Requirements />)
+    expect(screen.getByText('Declared MPP Policy Area of Concentration (PAC)')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'IGA' }))
+    expect(window.localStorage.getItem('hks_pac_area')).toBe('IGA')
+    expect(screen.getByRole('button', { name: 'IGA' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('removes planned courses directly from My Courses', () => {

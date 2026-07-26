@@ -11,6 +11,7 @@ function renderPanel(overrides = {}) {
         course_name: 'Policy Analysis',
         professor: 'Professor Example',
         year: 2025,
+        credits: 4,
       },
       {
         course_code: 'API-101',
@@ -29,6 +30,7 @@ function renderPanel(overrides = {}) {
     onToggle: vi.fn(),
     onAddCompleted: vi.fn(),
     onRemoveCompleted: vi.fn(),
+    onUpdateCompleted: vi.fn(),
     ...overrides,
   }
   render(<CompletedCoursesPanel {...props} />)
@@ -39,9 +41,13 @@ describe('CompletedCoursesPanel', () => {
   it('keeps the completed list visible and delegates removal and collapse to the planner', () => {
     const props = renderPanel()
 
+    fireEvent.change(screen.getByRole('combobox', { name: 'Grade for API-102' }), {
+      target: { value: 'B-' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Un-complete API-102' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle completed' }))
 
+    expect(props.onUpdateCompleted).toHaveBeenCalledWith('API-102', { grade: 'B-' })
     expect(props.onRemoveCompleted).toHaveBeenCalledWith('API-102')
     expect(props.onToggle).toHaveBeenCalledOnce()
   })
@@ -62,8 +68,13 @@ describe('CompletedCoursesPanel', () => {
       year: 2025,
       term: null,
       sessionDescription: '',
+      sectionCode: '',
       sections: [],
-      enrichment: {},
+      is_hks: undefined,
+      school: null,
+      is_stem: undefined,
+      stem_group: null,
+      enrichment: { is_stem: undefined, stem_group: null, is_core: undefined },
     })
     expect(screen.getByRole('textbox', { name: 'Search courses already taken' }).value).toBe('')
   })
@@ -90,7 +101,7 @@ describe('CompletedCoursesPanel', () => {
     expect(props.onAddCompleted).toHaveBeenNthCalledWith(2, {
       courseCode: 'CUSTOM 1',
       title: 'CUSTOM 1',
-      credits: 4,
+      credits: null,
       sections: [],
       instructors: [],
       sessionDescription: '',

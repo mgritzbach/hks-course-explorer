@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { isHksCourseCode } from '../lib/hksCourseCodes.js'
+import { DRM_GRADE_OPTIONS } from '../lib/drmPathway.js'
 
 /**
  * Presentation boundary for the completed-course sidebar.
@@ -18,6 +18,7 @@ export default function CompletedCoursesPanel({
   onToggle,
   onAddCompleted,
   onRemoveCompleted,
+  onUpdateCompleted,
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [quickAddInput, setQuickAddInput] = useState('')
@@ -26,10 +27,7 @@ export default function CompletedCoursesPanel({
     const query = searchQuery.trim().toLowerCase()
     if (!query) return []
     return (Array.isArray(allCourses) ? allCourses : [])
-      .filter(
-        (course) =>
-          !course?.is_average && isHksCourseCode(course?.course_code_base || course?.course_code),
-      )
+      .filter((course) => !course?.is_average)
       .filter((course) =>
         [course?.course_code, course?.course_name, course?.professor, course?.professor_display]
           .filter(Boolean)
@@ -55,19 +53,28 @@ export default function CompletedCoursesPanel({
   function addSearchResult(course) {
     const courseCode = course.course_code_base || course.course_code
     const sectionInfo = sectionInfoMap.get(courseCode)
+    const rawCredits =
+      course.credits ?? course.credits_min ?? course.credits_max ?? sectionInfo?.credits ?? null
     if (!completedCourseCodes.has(courseCode)) {
       onAddCompleted({
         courseCode,
         title: course.course_name,
         instructors: [course.professor_display || course.professor].filter(Boolean),
-        credits: Number(
-          course.credits ?? course.credits_min ?? course.credits_max ?? sectionInfo?.credits ?? 4,
-        ),
+        credits: rawCredits == null ? null : Number(rawCredits),
         year: course.year ?? null,
         term: course.term ?? null,
         sessionDescription: course.session_description ?? '',
+        sectionCode: course.section_code ?? '',
         sections: [],
-        enrichment: {},
+        is_hks: course.is_hks,
+        school: course.school ?? null,
+        is_stem: course.is_stem,
+        stem_group: course.stem_group ?? null,
+        enrichment: {
+          is_stem: course.is_stem,
+          stem_group: course.stem_group ?? null,
+          is_core: course.is_core,
+        },
       })
     }
     setSearchQuery('')
@@ -79,7 +86,7 @@ export default function CompletedCoursesPanel({
     onAddCompleted({
       courseCode,
       title: sectionInfo?.title || courseCode,
-      credits: sectionInfo?.credits ?? 4,
+      credits: sectionInfo?.credits ?? null,
       sections: [],
       instructors: sectionInfo?.instructors || [],
       enrichment: {},
@@ -105,18 +112,21 @@ export default function CompletedCoursesPanel({
         title: matchingCourse.course_name || courseCode,
         instructors: [matchingCourse.professor_display || matchingCourse.professor].filter(Boolean),
         credits:
-          Number(
-            matchingCourse.credits_min ?? matchingCourse.credits_max ?? matchingCourse.credits ?? 4,
-          ) || 4,
+          matchingCourse.credits_min ??
+          matchingCourse.credits_max ??
+          matchingCourse.credits ??
+          null,
         year: matchingCourse.year ?? null,
         term: matchingCourse.term ?? null,
         sections: [],
         is_stem: matchingCourse.is_stem,
+        stem_group: matchingCourse.stem_group,
         is_core: matchingCourse.is_core,
         metrics_pct: matchingCourse.metrics_pct,
         sessionDescription: '',
         enrichment: {
           is_stem: matchingCourse.is_stem,
+          stem_group: matchingCourse.stem_group,
           is_core: matchingCourse.is_core,
           metrics_pct: matchingCourse.metrics_pct,
           bid_clearing_price: matchingCourse.bid_clearing_price,
@@ -127,7 +137,7 @@ export default function CompletedCoursesPanel({
       onAddCompleted({
         courseCode,
         title: courseCode,
-        credits: 4,
+        credits: null,
         sections: [],
         instructors: [],
         sessionDescription: '',
@@ -205,20 +215,41 @@ export default function CompletedCoursesPanel({
                   {course.courseCode}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => onRemoveCompleted(course.courseCode)}
-                aria-label={`Un-complete ${course.courseCode}`}
-                className="shrink-0 text-[11px] font-bold transition-opacity hover:opacity-70"
-                style={{
-                  color: 'var(--text-muted)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                ×
-              </button>
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <select
+                  aria-label={`Grade for ${course.courseCode}`}
+                  value={String(course.grade || '').toUpperCase()}
+                  onChange={(event) =>
+                    onUpdateCompleted?.(course.courseCode, { grade: event.target.value })
+                  }
+                  className="rounded-lg border px-1.5 py-1 text-[10px]"
+                  style={{
+                    background: 'var(--panel)',
+                    borderColor: course.grade ? 'var(--success)' : 'var(--warning)',
+                    color: 'var(--text-soft)',
+                  }}
+                >
+                  {DRM_GRADE_OPTIONS.map((grade) => (
+                    <option key={grade || 'missing'} value={grade}>
+                      {grade || 'Grade'}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => onRemoveCompleted(course.courseCode)}
+                  aria-label={`Un-complete ${course.courseCode}`}
+                  className="shrink-0 text-[11px] font-bold transition-opacity hover:opacity-70"
+                  style={{
+                    color: 'var(--text-muted)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ×
+                </button>
+              </div>
             </div>
           ))}
         </div>

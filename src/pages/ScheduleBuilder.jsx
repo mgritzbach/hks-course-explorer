@@ -166,6 +166,7 @@ function fallbackSearch(q, allCourses, filters = {}) {
       sessionDescription: '',
       enrichment: {
         is_stem: c.is_stem,
+        stem_group: c.stem_group,
         is_core: c.is_core,
         metrics_pct: c.metrics_pct,
         bid_clearing_price: c.bid_clearing_price,
@@ -949,6 +950,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         enrichment: {
           is_core: c.is_core,
           is_stem: c.is_stem,
+          stem_group: c.stem_group,
           metrics_pct: c.metrics_pct,
           bid_clearing_price: c.bid_clearing_price,
           last_bid_price: c.last_bid_price,
@@ -992,6 +994,13 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   }
   const removeFromCompleted = (courseCode) => {
     setCompletedCourses((current) => removeCompletedCourse(current, courseCode))
+  }
+  const updateCompleted = (courseCode, changes) => {
+    setCompletedCourses((current) =>
+      current.map((course) =>
+        normalizeCourse(course).courseCode === courseCode ? { ...course, ...changes } : course,
+      ),
+    )
   }
   const applyManualTime = (courseCode) => {
     const edit = manualTimeEdit[courseCode]
@@ -3393,6 +3402,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     onToggle={() => toggleSection('completed')}
                     onAddCompleted={addToCompleted}
                     onRemoveCompleted={removeFromCompleted}
+                    onUpdateCompleted={updateCompleted}
                   />
 
                   <div className="border-t" style={{ borderColor: 'var(--line)' }} />
