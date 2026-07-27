@@ -12,7 +12,9 @@ function normalizeCode(value) {
 function normalizeCourse(course, index) {
   const rawCredits = course?.credits ?? course?.credits_min ?? course?.credits_max
   const parsedCredits = rawCredits == null || rawCredits === '' ? 0 : Number(rawCredits)
-  const grade = String(course?.grade || '').trim().toUpperCase()
+  const grade = String(course?.grade || '')
+    .trim()
+    .toUpperCase()
   const credits =
     grade !== 'DRP' && Number.isFinite(parsedCredits) && parsedCredits > 0 ? parsedCredits : 0
   // Support both snake_case (Supabase rows) and camelCase (ScheduleBuilder plan objects)
@@ -63,7 +65,6 @@ function courseMatchesCategory(course, category) {
 
   return false
 }
-
 
 function takeCreditsUntilRequired(courses, requiredCredits) {
   const selected = []

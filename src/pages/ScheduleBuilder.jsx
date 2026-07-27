@@ -1143,7 +1143,10 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
 
   const handleCopyPlan = () => {
     if (!normalizedPlanCourses.length) return
-    const totalCr = normalizedPlanCourses.reduce((sum, c) => sum + (getExplicitCourseCredits(c) ?? 4), 0)
+    const totalCr = normalizedPlanCourses.reduce(
+      (sum, c) => sum + (getExplicitCourseCredits(c) ?? 4),
+      0,
+    )
     const lines = [
       `${activePlan} — ${totalCr} credits`,
       '',
