@@ -463,11 +463,6 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     setPlanData,
     announce,
   })
-  const planClipboard = usePlanClipboard({
-    activePlan,
-    courses: normalizedPlanCourses,
-    announce,
-  })
   useEffect(() => {
     void savePlan(activePlan, planData)
   }, [activePlan, planData])
@@ -828,6 +823,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       ).map((course, index) => normalizeCourse(course, index)),
     [planData, creditsByOffering],
   )
+  const planClipboard = usePlanClipboard({
+    activePlan,
+    courses: normalizedPlanCourses,
+    announce,
+  })
   // Enrich plan courses with Supabase meeting times + historical ratings where missing.
   const planCoursesEnriched = useMemo(
     () =>
