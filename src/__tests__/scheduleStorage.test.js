@@ -10,7 +10,7 @@ describe('scheduleStorage', () => {
   it('repairs duplicate section variants at the persistence boundary', async () => {
     const duplicates = [
       { courseCode: 'DPI-681-M', credits: 2 },
-      { courseCode: 'DPI-681-M-001', credits: 2 },
+      { courseCode: 'DPI-681-M-001', credits: 2, grade: 'B-' },
       { courseCode: 'DPI-681-M-A', credits: 2 },
     ]
 
@@ -20,6 +20,7 @@ describe('scheduleStorage', () => {
     expect(savedPlan.courses).toHaveLength(1)
     expect(loadPlan('Plan A').courses).toHaveLength(1)
     expect(loadCompleted()).toHaveLength(1)
+    expect(loadCompleted()[0].grade).toBe('B-')
   })
 
   it('keeps plans locally and announces the updated plan without a remote dependency', async () => {

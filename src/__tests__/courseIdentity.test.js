@@ -25,6 +25,13 @@ describe('base course identity', () => {
         course_code_base: 'DPI-681-M',
       }),
     ).toBe('DPI-681-M')
+    expect(
+      getBaseCourseCode({
+        course_code: 'DPI-386-MC',
+        course_code_base: 'DPI-386-MC',
+      }),
+    ).toBe('DPI-386-MC')
+    expect(hasSameBaseCourse({ course_code_base: 'DPI-386-MC' }, 'DPI-386-M')).toBe(false)
     expect(getBaseCourseCode('API-101A')).toBe('API-101A')
     expect(getBaseCourseCode('MLD-201-A')).toBe('MLD-201-A')
   })
@@ -38,5 +45,17 @@ describe('base course identity', () => {
 
     expect(dedupeCoursesByBase(courses)).toEqual([courses[0]])
     expect(dedupeCoursesByBase(courses, { keep: 'last' })).toEqual([courses[2]])
+  })
+
+  it('preserves a graded completed record when repairing legacy duplicates', () => {
+    const ungraded = {
+      courseCode: 'DPI-681-M',
+      credits: 2,
+      meetings: [{ day: 'MON' }, { day: 'WED' }],
+    }
+    const graded = { courseCode: 'DPI-681-M-001', credits: 2, grade: 'B-' }
+
+    expect(dedupeCoursesByBase([ungraded, graded])).toEqual([graded])
+    expect(dedupeCoursesByBase([graded, ungraded])).toEqual([graded])
   })
 })

@@ -1,8 +1,18 @@
+function explicitBaseCourseCode(courseOrCode) {
+  if (!courseOrCode || typeof courseOrCode !== 'object') return ''
+  return (
+    courseOrCode.course_code_base ||
+    courseOrCode.courseCodeBase ||
+    courseOrCode.canonical_code_base ||
+    courseOrCode.canonicalCodeBase ||
+    ''
+  )
+}
+
 function rawCourseCode(courseOrCode) {
   if (typeof courseOrCode === 'string') return courseOrCode
   return (
-    courseOrCode?.course_code_base ||
-    courseOrCode?.courseCodeBase ||
+    explicitBaseCourseCode(courseOrCode) ||
     courseOrCode?.course_code ||
     courseOrCode?.courseCode ||
     courseOrCode?.code ||
@@ -27,6 +37,7 @@ export function getBaseCourseCode(courseOrCode) {
 
   if (!code) return ''
 
+  if (explicitBaseCourseCode(courseOrCode)) return code
   const numericSection = code.match(/^(.+?-\d+[A-Z]?(?:-M)?)-\d{3}$/)
   if (numericSection) return numericSection[1]
 
@@ -70,6 +81,10 @@ function courseDetailScore(course) {
   const credits = course?.credits ?? course?.credits_min ?? course?.credits_max
   return (
     (credits != null && credits !== '' ? 4 : 0) +
+    (String(course?.grade || '').trim() ? 100 : 0) +
+    (course?._isCompleted ? 20 : 0) +
+    (course?.drmAcademicYear ? 10 : 0) +
+    (course?.drmSection ? 10 : 0) +
     (Array.isArray(course?.meetings) ? Math.min(course.meetings.length, 3) : 0) +
     (Array.isArray(course?.sections) ? Math.min(course.sections.length, 3) : 0) +
     (course?.year ? 1 : 0) +
