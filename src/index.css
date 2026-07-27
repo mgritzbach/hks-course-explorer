@@ -1214,6 +1214,56 @@ html[data-theme='hub'] .mobile-bottom-nav-pill {
   color: var(--text);
 }
 
+.support-project-secondary,
+.support-project-strip-zelle {
+  border: 1px solid color-mix(in srgb, #6d1ed4 58%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, #6d1ed4 12%, var(--panel));
+  color: color-mix(in srgb, #6d1ed4 78%, var(--text));
+  cursor: pointer;
+  font-weight: 700;
+  transition: transform 150ms var(--ease-out), filter 150ms ease;
+}
+
+.support-project-secondary {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.support-project-strip-zelle {
+  min-height: 30px;
+  padding: 5px 12px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.support-project-secondary:hover,
+.support-project-strip-zelle:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.support-project-zelle {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.support-project-zelle img {
+  width: min(220px, 100%);
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.support-project-zelle p {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 @keyframes support-prompt-in {
   from {
     opacity: 0;

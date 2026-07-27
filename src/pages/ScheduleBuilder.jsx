@@ -38,9 +38,10 @@ import {
 import { useFavorites } from '../useFavorites'
 import { useScheduleData } from '../hooks/useScheduleData.js'
 import { useCourseCreditMap } from '../hooks/useCourseCreditMap.js'
-import { applyCourseCreditMap } from '../lib/courseCredits.js'
+import { applyCourseCreditMap, getExplicitCourseCredits } from '../lib/courseCredits.js'
 import { getBaseCourseKey } from '../lib/courseIdentity.js'
 import { escapeIcsText } from '../lib/calendarText.js'
+import { mergePlanCsvRecords, parsePlansCsv, serializePlansCsv } from '../lib/planCsv.js'
 import { sectionCodeKey } from '../lib/sectionCatalogueIndexes.js'
 import {
   getEffectiveScheduleSession,
@@ -158,7 +159,7 @@ function fallbackSearch(q, allCourses, filters = {}) {
       courseCodeBase: c.course_code_base || c.course_code,
       title: c.course_name,
       instructors: [c.professor_display || c.professor].filter(Boolean),
-      credits: Number(c.credits_min ?? c.credits_max ?? c.credits ?? 4) || 4,
+      credits: getExplicitCourseCredits(c) ?? 4,
       sections: [],
       meetings: Array.isArray(c.meetings) ? c.meetings : [],
       meeting_days: c.meeting_days || null,
@@ -407,7 +408,9 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   })
   const toggleSection = (key) => setCollapsedSections((s) => ({ ...s, [key]: !s[key] }))
   const importInputRef = useRef(null)
+  const csvImportInputRef = useRef(null)
   const [saveLoadMsg, setSaveLoadMsg] = useState(null)
+  const [csvMsg, setCsvMsg] = useState(null)
   // A current-offering query always depends on the selected-term synced
   // catalogue, including a typed HKS/Non-HKS search. Keep this distinct from
   // the legacy fallback-search message so an unavailable catalogue can never
@@ -991,8 +994,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       return next
     })
   }
-  const removeCourse = (courseCode) => {
-    setPlanData((current) => removeCourseFromPlan(current, courseCode, activePlan))
+  const removeCourse = (courseOrCode) => {
+    const courseCode =
+      typeof courseOrCode === 'string'
+        ? courseOrCode
+        : courseOrCode?.courseCode || courseOrCode?.course_code || 'course'
+    setPlanData((current) => removeCourseFromPlan(current, courseOrCode, activePlan))
     announce(`Removed ${courseCode} from plan`)
     setExpandedBlock((current) => (current === courseCode ? null : current))
     setGridMessages((current) => {
@@ -1136,13 +1143,13 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
 
   const handleCopyPlan = () => {
     if (!normalizedPlanCourses.length) return
-    const totalCr = normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)
+    const totalCr = normalizedPlanCourses.reduce((sum, c) => sum + (getExplicitCourseCredits(c) ?? 4), 0)
     const lines = [
       `${activePlan} — ${totalCr} credits`,
       '',
       ...normalizedPlanCourses.map((c) => {
         const instructor = c.instructors?.length ? ` — ${c.instructors[0]}` : ''
-        return `• ${c.courseCode}: ${c.title} (${c.credits || 4} cr)${instructor}`
+        return `• ${c.courseCode}: ${c.title} (${getExplicitCourseCredits(c) ?? 4} cr)${instructor}`
       }),
     ]
     navigator.clipboard
@@ -1217,6 +1224,63 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         saveLoadTimeoutRef.current = setTimeout(() => setSaveLoadMsg(null), 2500)
       }
     }
+    reader.readAsText(file)
+  }
+
+  const showCsvMessage = (message) => {
+    if (saveLoadTimeoutRef.current) clearTimeout(saveLoadTimeoutRef.current)
+    setCsvMsg(message)
+    saveLoadTimeoutRef.current = setTimeout(() => setCsvMsg(null), 3500)
+  }
+
+  const handleExportCsv = () => {
+    try {
+      const plansByName = Object.fromEntries(PLANS.map((name) => [name, loadPlan(name)]))
+      const courseCount = PLANS.reduce(
+        (total, name) => total + (plansByName[name]?.courses?.length || 0),
+        0,
+      )
+      if (!courseCount) {
+        showCsvMessage('No plan courses to export')
+        return
+      }
+      const blob = new Blob([serializePlansCsv(plansByName)], {
+        type: 'text/csv;charset=utf-8',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `hks-plans-${new Date().toISOString().slice(0, 10)}.csv`
+      link.click()
+      URL.revokeObjectURL(url)
+      showCsvMessage(`Exported ${courseCount} course${courseCount === 1 ? '' : 's'}`)
+    } catch {
+      showCsvMessage('CSV export failed')
+    }
+  }
+
+  const handleImportCsv = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    event.target.value = ''
+    const reader = new FileReader()
+    reader.onload = (loadEvent) => {
+      try {
+        const records = parsePlansCsv(loadEvent.target.result, activePlan)
+        const currentPlans = Object.fromEntries(PLANS.map((name) => [name, loadPlan(name)]))
+        const mergedPlans = mergePlanCsvRecords(currentPlans, records)
+        PLANS.forEach((name) => savePlan(name, mergedPlans[name]))
+        setPlanData(mergedPlans[activePlan])
+        const importedKeys = new Set(
+          records.map(({ plan, course }) => `${plan}:${getBaseCourseKey(course)}`),
+        )
+        showCsvMessage(`Imported ${importedKeys.size} course${importedKeys.size === 1 ? '' : 's'}`)
+        announce('CSV courses imported')
+      } catch (error) {
+        showCsvMessage(error instanceof Error ? error.message : 'Invalid CSV file')
+      }
+    }
+    reader.onerror = () => showCsvMessage('Could not read CSV file')
     reader.readAsText(file)
   }
 
@@ -1372,10 +1436,15 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
           showWeekends={showWeekends}
           onToggleWeekends={() => setShowWeekends((current) => !current)}
           importInputRef={importInputRef}
+          csvImportInputRef={csvImportInputRef}
           onLoadPlan={handleLoadPlan}
           saveLoadMsg={saveLoadMsg}
           onSavePlan={handleSavePlan}
           onRequestLoad={() => importInputRef.current?.click()}
+          csvMsg={csvMsg}
+          onExportCsv={handleExportCsv}
+          onImportCsv={handleImportCsv}
+          onRequestCsvImport={() => csvImportInputRef.current?.click()}
           hasCourses={normalizedPlanCourses.length > 0}
           copyPlanMsg={copyPlanMsg}
           onCopyPlan={handleCopyPlan}
@@ -2083,9 +2152,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         type="button"
                                         disabled={done}
                                         onClick={() =>
-                                          added
-                                            ? removeCourse(course.courseCode)
-                                            : addToShortlist(course)
+                                          added ? removeCourse(course) : addToShortlist(course)
                                         }
                                         className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                         style={{
@@ -2108,9 +2175,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         type="button"
                                         disabled={done}
                                         onClick={() =>
-                                          added
-                                            ? removeCourse(course.courseCode)
-                                            : addToShortlist(course)
+                                          added ? removeCourse(course) : addToShortlist(course)
                                         }
                                         className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                         style={{
@@ -2340,9 +2405,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         type="button"
                                         disabled={done}
                                         onClick={() =>
-                                          added
-                                            ? removeCourse(course.courseCode)
-                                            : addToShortlist(course)
+                                          added ? removeCourse(course) : addToShortlist(course)
                                         }
                                         className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                         style={{
@@ -2365,9 +2428,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         type="button"
                                         disabled={done}
                                         onClick={() =>
-                                          added
-                                            ? removeCourse(course.courseCode)
-                                            : addToShortlist(course)
+                                          added ? removeCourse(course) : addToShortlist(course)
                                         }
                                         className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                         style={{
@@ -2926,12 +2987,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                         {normalizedPlanCourses.length > 0 &&
                           (() => {
                             const totalCr = normalizedPlanCourses.reduce(
-                              (sum, c) => sum + (c.credits || 4),
+                              (sum, c) => sum + (getExplicitCourseCredits(c) ?? 4),
                               0,
                             )
                             const crossCr = normalizedPlanCourses
                               .filter((c) => !isHksCourse(c.courseCode))
-                              .reduce((sum, c) => sum + (c.credits || 4), 0)
+                              .reduce((sum, c) => sum + (getExplicitCourseCredits(c) ?? 4), 0)
                             return (
                               <>
                                 <span
@@ -3089,7 +3150,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                           color: 'var(--gold)',
                                         }}
                                       >
-                                        {course.credits || 4} cr
+                                        {getExplicitCourseCredits(course) ?? 4} cr
                                       </span>
                                     </div>
                                     <p
@@ -3135,10 +3196,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                   </div>
                                   <button
                                     type="button"
-                                    onClick={() => removeCourse(course.courseCode)}
+                                    onClick={() =>
+                                      onGrid ? toggleGrid(course.courseCode) : removeCourse(course)
+                                    }
                                     className="shrink-0 text-sm font-semibold"
                                     style={{ color: 'var(--danger)' }}
-                                    aria-label={`Remove ${course.courseCode}`}
+                                    aria-label={`Remove ${course.courseCode} from ${onGrid ? 'grid' : 'plan'}`}
                                   >
                                     ×
                                   </button>

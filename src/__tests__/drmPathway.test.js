@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import drmQualifyingCourses from '../data/drmQualifyingCourses.json'
+import { computeProgress } from '../lib/requirementsEngine.js'
 import {
   computeDrmProgress,
   getDrmCourseKey,
@@ -163,18 +164,18 @@ describe('official DRM pathway rules', () => {
 
     expect(automatic.bucketUsage['mpa-distribution']).toBe(4)
     expect(automatic.courses.map((item) => item.allocation)).toEqual([
+      'drm-only',
+      'drm-only',
       'overlap',
-      'degree-only',
-      'degree-only',
     ])
-    expect(automatic.projectedCredits).toBe(4)
+    expect(automatic.projectedCredits).toBe(12)
 
     const drmOnlyKey = getDrmCourseKey(planned[1])
     const reassigned = computeDrmProgress('MPA_2YR', planned, [], {
       assignments: { [drmOnlyKey]: 'drm' },
     })
 
-    expect(reassigned.projectedCredits).toBe(8)
+    expect(reassigned.projectedCredits).toBe(12)
     expect(reassigned.categoryExclusions.dist_econquant).toContain(drmOnlyKey)
   })
 
@@ -190,16 +191,19 @@ describe('official DRM pathway rules', () => {
     expect(result.categoryExclusions.pac).toContain(key)
   })
 
-  it('prevents DRM-only credits from silently satisfying any degree category', () => {
+  it('keeps DRM-only credits available as electives without restricted double-counting', () => {
     const planned = [course('APCOMP-221')]
     const key = getDrmCourseKey(planned[0])
     const drmOnly = computeDrmProgress('MPA_2YR', planned, [])
 
     expect(drmOnly.courses[0].allocation).toBe('drm-only')
-    expect(Object.keys(drmOnly.categoryExclusions)).toEqual(
-      expect.arrayContaining(['dist_econquant', 'pac', 'electives']),
-    )
-    expect(drmOnly.categoryExclusions.electives).toContain(key)
+    expect(drmOnly.categoryExclusions).toEqual({})
+    const degreeProgress = computeProgress('MPA_2YR', planned, [], {
+      categoryExclusions: drmOnly.categoryExclusions,
+    })
+    expect(
+      degreeProgress.categories.find((category) => category.id === 'electives').appliedCredits,
+    ).toBe(4)
 
     const degreeOnly = computeDrmProgress('MPA_2YR', planned, [], {
       assignments: { [key]: 'degree' },
@@ -207,6 +211,54 @@ describe('official DRM pathway rules', () => {
     expect(degreeOnly.courses[0].allocation).toBe('degree-only')
     expect(degreeOnly.projectedCredits).toBe(0)
     expect(degreeOnly.categoryExclusions).toEqual({})
+  })
+
+  it('fills degree requirements first, then reallocates only surplus courses to STEM', () => {
+    const completed = [
+      course('API-222', { year: 2024, term: 'Fall', credits: 4, grade: 'B' }),
+      course('DPI-802-M', { year: 2024, term: 'Fall', credits: 2, grade: 'A' }),
+      course('DPI-851-M', { year: 2024, term: 'Fall', credits: 2, grade: 'A' }),
+      course('MIT-15.390', { year: 2024, term: 'Fall', credits: 4, grade: 'A' }),
+      course('MLD-201', { year: 2024, term: 'Fall', credits: 4, grade: 'A-' }),
+      course('MLD-515-M', { year: 2024, term: 'Fall', credits: 2, grade: 'A-' }),
+      course('DPI-678-M', { year: 2025, term: 'Spring', credits: 2, grade: 'A' }),
+      course('DPI-681-M', { year: 2025, term: 'Spring', credits: 2, grade: 'A' }),
+      course('DPI-830-M', { year: 2025, term: 'Spring', credits: 2, grade: 'A-' }),
+      course('DPI-835-M', { year: 2025, term: 'Spring', credits: 2, grade: 'A' }),
+      course('HBSMBA-6334', { year: 2025, term: 'Spring', credits: 4, grade: '' }),
+      course('IGA-250', { year: 2025, term: 'Spring', credits: 4, grade: 'A' }),
+      course('MLD-215', { year: 2025, term: 'Spring', credits: 4, grade: 'A' }),
+      course('API-318', { year: 2025, term: 'Fall', credits: 4, grade: 'A-' }),
+      course('IGA-260', { year: 2025, term: 'Fall', credits: 4, grade: 'A' }),
+      course('RUSS-AA', { year: 2025, term: 'Fall', credits: 4, grade: 'A' }),
+      course('DPI-891-M', { year: 2026, term: 'Spring', credits: 2, grade: 'A' }),
+      course('IGA-108', { year: 2026, term: 'Spring', credits: 4, grade: 'A' }),
+      course('MLD-280', { year: 2026, term: 'Spring', credits: 4, grade: 'A-' }),
+      course('RAR-551', { year: 2026, term: 'Spring', credits: 4, grade: '' }),
+    ]
+
+    const result = computeDrmProgress('MPA_2YR', [], completed, {
+      preferredPacArea: 'DPI',
+    })
+    const degreeProgress = computeProgress('MPA_2YR', [], completed, {
+      preferredPacArea: 'DPI',
+      categoryExclusions: result.categoryExclusions,
+    })
+
+    expect(result.verifiedCredits).toBeGreaterThanOrEqual(16)
+    expect(result.verifiedGroupA).toBeGreaterThanOrEqual(4)
+    expect(result.verifiedGroupB).toBeGreaterThanOrEqual(4)
+    expect(result.courseRequirementsVerified).toBe(true)
+    expect(degreeProgress.overallAppliedCredits).toBe(64)
+    expect(degreeProgress.categories.every((category) => category.isComplete)).toBe(true)
+
+    const surplusStemCodes = result.courses
+      .filter((record) => record.allocation === 'drm-only')
+      .map((record) => record.code)
+    expect(surplusStemCodes).toEqual(
+      expect.arrayContaining(['API-222', 'DPI-851-M', 'DPI-681-M', 'IGA-250', 'IGA-260']),
+    )
+    expect(result.bucketUsage['mpa-distribution']).toBeLessThanOrEqual(4)
   })
 
   it('uses separate four-credit MPP core and declared-PAC allowances', () => {

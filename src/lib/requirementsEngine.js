@@ -1,6 +1,6 @@
 import programRequirements from '../data/programRequirements.json'
 import { getBaseCourseCode, getBaseCourseKey } from './courseIdentity.js'
-import { getDrmCourseKey } from './drmPathway.js'
+import { getCourseRequirementKey } from './courseRequirementKey.js'
 
 function normalizeCode(value) {
   return String(value || '')
@@ -12,7 +12,9 @@ function normalizeCode(value) {
 function normalizeCourse(course, index) {
   const rawCredits = course?.credits ?? course?.credits_min ?? course?.credits_max
   const parsedCredits = rawCredits == null || rawCredits === '' ? 0 : Number(rawCredits)
-  const credits = Number.isFinite(parsedCredits) && parsedCredits > 0 ? parsedCredits : 0
+  const grade = String(course?.grade || '').trim().toUpperCase()
+  const credits =
+    grade !== 'DRP' && Number.isFinite(parsedCredits) && parsedCredits > 0 ? parsedCredits : 0
   // Support both snake_case (Supabase rows) and camelCase (ScheduleBuilder plan objects)
   const courseCode = getBaseCourseCode(course) || `course-${index}`
 
@@ -20,11 +22,12 @@ function normalizeCourse(course, index) {
     ...course,
     _index: index,
     _credits: credits,
+    _grade: grade,
     _creditsMissing: credits === 0,
     _courseCode: courseCode,
     _courseCodeNormalized: normalizeCode(courseCode),
     _baseCourseKey: getBaseCourseKey(courseCode),
-    _requirementKey: getDrmCourseKey(course),
+    _requirementKey: getCourseRequirementKey(course),
   }
 }
 
@@ -61,42 +64,6 @@ function courseMatchesCategory(course, category) {
   return false
 }
 
-function selectPacCourses(courses, category, preferredPrefix = null) {
-  const groups = ['BGP', 'DPI', 'IGA', 'DEV', 'SUP']
-  const buckets = new Map(groups.map((group) => [group, []]))
-
-  for (const course of courses) {
-    const prefix = course._courseCodeNormalized.split('-')[0]
-    if (buckets.has(prefix) && courseMatchesCategory(course, category)) {
-      buckets.get(prefix).push(course)
-    }
-  }
-
-  if (preferredPrefix && buckets.has(preferredPrefix)) {
-    return {
-      chosenPrefix: preferredPrefix,
-      courses: buckets.get(preferredPrefix),
-    }
-  }
-
-  let chosenPrefix = null
-  let chosenCourses = []
-  let bestCredits = 0 // Only pick a prefix if it has at least some credits
-
-  for (const [prefix, items] of buckets.entries()) {
-    const credits = items.reduce((sum, item) => sum + item._credits, 0)
-    if (credits > bestCredits) {
-      chosenPrefix = prefix
-      chosenCourses = items
-      bestCredits = credits
-    }
-  }
-
-  return {
-    chosenPrefix,
-    courses: chosenCourses,
-  }
-}
 
 function takeCreditsUntilRequired(courses, requiredCredits) {
   const selected = []
@@ -112,6 +79,220 @@ function takeCreditsUntilRequired(courses, requiredCredits) {
     selected,
     appliedCredits,
   }
+}
+
+function buildComputedCategory(category, matchedCourses, selectedCourses, chosenArea = null) {
+  const requiredCredits = Number(category.requiredCredits || 0)
+  const selectedCredits = selectedCourses.reduce((sum, course) => sum + course._credits, 0)
+  const appliedCredits = Math.min(selectedCredits, requiredCredits || selectedCredits)
+
+  return {
+    ...category,
+    matchedCourses,
+    selectedCourses,
+    matchedCredits: matchedCourses.reduce((sum, course) => sum + course._credits, 0),
+    appliedCredits,
+    remainingCredits: Math.max(0, requiredCredits - appliedCredits),
+    percent:
+      requiredCredits > 0
+        ? Math.min(100, Math.round((appliedCredits / requiredCredits) * 100))
+        : 100,
+    isComplete: appliedCredits >= requiredCredits,
+    chosenArea,
+  }
+}
+
+function allocationScore(candidate) {
+  return [
+    candidate.restrictedComplete,
+    candidate.restrictedApplied,
+    candidate.electiveComplete ? 1 : 0,
+    candidate.totalApplied,
+    -candidate.usedCredits,
+  ]
+}
+
+function isBetterAllocation(candidate, current) {
+  if (!current) return true
+  const candidateScore = allocationScore(candidate)
+  const currentScore = allocationScore(current)
+  for (let index = 0; index < candidateScore.length; index += 1) {
+    if (candidateScore[index] !== currentScore[index]) {
+      return candidateScore[index] > currentScore[index]
+    }
+  }
+  return false
+}
+
+function computeOptimalCategoryAllocation(courses, categories, options) {
+  const exclusiveCategories = categories.filter((category) => !category.nonExclusive)
+  const electiveCategory = exclusiveCategories.find((category) => category.id === 'electives')
+  const restrictedCategories = exclusiveCategories.filter((category) => category.id !== 'electives')
+  const coreCategories = restrictedCategories.filter((category) => category.id.startsWith('core_'))
+  const pacCategory = restrictedCategories.find((category) => category.id === 'pac')
+  const preferredPacArea = options.preferredPacArea || null
+  const pacGroups = ['BGP', 'DPI', 'IGA', 'DEV', 'SUP']
+  const pacChoices = pacCategory
+    ? preferredPacArea
+      ? [preferredPacArea]
+      : pacGroups.filter((prefix) =>
+          courses.some((course) => {
+            const excluded = new Set(options.categoryExclusions?.pac || [])
+            return (
+              !excluded.has(course._requirementKey) &&
+              course._courseCodeNormalized.startsWith(`${prefix}-`) &&
+              courseMatchesCategory(course, pacCategory)
+            )
+          }),
+        )
+    : [null]
+  if (pacChoices.length === 0) pacChoices.push(null)
+
+  let bestAllocation = null
+
+  for (const pacChoice of pacChoices) {
+    const matchedByCategory = restrictedCategories.map((category) => {
+      const excluded = new Set(options.categoryExclusions?.[category.id] || [])
+      return courses.filter((course) => {
+        if (excluded.has(course._requirementKey)) return false
+        if (category.id === 'pac') {
+          return (
+            Boolean(pacChoice) &&
+            course._courseCodeNormalized.startsWith(`${pacChoice}-`) &&
+            courseMatchesCategory(course, category)
+          )
+        }
+        return courseMatchesCategory(course, category)
+      })
+    })
+    const matchedIndexSets = matchedByCategory.map(
+      (matchedCourses) => new Set(matchedCourses.map((course) => course._index)),
+    )
+    const initialCredits = restrictedCategories.map(() => 0)
+    let states = new Map([
+      [
+        initialCredits.join('|'),
+        {
+          credits: initialCredits,
+          selected: restrictedCategories.map(() => []),
+          usedCredits: 0,
+        },
+      ],
+    ])
+
+    for (const course of courses) {
+      const nextStates = new Map(states)
+      for (const state of states.values()) {
+        restrictedCategories.forEach((category, categoryIndex) => {
+          const requiredCredits = Number(category.requiredCredits || 0)
+          if (
+            course._credits <= 0 ||
+            state.credits[categoryIndex] >= requiredCredits ||
+            !matchedIndexSets[categoryIndex].has(course._index)
+          ) {
+            return
+          }
+
+          const credits = [...state.credits]
+          credits[categoryIndex] = Math.min(
+            requiredCredits,
+            credits[categoryIndex] + course._credits,
+          )
+          const key = credits.join('|')
+          const usedCredits = state.usedCredits + course._credits
+          const existing = nextStates.get(key)
+          if (existing && existing.usedCredits <= usedCredits) return
+
+          const selected = state.selected.map((items, index) =>
+            index === categoryIndex ? [...items, course] : items,
+          )
+          nextStates.set(key, { credits, selected, usedCredits })
+        })
+      }
+      states = nextStates
+    }
+
+    for (const state of states.values()) {
+      const electiveExcluded = new Set(options.categoryExclusions?.[electiveCategory?.id] || [])
+      const electiveMatches = electiveCategory
+        ? courses.filter(
+            (course) =>
+              !course.enrichment?.is_core &&
+              !coreCategories.some((category) => courseMatchesCategory(course, category)) &&
+              !electiveExcluded.has(course._requirementKey) &&
+              courseMatchesCategory(course, electiveCategory),
+          )
+        : []
+      const electiveSelection = takeCreditsUntilRequired(
+        electiveMatches,
+        Number(electiveCategory?.requiredCredits || 0),
+      )
+      const restrictedApplied = state.credits.reduce((sum, credits) => sum + credits, 0)
+      const restrictedComplete = state.credits.filter(
+        (credits, index) => credits >= Number(restrictedCategories[index].requiredCredits || 0),
+      ).length
+      const electiveApplied = electiveCategory
+        ? Math.min(
+            electiveSelection.appliedCredits,
+            Number(electiveCategory.requiredCredits || electiveSelection.appliedCredits),
+          )
+        : 0
+      const candidate = {
+        pacChoice,
+        matchedByCategory,
+        state,
+        electiveMatches,
+        electiveSelected: electiveSelection.selected,
+        restrictedApplied,
+        restrictedComplete,
+        electiveComplete:
+          !electiveCategory || electiveApplied >= Number(electiveCategory.requiredCredits || 0),
+        totalApplied: restrictedApplied + electiveApplied,
+        usedCredits: state.usedCredits,
+      }
+      if (isBetterAllocation(candidate, bestAllocation)) bestAllocation = candidate
+    }
+  }
+
+  const computedById = new Map()
+  restrictedCategories.forEach((category, index) => {
+    computedById.set(
+      category.id,
+      buildComputedCategory(
+        category,
+        bestAllocation?.matchedByCategory[index] || [],
+        bestAllocation?.state.selected[index] || [],
+        category.id === 'pac' ? bestAllocation?.pacChoice || null : null,
+      ),
+    )
+  })
+  if (electiveCategory) {
+    computedById.set(
+      electiveCategory.id,
+      buildComputedCategory(
+        electiveCategory,
+        bestAllocation?.electiveMatches || [],
+        bestAllocation?.electiveSelected || [],
+      ),
+    )
+  }
+
+  for (const category of categories.filter((item) => item.nonExclusive)) {
+    const excluded = new Set(options.categoryExclusions?.[category.id] || [])
+    const matchedCourses = courses.filter(
+      (course) => !excluded.has(course._requirementKey) && courseMatchesCategory(course, category),
+    )
+    const selection = takeCreditsUntilRequired(
+      matchedCourses,
+      Number(category.requiredCredits || 0),
+    )
+    computedById.set(
+      category.id,
+      buildComputedCategory(category, matchedCourses, selection.selected),
+    )
+  }
+
+  return categories.map((category) => computedById.get(category.id))
 }
 
 export function getPrograms() {
@@ -147,57 +328,12 @@ export function computeProgress(
   const categories = [...(program.categories || [])].sort(
     (left, right) => (left.displayOrder || 0) - (right.displayOrder || 0),
   )
-  const usedIndices = new Set()
-
-  const computedCategories = categories.map((category) => {
-    // nonExclusive categories (e.g. STEM) see all courses and don't consume usedIndices
-    const excludedKeys = new Set(options.categoryExclusions?.[category.id] || [])
-    const availableBeforeExclusions = category.nonExclusive
-      ? normalizedCourses
-      : normalizedCourses.filter((course) => !usedIndices.has(course._index))
-    const available = availableBeforeExclusions.filter(
-      (course) => !excludedKeys.has(course._requirementKey),
-    )
-    let matchedCourses
-    let chosenArea = null
-
-    if (category.id === 'pac') {
-      const pacSelection = selectPacCourses(available, category, options.preferredPacArea || null)
-      matchedCourses = pacSelection.courses
-      chosenArea = pacSelection.chosenPrefix
-    } else if (category.id === 'electives') {
-      matchedCourses = available
-    } else {
-      matchedCourses = available.filter((course) => courseMatchesCategory(course, category))
-    }
-
-    const { selected, appliedCredits } = takeCreditsUntilRequired(
-      matchedCourses,
-      category.requiredCredits || 0,
-    )
-    // nonExclusive categories don't consume slots — those courses remain available for other categories
-    if (!category.nonExclusive) {
-      selected.forEach((course) => usedIndices.add(course._index))
-    }
-
-    const creditsEarned = Math.min(appliedCredits, category.requiredCredits || appliedCredits)
-    const requiredCredits = category.requiredCredits || 0
-
-    return {
-      ...category,
-      matchedCourses,
-      selectedCourses: selected,
-      matchedCredits: matchedCourses.reduce((sum, course) => sum + course._credits, 0),
-      appliedCredits: creditsEarned,
-      remainingCredits: Math.max(0, requiredCredits - creditsEarned),
-      percent:
-        requiredCredits > 0
-          ? Math.min(100, Math.round((creditsEarned / requiredCredits) * 100))
-          : 100,
-      isComplete: creditsEarned >= requiredCredits,
-      chosenArea,
-    }
-  })
+  // nonExclusive categories don't consume slots — those courses remain available for other categories
+  const computedCategories = computeOptimalCategoryAllocation(
+    normalizedCourses,
+    categories,
+    options,
+  )
 
   const stemCat = computedCategories.find((category) => category.id === 'stem')
   if (stemCat?.overlapCap != null) {

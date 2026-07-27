@@ -3,6 +3,7 @@ import { getCourseCode, getExplicitCourseCredits } from './courseCredits.js'
 export const MLD_CERTIFICATE_REQUIRED_CREDITS = 12
 export const MLD_CERTIFICATE_MAX_NON_HKS_CREDITS = 4
 export const MLD_CERTIFICATE_COURSE_LIST_UPDATED = 'July 24, 2026'
+export const MLD_CERTIFICATE_PASSING_GRADES = new Set(['A+', 'A', 'A-', 'B+'])
 
 export const MLD_CERTIFICATE_SOURCES = Object.freeze([
   {
@@ -159,6 +160,14 @@ export function getMldCertificateEligibility(course, programId) {
   }
 }
 
+export function isPassingMldCertificateGrade(grade) {
+  return MLD_CERTIFICATE_PASSING_GRADES.has(
+    String(grade || '')
+      .trim()
+      .toUpperCase(),
+  )
+}
+
 export function computeMldCertificateProgress(
   scheduledCourses = [],
   completedCourses = [],
@@ -169,11 +178,22 @@ export function computeMldCertificateProgress(
   const planned = []
   const missingCreditCodes = new Set()
 
+  const ineligibleCompleted = []
   for (const course of Array.isArray(completedCourses) ? completedCourses : []) {
     const eligibility = getMldCertificateEligibility(course, programId)
     if (!eligibility || completedCodes.has(eligibility.code)) continue
     completedCodes.add(eligibility.code)
     if (eligibility.credits == null) missingCreditCodes.add(eligibility.code)
+    if (!isPassingMldCertificateGrade(course?.grade)) {
+      ineligibleCompleted.push({
+        course,
+        ...eligibility,
+        grade: String(course?.grade || '')
+          .trim()
+          .toUpperCase(),
+      })
+      continue
+    }
     completed.push({ course, ...eligibility, credits: eligibility.credits || 0 })
   }
 
@@ -205,6 +225,7 @@ export function computeMldCertificateProgress(
     percent: Math.min(100, Math.round((totalCredits / MLD_CERTIFICATE_REQUIRED_CREDITS) * 100)),
     completed,
     planned,
+    ineligibleCompleted,
     missingCreditCodes: [...missingCreditCodes],
   }
 }

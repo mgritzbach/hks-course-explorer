@@ -2,6 +2,8 @@ import drmDeniedCourses from '../data/drmDeniedCourses.json'
 import drmQualifyingCourses from '../data/drmQualifyingCourses.json'
 import programRequirements from '../data/programRequirements.json'
 import { getBaseCourseCode, getBaseCourseKey, getCourseSectionLetter } from './courseIdentity.js'
+import { getCourseRequirementKey, normalizeRequirementCourseCode } from './courseRequirementKey.js'
+import { computeProgress } from './requirementsEngine.js'
 
 export const DRM_ARTICLE_URL =
   'https://hub.hks.harvard.edu/article/Data-and-Research-Methods-Pathway'
@@ -24,6 +26,9 @@ export const DRM_GRADE_OPTIONS = [
   'C',
   'C-',
   'D+',
+  'SAT',
+  'II',
+  'DRP',
   'D',
   'D-',
   'F',
@@ -32,10 +37,7 @@ export const DRM_GRADE_OPTIONS = [
 const PAC_PREFIXES = new Set(['BGP', 'DPI', 'IGA', 'DEV', 'SUP'])
 
 export function normalizeDrmCourseCode(value) {
-  return String(value || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
+  return normalizeRequirementCourseCode(value)
 }
 
 function parseOfficialCourseNumber(rawCourseNumber, group) {
@@ -151,13 +153,7 @@ export function getDrmAcademicYearKey(course) {
 }
 
 export function getDrmCourseKey(course) {
-  const code = normalizeDrmCourseCode(getCourseCode(course)) || 'UNKNOWN'
-  const year = Number(course?.year) || ''
-  const term = String(course?.term || course?.semester || '')
-    .trim()
-    .toUpperCase()
-  const section = getCourseSection(course, code)
-  return `${code}|${year}|${term}|${section}`
+  return getCourseRequirementKey({ ...course, drmSection: getCourseSection(course) })
 }
 
 function isKnownOfficialCode(course) {
@@ -371,6 +367,68 @@ function buildCourseRecords(scheduledCourses, completedCourses) {
   return [...byBaseCourse.values()]
 }
 
+function addCategoryExclusions(target, record) {
+  const categoryIds = record.overlap?.categoryIds || []
+  for (const categoryId of categoryIds) {
+    if (!target[categoryId]) target[categoryId] = []
+    if (!target[categoryId].includes(record.key)) target[categoryId].push(record.key)
+  }
+  return target
+}
+
+function cloneCategoryExclusions(value) {
+  return Object.fromEntries(
+    Object.entries(value).map(([categoryId, keys]) => [categoryId, [...keys]]),
+  )
+}
+
+function getAllocationProgramIds(programId) {
+  return programId === 'MPP_Y1' || programId === 'MPP_Y2' ? ['MPP_Y1', 'MPP_Y2'] : [programId]
+}
+
+function getRestrictedCategoryCredits(programId, scheduledCourses, completedCourses, options) {
+  const creditsByCategory = new Map()
+  for (const allocationProgramId of getAllocationProgramIds(programId)) {
+    const progress = computeProgress(
+      allocationProgramId,
+      scheduledCourses,
+      completedCourses,
+      options,
+    )
+    if (!progress) continue
+    for (const category of progress.categories) {
+      if (category.id === 'electives') continue
+      const previous = creditsByCategory.get(category.id) || 0
+      creditsByCategory.set(category.id, Math.max(previous, category.appliedCredits))
+    }
+  }
+  return creditsByCategory
+}
+
+function canReleaseFromRestrictedRequirements(
+  record,
+  programId,
+  scheduledCourses,
+  completedCourses,
+  preferredPacArea,
+  currentExclusions,
+) {
+  const categoryIds = record.overlap?.categoryIds || []
+  if (!categoryIds.length) return true
+  const before = getRestrictedCategoryCredits(programId, scheduledCourses, completedCourses, {
+    preferredPacArea,
+    categoryExclusions: currentExclusions,
+  })
+  const candidateExclusions = cloneCategoryExclusions(currentExclusions)
+  addCategoryExclusions(candidateExclusions, record)
+  const after = getRestrictedCategoryCredits(programId, scheduledCourses, completedCourses, {
+    preferredPacArea,
+    categoryExclusions: candidateExclusions,
+  })
+  return categoryIds.every(
+    (categoryId) => (after.get(categoryId) || 0) >= (before.get(categoryId) || 0),
+  )
+}
 export function computeDrmProgress(
   programId,
   scheduledCourses = [],
@@ -412,23 +470,49 @@ export function computeDrmProgress(
       )
     })
 
+  const categoryExclusions = {}
+  qualifying
+    .filter(
+      (record) =>
+        record.gradeStatus !== 'below-minimum' &&
+        record.credits != null &&
+        record.requestedAllocation === 'drm',
+    )
+    .forEach((record) => addCategoryExclusions(categoryExclusions, record))
+
   const bucketUsage = new Map()
   const courses = qualifying.map((record) => {
     const countableGrade = record.gradeStatus !== 'below-minimum'
     let allocation = 'drm-only'
     let decisionRequired = false
 
-    if (!countableGrade || record.requestedAllocation === 'degree') {
+    if (!countableGrade || record.credits == null || record.requestedAllocation === 'degree') {
       allocation = 'degree-only'
-    } else if (record.overlap && record.requestedAllocation === 'auto') {
-      const used = bucketUsage.get(record.overlap.bucket) || 0
-      if (
-        record.credits != null &&
-        record.overlap.cap > 0 &&
-        used + record.credits <= record.overlap.cap
-      ) {
-        allocation = 'overlap'
-        bucketUsage.set(record.overlap.bucket, used + record.credits)
+    } else if (record.requestedAllocation === 'auto') {
+      const canRelease = canReleaseFromRestrictedRequirements(
+        record,
+        programId,
+        scheduledCourses,
+        completedCourses,
+        preferredPacArea,
+        categoryExclusions,
+      )
+      if (canRelease) {
+        allocation = 'drm-only'
+        addCategoryExclusions(categoryExclusions, record)
+      } else if (record.overlap) {
+        const used = bucketUsage.get(record.overlap.bucket) || 0
+        if (
+          record.credits != null &&
+          record.overlap.cap > 0 &&
+          used + record.credits <= record.overlap.cap
+        ) {
+          allocation = 'overlap'
+          bucketUsage.set(record.overlap.bucket, used + record.credits)
+        } else {
+          allocation = 'degree-only'
+          decisionRequired = true
+        }
       } else {
         allocation = 'degree-only'
         decisionRequired = true
@@ -443,19 +527,6 @@ export function computeDrmProgress(
       countsTowardDrm,
     }
   })
-
-  const categoryExclusions = {}
-  const degreeCategoryIds = (programRequirements[programId]?.categories || []).map(
-    (category) => category.id,
-  )
-  courses
-    .filter((record) => record.allocation === 'drm-only' && record.countsTowardDrm)
-    .forEach((record) => {
-      degreeCategoryIds.forEach((categoryId) => {
-        if (!categoryExclusions[categoryId]) categoryExclusions[categoryId] = []
-        categoryExclusions[categoryId].push(record.key)
-      })
-    })
 
   const totalsFor = (predicate) =>
     courses
@@ -480,6 +551,13 @@ export function computeDrmProgress(
   )
   const projectedGroupA = totalsFor((course) => course.group === 'A')
   const projectedGroupB = totalsFor((course) => course.group === 'B')
+  const courseRequirementsVerified =
+    verifiedCredits >= 16 && verifiedGroupA >= 4 && verifiedGroupB >= 4
+  const courseRequirementsProjected =
+    projectedCredits >= 16 && projectedGroupA >= 4 && projectedGroupB >= 4
+  const finalCourses = courseRequirementsProjected
+    ? courses.map((course) => ({ ...course, decisionRequired: false }))
+    : courses
 
   return {
     eligibleProgram: true,
@@ -488,7 +566,7 @@ export function computeDrmProgress(
     requiredGroupACredits: 4,
     requiredGroupBCredits: 4,
     minimumGrade: 'B-',
-    courses,
+    courses: finalCourses,
     reviewCourses: relevantRecords.filter((record) => record.status !== 'qualifying'),
     verifiedCredits,
     pendingGradeCredits,
@@ -498,9 +576,8 @@ export function computeDrmProgress(
     verifiedGroupB,
     projectedGroupA,
     projectedGroupB,
-    courseRequirementsVerified: verifiedCredits >= 16 && verifiedGroupA >= 4 && verifiedGroupB >= 4,
-    courseRequirementsProjected:
-      projectedCredits >= 16 && projectedGroupA >= 4 && projectedGroupB >= 4,
+    courseRequirementsVerified,
+    courseRequirementsProjected,
     categoryExclusions,
     bucketUsage: Object.fromEntries(bucketUsage),
     availableAcademicYears: Object.keys(OFFICIAL_YEARS),

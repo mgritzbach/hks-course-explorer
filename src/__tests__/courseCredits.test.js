@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyCourseCreditMap,
   buildCourseCreditMap,
+  getExplicitCourseCredits,
   resolveCourseCredits,
 } from '../lib/courseCredits.js'
 
@@ -62,5 +63,9 @@ describe('course credit resolution', () => {
       existing[1],
     ])
     expect(existing[0].credits).toBe(4)
+  })
+
+  it('preserves an explicit zero instead of replacing it with four credits', () => {
+    expect(getExplicitCourseCredits({ credits: 0 })).toBe(0)
   })
 })

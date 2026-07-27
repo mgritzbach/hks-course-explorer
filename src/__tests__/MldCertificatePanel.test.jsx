@@ -11,7 +11,7 @@ describe('MldCertificatePanel', () => {
     render(
       <MldCertificatePanel
         scheduledCourses={[{ courseCode: 'MLD-201-A', credits: 4 }]}
-        completedCourses={[{ courseCode: 'DEV-210', credits: 4 }]}
+        completedCourses={[{ courseCode: 'DEV-210', credits: 4, grade: 'B+' }]}
         programId="MPA_2YR"
       />,
     )
