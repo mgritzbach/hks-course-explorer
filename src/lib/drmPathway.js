@@ -1,6 +1,7 @@
 import drmDeniedCourses from '../data/drmDeniedCourses.json'
 import drmQualifyingCourses from '../data/drmQualifyingCourses.json'
 import programRequirements from '../data/programRequirements.json'
+import { getBaseCourseCode, getBaseCourseKey, getCourseSectionLetter } from './courseIdentity.js'
 
 export const DRM_ARTICLE_URL =
   'https://hub.hks.harvard.edu/article/Data-and-Research-Methods-Pathway'
@@ -75,14 +76,7 @@ const DENIED_CODES = new Set(
 )
 
 function getCourseCode(course) {
-  return (
-    course?.course_code_base ||
-    course?.course_code ||
-    course?.courseCodeBase ||
-    course?.courseCode ||
-    course?.code ||
-    ''
-  )
+  return getBaseCourseCode(course)
 }
 
 function getCourseSection(course, normalizedCode = normalizeDrmCourseCode(getCourseCode(course))) {
@@ -91,6 +85,7 @@ function getCourseSection(course, normalizedCode = normalizeDrmCourseCode(getCou
     course?.sectionCode ||
     course?.section_code ||
     course?.selectedSectionCode ||
+    getCourseSectionLetter(course) ||
     ''
   const direct = String(directSection)
     .trim()
@@ -349,9 +344,10 @@ function classifyOverlap(programId, course, preferredPacArea) {
 }
 
 function buildCourseRecords(scheduledCourses, completedCourses) {
-  const byOffering = new Map()
+  const byBaseCourse = new Map()
   const add = (course, source, sourceIndex) => {
     const key = getDrmCourseKey(course)
+    const baseKey = getBaseCourseKey(course) || key
     const record = {
       key,
       source,
@@ -362,8 +358,8 @@ function buildCourseRecords(scheduledCourses, completedCourses) {
       section: getCourseSection(course),
       ...findOfficialEntry(course),
     }
-    const previous = byOffering.get(key)
-    if (!previous || source === 'completed') byOffering.set(key, record)
+    const previous = byBaseCourse.get(baseKey)
+    if (!previous || source === 'completed') byBaseCourse.set(baseKey, record)
   }
 
   ;(Array.isArray(scheduledCourses) ? scheduledCourses : []).forEach((course, index) =>
@@ -372,7 +368,7 @@ function buildCourseRecords(scheduledCourses, completedCourses) {
   ;(Array.isArray(completedCourses) ? completedCourses : []).forEach((course, index) =>
     add(course, 'completed', index),
   )
-  return [...byOffering.values()]
+  return [...byBaseCourse.values()]
 }
 
 export function computeDrmProgress(

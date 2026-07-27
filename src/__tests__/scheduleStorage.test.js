@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loadPlan, savePlan } from '../lib/scheduleStorage.js'
+import { loadCompleted, loadPlan, saveCompleted, savePlan } from '../lib/scheduleStorage.js'
 
 afterEach(() => {
   window.localStorage.clear()
@@ -7,6 +7,22 @@ afterEach(() => {
 })
 
 describe('scheduleStorage', () => {
+  it('repairs duplicate section variants at the persistence boundary', async () => {
+    const duplicates = [
+      { courseCode: 'DPI-681-M', credits: 2 },
+      { courseCode: 'DPI-681-M-001', credits: 2, grade: 'B-' },
+      { courseCode: 'DPI-681-M-A', credits: 2 },
+    ]
+
+    const savedPlan = await savePlan('Plan A', { courses: duplicates })
+    saveCompleted(duplicates)
+
+    expect(savedPlan.courses).toHaveLength(1)
+    expect(loadPlan('Plan A').courses).toHaveLength(1)
+    expect(loadCompleted()).toHaveLength(1)
+    expect(loadCompleted()[0].grade).toBe('B-')
+  })
+
   it('keeps plans locally and announces the updated plan without a remote dependency', async () => {
     const listener = vi.fn()
     window.addEventListener('hks-plan-updated', listener)

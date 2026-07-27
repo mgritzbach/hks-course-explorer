@@ -26,7 +26,9 @@ import {
   addCompletedCourse,
   addCourseToPlan,
   removeCompletedCourse,
+  removeCompletedCoursesFromPlan,
   removeCourseFromPlan,
+  updateCompletedCourse,
 } from '../lib/schedulePlanMutations.js'
 import { isHksCourseCode as isHksCourse } from '../lib/hksCourseCodes.js'
 import {
@@ -37,6 +39,7 @@ import { useFavorites } from '../useFavorites'
 import { useScheduleData } from '../hooks/useScheduleData.js'
 import { useCourseCreditMap } from '../hooks/useCourseCreditMap.js'
 import { applyCourseCreditMap } from '../lib/courseCredits.js'
+import { getBaseCourseKey } from '../lib/courseIdentity.js'
 import { escapeIcsText } from '../lib/calendarText.js'
 import { sectionCodeKey } from '../lib/sectionCatalogueIndexes.js'
 import {
@@ -151,7 +154,8 @@ function fallbackSearch(q, allCourses, filters = {}) {
     })
     .sort((a, b) => Number(b?.year || 0) - Number(a?.year || 0))
     .map((c) => ({
-      courseCode: c.course_code_base || c.course_code,
+      courseCode: c.course_code || c.course_code_base,
+      courseCodeBase: c.course_code_base || c.course_code,
       title: c.course_name,
       instructors: [c.professor_display || c.professor].filter(Boolean),
       credits: Number(c.credits_min ?? c.credits_max ?? c.credits ?? 4) || 4,
@@ -897,13 +901,19 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     [normalizedPlanCourses, normalizedCompletedCourses, reqProgram],
   )
   const addedCourseCodes = useMemo(
-    () => new Set(normalizedPlanCourses.map((course) => course.courseCode)),
+    () => new Set(normalizedPlanCourses.map(getBaseCourseKey)),
     [normalizedPlanCourses],
   )
   const completedCourseCodes = useMemo(
-    () => new Set(normalizedCompletedCourses.map((c) => c.courseCode)),
+    () => new Set(normalizedCompletedCourses.map(getBaseCourseKey)),
     [normalizedCompletedCourses],
   )
+  useEffect(() => {
+    setPlanData((current) =>
+      removeCompletedCoursesFromPlan(current, normalizedCompletedCourses, activePlan),
+    )
+  }, [activePlan, normalizedCompletedCourses])
+
   const visibleDayLabels = showWeekends ? [...WEEKDAY_LABELS, ...WEEKEND_LABELS] : WEEKDAY_LABELS
   const numDays = visibleDayLabels.length
   const gridCols = `52px repeat(${numDays}, minmax(0, 1fr))`
@@ -919,7 +929,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
         (c) =>
           !c.is_average &&
           favorites.has(c.course_code_base || c.course_code) &&
-          !addedCourseCodes.has(c.course_code_base || c.course_code),
+          !addedCourseCodes.has(getBaseCourseKey(c)),
       )
       .sort((a, b) => (b.year || 0) - (a.year || 0))
     for (const c of sorted) {
@@ -967,6 +977,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   }
   const addToShortlist = (course) => {
     const normalized = normalizeCourse(course)
+    if (completedCourseCodes.has(getBaseCourseKey(normalized))) {
+      announce(`${normalized.courseCode} is already completed and cannot be taken again`)
+      return
+    }
+
     setPlanData((current) => addCourseToPlan(current, normalized, activePlan))
     announce(`Added ${normalized.courseCode} to plan`)
     setGridMessages((current) => {
@@ -989,18 +1004,15 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   }
   const addToCompleted = (course) => {
     const normalized = normalizeCourse(course)
+    setPlanData((current) => removeCourseFromPlan(current, normalized.courseCode, activePlan))
     setCompletedCourses((current) => addCompletedCourse(current, normalized))
-    announce('Marked as completed')
+    announce(`Marked ${normalized.courseCode} as completed and removed it from the plan`)
   }
   const removeFromCompleted = (courseCode) => {
     setCompletedCourses((current) => removeCompletedCourse(current, courseCode))
   }
   const updateCompleted = (courseCode, changes) => {
-    setCompletedCourses((current) =>
-      current.map((course) =>
-        normalizeCourse(course).courseCode === courseCode ? { ...course, ...changes } : course,
-      ),
-    )
+    setCompletedCourses((current) => updateCompletedCourse(current, courseCode, changes))
   }
   const applyManualTime = (courseCode) => {
     const edit = manualTimeEdit[courseCode]
@@ -1210,7 +1222,9 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
 
   const handleSearchKeyDown = (event) => {
     if (event.key !== 'Enter') return
-    const firstUnadded = filteredSearchResults.find((r) => !addedCourseCodes.has(r.courseCode))
+    const firstUnadded = filteredSearchResults.find(
+      (r) => !addedCourseCodes.has(getBaseCourseKey(r)),
+    )
     if (firstUnadded) {
       addToShortlist(firstUnadded)
       return
@@ -1220,7 +1234,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     const q = searchQ.trim()
     if (searchSource !== 'HKS' && q && filteredSearchResults.length === 0) {
       const code = q.toUpperCase().replace(/\s+/g, '-')
-      if (!addedCourseCodes.has(code)) {
+      if (!addedCourseCodes.has(getBaseCourseKey(code))) {
         openManualModal(code)
       }
     }
@@ -1946,8 +1960,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                           {searchCredits ? ` · ${searchCredits} cr` : ''}
                         </p>
                         {visibleWithTime.map((course, index) => {
-                          const added = addedCourseCodes.has(course.courseCode)
-                          const done = completedCourseCodes.has(course.courseCode)
+                          const added = addedCourseCodes.has(getBaseCourseKey(course))
+                          const done = completedCourseCodes.has(getBaseCourseKey(course))
                           const hks = isHksCourse(course.courseCode)
                           const histRating = findVerifiedHistoricalRating(course, histRatingsMap)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
@@ -2200,8 +2214,8 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                           </div>
                         )}
                         {visibleWithoutTime.map((course, index) => {
-                          const added = addedCourseCodes.has(course.courseCode)
-                          const done = completedCourseCodes.has(course.courseCode)
+                          const added = addedCourseCodes.has(getBaseCourseKey(course))
+                          const done = completedCourseCodes.has(getBaseCourseKey(course))
                           const hks = isHksCourse(course.courseCode)
                           const histRating = findVerifiedHistoricalRating(course, histRatingsMap)
                           const instrPct = histRating?.metrics_pct?.Instructor_Rating
@@ -2561,7 +2575,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                     type="button"
                     onClick={() => {
                       const code = searchQ.trim().toUpperCase().replace(/\s+/g, '-')
-                      if (code && !addedCourseCodes.has(code)) {
+                      if (code && !addedCourseCodes.has(getBaseCourseKey(code))) {
                         openManualModal(code)
                       }
                     }}

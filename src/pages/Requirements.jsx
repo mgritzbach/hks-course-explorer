@@ -9,6 +9,7 @@ import {
 } from '../lib/scheduleStorage.js'
 import { computeProgress, findCompletingCourses, getPrograms } from '../lib/requirementsEngine.js'
 import { applyCourseCreditMap, withResolvedCourseCredits } from '../lib/courseCredits.js'
+import { getBaseCourseCode, getBaseCourseKey } from '../lib/courseIdentity.js'
 import { useCourseCreditMap } from '../hooks/useCourseCreditMap.js'
 import DrmPathwayPanel from '../components/DrmPathwayPanel.jsx'
 import MldCertificatePanel from '../components/MldCertificatePanel.jsx'
@@ -66,11 +67,7 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
   useDocumentTitle(`${config.appTitle} - My Degree`)
   const loadedCourseCreditMap = useCourseCreditMap()
   const creditsByOffering = courseCreditMap instanceof Map ? courseCreditMap : loadedCourseCreditMap
-  const getCourseCode = useCallback(
-    (course) =>
-      course?.course_code_base || course?.course_code || course?.courseCode || course?.code || null,
-    [],
-  )
+  const getCourseCode = useCallback((course) => getBaseCourseCode(course) || null, [])
   const programs = useMemo(() => getPrograms(), [])
   const [selectedProgram, setSelectedProgram] = useState(() => {
     if (typeof window === 'undefined') return programs[0]?.id || ''
@@ -131,8 +128,9 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
     const plan = loadPlan(activePlan)
     const courseCode = getCourseCode(course)
     if (!courseCode) return
-    const already = plan.courses.some((c) => getCourseCode(c) === courseCode)
-    if (already) return
+    const baseKey = getBaseCourseKey(courseCode)
+    const already = plan.courses.some((c) => getBaseCourseKey(c) === baseKey)
+    if (already || completedSetForDisplay.has(courseCode)) return
     const creditedCourse = withResolvedCourseCredits(course, creditsByOffering)
     const nextCourses = [...plan.courses, creditedCourse]
     savePlan(activePlan, { ...plan, courses: nextCourses })
@@ -142,7 +140,8 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
 
   const removeFromPlan = (courseCode) => {
     const plan = loadPlan(activePlan)
-    const nextCourses = plan.courses.filter((c) => getCourseCode(c) !== courseCode)
+    const baseKey = getBaseCourseKey(courseCode)
+    const nextCourses = plan.courses.filter((c) => getBaseCourseKey(c) !== baseKey)
     savePlan(activePlan, { ...plan, courses: nextCourses })
     setScheduledCourses(nextCourses)
     setAddedToPlan((prev) => {
@@ -156,6 +155,13 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
     const code = getCourseCode(course)
     if (!code) return
     if (completedSetForDisplay.has(code)) return
+    const baseKey = getBaseCourseKey(code)
+    const plan = loadPlan(activePlan)
+    const nextPlanCourses = plan.courses.filter((item) => getBaseCourseKey(item) !== baseKey)
+    if (nextPlanCourses.length !== plan.courses.length) {
+      savePlan(activePlan, { ...plan, courses: nextPlanCourses })
+      setScheduledCourses(nextPlanCourses)
+    }
     const creditedCourse = withResolvedCourseCredits(course, creditsByOffering)
     const next = [...completedCourses, creditedCourse]
     setCompletedCourses(next)
@@ -164,7 +170,8 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
   }
 
   const removeFromCompleted = (courseCode) => {
-    const next = completedCourses.filter((course) => getCourseCode(course) !== courseCode)
+    const baseKey = getBaseCourseKey(courseCode)
+    const next = completedCourses.filter((course) => getBaseCourseKey(course) !== baseKey)
     setCompletedCourses(next)
     saveCompleted(next)
   }
@@ -380,6 +387,19 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
       )
       .list.slice(0, 20)
   }, [courseSearch, courses])
+
+  useEffect(() => {
+    const completedBaseKeys = new Set(completedCourses.map(getBaseCourseKey).filter(Boolean))
+    if (completedBaseKeys.size === 0) return
+    const nextCourses = scheduledCourses.filter(
+      (course) => !completedBaseKeys.has(getBaseCourseKey(course)),
+    )
+    if (nextCourses.length === scheduledCourses.length) return
+
+    const plan = loadPlan(activePlan)
+    savePlan(activePlan, { ...plan, courses: nextCourses })
+    setScheduledCourses(nextCourses)
+  }, [activePlan, completedCourses, scheduledCourses])
 
   if (!progress) {
     return (

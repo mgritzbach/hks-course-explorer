@@ -2,6 +2,8 @@
 // Keep these functions free of React or browser state so they can be reused at
 // input boundaries without importing a page component.
 
+import { getBaseCourseCode } from './courseIdentity.js'
+
 export const DAY_INDEX = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 }
 
 function contractError(message) {
@@ -232,23 +234,22 @@ export function normalizeCourse(raw, index = 0) {
   })
   const summary = meetingSummary(meetings)
   const rawCredits = raw?.credits ?? raw?.credits_min ?? raw?.credits_max
-  return {
-    id:
-      raw?.id ||
-      `${raw?.courseCode || raw?.course_code || raw?.course_code_base || raw?.code || 'course'}-${index}`,
-    courseCode:
-      raw?.courseCode ||
+  const detailedCourseCode = String(
+    raw?.courseCode ||
       raw?.course_code ||
-      raw?.course_code_base ||
-      raw?.code ||
-      `course-${index}`,
-    courseCodeBase:
       raw?.courseCodeBase ||
       raw?.course_code_base ||
-      raw?.courseCode ||
-      raw?.course_code ||
-      raw?.code ||
-      `course-${index}`,
+      raw?.code,
+  ).trim()
+  const baseCourseCode =
+    getBaseCourseCode({
+      courseCode: detailedCourseCode,
+      courseCodeBase: raw?.courseCodeBase || raw?.course_code_base,
+    }) || `course-${index}`
+  return {
+    id: raw?.id || `${detailedCourseCode || baseCourseCode}-${index}`,
+    courseCode: detailedCourseCode || baseCourseCode,
+    courseCodeBase: baseCourseCode,
     title: raw?.title || raw?.course_name || raw?.name || 'Untitled course',
     instructors: Array.isArray(raw?.instructors)
       ? raw.instructors.filter(Boolean)

@@ -1,3 +1,5 @@
+import { getBaseCourseCode } from './courseIdentity.js'
+
 function normalizeCourseCode(value) {
   return String(value || '')
     .trim()
@@ -23,14 +25,7 @@ function getOfferingParts(course) {
   }
 }
 export function getCourseCode(course) {
-  return (
-    course?.course_code_base ||
-    course?.course_code ||
-    course?.courseCodeBase ||
-    course?.courseCode ||
-    course?.code ||
-    null
-  )
+  return getBaseCourseCode(course) || null
 }
 
 function getCourseCreditKeys(course) {
