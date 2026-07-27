@@ -5,6 +5,7 @@ import SupportProjectPrompt, {
   SUPPORT_PROMPT_DELAY_MS,
   SUPPORT_PROMPT_STORAGE_KEY,
   VENMO_PROFILE_URL,
+  ZELLE_QR_IMAGE_URL,
 } from '../components/SupportProjectPrompt.jsx'
 
 describe('SupportProjectPrompt', () => {
@@ -25,6 +26,16 @@ describe('SupportProjectPrompt', () => {
     expect(link.getAttribute('href')).toBe(VENMO_PROFILE_URL)
     expect(link.getAttribute('target')).toBe('_blank')
     expect(screen.getByText(/keep this independent student tool free/i)).toBeTruthy()
+  })
+
+  it('opens a scannable Zelle option from the compact support strip', () => {
+    render(<SupportProjectPrompt />)
+
+    fireEvent.click(screen.getByRole('button', { name: /zelle qr/i }))
+
+    const qr = screen.getByRole('img', { name: /zelle qr code for michael gritzbach/i })
+    expect(qr.getAttribute('src')).toBe(ZELLE_QR_IMAGE_URL)
+    expect(screen.getByText(/scan with your banking app/i)).toBeTruthy()
   })
 
   it('shows a dismissible, non-modal prompt after respectful delay', () => {

@@ -346,6 +346,7 @@ export default function DrmPathwayPanel({
 
   return (
     <section
+      id="drm-pathway"
       data-tour="req-stem"
       className="rounded-[26px] p-5 md:p-6"
       style={{
@@ -366,7 +367,7 @@ export default function DrmPathwayPanel({
             Official HKS guidance · article updated July 14, 2026
           </p>
           <h2 className="mt-2 text-2xl font-semibold" style={{ color: 'var(--text)' }}>
-            Data &amp; Research Methods Pathway
+            Data &amp; Research Methods Pathway (STEM OPT)
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
             At least 16 qualifying credits, including at least 4 Group A and 4 Group B credits.
@@ -564,9 +565,29 @@ export default function DrmPathwayPanel({
 
           {progress.reviewCourses.length > 0 && (
             <div className="mt-5">
-              <h3 className="text-sm font-semibold" style={{ color: 'var(--warning)' }}>
-                Courses requiring official-list review
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold" style={{ color: 'var(--warning)' }}>
+                  Courses requiring official-list review
+                </h3>
+                <div className="flex flex-wrap gap-3 text-xs font-semibold">
+                  <a
+                    href={DRM_WORKBOOK_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    Open current qualifying-course list
+                  </a>
+                  <a
+                    href={DRM_ARTICLE_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    Open HKS Hub guidance
+                  </a>
+                </div>
+              </div>
               <div className="mt-3 space-y-2">
                 {progress.reviewCourses.map((record) => (
                   <ReviewCourseRow

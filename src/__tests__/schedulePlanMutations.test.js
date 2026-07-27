@@ -43,6 +43,16 @@ describe('schedule plan mutations', () => {
     ])
   })
 
+  it('removes a detailed search result object when persisted identity uses its base code', () => {
+    const persisted = {
+      ...course,
+      courseCode: 'API-101-A',
+      courseCodeBase: 'API-101',
+    }
+    const plan = { name: 'Plan A', courses: [persisted] }
+
+    expect(removeCourseFromPlan(plan, persisted, 'Plan A').courses).toEqual([])
+  })
   it('removes planned section variants when the base course is completed', () => {
     const plan = {
       name: 'Spring Plan',

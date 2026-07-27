@@ -400,6 +400,8 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
     savePlan(activePlan, { ...plan, courses: nextCourses })
     setScheduledCourses(nextCourses)
   }, [activePlan, completedCourses, scheduledCourses])
+  const allocationDecisions =
+    drmProgress?.courses?.filter((course) => course.decisionRequired) || []
 
   if (!progress) {
     return (
@@ -413,6 +415,41 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
     <div className="h-full overflow-y-auto px-6 py-8 md:px-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         {/* ── My Courses ── */}
+        {allocationDecisions.length > 0 && (
+          <aside
+            className="sticky top-3 z-30 -mx-2 rounded-[22px] p-5 shadow-xl"
+            style={{
+              background: 'color-mix(in srgb, var(--danger) 12%, var(--panel))',
+              border: '1px solid var(--danger)',
+              borderLeft: '7px solid var(--danger)',
+            }}
+            role="alert"
+          >
+            <p
+              className="text-xs font-bold uppercase tracking-[0.14em]"
+              style={{ color: 'var(--danger)' }}
+            >
+              Counting decision required
+            </p>
+            <h2 className="mt-2 text-lg font-semibold" style={{ color: 'var(--text)' }}>
+              Automatic redistribution cannot complete every requirement
+            </h2>
+            <p className="mt-2 text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
+              The degree requirements were filled first, but the official overlap allowance is
+              exhausted for {allocationDecisions.map((course) => course.code).join(', ')}. Choose
+              whether those credits should remain with the degree requirement or move to STEM.
+            </p>
+            <a
+              href="#drm-pathway"
+              className="mt-3 inline-flex rounded-full px-4 py-2 text-sm font-semibold"
+              style={{ background: 'var(--danger)', color: 'white' }}
+            >
+              Review counting choices &rarr;
+            </a>
+          </aside>
+        )}
+
+        {/* My Courses */}
         <div
           className="rounded-[28px] p-6"
           style={{ background: 'var(--panel)', border: '1px solid var(--line)' }}
@@ -761,23 +798,6 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
           </div>
         </div>
 
-        <MldCertificatePanel
-          scheduledCourses={creditedScheduledCourses}
-          completedCourses={creditedCompletedCourses}
-          programId={selectedProgram}
-        />
-
-        <DrmPathwayPanel
-          progress={drmProgress}
-          degreeProgress={progress}
-          collapsed={drmCollapsed}
-          onToggle={toggleDrmCollapsed}
-          onAssignmentChange={handleDrmAssignmentChange}
-          onUpdateCourse={updateDrmCourse}
-          preferredPacArea={preferredPacArea}
-          onPreferredPacAreaChange={handlePacAreaChange}
-        />
-
         <div data-tour="req-cards" className="grid gap-5 lg:grid-cols-2">
           {progress.categories.map((category) => {
             const accentColor = COLOR_MAP[category.color] || 'var(--accent)'
@@ -1046,6 +1066,23 @@ export default function Requirements({ courses = [], courseCreditMap = null }) {
             )
           })}
         </div>
+
+        <MldCertificatePanel
+          scheduledCourses={creditedScheduledCourses}
+          completedCourses={creditedCompletedCourses}
+          programId={selectedProgram}
+        />
+
+        <DrmPathwayPanel
+          progress={drmProgress}
+          degreeProgress={progress}
+          collapsed={drmCollapsed}
+          onToggle={toggleDrmCollapsed}
+          onAssignmentChange={handleDrmAssignmentChange}
+          onUpdateCourse={updateDrmCourse}
+          preferredPacArea={preferredPacArea}
+          onPreferredPacAreaChange={handlePacAreaChange}
+        />
       </div>
     </div>
   )

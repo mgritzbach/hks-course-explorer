@@ -38,7 +38,9 @@ import {
 import { useFavorites } from '../useFavorites'
 import { useScheduleData } from '../hooks/useScheduleData.js'
 import { useCourseCreditMap } from '../hooks/useCourseCreditMap.js'
-import { applyCourseCreditMap } from '../lib/courseCredits.js'
+import { usePlanCsvTransfer } from '../hooks/usePlanCsvTransfer.js'
+import { usePlanClipboard } from '../hooks/usePlanClipboard.js'
+import { applyCourseCreditMap, getExplicitCourseCredits } from '../lib/courseCredits.js'
 import { getBaseCourseKey } from '../lib/courseIdentity.js'
 import { escapeIcsText } from '../lib/calendarText.js'
 import { sectionCodeKey } from '../lib/sectionCatalogueIndexes.js'
@@ -158,7 +160,7 @@ function fallbackSearch(q, allCourses, filters = {}) {
       courseCodeBase: c.course_code_base || c.course_code,
       title: c.course_name,
       instructors: [c.professor_display || c.professor].filter(Boolean),
-      credits: Number(c.credits_min ?? c.credits_max ?? c.credits ?? 4) || 4,
+      credits: getExplicitCourseCredits(c) ?? 4,
       sections: [],
       meetings: Array.isArray(c.meetings) ? c.meetings : [],
       meeting_days: c.meeting_days || null,
@@ -398,8 +400,6 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   const [browseLimit, setBrowseLimit] = useState(25)
   const [exportMsg, setExportMsg] = useState(null)
   const exportMsgTimeoutRef = useRef(null)
-  const [copyPlanMsg, setCopyPlanMsg] = useState(null)
-  const copyPlanTimeoutRef = useRef(null)
   const [collapsedSections, setCollapsedSections] = useState({
     shortlist: false,
     completed: true,
@@ -457,6 +457,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       if (announcerRef.current) announcerRef.current.textContent = msg
     }, 50)
   }, [])
+  const { csvImportInputRef, csvMsg, exportCsv, importCsv, requestCsvImport } = usePlanCsvTransfer({
+    activePlan,
+    planData,
+    setPlanData,
+    announce,
+  })
   useEffect(() => {
     void savePlan(activePlan, planData)
   }, [activePlan, planData])
@@ -483,7 +489,6 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
   useEffect(() => {
     return () => {
       if (exportMsgTimeoutRef.current) clearTimeout(exportMsgTimeoutRef.current)
-      if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
       if (saveLoadTimeoutRef.current) clearTimeout(saveLoadTimeoutRef.current)
     }
   }, [])
@@ -818,6 +823,11 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       ).map((course, index) => normalizeCourse(course, index)),
     [planData, creditsByOffering],
   )
+  const planClipboard = usePlanClipboard({
+    activePlan,
+    courses: normalizedPlanCourses,
+    announce,
+  })
   // Enrich plan courses with Supabase meeting times + historical ratings where missing.
   const planCoursesEnriched = useMemo(
     () =>
@@ -991,8 +1001,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
       return next
     })
   }
-  const removeCourse = (courseCode) => {
-    setPlanData((current) => removeCourseFromPlan(current, courseCode, activePlan))
+  const removeCourse = (courseOrCode) => {
+    const courseCode =
+      typeof courseOrCode === 'string'
+        ? courseOrCode
+        : courseOrCode?.courseCode || courseOrCode?.course_code || 'course'
+    setPlanData((current) => removeCourseFromPlan(current, courseOrCode, activePlan))
     announce(`Removed ${courseCode} from plan`)
     setExpandedBlock((current) => (current === courseCode ? null : current))
     setGridMessages((current) => {
@@ -1132,32 +1146,6 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
     })
     announce(`Exported ${exportable.length} calendar events`)
     exportMsgTimeoutRef.current = setTimeout(() => setExportMsg(null), 3000)
-  }
-
-  const handleCopyPlan = () => {
-    if (!normalizedPlanCourses.length) return
-    const totalCr = normalizedPlanCourses.reduce((sum, c) => sum + (c.credits || 4), 0)
-    const lines = [
-      `${activePlan} — ${totalCr} credits`,
-      '',
-      ...normalizedPlanCourses.map((c) => {
-        const instructor = c.instructors?.length ? ` — ${c.instructors[0]}` : ''
-        return `• ${c.courseCode}: ${c.title} (${c.credits || 4} cr)${instructor}`
-      }),
-    ]
-    navigator.clipboard
-      .writeText(lines.join('\n'))
-      .then(() => {
-        if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
-        setCopyPlanMsg('Copied!')
-        announce('Plan copied to clipboard')
-        copyPlanTimeoutRef.current = setTimeout(() => setCopyPlanMsg(null), 2500)
-      })
-      .catch(() => {
-        if (copyPlanTimeoutRef.current) clearTimeout(copyPlanTimeoutRef.current)
-        setCopyPlanMsg('Failed')
-        copyPlanTimeoutRef.current = setTimeout(() => setCopyPlanMsg(null), 2500)
-      })
   }
 
   const handleSavePlan = () => {
@@ -1372,13 +1360,18 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
           showWeekends={showWeekends}
           onToggleWeekends={() => setShowWeekends((current) => !current)}
           importInputRef={importInputRef}
+          csvImportInputRef={csvImportInputRef}
           onLoadPlan={handleLoadPlan}
           saveLoadMsg={saveLoadMsg}
           onSavePlan={handleSavePlan}
           onRequestLoad={() => importInputRef.current?.click()}
+          csvMsg={csvMsg}
+          onExportCsv={exportCsv}
+          onImportCsv={importCsv}
+          onRequestCsvImport={requestCsvImport}
           hasCourses={normalizedPlanCourses.length > 0}
-          copyPlanMsg={copyPlanMsg}
-          onCopyPlan={handleCopyPlan}
+          copyPlanMsg={planClipboard.message}
+          onCopyPlan={planClipboard.copy}
           exportMsg={exportMsg}
           onExport={handleExport}
         />
@@ -2083,9 +2076,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         type="button"
                                         disabled={done}
                                         onClick={() =>
-                                          added
-                                            ? removeCourse(course.courseCode)
-                                            : addToShortlist(course)
+                                          added ? removeCourse(course) : addToShortlist(course)
                                         }
                                         className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                         style={{
@@ -2108,9 +2099,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         type="button"
                                         disabled={done}
                                         onClick={() =>
-                                          added
-                                            ? removeCourse(course.courseCode)
-                                            : addToShortlist(course)
+                                          added ? removeCourse(course) : addToShortlist(course)
                                         }
                                         className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                         style={{
@@ -2340,9 +2329,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         type="button"
                                         disabled={done}
                                         onClick={() =>
-                                          added
-                                            ? removeCourse(course.courseCode)
-                                            : addToShortlist(course)
+                                          added ? removeCourse(course) : addToShortlist(course)
                                         }
                                         className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                         style={{
@@ -2365,9 +2352,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                         type="button"
                                         disabled={done}
                                         onClick={() =>
-                                          added
-                                            ? removeCourse(course.courseCode)
-                                            : addToShortlist(course)
+                                          added ? removeCourse(course) : addToShortlist(course)
                                         }
                                         className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform enabled:hover:-translate-y-[1px] disabled:cursor-default"
                                         style={{
@@ -2926,12 +2911,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                         {normalizedPlanCourses.length > 0 &&
                           (() => {
                             const totalCr = normalizedPlanCourses.reduce(
-                              (sum, c) => sum + (c.credits || 4),
+                              (sum, c) => sum + (getExplicitCourseCredits(c) ?? 4),
                               0,
                             )
                             const crossCr = normalizedPlanCourses
                               .filter((c) => !isHksCourse(c.courseCode))
-                              .reduce((sum, c) => sum + (c.credits || 4), 0)
+                              .reduce((sum, c) => sum + (getExplicitCourseCredits(c) ?? 4), 0)
                             return (
                               <>
                                 <span
@@ -3089,7 +3074,7 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                           color: 'var(--gold)',
                                         }}
                                       >
-                                        {course.credits || 4} cr
+                                        {getExplicitCourseCredits(course) ?? 4} cr
                                       </span>
                                     </div>
                                     <p
@@ -3135,10 +3120,12 @@ export default function ScheduleBuilder({ courses = [], myDegreeMode = false }) 
                                   </div>
                                   <button
                                     type="button"
-                                    onClick={() => removeCourse(course.courseCode)}
+                                    onClick={() =>
+                                      onGrid ? toggleGrid(course.courseCode) : removeCourse(course)
+                                    }
                                     className="shrink-0 text-sm font-semibold"
                                     style={{ color: 'var(--danger)' }}
-                                    aria-label={`Remove ${course.courseCode}`}
+                                    aria-label={`Remove ${course.courseCode} from ${onGrid ? 'grid' : 'plan'}`}
                                   >
                                     ×
                                   </button>

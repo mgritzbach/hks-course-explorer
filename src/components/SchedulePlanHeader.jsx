@@ -15,6 +15,11 @@ export default function SchedulePlanHeader({
   showWeekends,
   onToggleWeekends,
   importInputRef,
+  csvImportInputRef,
+  csvMsg,
+  onExportCsv,
+  onImportCsv,
+  onRequestCsvImport,
   onLoadPlan,
   saveLoadMsg,
   onSavePlan,
@@ -105,6 +110,14 @@ export default function SchedulePlanHeader({
           className="hidden"
           aria-label="Load plan from JSON"
         />
+        <input
+          ref={csvImportInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={onImportCsv}
+          className="hidden"
+          aria-label="Import plan courses from CSV"
+        />
         <button
           type="button"
           onClick={onSavePlan}
@@ -150,6 +163,31 @@ export default function SchedulePlanHeader({
               ? `⚠ ${saveLoadMsg}`
               : '📂 Load'}
         </button>
+        <button
+          type="button"
+          onClick={onExportCsv}
+          title="Export course selections from all four plans to CSV"
+          className="rounded-full border px-3 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
+          style={{ background: 'var(--panel-soft)', borderColor: 'var(--line-strong)' }}
+        >
+          Export CSV
+        </button>
+        <button
+          type="button"
+          onClick={onRequestCsvImport}
+          title={csvMsg || 'Import and merge plan course selections from CSV'}
+          className="rounded-full border px-3 py-2 text-sm font-semibold transition-all hover:-translate-y-[1px]"
+          style={{
+            background: csvMsg ? 'var(--accent-soft)' : 'var(--panel-soft)',
+            borderColor: csvMsg ? 'var(--accent)' : 'var(--line-strong)',
+            color: csvMsg ? 'var(--accent)' : 'var(--text-soft)',
+          }}
+        >
+          Import CSV
+        </button>
+        <span className="sr-only" role="status" aria-live="polite">
+          {csvMsg}
+        </span>
         {hasCourses && (
           <button
             type="button"

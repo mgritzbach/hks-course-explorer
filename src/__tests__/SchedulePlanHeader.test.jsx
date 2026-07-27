@@ -14,6 +14,11 @@ function renderHeader(overrides = {}) {
     showWeekends: false,
     onToggleWeekends: vi.fn(),
     importInputRef: createRef(),
+    csvImportInputRef: createRef(),
+    csvMsg: null,
+    onExportCsv: vi.fn(),
+    onImportCsv: vi.fn(),
+    onRequestCsvImport: vi.fn(),
     onLoadPlan: vi.fn(),
     saveLoadMsg: null,
     onSavePlan: vi.fn(),
@@ -45,12 +50,16 @@ describe('SchedulePlanHeader', () => {
     const props = renderHeader()
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     fireEvent.click(screen.getByRole('button', { name: /load/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import CSV' }))
     fireEvent.click(screen.getByRole('button', { name: /copy plan/i }))
     fireEvent.click(screen.getByRole('button', { name: /export ical/i }))
 
     expect(props.onSavePlan).toHaveBeenCalledOnce()
     expect(props.onRequestLoad).toHaveBeenCalledOnce()
     expect(props.onCopyPlan).toHaveBeenCalledOnce()
+    expect(props.onExportCsv).toHaveBeenCalledOnce()
+    expect(props.onRequestCsvImport).toHaveBeenCalledOnce()
     expect(props.onExport).toHaveBeenCalledOnce()
   })
 })

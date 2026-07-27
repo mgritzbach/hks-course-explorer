@@ -97,7 +97,7 @@ describe('Requirements', () => {
     })
     expect(
       screen.getAllByRole('button', { name: 'Remove completed course DPI-681-M' }),
-    ).toHaveLength(2)
+    ).toHaveLength(3)
     expect(screen.queryByRole('button', { name: 'Remove DPI-681-M from Plan A' })).toBeNull()
   })
 

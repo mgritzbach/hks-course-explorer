@@ -193,6 +193,16 @@ export default function MldCertificatePanel({ scheduledCourses, completedCourses
             </div>
           )}
 
+          {progress.ineligibleCompleted.length > 0 && (
+            <p className="mt-4 text-xs leading-5" style={{ color: 'var(--warning)' }}>
+              Not counted because the official certificate requires B+ or better in every course:{' '}
+              {progress.ineligibleCompleted
+                .map((item) => `${item.displayCode} (${item.grade || 'grade not recorded'})`)
+                .join(', ')}
+              .
+            </p>
+          )}
+
           {progress.missingCreditCodes.length > 0 && (
             <p className="mt-4 text-xs" style={{ color: 'var(--gold)' }}>
               Credit values are still loading for: {progress.missingCreditCodes.join(', ')}.

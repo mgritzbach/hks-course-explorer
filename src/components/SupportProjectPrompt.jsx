@@ -5,6 +5,7 @@ export const SUPPORT_PROMPT_DELAY_MS = 25_000
 export const SUPPORT_PROMPT_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000
 export const SUPPORT_PROMPT_STORAGE_KEY = 'hks-support-prompt-seen-at'
 export const VENMO_PROFILE_URL = 'https://venmo.com/u/mgritzbach'
+export const ZELLE_QR_IMAGE_URL = '/zelle-qr.jpg'
 
 function wasSeenRecently() {
   try {
@@ -25,6 +26,7 @@ function rememberPrompt() {
 
 export default function SupportProjectPrompt({ mobileNavExpanded = false }) {
   const [open, setOpen] = useState(false)
+  const [zelleOpen, setZelleOpen] = useState(false)
 
   useEffect(() => {
     if (wasSeenRecently()) return undefined
@@ -62,9 +64,16 @@ export default function SupportProjectPrompt({ mobileNavExpanded = false }) {
   const acknowledge = (method) => {
     rememberPrompt()
     setOpen(false)
+    setZelleOpen(false)
     capture(method === 'venmo' ? 'support_venmo_opened' : 'support_prompt_dismissed', {
       method,
     })
+  }
+
+  const showZelle = () => {
+    setOpen(true)
+    setZelleOpen(true)
+    capture('support_zelle_qr_opened')
   }
 
   return (
@@ -105,12 +114,32 @@ export default function SupportProjectPrompt({ mobileNavExpanded = false }) {
           </a>
           <button
             type="button"
+            className="support-project-secondary"
+            onClick={() => (zelleOpen ? setZelleOpen(false) : showZelle())}
+            aria-expanded={zelleOpen}
+          >
+            {zelleOpen ? 'Hide Zelle QR' : 'Buy me a coffee with Zelle'}
+          </button>
+          {zelleOpen && (
+            <div className="support-project-zelle">
+              <img
+                src={ZELLE_QR_IMAGE_URL}
+                alt="Zelle QR code for Michael Gritzbach"
+                width="220"
+                height="310"
+              />
+              <p>Scan with your banking app to send a coffee via Zelle.</p>
+            </div>
+          )}
+
+          <button
+            type="button"
             className="support-project-later"
             onClick={() => acknowledge('later')}
           >
             Maybe later
           </button>
-          <p className="support-project-trust">Optional · @mgritzbach · opens Venmo</p>
+          <p className="support-project-trust">Optional · Venmo @mgritzbach or Zelle</p>
         </aside>
       )}
 
@@ -129,6 +158,9 @@ export default function SupportProjectPrompt({ mobileNavExpanded = false }) {
         >
           Buy a coffee · @mgritzbach
         </a>
+        <button type="button" className="support-project-strip-zelle" onClick={showZelle}>
+          Zelle QR
+        </button>
       </aside>
     </div>
   )
