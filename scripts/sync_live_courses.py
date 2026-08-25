@@ -287,6 +287,7 @@ def parse_meetings(raw):
         if isinstance(days, str):
             days = [days]
         elif not isinstance(days, (list, tuple)):
+            quarantined.append(f"meeting {position}: invalid days container")
             days = []
         start = norm_time(m.get("startTime") or m.get("start", ""))
         end   = norm_time(m.get("endTime")   or m.get("end",   ""))

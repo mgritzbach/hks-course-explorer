@@ -270,6 +270,20 @@ class FetchSchoolTests(unittest.TestCase):
             ],
         )
 
+    def test_invalid_days_container_is_reported_before_meeting_is_discarded(self):
+        meetings, quarantined = self.sync.parse_meetings(
+            [
+                {
+                    "daysOfWeek": {"Monday": True},
+                    "startTime": "09:00",
+                    "endTime": "10:00",
+                }
+            ]
+        )
+
+        self.assertEqual(meetings, [])
+        self.assertEqual(quarantined, ["meeting 1: invalid days container"])
+
     def test_partial_failure_performs_no_database_writes_or_deletes(self):
         success = self.sync.FetchResult("HKS", "a", [], True)
         failure = self.sync.FetchResult("HKS", "e", [], False, "HTTP 503")
