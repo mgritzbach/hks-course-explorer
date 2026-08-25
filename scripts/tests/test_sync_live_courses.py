@@ -208,6 +208,68 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertEqual(merged["course_code"], "DPI-100")
         self.assertEqual(merged["description"], "Shared description")
 
+    def test_malformed_meeting_is_named_and_quarantined_without_dropping_course(self):
+        row = self.sync.normalise_course(
+            {
+                "courseID": "bad-meeting-id",
+                "courseNumber": "GOV 101",
+                "courseTitle": "Public Policy",
+                "termDescription": "2026 Fall",
+                "meetings": [
+                    {
+                        "daysOfWeek": ["Monday", "Wednesday"],
+                        "startTime": "9:00 am",
+                        "endTime": "10:00 am",
+                        "location": "Littauer",
+                    },
+                    {
+                        "daysOfWeek": ["Friday"],
+                        "startTime": "9:00 am",
+                    },
+                ],
+            },
+            "FAS",
+        )
+
+        self.assertEqual(row["id"], "bad-meeting-id")
+        self.assertEqual([meeting["day"] for meeting in row["meetings"]], ["MON", "WED"])
+        self.assertEqual(row["_meeting_quarantines"], ["meeting 2: missing end time"])
+
+        quarantines = self.sync.collect_meeting_quarantines([row])
+        payload = self.sync.database_safe_rows([row])
+        summary = self.sync.build_sync_summary(
+            outcome="promoted atomically",
+            sync_start="2026-08-19T00:00:00+00:00",
+            planned_request_count=1,
+            rows=payload,
+            meeting_quarantines=quarantines,
+        )
+
+        self.assertEqual(len(payload), 1)
+        self.assertNotIn("_meeting_quarantines", payload[0])
+        self.assertIn("Courses with quarantined meeting data:** 1", summary)
+        self.assertIn("`GOV-101` (ID `bad-meeting-id`, FAS, 2026 Fall)", summary)
+        self.assertIn("meeting 2: missing end time", summary)
+
+    def test_invalid_start_end_and_day_are_removed_before_database_payload(self):
+        meetings, quarantined = self.sync.parse_meetings(
+            [
+                {"daysOfWeek": ["Noday"], "startTime": "09:00", "endTime": "10:00"},
+                {"daysOfWeek": ["Tuesday"], "startTime": "9am", "endTime": "10:00"},
+                {"daysOfWeek": ["Thursday"], "startTime": "09:00", "endTime": "later"},
+            ]
+        )
+
+        self.assertEqual(meetings, [])
+        self.assertEqual(
+            quarantined,
+            [
+                "meeting 1: invalid day",
+                "meeting 2: invalid start time",
+                "meeting 3: invalid end time",
+            ],
+        )
+
     def test_partial_failure_performs_no_database_writes_or_deletes(self):
         success = self.sync.FetchResult("HKS", "a", [], True)
         failure = self.sync.FetchResult("HKS", "e", [], False, "HTTP 503")
@@ -278,6 +340,50 @@ class FetchSchoolTests(unittest.TestCase):
         self.assertIn("promoted atomically", write_summary.call_args.args[0])
         self.assertIn("Actionable retained non-HKS ATS rows:** 1", write_summary.call_args.args[0])
         self.assertIn("Actionable queue SHA-256:** `" + "a" * 64, write_summary.call_args.args[0])
+
+    def test_successful_sync_promotes_course_after_quarantining_bad_meeting(self):
+        affected_row = self.sync.normalise_course(
+            {
+                "courseID": "affected-id",
+                "courseNumber": "ECON 202",
+                "termDescription": "2026 Fall",
+                "meetings": [
+                    {
+                        "daysOfWeek": ["Monday"],
+                        "startTime": "13:00",
+                        "endTime": "",
+                    }
+                ],
+            },
+            "FAS",
+        )
+        success = self.sync.FetchResult("FAS", "a", [affected_row], True)
+        expected_payload = self.sync.database_safe_rows([affected_row])
+
+        with (
+            patch.object(self.sync, "GENERAL_SYNC_SCHOOLS", ["FAS"]),
+            patch.object(self.sync, "SEED_QUERIES", ["a"]),
+            patch.object(self.sync, "WORKERS", 1),
+            patch.object(self.sync, "fetch_school", return_value=success),
+            patch.object(self.sync, "supabase_active_hks_source_course_ids", return_value=set()),
+            patch.object(self.sync, "supabase_upsert") as upsert,
+            patch.object(self.sync, "supabase_inventory_live_courses", return_value=expected_payload),
+            patch.object(self.sync, "supabase_inventory_catalogue_runs", return_value=[]),
+            patch.object(
+                self.sync,
+                "compare_live_course_inventory",
+                return_value=reconciliation_report(),
+            ),
+            patch.object(self.sync, "write_github_summary") as write_summary,
+            self.assertLogs(self.sync.log, level="WARNING") as captured_logs,
+        ):
+            self.sync.main()
+
+        upsert.assert_called_once_with(expected_payload)
+        self.assertEqual(expected_payload[0]["meetings"], [])
+        self.assertIn("course id=affected-id code=ECON-202", "\n".join(captured_logs.output))
+        self.assertIn("Courses with quarantined meeting data:** 1", write_summary.call_args.args[0])
+        self.assertIn("`ECON-202` (ID `affected-id`, FAS, 2026 Fall)", write_summary.call_args.args[0])
 
     def test_minimum_unique_course_guard_prevents_writes_and_deletes(self):
         empty_success = self.sync.FetchResult("HKS", "a", [], True)
@@ -696,6 +802,7 @@ class FetchSchoolTests(unittest.TestCase):
         )
         self.assertIn("**Failed source requests:** 1", failed_summary)
         self.assertNotIn("secret diagnostic detail", failed_summary)
+        self.assertIn("**Courses with quarantined meeting data:** 0", failed_summary)
 
     def test_summary_writer_is_optional_and_does_not_raise_for_a_missing_path(self):
         with patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": ""}, clear=False):
