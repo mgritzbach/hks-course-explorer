@@ -89,6 +89,7 @@ STALE_DELETE_REQUESTED = os.environ.get("SYNC_ALLOW_STALE_DELETE", "false").lowe
 MIN_UNIQUE_COURSES = int(os.environ.get("SYNC_MIN_UNIQUE_COURSES", "1"))
 INVENTORY_PAGE_SIZE = 1000
 MAX_INVENTORY_ROWS = 10000
+MAX_MEETING_QUARANTINES_IN_SUMMARY = 100
 
 
 @dataclass
@@ -115,6 +116,7 @@ def build_sync_summary(
     rows: list[dict],
     failures: list[FetchResult] | None = None,
     inventory: dict | None = None,
+    meeting_quarantines: list[dict] | None = None,
 ) -> str:
     """Build a non-sensitive daily-sync audit summary for GitHub Actions.
 
@@ -124,6 +126,7 @@ def build_sync_summary(
     """
     rows = rows or []
     failures = failures or []
+    meeting_quarantines = meeting_quarantines or []
     by_school = Counter(summary_label(row.get("school")) for row in rows)
     by_term = Counter(summary_label(row.get("term")) for row in rows)
     lines = [
@@ -145,6 +148,27 @@ def build_sync_summary(
             "- **Offerings by term:** "
             + ", ".join(f"{term}: {count}" for term, count in sorted(by_term.items()))
         )
+    lines.append(
+        f"- **Courses with quarantined meeting data:** {len(meeting_quarantines)}"
+    )
+    if meeting_quarantines:
+        lines.extend(["", "### Quarantined meeting data", ""])
+        for item in meeting_quarantines[:MAX_MEETING_QUARANTINES_IN_SUMMARY]:
+            identity = summary_label(item.get("course_code") or item.get("id"))
+            source_id = summary_label(item.get("id"))
+            school = summary_label(item.get("school"))
+            term = summary_label(item.get("term"))
+            reasons = "; ".join(
+                summary_label(reason) for reason in item.get("reasons", [])
+            )
+            lines.append(
+                f"- `{identity}` (ID `{source_id}`, {school}, {term}): {reasons}"
+            )
+        omitted = len(meeting_quarantines) - MAX_MEETING_QUARANTINES_IN_SUMMARY
+        if omitted > 0:
+            lines.append(
+                f"- {omitted} additional affected courses are named in the job log."
+            )
     if inventory is not None:
         lines.extend(
             [
@@ -226,6 +250,8 @@ DAY_MAP = {
     "S": "SAT", "SA": "SAT", "SAT": "SAT", "SATURDAY": "SAT",
     "SU": "SUN", "SUN": "SUN", "SUNDAY": "SUN",
 }
+VALID_MEETING_DAYS = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"}
+VALID_MEETING_TIME = re.compile(r"^[0-2][0-9]:[0-5][0-9]$")
 
 
 def norm_day(d: str) -> str:
@@ -248,29 +274,54 @@ def norm_time(t: str) -> str:
 
 
 def parse_meetings(raw):
+    """Return database-safe meetings and reasons for any quarantined intervals."""
     if not raw or raw == "TBA":
-        return []
+        return [], []
     items = raw if isinstance(raw, list) else [raw]
     result = []
-    for m in items:
+    quarantined = []
+    for position, m in enumerate(items, start=1):
         if not isinstance(m, dict):
             continue
         days = m.get("daysOfWeek", [])
+        if isinstance(days, str):
+            days = [days]
+        elif not isinstance(days, (list, tuple)):
+            quarantined.append(f"meeting {position}: invalid days container")
+            days = []
         start = norm_time(m.get("startTime") or m.get("start", ""))
         end   = norm_time(m.get("endTime")   or m.get("end",   ""))
-        loc   = (m.get("location") or "").strip()
-        for day in days:
-            d = norm_day(day)
-            if d and start:
-                result.append({"day": d, "start": start, "end": end, "location": loc})
+        loc   = str(m.get("location") or "").strip()
+        candidate_days = list(days)
         if not days and (m.get("day") or m.get("meetingDay")):
-            d = norm_day(m.get("day") or m.get("meetingDay") or "")
-            s = norm_time(m.get("startTime") or m.get("start", ""))
-            if d and s:
-                result.append({"day": d, "start": s,
-                                "end": norm_time(m.get("endTime") or m.get("end", "")),
-                                "location": loc})
-    return result
+            candidate_days.append(m.get("day") or m.get("meetingDay"))
+        for day in candidate_days:
+            normalized_day = norm_day(day)
+            if not normalized_day or not start:
+                continue
+            problems = []
+            if normalized_day not in VALID_MEETING_DAYS:
+                problems.append("invalid day")
+            if not VALID_MEETING_TIME.fullmatch(start):
+                problems.append("invalid start time")
+            if not end:
+                problems.append("missing end time")
+            elif not VALID_MEETING_TIME.fullmatch(end):
+                problems.append("invalid end time")
+            if problems:
+                quarantined.append(
+                    f"meeting {position}: {', '.join(problems)}"
+                )
+                continue
+            result.append(
+                {
+                    "day": normalized_day,
+                    "start": start,
+                    "end": end,
+                    "location": loc,
+                }
+            )
+    return result, quarantined
 
 
 def normalise_course(c: dict, school: str) -> dict:
@@ -280,7 +331,9 @@ def normalise_course(c: dict, school: str) -> dict:
     catalog    = str(c.get("classCatalogNumber") or c.get("catalogNumber") or (parts[1] if len(parts) > 1 else "")).strip()
 
     code_base = f"{subject}-{catalog}" if subject and catalog else course_num.replace(" ", "-")
-    meetings  = parse_meetings(c.get("meetings") or c.get("sections") or c.get("classes"))
+    meetings, meeting_quarantines = parse_meetings(
+        c.get("meetings") or c.get("sections") or c.get("classes")
+    )
     all_days  = "/".join(dict.fromkeys(m["day"] for m in meetings))
 
     instructors = [
@@ -293,7 +346,7 @@ def normalise_course(c: dict, school: str) -> dict:
     harvard_id = str(c.get("courseID") or c.get("id") or c.get("classNumber") or "")
     term       = str(c.get("termDescription") or c.get("term") or "")
 
-    return {
+    row = {
         "id":                  harvard_id or code_base,
         "course_code":         code_base,
         "course_code_base":    code_base,
@@ -313,6 +366,9 @@ def normalise_course(c: dict, school: str) -> dict:
         "session_description": str(c.get("sessionDescription") or ""),
         "cross_reg_eligible":  str(c.get("crossRegistrationEligibleAttribute") or ""),
     }
+    if meeting_quarantines:
+        row["_meeting_quarantines"] = meeting_quarantines
+    return row
 
 
 def merge_duplicate_course(existing: dict, incoming: dict) -> dict:
@@ -332,10 +388,50 @@ def merge_duplicate_course(existing: dict, incoming: dict) -> dict:
         if merged.get(key) in (None, "", [], {}) and value not in (None, "", [], {}):
             merged[key] = value
 
+    meeting_quarantines = sorted(
+        set(existing.get("_meeting_quarantines", []))
+        | set(incoming.get("_meeting_quarantines", []))
+    )
+    if meeting_quarantines:
+        merged["_meeting_quarantines"] = meeting_quarantines
+
     if existing.get("is_hks") or incoming.get("is_hks"):
         merged["is_hks"] = True
         merged["school"] = HKS_SCHOOL
     return merged
+
+
+def collect_meeting_quarantines(rows: list[dict]) -> list[dict]:
+    """Describe affected courses without exposing descriptions or credentials."""
+    report = []
+    for row in rows:
+        reasons = sorted(set(row.get("_meeting_quarantines", [])))
+        if not reasons:
+            continue
+        report.append(
+            {
+                "id": row.get("id"),
+                "course_code": row.get("course_code"),
+                "school": row.get("school"),
+                "term": row.get("term"),
+                "reasons": reasons,
+            }
+        )
+    return sorted(
+        report,
+        key=lambda item: (
+            summary_label(item.get("course_code")),
+            summary_label(item.get("id")),
+        ),
+    )
+
+
+def database_safe_rows(rows: list[dict]) -> list[dict]:
+    """Remove importer-only diagnostics before sending rows to Supabase."""
+    return [
+        {key: value for key, value in row.items() if not key.startswith("_")}
+        for row in rows
+    ]
 
 
 # ── Sync safety helpers ───────────────────────────────────────────────────────
@@ -895,7 +991,19 @@ def main():
         )
         sys.exit(1)
 
-    rows_list = list(all_rows.values())
+    collected_rows = list(all_rows.values())
+    meeting_quarantines = collect_meeting_quarantines(collected_rows)
+    for item in meeting_quarantines:
+        log.warning(
+            "Quarantined malformed ATS meeting data for course id=%s code=%s school=%s term=%s: %s. "
+            "The course and its remaining valid meetings will still be promoted.",
+            summary_label(item.get("id")),
+            summary_label(item.get("course_code")),
+            summary_label(item.get("school")),
+            summary_label(item.get("term")),
+            "; ".join(summary_label(reason) for reason in item["reasons"]),
+        )
+    rows_list = database_safe_rows(collected_rows)
     terms = sorted({r["term"] for r in rows_list if r["term"]})
     log.info("Upserting %d unique courses (terms: %s)…", len(rows_list), terms)
     try:
@@ -907,6 +1015,7 @@ def main():
                 sync_start=sync_start,
                 planned_request_count=len(tasks),
                 rows=rows_list,
+                meeting_quarantines=meeting_quarantines,
             )
         )
         raise
@@ -924,6 +1033,7 @@ def main():
                 sync_start=sync_start,
                 planned_request_count=len(tasks),
                 rows=rows_list,
+                meeting_quarantines=meeting_quarantines,
             )
         )
         raise
@@ -934,6 +1044,7 @@ def main():
             planned_request_count=len(tasks),
             rows=rows_list,
             inventory=inventory,
+            meeting_quarantines=meeting_quarantines,
         )
     )
     log.info(
