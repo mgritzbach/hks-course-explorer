@@ -1018,7 +1018,7 @@ FUNCTION|public.promote_myharvard_hks_run(uuid)|security_definer=t|volatility=v|
 FUNCTION|public.refresh_synced_at()|security_definer=f|volatility=v|parallel=u|config=search_path=pg_catalog|definition_sha256=d21b19fedbb62cdcf59f265f7f32a769c9a18ca678343f7f6571476ad0827a05
 FUNCTION|public.rollback_myharvard_hks_run(uuid)|security_definer=t|volatility=v|parallel=u|config=search_path=public|definition_sha256=16d0e2d908d946029cb0d77cfe7bbee22e247b8463ac2974192812ef75e4360d
 FUNCTION|public.stage_myharvard_hks_offerings(uuid,jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path=""|definition_sha256=98faec99912b3d9d4442c2707785da894cd31b07056dfcd2f5b6bf668ea22591
-FUNCTION|public.sync_live_courses_atomically(jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path=""|definition_sha256=23ba885ba1ff7ca65c58f04a869e8e2123cacf4de06f1310ceca4e2f53cc6b71
+FUNCTION|public.sync_live_courses_atomically(jsonb)|security_definer=t|volatility=v|parallel=u|config=search_path="",statement_timeout=60s|definition_sha256=9cee5fdab2eb82af4a7caffc395bb5c6ab5ce87cade6698a794115936ac9bce5
 FUNCTION_PRIVILEGE|public.keep_ats_hks_inactive_after_myharvard()|anon|EXECUTE|f
 FUNCTION_PRIVILEGE|public.keep_ats_hks_inactive_after_myharvard()|authenticated|EXECUTE|f
 FUNCTION_PRIVILEGE|public.keep_ats_hks_inactive_after_myharvard()|service_role|EXECUTE|t

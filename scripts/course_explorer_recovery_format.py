@@ -43,6 +43,7 @@ RECOVERY_CONTRACT_PATHS = (
     "supabase/migrations/20260714075356_persist_ats_source_manifest.sql",
     "supabase/migrations/20260714102702_raise_ats_promotion_statement_timeout.sql",
     "supabase/migrations/20260726203607_store_live_course_meeting_intervals.sql",
+    "supabase/migrations/20260825042405_restore_ats_promotion_statement_timeout.sql",
 )
 TABLE_ORDER = (
     "courses",
