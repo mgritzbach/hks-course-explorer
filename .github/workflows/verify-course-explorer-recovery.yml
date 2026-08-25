@@ -139,7 +139,7 @@ jobs:
             "select count(*) from public.live_courses")"
           test "$source_rows" = "0"
 
-      - name: Apply reviewed ATS manifest and promotion-timeout migrations
+      - name: Apply reviewed ATS manifest, meeting, and timeout migrations
         env:
           PGPASSWORD: recovery_probe
         run: |
@@ -147,6 +147,7 @@ jobs:
           "${psql[@]}" -f supabase/migrations/20260714075356_persist_ats_source_manifest.sql
           "${psql[@]}" -f supabase/migrations/20260714102702_raise_ats_promotion_statement_timeout.sql
           "${psql[@]}" -f supabase/migrations/20260726203607_store_live_course_meeting_intervals.sql
+          "${psql[@]}" -f supabase/migrations/20260825042405_restore_ats_promotion_statement_timeout.sql
 
       - name: Prove exact recovery schema contract
         env:
