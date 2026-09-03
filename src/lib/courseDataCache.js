@@ -1,5 +1,6 @@
 import { COURSES_CACHE_KEY, COURSES_CACHE_TTL } from './appConstants.js'
 import { fetchAllCourses } from './courseDataLoader.js'
+import { loadSnapshotRows, usesCatalogueSnapshots } from './catalogueSnapshot.js'
 
 /**
  * Load the full historical catalogue while keeping the database client out of
@@ -7,6 +8,12 @@ import { fetchAllCourses } from './courseDataLoader.js'
  * database read with partial data.
  */
 export async function fetchAllCoursesWithCache(onProgress, onCacheStatus) {
+  if (usesCatalogueSnapshots) {
+    const courses = await loadSnapshotRows('history')
+    onCacheStatus?.('snapshot')
+    onProgress?.(courses.length)
+    return courses
+  }
   try {
     const raw = sessionStorage.getItem(COURSES_CACHE_KEY)
     if (raw) {

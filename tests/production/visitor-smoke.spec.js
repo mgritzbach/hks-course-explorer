@@ -44,10 +44,18 @@ function isObservabilityRequest(url) {
 }
 
 async function protectProductionFromWrites(page) {
-  const audit = { blockedObservability: [], unexpectedWrites: [] }
+  const audit = { blockedObservability: [], unexpectedWrites: [], databaseReads: [] }
   await page.route('**/*', async (route) => {
     const request = route.request()
     const entry = `${request.method()} ${request.url()}`
+    if (
+      process.env.REQUIRE_CATALOGUE_SNAPSHOTS === 'true' &&
+      new URL(request.url()).hostname.endsWith('.supabase.co')
+    ) {
+      audit.databaseReads.push(entry)
+      await route.abort('blockedbyclient')
+      return
+    }
     if (isObservabilityRequest(request.url())) {
       audit.blockedObservability.push(entry)
       await route.abort('blockedbyclient')
@@ -64,6 +72,7 @@ async function protectProductionFromWrites(page) {
 }
 
 function expectNoProductionWrites(audit) {
+  expect(audit.databaseReads, 'Snapshot mode must not read Supabase').toEqual([])
   expect(audit.unexpectedWrites, audit.unexpectedWrites.join('\n')).toEqual([])
 }
 
@@ -236,7 +245,11 @@ test.describe('read-only production acceptance', () => {
     const catalogueResponseReads = []
     page.on('response', (response) => {
       const url = new URL(response.url())
-      if (!url.pathname.endsWith('/rest/v1/live_courses')) return
+      if (
+        !url.pathname.endsWith('/rest/v1/live_courses') &&
+        !/\/snapshots\/[a-f0-9]{64}\.json$/.test(url.pathname)
+      )
+        return
       const read = response
         .json()
         .then((rows) => {

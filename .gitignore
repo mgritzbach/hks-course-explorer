@@ -1,5 +1,7 @@
 node_modules/
 dist/
+public/catalogue-fallback/
+.wrangler/
 .playwright-cli/
 test-results/
 **/__pycache__/

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build:data": "python scripts/build_data.py",
-    "prebuild": "npm run build:data",
+    "prebuild": "npm run build:data && node scripts/validate_catalogue_build.mjs",
     "build": "vite build",
     "check:vendor-integrity": "node scripts/verify_vendor_integrity.mjs",
     "check:architecture": "node scripts/check_architecture.mjs",

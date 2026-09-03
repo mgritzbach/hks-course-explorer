@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from './supabase.js'
+import { loadSnapshotRows, usesCatalogueSnapshots } from './catalogueSnapshot.js'
 
 function normalizeCode(value) {
   return String(value || '')
@@ -20,7 +21,7 @@ function extractCandidateCode(row) {
 }
 
 export async function matchBatch(rows = []) {
-  if (!isSupabaseConfigured) {
+  if (!isSupabaseConfigured && !usesCatalogueSnapshots) {
     throw new Error(
       'Course matching is unavailable until Supabase browser configuration is provided.',
     )
@@ -31,7 +32,13 @@ export async function matchBatch(rows = []) {
   const matches = new Map()
 
   if (exactCodes.length > 0) {
-    const { data, error } = await supabase.from('courses').select('*').in('course_code', exactCodes)
+    const { data, error } = usesCatalogueSnapshots
+      ? {
+          data: (await loadSnapshotRows('history')).filter((row) =>
+            exactCodes.includes(row.course_code),
+          ),
+        }
+      : await supabase.from('courses').select('*').in('course_code', exactCodes)
     if (error) throw error
     for (const course of data || []) {
       matches.set(normalizeCode(course.course_code), course)

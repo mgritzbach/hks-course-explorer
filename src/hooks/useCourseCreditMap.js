@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { fetchCataloguePages } from '../lib/cataloguePagination.js'
+import { fetchCatalogueDataset } from '../lib/catalogueTransport.js'
+import { usesCatalogueSnapshots } from '../lib/catalogueSnapshot.js'
 import { buildCourseCreditMap } from '../lib/courseCredits.js'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
@@ -12,9 +13,9 @@ export function useCourseCreditMap() {
 
   useEffect(() => {
     let cancelled = false
-    if (!isSupabaseConfigured) return () => {}
+    if (!isSupabaseConfigured && !usesCatalogueSnapshots) return () => {}
 
-    fetchCataloguePages(() =>
+    fetchCatalogueDataset('credits', () =>
       supabase
         .from('live_courses')
         .select('id,course_code,course_code_base,credits,term,session_description')
