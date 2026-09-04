@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import export_public_catalogue as exporter
-from copy_public_catalogue import copy_snapshot
+from copy_public_catalogue import copy_snapshot, read_manifest
 
 
 def response(rows, total):
@@ -72,6 +72,25 @@ class PublicSnapshotTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(ValueError, "exact candidate"):
             copy_snapshot("https://data.pages.dev", directory, get, {"version": "new"})
         self.assertEqual(get.call_count, 1)
+
+    def test_publication_waits_only_for_the_exact_expected_manifest(self):
+        expected = {"version": "new", "exportedAt": "today"}
+        get = Mock(side_effect=[response({"version": "old"}, 0), response(expected, 0)])
+        pause = Mock()
+        self.assertEqual(read_manifest("https://data.pages.dev", expected, get, 7, pause), expected)
+        self.assertEqual(get.call_count, 2)
+        pause.assert_called_once_with(5)
+        self.assertTrue(all(call.args[0].endswith('/manifest.json') for call in get.call_args_list))
+
+    def test_publication_wait_is_bounded_and_never_accepts_the_previous_manifest(self):
+        get = Mock(return_value=response({"version": "old"}, 0))
+        pause = Mock()
+        with self.assertRaisesRegex(ValueError, "exact candidate"):
+            read_manifest("https://data.pages.dev", {"version": "new"}, get, 3, pause)
+        self.assertEqual(get.call_count, 3)
+        self.assertEqual(pause.call_count, 2)
+        with self.assertRaisesRegex(ValueError, "between"):
+            read_manifest("https://data.pages.dev", {}, get, 1000, pause)
 
 
 if __name__ == "__main__":
