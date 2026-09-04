@@ -27,6 +27,12 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertEqual(get.call_args.kwargs["params"]["select"], "id")
         self.assertFalse(get.call_args.kwargs["allow_redirects"])
 
+    def test_historical_reader_preserves_legacy_database_order(self):
+        get = Mock(return_value=response([{"id": "b"}, {"id": "a"}], 2))
+        rows = exporter.PublicReader(exporter.PROJECT_URL, "public", get).rows("courses", ("id",), order=None)
+        self.assertEqual([r["id"] for r in rows], ["b", "a"])
+        self.assertNotIn("order", get.call_args.kwargs["params"])
+
     def test_reader_rejects_duplicates_count_drift_and_unknown_fields(self):
         for rows, total in [([{"id": "a"}, {"id": "a"}], 2), ([{"id": "a", "secret": "x"}], 1)]:
             reader = exporter.PublicReader(exporter.PROJECT_URL, "public", Mock(return_value=response(rows, total)))

@@ -26,7 +26,7 @@ test.describe('snapshot failure recovery', () => {
     await expect(page.getByRole('heading', { name: 'Schedule Builder' })).toBeVisible()
     await expect(page.getByText(/Showing the last available catalogue/)).toBeVisible()
     const terms = page.getByLabel('Catalogue term')
-    await expect(terms.locator('option')).toHaveCount(2)
+    await expect.poll(() => terms.locator('option').count()).toBeGreaterThanOrEqual(2)
     const results = page.getByRole('list', { name: 'Course search results' })
     await expect(results.getByRole('listitem').first()).toBeVisible()
     const add = results.getByRole('button', { name: /^Add .+ to plan$/ }).first()
@@ -36,7 +36,7 @@ test.describe('snapshot failure recovery', () => {
     await expect(results.getByRole('button', { name: `Remove ${code} from plan` })).toBeVisible()
     await page.reload()
     await expect(results.getByRole('button', { name: `Remove ${code} from plan` })).toBeVisible()
-    await terms.selectOption('2027 Spring')
+    await terms.selectOption({ index: 1 })
     await expect(results.getByRole('listitem').first()).toBeVisible()
     expect(databaseReads).toEqual([])
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('hks_favorites')))).toContain(

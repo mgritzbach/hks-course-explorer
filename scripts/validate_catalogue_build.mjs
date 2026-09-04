@@ -21,6 +21,10 @@ if (source) {
   const manifest = JSON.parse(readFileSync(`${root}/manifest.json`, 'utf8'))
   if (
     manifest.schema !== 1 ||
+    !['history', 'credits', 'terms'].every(
+      (key) =>
+        Number.isInteger(manifest.datasets?.[key]?.count) && manifest.datasets[key].count > 0,
+    ) ||
     manifest.datasets?.history?.count < 5000 ||
     manifest.datasets?.terms?.count < 285
   ) {

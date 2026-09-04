@@ -143,7 +143,7 @@ export function createSnapshotLoader({
       memory.set(dataset, record)
       void write(`${baseUrl}|${dataset}`, record)
       report(dataset, record, false)
-      return structuredClone(record.rows)
+      return record.rows
     } catch {
       record = memory.get(dataset) || (await read(`${baseUrl}|${dataset}`))
       if (
@@ -155,7 +155,7 @@ export function createSnapshotLoader({
       }
       memory.set(dataset, record)
       report(dataset, record, true)
-      return structuredClone(record.rows)
+      return record.rows
     }
   }
 

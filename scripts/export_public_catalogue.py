@@ -41,7 +41,7 @@ class PublicReader:
         for offset in range(0, MAX_ROWS, PAGE_SIZE):
             response = self.request_get(
                 f"{PROJECT_URL}/rest/v1/{table}",
-                params={"select": ",".join(columns), "order": order,
+                params={"select": ",".join(columns), **({"order": order} if order else {}),
                         "limit": PAGE_SIZE, "offset": offset, **(filters or {})},
                 headers={"apikey": self.key, "Authorization": f"Bearer {self.key}",
                          "Prefer": "count=exact", "Accept": "application/json"},
@@ -121,7 +121,8 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     reader = PublicReader(os.environ.get("SUPABASE_URL", ""), os.environ.get("SUPABASE_ANON_KEY", ""))
-    history = reader.rows("courses", HISTORY_COLUMNS)
+    # Match the existing historical reader, including its database return order.
+    history = reader.rows("courses", HISTORY_COLUMNS, order=None)
     live = reader.rows("live_courses", LIVE_COLUMNS, {"active": "eq.true"}, "term.desc,id.asc")
     credits = reader.rows("live_courses", CREDIT_COLUMNS, {"credits": "not.is.null"}, "term.desc,id.asc")
     sections = reader.rows("course_sections", SECTION_COLUMNS, order="course_code_base.asc,id.asc")
