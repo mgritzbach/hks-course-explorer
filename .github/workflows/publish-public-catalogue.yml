@@ -42,7 +42,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: wrangler pages deploy . --project-name=hks-course-explorer-data --branch=release-candidate
       - name: Verify every candidate file before promotion
-        run: python scripts/copy_public_catalogue.py --url https://release-candidate.hks-course-explorer-data.pages.dev --output "$RUNNER_TEMP/verified" --expected-manifest "$RUNNER_TEMP/catalogue/manifest.json"
+        run: python scripts/copy_public_catalogue.py --url https://release-candidate.hks-course-explorer-data.pages.dev --output "$RUNNER_TEMP/verified" --expected-manifest "$RUNNER_TEMP/catalogue/manifest.json" --readiness-attempts 7
       - name: Promote the same verified snapshot
         working-directory: ${{ runner.temp }}/catalogue
         env:
@@ -50,4 +50,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: wrangler pages deploy . --project-name=hks-course-explorer-data --branch=master
       - name: Verify published data
-        run: python scripts/copy_public_catalogue.py --url https://hks-course-explorer-data.pages.dev --output "$RUNNER_TEMP/verified-production" --expected-manifest "$RUNNER_TEMP/catalogue/manifest.json"
+        run: python scripts/copy_public_catalogue.py --url https://hks-course-explorer-data.pages.dev --output "$RUNNER_TEMP/verified-production" --expected-manifest "$RUNNER_TEMP/catalogue/manifest.json" --readiness-attempts 7

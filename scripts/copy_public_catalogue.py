@@ -3,22 +3,35 @@ import argparse
 import hashlib
 import json
 import re
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import requests
 
 
-def copy_snapshot(base_url, output, request_get=requests.get, expected_manifest=None):
+def read_manifest(base_url, expected_manifest, request_get=requests.get, attempts=1, pause=time.sleep):
+    if not isinstance(attempts, int) or not 1 <= attempts <= 12:
+        raise ValueError("Publication readiness attempts must be between 1 and 12")
+    for attempt in range(attempts):
+        response = request_get(f"{base_url}/manifest.json", timeout=30,
+                               headers={"Cache-Control": "no-cache"})
+        response.raise_for_status()
+        manifest = response.json()
+        if expected_manifest is None or manifest == expected_manifest:
+            return manifest
+        if attempt + 1 < attempts:
+            print("Waiting for the exact published catalogue manifest", flush=True)
+            pause(5)
+    raise ValueError("Published manifest is not the exact candidate being verified")
+
+
+def copy_snapshot(base_url, output, request_get=requests.get, expected_manifest=None, readiness_attempts=1):
     url = urlsplit(base_url)
     if url.scheme != "https" or not url.hostname.endswith(".pages.dev") or url.username or url.query or url.fragment or url.path not in ("", "/"):
         raise ValueError("Expected a public HTTPS Pages snapshot origin")
     base_url = base_url.rstrip("/")
-    response = request_get(f"{base_url}/manifest.json", timeout=30)
-    response.raise_for_status()
-    manifest = response.json()
-    if expected_manifest is not None and manifest != expected_manifest:
-        raise ValueError("Published manifest is not the exact candidate being verified")
+    manifest = read_manifest(base_url, expected_manifest, request_get, readiness_attempts)
     entries = manifest.get("datasets", {})
     if manifest.get("schema") != 1 or not all(name in entries for name in ("history", "credits", "terms")):
         raise ValueError("Invalid snapshot manifest")
@@ -49,6 +62,8 @@ if __name__ == "__main__":
     parser.add_argument("--url", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--expected-manifest", type=Path)
+    parser.add_argument("--readiness-attempts", type=int, choices=range(1, 13), default=1)
     arguments = parser.parse_args()
     expected = json.loads(arguments.expected_manifest.read_text(encoding="utf-8")) if arguments.expected_manifest else None
-    copy_snapshot(arguments.url, arguments.output, expected_manifest=expected)
+    copy_snapshot(arguments.url, arguments.output, expected_manifest=expected,
+                  readiness_attempts=arguments.readiness_attempts)

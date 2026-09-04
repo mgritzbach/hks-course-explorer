@@ -30,6 +30,11 @@ file against the exact local manifest before promoting that same directory.
 Run Wrangler from the exported directory so the app's Pages Functions are not
 bundled into the static data project.
 
+Cloudflare can briefly return the previous manifest after publishing. Verification
+allows up to seven manifest reads with five seconds between mismatches, and still
+requires the exact expected manifest before checking every file. This readiness
+wait reads only Cloudflare; it never repeats the Supabase export.
+
 The daily reader has a 32 MiB source-byte budget and a 20,000-row ceiling per
 collection. It does not retry failed database requests automatically. A failure
 before promotion leaves the previous production snapshot in place. GitHub marks
