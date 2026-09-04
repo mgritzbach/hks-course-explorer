@@ -21,8 +21,6 @@ jobs:
     env:
       SUPABASE_URL: ${{ vars.DEPLOY_VITE_SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.DEPLOY_VITE_SUPABASE_ANON_KEY }}
-      CLOUDFLARE_ACCOUNT_ID: 54cdc2ac5fbe86216672ccf2589cf9cb
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -39,11 +37,17 @@ jobs:
       - run: npm install -g wrangler@4.86.0
       - name: Publish isolated candidate
         working-directory: ${{ runner.temp }}/catalogue
+        env:
+          CLOUDFLARE_ACCOUNT_ID: 54cdc2ac5fbe86216672ccf2589cf9cb
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: wrangler pages deploy . --project-name=hks-course-explorer-data --branch=release-candidate
       - name: Verify every candidate file before promotion
         run: python scripts/copy_public_catalogue.py --url https://release-candidate.hks-course-explorer-data.pages.dev --output "$RUNNER_TEMP/verified" --expected-manifest "$RUNNER_TEMP/catalogue/manifest.json"
       - name: Promote the same verified snapshot
         working-directory: ${{ runner.temp }}/catalogue
+        env:
+          CLOUDFLARE_ACCOUNT_ID: 54cdc2ac5fbe86216672ccf2589cf9cb
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: wrangler pages deploy . --project-name=hks-course-explorer-data --branch=master
       - name: Verify published data
         run: python scripts/copy_public_catalogue.py --url https://hks-course-explorer-data.pages.dev --output "$RUNNER_TEMP/verified-production" --expected-manifest "$RUNNER_TEMP/catalogue/manifest.json"

@@ -33,7 +33,8 @@ jobs:
         run: pip install pandas numpy scikit-learn requests
 
       - name: Install Node dependencies
-        run: npm ci --legacy-peer-deps
+        # The dedicated audit step below is the required security gate.
+        run: npm ci --legacy-peer-deps --no-audit
 
       - name: Verify vendored production dependencies
         run: npm run check:vendor-integrity
