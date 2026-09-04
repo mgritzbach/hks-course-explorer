@@ -6,6 +6,7 @@ import config from './school.config.js'
 const ScheduleBuilder = lazy(() => import('./pages/ScheduleBuilder.jsx'))
 const Admin = lazy(() => import('./pages/Admin.jsx'))
 import ChatBot from './components/ChatBot.jsx'
+import CatalogueFreshness from './components/CatalogueFreshness.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import SkeletonCard from './components/SkeletonCard.jsx'
 import SupportProjectPrompt from './components/SupportProjectPrompt.jsx'
@@ -530,6 +531,7 @@ export default function App() {
   // ─── Shared page routes ────────────────────────────────────────────────────
   const pageRoutes = (
     <ErrorBoundary>
+      <CatalogueFreshness />
       <Suspense
         fallback={
           <div

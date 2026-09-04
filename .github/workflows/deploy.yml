@@ -47,7 +47,8 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        # The exact commit has already passed CI's dedicated security audit.
+        run: npm ci --legacy-peer-deps --no-audit
 
       - name: Install pinned verification dependencies
         run: pip install --require-hashes -r requirements/workflows.txt
@@ -65,9 +66,16 @@ jobs:
           MAX_HKS_CATALOGUE_AGE_HOURS: '48'
         run: python scripts/verify_live_hks_catalogue.py
 
+      - name: Bundle verified fallback for snapshot mode
+        if: vars.DEPLOY_VITE_CATALOGUE_DATA_URL != ''
+        env:
+          CATALOGUE_DATA_URL: ${{ vars.DEPLOY_VITE_CATALOGUE_DATA_URL }}
+        run: python scripts/copy_public_catalogue.py --url "$CATALOGUE_DATA_URL" --output public/catalogue-fallback
+
       - name: Build exact CI commit
         run: npm run build
         env:
+          VITE_CATALOGUE_DATA_URL: ${{ vars.DEPLOY_VITE_CATALOGUE_DATA_URL }}
           VITE_SUPABASE_URL: ${{ vars.DEPLOY_VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.DEPLOY_VITE_SUPABASE_ANON_KEY }}
 
@@ -108,6 +116,7 @@ jobs:
 
       - name: Exercise release candidate in a real browser
         env:
+          REQUIRE_CATALOGUE_SNAPSHOTS: ${{ vars.DEPLOY_VITE_CATALOGUE_DATA_URL != '' }}
           DEPLOY_SMOKE_URL: https://release-candidate.hks-course-explorer.pages.dev/
           DEPLOY_MIN_HKS_OFFERINGS: '285'
         run: npm run test:e2e:production
@@ -156,6 +165,7 @@ jobs:
 
       - name: Exercise production in a real browser
         env:
+          REQUIRE_CATALOGUE_SNAPSHOTS: ${{ vars.DEPLOY_VITE_CATALOGUE_DATA_URL != '' }}
           DEPLOY_SMOKE_URL: https://hks-course-explorer.org/
           DEPLOY_MIN_HKS_OFFERINGS: '285'
         run: npm run test:e2e:production

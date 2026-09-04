@@ -1,0 +1,53 @@
+name: Publish public catalogue snapshots
+
+on:
+  schedule:
+    - cron: '30 8 * * *'
+  workflow_dispatch:
+
+# Serialize with both ingestion jobs, so a snapshot cannot mix sync generations.
+concurrency:
+  group: hks-production-catalogue-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ vars.DEPLOY_VITE_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.DEPLOY_VITE_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '20'
+      - run: pip install --require-hashes -r requirements/workflows.txt
+      - name: Refuse stale or incomplete HKS source
+        run: python scripts/verify_live_hks_catalogue.py
+      - name: Export public fields within the source egress budget
+        run: python scripts/export_public_catalogue.py --output "$RUNNER_TEMP/catalogue"
+      - run: npm install -g wrangler@4.86.0
+      - name: Publish isolated candidate
+        working-directory: ${{ runner.temp }}/catalogue
+        env:
+          CLOUDFLARE_ACCOUNT_ID: 54cdc2ac5fbe86216672ccf2589cf9cb
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: wrangler pages deploy . --project-name=hks-course-explorer-data --branch=release-candidate
+      - name: Verify every candidate file before promotion
+        run: python scripts/copy_public_catalogue.py --url https://release-candidate.hks-course-explorer-data.pages.dev --output "$RUNNER_TEMP/verified" --expected-manifest "$RUNNER_TEMP/catalogue/manifest.json"
+      - name: Promote the same verified snapshot
+        working-directory: ${{ runner.temp }}/catalogue
+        env:
+          CLOUDFLARE_ACCOUNT_ID: 54cdc2ac5fbe86216672ccf2589cf9cb
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: wrangler pages deploy . --project-name=hks-course-explorer-data --branch=master
+      - name: Verify published data
+        run: python scripts/copy_public_catalogue.py --url https://hks-course-explorer-data.pages.dev --output "$RUNNER_TEMP/verified-production" --expected-manifest "$RUNNER_TEMP/catalogue/manifest.json"

@@ -21,7 +21,8 @@
  */
 
 import { useEffect, useState } from 'react'
-import { fetchCataloguePages } from '../lib/cataloguePagination.js'
+import { fetchCatalogueDataset } from '../lib/catalogueTransport.js'
+import { usesCatalogueSnapshots } from '../lib/catalogueSnapshot.js'
 import {
   buildAvailableCatalogueTerms,
   getLiveCatalogueTerm,
@@ -57,14 +58,14 @@ export function useScheduleData(semesterYear, semester) {
     setAvailableHksTerms([])
     setAvailableHksTermsError('')
     setAvailableHksTermsLoading(true)
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured && !usesCatalogueSnapshots) {
       window.clearTimeout(timeoutId)
       setAvailableHksTermsLoading(false)
       setAvailableHksTermsError('Current HKS catalogue terms are unavailable.')
       return () => controller.abort()
     }
 
-    fetchCataloguePages(() =>
+    fetchCatalogueDataset('terms', () =>
       supabase
         .from('live_courses')
         .select('id,term,is_hks')
@@ -112,7 +113,7 @@ export function useScheduleData(semesterYear, semester) {
     setLiveCoursesData([])
     setLiveCoursesError('')
     setLiveCoursesLoading(true)
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured && !usesCatalogueSnapshots) {
       setLiveCoursesLoading(false)
       setLiveCoursesError('Current catalogue configuration is unavailable.')
       return () => {
@@ -122,7 +123,7 @@ export function useScheduleData(semesterYear, semester) {
       }
     }
 
-    fetchCataloguePages(() =>
+    fetchCatalogueDataset(`live/${liveTerm}`, () =>
       supabase
         .from('live_courses')
         .select(
@@ -166,7 +167,7 @@ export function useScheduleData(semesterYear, semester) {
     setSectionInfoMap(new Map())
     setSectionTimesLoading(true)
 
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured && !usesCatalogueSnapshots) {
       setSectionTimesLoading(false)
       return () => {
         cancelled = true
@@ -177,7 +178,7 @@ export function useScheduleData(semesterYear, semester) {
     // (no space — see ADR-004)
     const termStr = `${semesterYear}${semester === 'January' ? 'January' : semester}`
 
-    fetchCataloguePages(() =>
+    fetchCatalogueDataset(`sections/${termStr}`, () =>
       supabase
         .from('course_sections')
         .select('id,course_code_base,meetings,title,instructors,credits')

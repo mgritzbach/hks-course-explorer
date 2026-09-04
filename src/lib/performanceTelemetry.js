@@ -142,7 +142,7 @@ export function buildCatalogueReadyProperties({
   const properties = {
     duration_ms: Math.round(duration),
     row_count: Number.isInteger(rowCount) && rowCount >= 0 ? rowCount : 0,
-    cache_status: cacheStatus === 'hit' ? 'hit' : 'miss',
+    cache_status: ['hit', 'snapshot'].includes(cacheStatus) ? cacheStatus : 'miss',
     route: typeof route === 'string' && route.startsWith('/') ? route : '/',
     success: success === true,
   }
