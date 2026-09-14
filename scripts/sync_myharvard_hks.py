@@ -282,14 +282,14 @@ def parse_cards(hits_html: str) -> list[dict]:
         course_id = re.search(r'data-course-id="([^"]+)"', opening, re.I)
         offer_nbr = re.search(r'data-crse-offer-nbr="([^"]+)"', opening, re.I)
         link = re.search(
-            r'<a\b[^>]*href="(/course/([^/]+)/([0-9]{4}-(?:Fall|Spring|Summer|January))/([^/?#"]+))"[^>]*>(.*?)</a>',
+            r'<a\b[^>]*href="(/course/([^/]+)/([0-9]{4}-(?:Fall|Spring|Summer|January))/(?:((?:Full-Term|Fall-[12]|Spring-[12]|January))/)?([^/?#"]+))"[^>]*>(.*?)</a>',
             fragment,
             re.I | re.S,
         )
         if not course_id or not offer_nbr or not link:
             raise ValueError("my.harvard course card is missing its stable identity")
 
-        source_url, raw_code, raw_term, raw_section_code, title_html = link.groups()
+        source_url, raw_code, raw_term, url_session, raw_section_code, title_html = link.groups()
         title = plain_text(title_html)
         term = raw_term.replace("-", " ")
         source_code = format_base_code(raw_code)
@@ -322,6 +322,13 @@ def parse_cards(hits_html: str) -> list[dict]:
             ),
             "",
         )
+        if url_session:
+            # The September 2026 source added a session segment before the
+            # section. It changes the detail URL, not the stable offering ID.
+            source_session = url_session.replace("-", " ")
+            if session and source_session != session:
+                raise ValueError("my.harvard URL session disagrees with its course card")
+            session = source_session
         instructors = []
         for value in re.findall(
             r'<a\b[^>]*href="/instructor/[^"]+"[^>]*>(.*?)</a>',

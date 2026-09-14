@@ -27,6 +27,7 @@ import {
 import config from '../school.config.js'
 import { useDocumentTitle } from '../lib/useDocumentTitle.js'
 import { closedMobileDrawerAttributes } from '../lib/mobileDrawerAccessibility.js'
+import { compareCourseChronology } from '../lib/courseChronology.js'
 
 const BiddingTrendChart = lazy(() => import('../components/BiddingTrendChart.jsx'))
 
@@ -554,13 +555,9 @@ function BiddingTab({ biddingHistory, selected, navigate }) {
     )
   }
 
-  const termOrder = { Spring: 0, January: 1, Fall: 2 }
   const chartData = [...biddingHistory]
     .filter((row) => row.bid_clearing_price != null)
-    .sort(
-      (a, b) =>
-        (a.year || 0) - (b.year || 0) || (termOrder[a.term] ?? 9) - (termOrder[b.term] ?? 9),
-    )
+    .sort(compareCourseChronology)
     .map((row) => ({
       label: `${row.term} ${row.year}`,
       price: row.bid_clearing_price,
@@ -829,9 +826,7 @@ export default function Courses({
             .filter(
               (course) => course.course_code_base === selected.course_code_base && course.has_eval,
             )
-            .sort(
-              (a, b) => (b.year || 0) - (a.year || 0) || (a.term || '').localeCompare(b.term || ''),
-            )
+            .sort(compareCourseChronology)
         : [],
     [courses, selected],
   )
@@ -843,7 +838,7 @@ export default function Courses({
               (course) =>
                 course.course_code_base === selected.course_code_base && course.has_bidding,
             )
-            .sort((a, b) => (b.year || 0) - (a.year || 0))
+            .sort(compareCourseChronology)
         : [],
     [courses, selected],
   )
