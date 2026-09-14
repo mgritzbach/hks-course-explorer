@@ -27,7 +27,10 @@ import {
 import config from '../school.config.js'
 import { useDocumentTitle } from '../lib/useDocumentTitle.js'
 import { closedMobileDrawerAttributes } from '../lib/mobileDrawerAccessibility.js'
-import { compareCourseChronology } from '../lib/courseChronology.js'
+import {
+  compareCourseChronology,
+  compareCourseHistoryNewestFirst,
+} from '../lib/courseChronology.js'
 
 const BiddingTrendChart = lazy(() => import('../components/BiddingTrendChart.jsx'))
 
@@ -826,7 +829,7 @@ export default function Courses({
             .filter(
               (course) => course.course_code_base === selected.course_code_base && course.has_eval,
             )
-            .sort(compareCourseChronology)
+            .sort(compareCourseHistoryNewestFirst)
         : [],
     [courses, selected],
   )
@@ -838,7 +841,7 @@ export default function Courses({
               (course) =>
                 course.course_code_base === selected.course_code_base && course.has_bidding,
             )
-            .sort(compareCourseChronology)
+            .sort(compareCourseHistoryNewestFirst)
         : [],
     [courses, selected],
   )
