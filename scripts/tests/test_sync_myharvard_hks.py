@@ -95,6 +95,22 @@ class MyHarvardSyncTests(unittest.TestCase):
         self.assertIn("Juan Saavedra", rows[0]["instructors"])
         self.assertTrue(rows[0]["_schedule_pending_advertised"])
 
+    def test_session_url_preserves_identity_and_exact_detail_url(self):
+        for session in ("Full-Term", "Fall-1", "Fall-2", "Spring-1", "Spring-2", "January"):
+            with self.subTest(session=session):
+                old_card = CARD.replace("Full Term", session.replace("-", " "))
+                new_card = old_card.replace("/2026-Fall/A", f"/2026-Fall/{session}/A")
+                original = self.sync.parse_cards(old_card)[0]
+                updated = self.sync.parse_cards(new_card)[0]
+                self.assertEqual(updated.pop("source_url"), f"https://my.harvard.edu/course/API101/2026-Fall/{session}/A")
+                original.pop("source_url")
+                self.assertEqual(updated, original)
+
+    def test_rejects_conflicting_or_unknown_url_session(self):
+        for session in ("Fall-1", "Unknown-Session"):
+            with self.subTest(session=session), self.assertRaises(ValueError):
+                self.sync.parse_cards(CARD.replace("/2026-Fall/A", f"/2026-Fall/{session}/A"))
+
     def test_formats_modular_and_year_long_suffixes_for_legacy_linking(self):
         self.assertEqual(self.sync.format_base_code("DPI810M"), "DPI-810-M")
         self.assertEqual(self.sync.format_base_code("SUP150Y"), "SUP-150-Y")
