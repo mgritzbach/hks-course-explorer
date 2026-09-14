@@ -31,4 +31,18 @@ describe('course history chronology', () => {
     expect(compareCourseChronology(first, second)).toBe(0)
     expect([first, second].sort(compareCourseChronology)).toEqual([first, second])
   })
+
+  it('keeps undated averages after all calendar history without dropping them', () => {
+    const average = { year: 0, term: 'Average', professor: 'First' }
+    const anotherAverage = { year: 0, term: 'Average', professor: 'Second' }
+    const oldest = { year: 2025, term: 'January' }
+    const newest = { year: 2026, term: 'Fall' }
+    expect([average, newest, anotherAverage, oldest].sort(compareCourseChronology)).toEqual([
+      oldest,
+      newest,
+      average,
+      anotherAverage,
+    ])
+    expect(compareCourseChronology(average, anotherAverage)).toBe(0)
+  })
 })
