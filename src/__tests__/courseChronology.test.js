@@ -1,7 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { compareCourseChronology } from '../lib/courseChronology.js'
+import {
+  compareCourseChronology,
+  compareCourseHistoryNewestFirst,
+} from '../lib/courseChronology.js'
 
 describe('course history chronology', () => {
+  it('shows newest terms first in tables and keeps averages at the bottom', () => {
+    const average = { year: 0, term: 'Average' }
+    const rows = [
+      average,
+      { year: 2025, term: 'Fall' },
+      { year: 2026, term: 'January' },
+      { year: 2026, term: 'Spring' },
+      { year: 2026, term: 'Fall' },
+    ]
+    expect(rows.sort(compareCourseHistoryNewestFirst)).toEqual([
+      { year: 2026, term: 'Fall' },
+      { year: 2026, term: 'Spring' },
+      { year: 2026, term: 'January' },
+      { year: 2025, term: 'Fall' },
+      average,
+    ])
+    expect(compareCourseHistoryNewestFirst(average, { ...average })).toBe(0)
+  })
+
   it('orders calendar years and J-term, Spring, Summer, Fall within each year', () => {
     const rows = [
       { year: 2026, term: 'Fall' },

@@ -7,3 +7,9 @@ export function compareCourseChronology(a, b) {
     (TERM_ORDER[a.term] ?? 4) - (TERM_ORDER[b.term] ?? 4)
   )
 }
+
+// Tables show the latest dated offering first, followed by undated averages.
+export function compareCourseHistoryNewestFirst(a, b) {
+  if (!a.year || !b.year) return compareCourseChronology(a, b)
+  return compareCourseChronology(b, a)
+}
