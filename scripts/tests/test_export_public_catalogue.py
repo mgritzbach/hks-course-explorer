@@ -48,6 +48,13 @@ class PublicSnapshotTests(unittest.TestCase):
             exporter.PublicReader(exporter.PROJECT_URL, "public", get).rows("courses", ("id",))
         self.assertEqual(get.call_count, 1)
 
+    def test_failed_read_response_still_counts_against_export_budget(self):
+        get = Mock(return_value=Mock(status_code=503, content=b"oversized-error", headers={}))
+        reader = exporter.PublicReader(exporter.PROJECT_URL, "public", get)
+        with patch.object(exporter, "MAX_EXPORT_BYTES", 2), self.assertRaisesRegex(ValueError, "budget"):
+            reader.rows("courses", ("id",))
+        get.assert_called_once()
+
     def test_grouping_preserves_fields_values_order_and_all_terms(self):
         history = [{"id": str(i), "metrics_raw": {"Course_Rating": 4.5}, "description": "Same text"} for i in range(5000)]
         live = [{"id": str(i), "term": "2026 Fall" if i % 2 else "2027 Spring", "is_hks": i < 318,

@@ -22,6 +22,11 @@ from urllib.parse import parse_qsl, urljoin, urlparse
 
 import requests
 
+try:
+    from catalogue_http import get_with_retry
+except ModuleNotFoundError:
+    from scripts.catalogue_http import get_with_retry
+
 MYHARVARD_BASE = "https://my.harvard.edu/"
 MYHARVARD_SEARCH = urljoin(MYHARVARD_BASE, "search/")
 PAGE_SIZE = 15
@@ -30,7 +35,8 @@ MAX_ACTIVE_HKS_ROWS = 10_000
 DETAIL_WORKERS = 4
 DETAIL_MAX_ATTEMPTS = 3
 DETAIL_RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
-SEARCH_MAX_ATTEMPTS = 3
+SEARCH_RETRY_DELAYS = (30, 90)
+SEARCH_MAX_ATTEMPTS = len(SEARCH_RETRY_DELAYS) + 1
 MIN_HKS_OFFERINGS = int(os.environ.get("MYHARVARD_MIN_HKS_OFFERINGS", "250"))
 PROMOTE = os.environ.get("MYHARVARD_PROMOTE", "false").lower() == "true"
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -611,12 +617,20 @@ def fetch_search_page(
 def fetch_hks_snapshot(client: requests.Session) -> list[dict]:
     """Read one internally consistent candidate without cross-attempt row reuse."""
     rows: list[dict] = []
+    seen_ids: set[str] = set()
     expected_total: int | None = None
     page = 1
     while expected_total is None or len(rows) < expected_total:
         total, page_rows = fetch_search_page(client, page, expected_total)
         if expected_total is None:
             expected_total = total
+        page_ids = [row["id"] for row in page_rows]
+        if len(set(page_ids)) != len(page_ids) or seen_ids.intersection(page_ids):
+            raise SearchSnapshotRetry(
+                f"my.harvard returned duplicate offering identities on page {page}; "
+                f"read {len(rows)} unique offerings of {expected_total} before restart"
+            )
+        seen_ids.update(page_ids)
         rows.extend(page_rows)
         page += 1
         if page > (expected_total + PAGE_SIZE - 1) // PAGE_SIZE + 2:
@@ -643,7 +657,13 @@ def fetch_all_hks_offerings(session: requests.Session | None = None) -> list[dic
         except SearchSnapshotRetry as exc:
             last_error = exc
             if attempt + 1 < SEARCH_MAX_ATTEMPTS:
-                time.sleep(0.5 * (2**attempt))
+                delay = SEARCH_RETRY_DELAYS[attempt]
+                print(
+                    f"HKS snapshot attempt {attempt + 1}/{SEARCH_MAX_ATTEMPTS} "
+                    f"rejected: {exc}. Restarting from page 1 in {delay}s.",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
     raise RuntimeError(
         f"Could not verify a complete my.harvard snapshot after "
         f"{SEARCH_MAX_ATTEMPTS} attempts"
@@ -678,8 +698,9 @@ def fetch_active_hks_inventory(request_get=requests.get) -> dict[str, str]:
     inventory: dict[str, str] = {}
     offset = 0
     while True:
-        response = request_get(
+        response = get_with_retry(
             f"{SUPABASE_URL}/rest/v1/live_courses",
+            request_get=request_get,
             headers=supabase_headers(),
             params={
                 "select": "source_offering_id,source",
@@ -715,8 +736,9 @@ def fetch_active_hks_storage_inventory(request_get=requests.get) -> dict[str, st
     inventory: dict[str, str] = {}
     offset = 0
     while True:
-        response = request_get(
+        response = get_with_retry(
             f"{SUPABASE_URL}/rest/v1/live_courses",
+            request_get=request_get,
             headers=supabase_headers(),
             params={
                 "select": "id,source",
@@ -752,8 +774,9 @@ def fetch_active_hks_schedule_inventory(request_get=requests.get) -> dict[str, b
     inventory: dict[str, bool] = {}
     offset = 0
     while True:
-        response = request_get(
+        response = get_with_retry(
             f"{SUPABASE_URL}/rest/v1/live_courses",
+            request_get=request_get,
             headers=supabase_headers(),
             params={
                 "select": "id,source_offering_id,source,meetings,meeting_days,time_start,time_end",

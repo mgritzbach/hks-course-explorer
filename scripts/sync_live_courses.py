@@ -35,6 +35,11 @@ from urllib.parse import urlparse
 import requests
 
 try:
+    from catalogue_http import get_with_retry
+except ModuleNotFoundError:
+    from scripts.catalogue_http import get_with_retry
+
+try:
     from live_course_reconciliation import classify_live_course_inventory
 except ModuleNotFoundError:  # Loaded as a module by repository-root tests.
     from scripts.live_course_reconciliation import classify_live_course_inventory
@@ -694,8 +699,9 @@ def supabase_inventory_live_courses(request_get=requests.get):
     expected_total = None
     endpoint = f"{SUPABASE_URL}/rest/v1/live_courses"
     for start in range(0, MAX_INVENTORY_ROWS, INVENTORY_PAGE_SIZE):
-        response = request_get(
+        response = get_with_retry(
             endpoint,
+            request_get=request_get,
             headers={
                 **_sb_read_headers(),
                 "Range-Unit": "items",
@@ -749,8 +755,9 @@ def supabase_inventory_catalogue_runs(request_get=requests.get):
         "order": "id.asc",
     }
     for start in range(0, MAX_INVENTORY_ROWS, INVENTORY_PAGE_SIZE):
-        response = request_get(
+        response = get_with_retry(
             endpoint,
+            request_get=request_get,
             headers={
                 **_sb_read_headers(),
                 "Range-Unit": "items",
@@ -812,8 +819,9 @@ def supabase_active_hks_source_course_ids(request_get=requests.get):
         "order": "id.asc",
     }
     for start in range(0, MAX_INVENTORY_ROWS, INVENTORY_PAGE_SIZE):
-        response = request_get(
+        response = get_with_retry(
             endpoint,
+            request_get=request_get,
             headers={
                 **_sb_read_headers(),
                 "Range-Unit": "items",

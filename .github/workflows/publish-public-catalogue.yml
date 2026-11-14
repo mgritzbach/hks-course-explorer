@@ -12,6 +12,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   publish:
@@ -51,3 +52,32 @@ jobs:
         run: wrangler pages deploy . --project-name=hks-course-explorer-data --branch=master
       - name: Verify published data
         run: python scripts/copy_public_catalogue.py --url https://hks-course-explorer-data.pages.dev --output "$RUNNER_TEMP/verified-production" --expected-manifest "$RUNNER_TEMP/catalogue/manifest.json" --readiness-attempts 7
+
+      - name: Alert on failed public catalogue publication
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Public catalogue publication is failing"
+          issue_number="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
+          body="Public catalogue publication or verification failed. The last verified snapshot is retained where promotion did not complete; successful ingestion alone does not prove public delivery. Inspect: ${RUN_URL}"
+          if [ -n "$issue_number" ]; then
+            gh issue edit "$issue_number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+
+      - name: Close public catalogue alert after verified recovery
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Public catalogue publication is failing"
+          issue_number="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$issue_number" ]; then
+            gh issue close "$issue_number" --comment "All published datasets verified successfully: ${RUN_URL}"
+          fi

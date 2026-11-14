@@ -166,6 +166,27 @@ class MyHarvardSyncTests(unittest.TestCase):
         self.assertEqual(session.get.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
 
+    def test_duplicate_page_restarts_cleanly_after_meaningful_backoff(self):
+        rows = [{"id": "a", "title": "A"}]
+        fresh = [{"id": "b", "title": "B"}, {"id": "c", "title": "C"}]
+        with (
+            patch.object(self.sync, "fetch_search_page", side_effect=[(2, rows), (2, rows), (2, fresh)]) as page,
+            patch.object(self.sync.time, "sleep") as sleep,
+        ):
+            self.assertEqual(self.sync.fetch_all_hks_offerings(Mock()), fresh)
+        self.assertEqual([call.args[1] for call in page.call_args_list], [1, 2, 1])
+        sleep.assert_called_once_with(30)
+
+    def test_snapshot_retry_budget_is_minutes_not_a_tight_loop(self):
+        with (
+            patch.object(self.sync, "fetch_hks_snapshot", side_effect=self.sync.SearchSnapshotRetry("duplicate identities")) as fetch,
+            patch.object(self.sync.time, "sleep") as sleep,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "after 3 attempts"):
+                self.sync.fetch_all_hks_offerings(Mock())
+        self.assertEqual(fetch.call_count, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [30, 90])
+
     def test_retries_changed_pagination_total_without_mixing_snapshots(self):
         first = Mock(ok=True, status_code=200)
         first.json.return_value = {"total_hits": 2, "hits": CARD}
