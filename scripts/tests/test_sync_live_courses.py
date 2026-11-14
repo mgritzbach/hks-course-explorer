@@ -740,6 +740,42 @@ class FetchSchoolTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "safe 1 row inventory limit"):
                 self.sync.supabase_inventory_live_courses(Mock(return_value=full_page))
 
+    def test_inventory_reads_retained_history_beyond_the_old_10000_row_cap(self):
+        total = 10500
+        pages = []
+        for start in range(0, total, self.sync.INVENTORY_PAGE_SIZE):
+            end = min(start + self.sync.INVENTORY_PAGE_SIZE, total)
+            page = Mock(ok=True)
+            page.json.return_value = [{"id": str(i)} for i in range(start, end)]
+            page.headers = {"Content-Range": f"{start}-{end - 1}/{total}"}
+            pages.append(page)
+        get = Mock(side_effect=pages)
+        rows = self.sync.supabase_inventory_live_courses(get)
+        self.assertEqual(len(rows), total)
+        self.assertEqual(get.call_count, 11)
+        self.assertEqual(get.call_args.kwargs["headers"]["Range"], "10000-10999")
+
+    def test_inventory_rejects_over_capacity_total_on_first_page(self):
+        page = Mock(ok=True)
+        page.json.return_value = [{"id": "one"}]
+        page.headers = {"Content-Range": f"0-0/{self.sync.MAX_INVENTORY_ROWS + 1}"}
+        get = Mock(return_value=page)
+        with self.assertRaisesRegex(RuntimeError, "review capacity without deleting history"):
+            self.sync.supabase_inventory_live_courses(get)
+        get.assert_called_once()
+
+    def test_inventory_accepts_exact_capacity_and_warns(self):
+        page = Mock(ok=True)
+        page.json.return_value = [{"id": "one"}]
+        page.headers = {"Content-Range": "0-0/1"}
+        with (
+            patch.object(self.sync, "MAX_INVENTORY_ROWS", 1),
+            patch.object(self.sync, "INVENTORY_CAPACITY_WARNING_ROWS", 1),
+            patch.object(self.sync.log, "warning") as warning,
+        ):
+            self.assertEqual(len(self.sync.supabase_inventory_live_courses(Mock(return_value=page))), 1)
+        warning.assert_called_once()
+
     def test_inventory_comparison_delegates_to_source_aware_classifier(self):
         source_rows = [{"id": "current"}]
         database_rows = [{"id": "current"}]

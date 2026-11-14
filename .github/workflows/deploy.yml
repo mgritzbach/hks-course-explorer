@@ -25,7 +25,8 @@ jobs:
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.head_branch == 'master'
-    runs-on: ubuntu-latest
+    # Playwright 1.59 does not support the ubuntu-latest 26.04 image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
