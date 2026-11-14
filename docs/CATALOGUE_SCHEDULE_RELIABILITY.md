@@ -73,7 +73,33 @@ source-count floors, checksums and browser tests remain in force. These changes
 reduce transient failure and expose distinct stages; they cannot guarantee that
 an upstream provider, credentials, network or GitHub service never fails.
 Independent state/freshness monitoring is still essential for disabled schedules.
-The public manifest export time is not a source-specific non-HKS observation
-stamp; retain workflow/source evidence when assessing freshness. Future work may
-add durable source-specific provenance and ambiguous-write reconciliation, but
-must preserve current data and independently prove any new contract.
+The public manifest export time is not a source-specific observation stamp.
+The additional provenance gates below address that distinction without exposing
+private run IDs or changing database grants.
+
+
+## Source provenance and uncertain promotion responses
+
+Publication now reads ATS `source_last_seen_at` and `sync_run_id` in the SAME
+anonymous response as the content being exported. All active ATS rows must belong
+to one observed generation, exceed the production floor, and be at most 48 hours
+old. HKS content must match the active manifest's generation, exact source
+identity digest, term counts and freshness. A newly generated `exportedAt` can
+therefore no longer disguise a stale ATS source. Missing, future, mixed or stale
+observations fail before snapshot publication and leave the prior public data.
+
+Private run identifiers and row-level observation metadata are stripped before
+public dataset serialization. The manifest adds only `sources.ats` and
+`sources.myharvard` aggregate observation timestamps, offering counts and identity
+hashes. The content version remains the digest of the datasets, and existing
+readers remain compatible with the additive provenance fields. These timestamps
+prove successful source ingestion, not when Harvard last edited each course.
+
+If an HKS promotion times out, loses its connection or returns unreadable JSON,
+there is no second promotion POST. Read-back accepts success only when the
+intended run is active both before and after exact inventory verification.
+A different generation, incomplete content or unavailable read-back is reported
+as UNCONFIRMED, with no retry or rollback mutation. That may require investigation
+if the original transaction is still running. Existing rollback after a known
+successful promotion with failed verification is unchanged. Fault-injection
+coverage is in isolated unit tests, never against the production database.
