@@ -571,6 +571,50 @@ class MyHarvardSyncTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "non_authoritative=1"):
             self.sync.verify_promoted_inventory(rows, {offering_id: "ats"})
 
+    def test_committed_but_timed_out_promotion_is_verified_without_repeat_write(self):
+        rows = self.sync.parse_cards(CARD)
+        with (
+            patch.object(self.sync, "fetch_active_hks_storage_inventory", return_value={"old": "myharvard"}),
+            patch.object(self.sync, "promote", side_effect=self.sync.requests.Timeout()) as promote,
+            patch.object(self.sync, "fetch_active_hks_run_id", return_value="run-id") as active,
+            patch.object(self.sync, "fetch_active_hks_inventory", return_value={rows[0]["id"]: "myharvard"}),
+            patch.object(self.sync, "rollback") as rollback,
+        ):
+            count, digest = self.sync.promote_and_verify(rows, "run-id")
+        self.assertEqual(count, 1)
+        self.assertEqual(len(digest), 64)
+        self.assertEqual(active.call_count, 2)
+        promote.assert_called_once()
+        rollback.assert_not_called()
+
+    def test_ambiguous_promotion_never_mutates_when_readback_cannot_prove_commit(self):
+        rows = self.sync.parse_cards(CARD)
+        for observed in ["previous-run", self.sync.requests.ConnectionError()]:
+            with (
+                patch.object(self.sync, "fetch_active_hks_storage_inventory", return_value={"old": "myharvard"}),
+                patch.object(self.sync, "promote", side_effect=self.sync.requests.Timeout()) as promote,
+                patch.object(self.sync, "fetch_active_hks_run_id", side_effect=observed if isinstance(observed, Exception) else None,
+                             return_value=observed),
+                patch.object(self.sync, "rollback") as rollback,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "outcome remains unconfirmed"):
+                    self.sync.promote_and_verify(rows, "run-id")
+            promote.assert_called_once()
+            rollback.assert_not_called()
+
+    def test_ambiguous_promotion_rejects_generation_change_during_readback(self):
+        rows = self.sync.parse_cards(CARD)
+        with (
+            patch.object(self.sync, "fetch_active_hks_storage_inventory", return_value={"old": "myharvard"}),
+            patch.object(self.sync, "promote", side_effect=self.sync.requests.Timeout()),
+            patch.object(self.sync, "fetch_active_hks_run_id", side_effect=["run-id", "newer-run"]),
+            patch.object(self.sync, "fetch_active_hks_inventory", return_value={rows[0]["id"]: "myharvard"}),
+            patch.object(self.sync, "rollback") as rollback,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "outcome remains unconfirmed"):
+                self.sync.promote_and_verify(rows, "run-id")
+        rollback.assert_not_called()
+
     def test_post_promotion_mismatch_rolls_back_and_restores_exact_previous_inventory(self):
         rows = self.sync.parse_cards(CARD)
         previous = {"myh|previous": "myharvard"}

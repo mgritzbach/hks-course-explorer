@@ -917,13 +917,55 @@ def rollback(run_id: str) -> int:
     return int(post_json("rpc/rollback_myharvard_hks_run", {"p_run_id": run_id}))
 
 
+def fetch_active_hks_run_id(request_get=requests.get) -> str | None:
+    """Read promotion identity after an ambiguous response; never repeat a write."""
+    response = get_with_retry(
+        f"{SUPABASE_URL}/rest/v1/live_catalogue_runs",
+        request_get=request_get,
+        headers=supabase_headers(),
+        params={"select": "id", "source": "eq.myharvard", "status": "eq.active", "limit": "2"},
+        timeout=30,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if payload == []:
+        return None  # A legacy ATS baseline can have no authoritative HKS run yet.
+    if (not isinstance(payload, list) or len(payload) != 1
+            or not isinstance(payload[0], dict)
+            or not isinstance(payload[0].get("id"), str) or not payload[0]["id"]):
+        raise RuntimeError("Cannot prove the active HKS generation")
+    return payload[0]["id"]
+
+
+def reconcile_ambiguous_promotion(rows: list[dict], run_id: str) -> tuple[int, str]:
+    """Accept only proven commit-and-verify; uncertainty never triggers a mutation."""
+    try:
+        if fetch_active_hks_run_id() != run_id:
+            raise RuntimeError("Intended HKS generation is not observed active")
+        digest = verify_promoted_inventory(rows, fetch_active_hks_inventory())
+        if fetch_active_hks_run_id() != run_id:
+            raise RuntimeError("Active HKS generation changed during read-back")
+    except Exception as exc:
+        raise RuntimeError(
+            "Promotion response was ambiguous and read-back did not prove the intended "
+            "generation; outcome remains unconfirmed. No retry or rollback attempted."
+        ) from exc
+    print("Ambiguous promotion response reconciled: intended generation and exact inventory verified")
+    return len(rows), digest
+
+
 def promote_and_verify(rows: list[dict], run_id: str) -> tuple[int, str]:
     """Promote, verify exact identity, and restore the previous run on any mismatch."""
     # The first authoritative promotion may start from legacy ATS rows, which
     # predate source_offering_id. Snapshot physical IDs for rollback proof;
     # after promotion, verify the new my.harvard set by its stable upstream IDs.
     previous_inventory = fetch_active_hks_storage_inventory()
-    activated = promote(run_id)
+    try:
+        activated = promote(run_id)
+    except (requests.Timeout, requests.ConnectionError, ValueError):
+        # The database may have committed before the HTTP response was lost or
+        # unreadable. Repeating the RPC or rolling back without proof is unsafe.
+        return reconcile_ambiguous_promotion(rows, run_id)
     try:
         if activated != len(rows):
             raise RuntimeError(

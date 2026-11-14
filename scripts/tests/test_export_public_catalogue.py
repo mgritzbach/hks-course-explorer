@@ -1,3 +1,4 @@
+from datetime import datetime, timezone, timedelta
 import hashlib
 import json
 import sys
@@ -18,6 +19,86 @@ def response(rows, total):
 
 
 class PublicSnapshotTests(unittest.TestCase):
+    def source_fixture(self):
+        now = datetime(2026, 11, 14, 12, tzinfo=timezone.utc)
+        observed = (now - timedelta(hours=1)).isoformat()
+        ats = [{"id": f"a{i}", "source": "ats", "is_hks": False,
+                "sync_run_id": "ats-run", "source_last_seen_at": observed} for i in range(5000)]
+        hks = [{"id": f"h{i}", "source": "myharvard", "is_hks": True,
+                "sync_run_id": "hks-run", "source_offering_id": f"s{i}", "term": "2027 Spring"}
+               for i in range(285)]
+        manifest = {"id": "hks-run", "source_snapshot_at": observed, "offering_count": 285,
+                    "identity_sha256": hashlib.sha256("\n".join(sorted(r["source_offering_id"] for r in hks)).encode()).hexdigest(),
+                    "term_counts": {"2027 Spring": 285}}
+        reader = Mock()
+        reader.rows.return_value = [manifest]
+        return now, ats + hks, reader
+
+    def test_provenance_records_each_source_observation_not_export_time(self):
+        now, live, reader = self.source_fixture()
+        sources = exporter.source_observations(reader, live, now=now)
+        self.assertEqual(sources["ats"]["offeringCount"], 5000)
+        self.assertEqual(sources["myharvard"]["offeringCount"], 285)
+        self.assertNotEqual(sources["ats"]["observedAt"], now.isoformat())
+        self.assertNotIn("ats-run", json.dumps(sources))
+        self.assertNotIn("hks-run", json.dumps(sources))
+
+    def test_fresh_export_cannot_disguise_stale_ats_or_hks(self):
+        for source in ["ats", "myharvard"]:
+            now, live, reader = self.source_fixture()
+            stale = (now - timedelta(hours=49)).isoformat()
+            if source == "ats":
+                for row in live[:5000]:
+                    row["source_last_seen_at"] = stale
+            else:
+                reader.rows.return_value[0]["source_snapshot_at"] = stale
+            with self.assertRaisesRegex(ValueError, "source age"):
+                exporter.source_observations(reader, live, now=now)
+
+    def test_source_evidence_rejects_mixed_run_and_missing_observation(self):
+        for field, value in [("sync_run_id", "other"), ("source_last_seen_at", None)]:
+            now, live, reader = self.source_fixture()
+            live[0][field] = value
+            with self.assertRaises(ValueError):
+                exporter.source_observations(reader, live, now=now)
+
+    def test_hks_metadata_must_match_the_exported_generation(self):
+        now, live, reader = self.source_fixture()
+        live[-1]["sync_run_id"] = "old-hks-run"
+        with self.assertRaisesRegex(ValueError, "differs"):
+            exporter.source_observations(reader, live, now=now)
+
+    def test_hks_provenance_rejects_manifest_count_digest_and_terms_mismatch(self):
+        for field, bad in [("offering_count", 286), ("identity_sha256", "0" * 64), ("term_counts", {"2026 Fall": 285})]:
+            now, live, reader = self.source_fixture()
+            reader.rows.return_value[0][field] = bad
+            with self.assertRaisesRegex(ValueError, "differs"):
+                exporter.source_observations(reader, live, now=now)
+
+    def test_provenance_rejects_future_observation(self):
+        now, live, reader = self.source_fixture()
+        for row in live[:5000]:
+            row["source_last_seen_at"] = (now + timedelta(hours=2)).isoformat()
+        with self.assertRaisesRegex(ValueError, "source age"):
+            exporter.source_observations(reader, live, now=now)
+
+    def test_main_reads_proof_fields_but_does_not_publish_them(self):
+        reader = Mock(bytes=123)
+        live = [{**{k: None for k in exporter.LIVE_COLUMNS}, "id": "a",
+                 "sync_run_id": "private-run", "source_last_seen_at": "time",
+                 "source_offering_id": "source-id"}]
+        reader.rows.side_effect = [[], live, [], []]
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(sys, "argv", ["export", "--output", directory]), \
+                patch.object(exporter, "PublicReader", return_value=reader), \
+                patch.object(exporter, "source_observations", return_value={}) as proof, \
+                patch.object(exporter, "build_datasets", return_value={}) as build:
+            exporter.main()
+        columns = reader.rows.call_args_list[1].args[1]
+        self.assertTrue({"sync_run_id", "source_last_seen_at", "source_offering_id"}.issubset(columns))
+        self.assertIs(proof.call_args.args[1], live)
+        self.assertEqual(set(build.call_args.args[1][0]), set(exporter.LIVE_COLUMNS))
+
     def test_reader_proves_completeness_and_uses_only_explicit_public_columns(self):
         get = Mock(side_effect=[response([{"id": "a"}, {"id": "b"}], 3), response([{"id": "c"}], 3)])
         with patch.object(exporter, "PAGE_SIZE", 2):
