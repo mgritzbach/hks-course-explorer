@@ -88,7 +88,12 @@ RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
 STALE_DELETE_REQUESTED = os.environ.get("SYNC_ALLOW_STALE_DELETE", "false").lower() == "true"
 MIN_UNIQUE_COURSES = int(os.environ.get("SYNC_MIN_UNIQUE_COURSES", "1"))
 INVENTORY_PAGE_SIZE = 1000
-MAX_INVENTORY_ROWS = 10000
+# Includes immutable my.harvard rollback snapshots, not just today's catalogue.
+# At 319 HKS offerings/day, a 10k cap fills in about one month even when every
+# sync is healthy. Keep a bounded read with > 1 year of daily snapshot headroom;
+# never delete rollback data or silently truncate to make the check pass.
+MAX_INVENTORY_ROWS = 250000
+INVENTORY_CAPACITY_WARNING_ROWS = 200000
 MAX_MEETING_QUARANTINES_IN_SUMMARY = 100
 
 
@@ -621,6 +626,16 @@ def _inventory_page_complete(
     advertised_total = int(raw_total)
     if expected_total is not None and advertised_total != expected_total:
         raise RuntimeError(f"{label} changed its advertised total during pagination")
+    if advertised_total > MAX_INVENTORY_ROWS:
+        raise RuntimeError(
+            f"{label} exceeds the safe {MAX_INVENTORY_ROWS} row inventory limit "
+            f"(advertised {advertised_total}); review capacity without deleting history"
+        )
+    if expected_total is None and advertised_total >= INVENTORY_CAPACITY_WARNING_ROWS:
+        log.warning(
+            "%s uses %d/%d inventory rows; review capacity before the limit is reached",
+            label, advertised_total, MAX_INVENTORY_ROWS,
+        )
     expected_total = advertised_total
 
     if range_start is None:
