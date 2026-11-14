@@ -9,7 +9,8 @@ on:
 jobs:
   quality-gate:
     name: Quality gate
-    runs-on: ubuntu-latest
+    # Playwright 1.59 does not support the ubuntu-latest 26.04 image.
+    runs-on: ubuntu-24.04
     # A bounded gate fails safely and leaves a diagnostic instead of consuming
     # a hosted runner indefinitely if a subprocess becomes unresponsive.
     timeout-minutes: 15

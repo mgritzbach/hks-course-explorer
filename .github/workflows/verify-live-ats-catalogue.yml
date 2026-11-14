@@ -14,7 +14,8 @@ jobs:
   verify:
     name: Read-only ATS manifest and browser proof
     if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
+    # Playwright 1.59 does not support the ubuntu-latest 26.04 image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
