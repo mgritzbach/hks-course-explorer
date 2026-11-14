@@ -12,6 +12,11 @@ from datetime import datetime, timezone
 
 import requests
 
+try:
+    from catalogue_http import get_with_retry
+except ModuleNotFoundError:
+    from scripts.catalogue_http import get_with_retry
+
 PAGE_SIZE = 1_000
 MAX_ROWS = 10_000
 
@@ -21,7 +26,7 @@ def headers(key: str) -> dict[str, str]:
 
 
 def fetch_json(url: str, key: str, params: dict[str, str], request_get=requests.get):
-    response = request_get(url, headers=headers(key), params=params, timeout=30)
+    response = get_with_retry(url, request_get=request_get, headers=headers(key), params=params, timeout=30)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, list):

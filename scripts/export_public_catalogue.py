@@ -14,6 +14,11 @@ from pathlib import Path
 
 import requests
 
+try:
+    from catalogue_http import get_with_retry
+except ModuleNotFoundError:
+    from scripts.catalogue_http import get_with_retry
+
 from load_to_supabase import prepare_row
 
 PROJECT_URL = "https://cbtroatixvydpwoviezf.supabase.co"
@@ -36,11 +41,19 @@ class PublicReader:
             raise ValueError("A configured production URL and anonymous public key are required")
         self.key, self.request_get, self.bytes = key, request_get, 0
 
+    def _count_response_bytes(self, response):
+        # Transient-error response bodies also consume the source egress budget.
+        self.bytes += len(response.content)
+        if self.bytes > MAX_EXPORT_BYTES:
+            raise ValueError("Export exceeded the 32 MiB daily source budget")
+
     def rows(self, table, columns, filters=None, order="id.asc"):
         rows, total = [], None
         for offset in range(0, MAX_ROWS, PAGE_SIZE):
-            response = self.request_get(
+            response = get_with_retry(
                 f"{PROJECT_URL}/rest/v1/{table}",
+                request_get=self.request_get,
+                observe_response=self._count_response_bytes,
                 params={"select": ",".join(columns), **({"order": order} if order else {}),
                         "limit": PAGE_SIZE, "offset": offset, **(filters or {})},
                 headers={"apikey": self.key, "Authorization": f"Bearer {self.key}",
@@ -50,9 +63,6 @@ class PublicReader:
             response.raise_for_status()
             if response.status_code not in (200, 206):
                 raise ValueError("Unexpected database response")
-            self.bytes += len(response.content)
-            if self.bytes > MAX_EXPORT_BYTES:
-                raise ValueError("Export exceeded the 32 MiB daily source budget")
             count = response.headers.get("Content-Range", "").rsplit("/", 1)[-1]
             if not count.isdigit() or int(count) >= MAX_ROWS:
                 raise ValueError("Missing exact count or catalogue exceeds row budget")

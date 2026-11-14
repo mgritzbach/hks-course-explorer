@@ -42,3 +42,38 @@ both atomic upsert and the full reconciliation summary, then verify the next
 scheduled runs and public catalogue publication. A passing unit test is not
 production delivery evidence. Monitor capacity warnings and plan separately
 reviewed archival if needed; preserve rollback records until approved otherwise.
+
+## Follow-on resilience (November 2026)
+
+A review of failed HKS runs linked from issues #126, #128, #129, #130 and #131
+found duplicate offering identities across paginated source reads in every
+sample. All recovered the following day. Those logs do not prove whether the
+provider's ordering, cache or underlying data caused the duplication. The old
+three attempts waited only 0.5 and 1 second, exhausting in roughly 13–21 seconds.
+
+- Whole HKS snapshots now restart after 30 and 90 seconds, never mixing rows
+  across attempts. Duplicates are rejected as soon as their page arrives, with
+  page/count diagnostics. No deduplication or incomplete promotion is allowed.
+- Database GETs in both syncs, manifest verification and public export retry
+  transient transport/408/425/429/5xx failures up to three attempts. Backoff is
+  bounded, numeric Retry-After is capped at 30 seconds, and certificate/permanent
+  failures are not retried. JSON/count/schema validation stays outside retries.
+- Failed public export responses count toward the existing 32 MiB source budget.
+- Staging, promotion and rollback POSTs are NOT retried. An ambiguous write
+  timeout still requires investigating the active generation, rather than
+  assuming that a failed response means no commit occurred.
+- Public publication has its own failure issue and verified-recovery closure;
+  ingestion success does not prove public delivery. Repeated publication failures
+  update one issue instead of adding identical daily comments.
+- Dependabot now covers npm as well as Python and Actions, with weekly review
+  PRs, at most two open per ecosystem. Updates do not auto-merge or bypass CI.
+
+The existing workflow timeouts, atomic promotion, last-good public snapshot,
+source-count floors, checksums and browser tests remain in force. These changes
+reduce transient failure and expose distinct stages; they cannot guarantee that
+an upstream provider, credentials, network or GitHub service never fails.
+Independent state/freshness monitoring is still essential for disabled schedules.
+The public manifest export time is not a source-specific non-HKS observation
+stamp; retain workflow/source evidence when assessing freshness. Future work may
+add durable source-specific provenance and ambiguous-write reconciliation, but
+must preserve current data and independently prove any new contract.
