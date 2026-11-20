@@ -28,6 +28,7 @@ describe('current course discovery', () => {
   it('automatically adds new years while keeping old evaluations in their own year', () => {
     const historical = {
       id: 'old',
+      course_code_base: 'API-102',
       course_code: 'API-102-A',
       year: 2026,
       term: 'Spring',
@@ -41,8 +42,9 @@ describe('current course discovery', () => {
       expect(rows[1]).toMatchObject({
         year,
         professor_display: 'Current Professor',
-        has_eval: false,
-        metrics_raw: {},
+        has_eval: true,
+        metrics_raw: { Instructor_Rating: 4.8 },
+        evaluation_source: { year: 2026 },
       })
       expect(buildCourseMeta(rows)).toMatchObject({
         default_year: year,
@@ -88,7 +90,7 @@ describe('current course discovery', () => {
     })
   })
 
-  it('carries stable classifications forward without carrying scores or bidding values', () => {
+  it('carries stable classifications alongside attributed historical data', () => {
     const history = [
       {
         course_code_base: 'API-102',
@@ -101,6 +103,7 @@ describe('current course discovery', () => {
         has_bidding: true,
         metrics_raw: { Instructor_Rating: 5 },
         last_bid_price: 500,
+        bid_clearing_price: 500,
       },
     ]
     const current = mergeCurrentOfferings(history, [offering(2027)]).at(-1)
@@ -109,10 +112,12 @@ describe('current course discovery', () => {
       is_stem: true,
       stem_group: 'A',
       stem_school: 'HKS',
-      has_eval: false,
-      has_bidding: false,
-      metrics_raw: {},
+      has_eval: true,
+      has_bidding: true,
+      metrics_raw: { Instructor_Rating: 5 },
+      evaluation_source: { year: 2026 },
+      bidding_source: { year: 2026 },
     })
-    expect(current.last_bid_price).toBeUndefined()
+    expect(current.last_bid_price).toBe(500)
   })
 })

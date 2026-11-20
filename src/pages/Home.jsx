@@ -527,7 +527,7 @@ export default function Home({
     const grouped = new Map()
     for (const course of courses) {
       const bid = course.bid_clearing_price ?? course.last_bid_price
-      if (!course.course_code_base || bid == null) continue
+      if (!course.course_code_base || bid == null || course.bidding_source) continue
       if (!grouped.has(course.course_code_base)) grouped.set(course.course_code_base, [])
       grouped.get(course.course_code_base).push(bid)
     }
@@ -896,6 +896,14 @@ export default function Home({
           </button>
         </div>
 
+        {filtered.some((course) => course.evaluation_source || course.bidding_source) && (
+          <p role="status" className="mb-4 text-sm text-muted">
+            Historical data is shown where current evaluations or bids are unavailable. Hollow
+            circles use past evaluations. Hover or select a point to see the source term, year and
+            evaluated instructor; course cards also show the source. Current offering instructors
+            may differ.
+          </p>
+        )}
         {filtered.some((course) => !course.has_eval && !course.has_bidding) && (
           <p role="status" className="mb-4 text-sm text-muted">
             {filtered.filter((course) => !course.has_eval && !course.has_bidding).length} offerings

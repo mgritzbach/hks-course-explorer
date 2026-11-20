@@ -465,7 +465,7 @@ export default function Faculty({
       const entry = registry.get(course.professor)
       entry.courses.push(course)
       if (course.concentration) entry.concentrationSet.add(course.concentration)
-      if (course.has_eval && !course.is_average) {
+      if (course.has_eval && !course.is_average && !course.evaluation_source) {
         entry.evalCourses += 1
         entry.totalRespondents += course.n_respondents || 0
         const weight = course.n_respondents || 1
@@ -573,7 +573,7 @@ export default function Faculty({
     () =>
       selectedData
         ? selectedData.courses
-            .filter((course) => course.has_eval && !course.is_average)
+            .filter((course) => course.has_eval && !course.is_average && !course.evaluation_source)
             .sort(
               (a, b) => (b.year || 0) - (a.year || 0) || (a.term || '').localeCompare(b.term || ''),
             )

@@ -1,3 +1,4 @@
+import HistoricalDataNote from '../components/HistoricalDataNote.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import BiddingPlanner from '../components/BiddingPlanner.jsx'
@@ -717,6 +718,7 @@ export default function Compare({
                           : `${course.term} ${course.year}`}
                       </p>
                     </button>
+                    <HistoricalDataNote course={course} />
                     <button
                       onClick={() => removeCourse(course.id)}
                       aria-label={`Remove ${course.course_code} from comparison`}

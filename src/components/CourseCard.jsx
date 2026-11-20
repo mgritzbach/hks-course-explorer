@@ -1,3 +1,4 @@
+import HistoricalDataNote from './HistoricalDataNote.jsx'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fmtShort } from '../utils/formatMetric.js'
@@ -347,6 +348,7 @@ export default function CourseCard({
         </p>
       )}
 
+      <HistoricalDataNote course={course} />
       {noEval && !biddingOnly && (
         <p className="mb-3 text-xs italic" style={{ color: 'var(--text-muted)' }}>
           No evaluation data available
