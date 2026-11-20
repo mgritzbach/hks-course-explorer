@@ -27,10 +27,41 @@ const old = {
   metrics_raw: { Instructor_Rating: 4, Course_Rating: 4.5, Workload: 3, Bid_Price: 200 },
   metrics_pct: { Instructor_Rating: 80, Course_Rating: 90, Workload: 60, Bid_Price: 70 },
   last_bid_price: 200,
+  bid_clearing_price: 200,
   n_respondents: 30,
 }
 
 describe('historical data fallback', () => {
+  it('attributes bidding to its own record, never to a newer all-years cached bid', () => {
+    const source = {
+      ...old,
+      year: 2023,
+      term: 'Fall',
+      bid_clearing_price: 100,
+      bid_academic_year: '2023-2024',
+      bid_capacity: 20,
+      bid_n_bids: 25,
+      last_bid_price: 900,
+      last_bid_acad: '2024-2025',
+      last_bid_term: 'Spring',
+      last_bid_capacity: 80,
+      last_bid_n_bids: 90,
+    }
+    const result = withHistoricalFallback({ ...current, year: 2024 }, [source])
+    expect(result).toMatchObject({
+      last_bid_price: 100,
+      last_bid_acad: '2023-2024',
+      last_bid_term: 'Fall',
+      last_bid_capacity: 20,
+      last_bid_n_bids: 25,
+      bidding_source: { label: 'Fall 2023' },
+    })
+    expect(result.metrics_raw.Bid_Price).toBe(100)
+    expect(
+      withHistoricalFallback(current, [{ ...source, bid_clearing_price: null, metrics_raw: {} }])
+        .bidding_source,
+    ).toBeUndefined()
+  })
   it('keeps current identity and explicitly attributes old evaluations and bidding independently', () => {
     const result = withHistoricalFallback(current, [old])
     expect(result).toMatchObject({
@@ -65,7 +96,7 @@ describe('historical data fallback', () => {
     expect(result.evaluation_source).toBeUndefined()
     expect(result.bidding_source.year).toBe(2026)
     const currentBid = withHistoricalFallback(
-      { ...current, has_bidding: true, last_bid_price: 900 },
+      { ...current, has_bidding: true, last_bid_price: 900, bid_clearing_price: 900 },
       [old],
     )
     expect(currentBid.last_bid_price).toBe(900)
@@ -98,6 +129,7 @@ describe('historical data fallback', () => {
       term: 'Fall',
       has_eval: false,
       last_bid_price: 350,
+      bid_clearing_price: 350,
     }
     const matching = { ...old, id: 'same-teacher', professor_display: 'New Teacher' }
     const result = withHistoricalFallback(current, [old, bidOnly, matching])

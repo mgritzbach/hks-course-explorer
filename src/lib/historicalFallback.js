@@ -19,8 +19,8 @@ const hasEvaluation = (row) =>
   [...Object.entries(row.metrics_raw || {}), ...Object.entries(row.metrics_pct || {})].some(
     ([key, value]) => !isBidMetric(key) && Number.isFinite(value),
   )
-const hasBid = (row) =>
-  row.has_bidding && Number.isFinite(row.bid_clearing_price ?? row.last_bid_price)
+const ownBidPrice = (row) => row.bid_clearing_price ?? row.metrics_raw?.Bid_Price
+const hasBid = (row) => row.has_bidding && Number.isFinite(ownBidPrice(row))
 const instructorKey = (row) =>
   (row.professor_display || row.professor || '')
     .toLowerCase()
@@ -96,24 +96,22 @@ export function withHistoricalFallback(course, history) {
         ),
       )
     }
-    for (const field of [
-      'last_bid_price',
-      'last_bid_acad',
-      'last_bid_term',
-      'last_bid_capacity',
-      'last_bid_n_bids',
-      'bid_clearing_price',
-      'bid_academic_year',
-      'bid_capacity',
-      'bid_n_bids',
-    ])
-      result[field] = bidding[field]
-    result.last_bid_price = bidding.bid_clearing_price ?? bidding.last_bid_price
+    const price = ownBidPrice(bidding)
+    result.metrics_raw.Bid_Price = price
+    result.bid_clearing_price = price
+    result.bid_academic_year = bidding.bid_academic_year
+    result.bid_capacity = bidding.bid_capacity
+    result.bid_n_bids = bidding.bid_n_bids ?? bidding.metrics_raw?.Bid_N_Bids
+    result.last_bid_price = price
+    result.last_bid_acad = bidding.bid_academic_year || String(bidding.year)
+    result.last_bid_term = bidding.term
+    result.last_bid_capacity = result.bid_capacity
+    result.last_bid_n_bids = result.bid_n_bids
     result.has_bidding = true
     result.ever_bidding = true
     result.bidding_source = {
       ...sourceDetails(bidding),
-      label: `${bidding.last_bid_term || bidding.term} ${bidding.bid_academic_year || bidding.last_bid_acad || bidding.year}`,
+      label: `${bidding.term} ${bidding.year}`,
     }
   }
   return result

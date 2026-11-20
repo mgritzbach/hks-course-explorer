@@ -103,6 +103,7 @@ describe('current course discovery', () => {
         has_bidding: true,
         metrics_raw: { Instructor_Rating: 5 },
         last_bid_price: 500,
+        bid_clearing_price: 500,
       },
     ]
     const current = mergeCurrentOfferings(history, [offering(2027)]).at(-1)
