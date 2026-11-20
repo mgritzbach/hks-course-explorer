@@ -308,12 +308,11 @@ test.describe('Schedule Builder critical flows', () => {
 
     await page.getByLabel('School filter').selectOption('Non-HKS')
     await page.getByLabel('Search courses and instructors').fill('policy')
-    await expect(page.getByRole('alert')).toContainText(
-      'Current catalogue is temporarily unavailable.',
-      {
-        timeout: 10_000,
-      },
-    )
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'Current catalogue is temporarily unavailable.' }),
+    ).toContainText('Current catalogue is temporarily unavailable.', {
+      timeout: 10_000,
+    })
   })
 
   test('adds a missing cross-registration course through the manual form', async ({ page }) => {

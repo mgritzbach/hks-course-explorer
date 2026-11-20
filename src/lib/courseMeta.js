@@ -126,7 +126,13 @@ export function buildCourseMeta(courses) {
     concentrations,
     years,
     terms: ['Fall', 'Spring', 'January'],
-    default_year: evalYears.length ? Math.max(...evalYears) : 2025,
+    default_year: years.length ? Math.max(...years) : new Date().getFullYear(),
+    evaluation_year: evalYears.length ? Math.max(...evalYears) : null,
+    bidding_year:
+      Math.max(
+        0,
+        ...source.filter((c) => c.has_bidding && !c.is_average).map((c) => c.year || 0),
+      ) || null,
     default_terms: ['Fall', 'Spring'],
     metrics: COURSE_METRICS,
     overall_median_instructor: median(

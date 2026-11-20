@@ -429,6 +429,8 @@ test.describe('read-only production acceptance', () => {
       timeout: 20_000,
     })
 
+    // New planning years need not have evaluations yet. Exercise real historical points.
+    await page.getByLabel('Academic year').last().selectOption('0')
     const chart = page.locator('.js-plotly-plot')
     await expect(chart).toBeVisible({ timeout: 30_000 })
     const renderedRanges = () =>
