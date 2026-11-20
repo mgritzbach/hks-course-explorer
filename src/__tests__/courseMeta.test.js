@@ -22,11 +22,11 @@ describe('buildCourseMeta', () => {
     expect(meta.metrics).toBe(COURSE_METRICS)
   })
 
-  it('uses the documented fallback year for an empty or malformed source', () => {
+  it('uses the current calendar year only as an empty-source fallback for an empty or malformed source', () => {
     expect(buildCourseMeta(null)).toMatchObject({
       concentrations: [],
       years: [],
-      default_year: 2025,
+      default_year: new Date().getFullYear(),
       overall_median_instructor: null,
       year_medians_instructor: {},
     })

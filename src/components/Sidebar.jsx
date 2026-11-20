@@ -272,8 +272,9 @@ export default function Sidebar({
         <div
           style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}
         >
-          Data: {config.schoolCode} evals through {meta.default_year} · Bidding{' '}
-          {meta.default_year - 1}–{String(meta.default_year).slice(-2)}
+          Catalogue through {Math.max(...meta.years)} · {config.schoolCode} evaluations
+          {meta.evaluation_year ? ` through ${meta.evaluation_year}` : ' unavailable'}
+          {meta.bidding_year ? ` · Bidding data through ${meta.bidding_year}` : ''}
         </div>
       </div>
 

@@ -15,7 +15,7 @@ import { useWelcomeEntry } from './components/WelcomeEntryProvider.jsx'
 import { COURSES_CACHE_KEY, STORAGE_VERSION, TALLY_FORM_ID } from './lib/appConstants.js'
 import { buildCourseMeta } from './lib/courseMeta.js'
 import { csvCell } from './lib/csvExport.js'
-import { fetchAllCoursesWithCache } from './lib/courseDataCache.js'
+import { fetchDiscoveryCourses } from './lib/courseDiscovery.js'
 import { capture } from './lib/analytics.js'
 import { buildCatalogueReadyProperties } from './lib/performanceTelemetry.js'
 import {
@@ -297,13 +297,13 @@ export default function App() {
     setLoading(true)
     setError(null)
     setLoadCount(0)
-    fetchAllCoursesWithCache(
+    fetchDiscoveryCourses(
       (n) => setLoadCount(n),
       (status) => {
         cacheStatus = status
       },
     )
-      .then((courses) => {
+      .then(({ courses, currentCatalogueError }) => {
         courses.forEach((c) => {
           if (c.metrics_raw) {
             c.metrics_score = Object.fromEntries(
@@ -314,7 +314,7 @@ export default function App() {
             )
           }
         })
-        setData({ courses, meta: buildCourseMeta(courses) })
+        setData({ courses, meta: buildCourseMeta(courses), currentCatalogueError })
         setLoading(false)
         capture(
           'catalogue_ready',
@@ -531,7 +531,7 @@ export default function App() {
   // ─── Shared page routes ────────────────────────────────────────────────────
   const pageRoutes = (
     <ErrorBoundary>
-      <CatalogueFreshness />
+      <CatalogueFreshness catalogue={data} />
       <Suspense
         fallback={
           <div

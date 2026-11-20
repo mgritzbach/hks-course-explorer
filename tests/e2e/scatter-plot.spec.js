@@ -17,7 +17,7 @@ test.describe('Scatter Plot built-artifact regression', () => {
     // take longer than Playwright's default five-second assertion window;
     // retain a finite budget while testing the real rendered chart.
     test.slow()
-    await page.goto('/')
+    await page.goto('/?year=2025')
     await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible({
       timeout: 15_000,
     })
@@ -112,7 +112,7 @@ test.describe('Scatter Plot built-artifact regression', () => {
   test('loads Plotly on mobile only after the visitor asks to show the chart', async ({ page }) => {
     test.slow()
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/')
+    await page.goto('/?year=2025')
     await expect(page.getByRole('heading', { name: 'Course Comparisons' })).toBeVisible()
     await expect(page.locator('.js-plotly-plot')).toHaveCount(0)
     await expect

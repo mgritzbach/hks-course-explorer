@@ -826,8 +826,10 @@ export default function ScatterPlot({
         <AxisSelectors />
         <div className="flex items-center justify-center px-8 text-center" style={{ height: 300 }}>
           <div>
-            <p className="mb-2 font-medium text-label">No courses match the current filters</p>
-            <p className="text-xs text-muted">Try adjusting the year, terms, or other filters.</p>
+            <p className="mb-2 font-medium text-label">No evaluation or bidding scores to plot</p>
+            <p className="text-xs text-muted">
+              Browse matching courses below, or adjust the year, terms, or other filters.
+            </p>
           </div>
         </div>
       </div>

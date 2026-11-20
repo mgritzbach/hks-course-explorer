@@ -27,7 +27,7 @@ const HOME_TOUR_STEPS = [
   {
     target: 'year-filter',
     title: 'Start with the Year',
-    body: "Pick the academic year you're planning for. 2025 has the most complete evaluations; 2026 shows the active bidding season.",
+    body: 'Pick the year you are planning for. Available years update automatically with the published catalogue.',
   },
   {
     target: 'scatter-plot',
@@ -37,7 +37,7 @@ const HOME_TOUR_STEPS = [
   {
     target: 'preset-pills',
     title: 'Quick Filters',
-    body: 'One-click presets for Top Rated, STEM A/B, Bidding 2026, or your personal shortlist.',
+    body: 'One-click presets for Top Rated, STEM A/B, Bidding history, or your personal shortlist.',
   },
   {
     target: 'course-list',
@@ -216,6 +216,7 @@ const STATIC_PRESETS = [
 ]
 
 function buildPresets(biddingYear) {
+  if (!biddingYear) return STATIC_PRESETS
   const biddingPreset = {
     key: `bidding_${biddingYear}`,
     label: `Bidding ${biddingYear}`,
@@ -457,22 +458,20 @@ export default function Home({
   const isStale = filtersWithDebouncedSearch !== deferredFilters
 
   const avgMode = isAverageYear(filters.year)
-  const biddingYearNum = meta.default_year
-  const bidYear = filters.year === biddingYearNum
+  const biddingYearNum = meta.bidding_year
+  const bidYear = Boolean(biddingYearNum) && filters.year === biddingYearNum
   const PRESETS = useMemo(() => buildPresets(biddingYearNum), [biddingYearNum])
   const activeFilterCount = countFilterBadges(filters)
 
   // Derive "last updated" label dynamically from the data
   const lastUpdatedLabel = useMemo(() => {
-    const evalYears = courses.filter((c) => c.has_eval && !c.is_average && c.year && c.term)
-    if (!evalYears.length) return 'Spring 2025'
-    const maxYear = Math.max(...evalYears.map((c) => c.year))
-    const termsInMaxYear = [
-      ...new Set(evalYears.filter((c) => c.year === maxYear).map((c) => c.term)),
-    ]
-    const termOrder = { Spring: 2, Fall: 1, January: 0 }
-    const latestTerm = termsInMaxYear.sort((a, b) => (termOrder[b] ?? -1) - (termOrder[a] ?? -1))[0]
-    return latestTerm ? `${latestTerm} ${maxYear}` : `${maxYear}`
+    const offerings = courses.filter((c) => !c.is_average && c.year && c.term)
+    if (!offerings.length) return 'Unavailable'
+    const termOrder = { January: 0, Spring: 1, Summer: 2, Fall: 3 }
+    const latest = [...offerings].sort(
+      (a, b) => b.year - a.year || (termOrder[b.term] ?? -1) - (termOrder[a.term] ?? -1),
+    )[0]
+    return `${latest.term} ${latest.year}`
   }, [courses])
 
   useDocumentTitle(pageTitle(filters))
@@ -789,7 +788,7 @@ export default function Home({
             >
               <span style={{ color: 'var(--text-muted)' }}>View</span>
               <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
-                {avgMode ? 'All-years avg' : bidYear ? 'Active bidding' : 'Current courses'}
+                {avgMode ? 'All-years avg' : bidYear ? 'Bidding history' : 'Current courses'}
               </p>
             </div>
             <div
@@ -814,7 +813,7 @@ export default function Home({
               className="rounded-2xl border px-3 py-2.5 text-xs md:px-4 md:py-3 md:text-sm"
               style={{ borderColor: 'var(--line)', background: 'var(--panel-soft)' }}
             >
-              <span style={{ color: 'var(--text-muted)' }}>Updated</span>
+              <span style={{ color: 'var(--text-muted)' }}>Catalogue through</span>
               <p className="mt-0.5 font-medium leading-tight" style={{ color: 'var(--text)' }}>
                 {lastUpdatedLabel}
               </p>
@@ -854,8 +853,8 @@ export default function Home({
               color: 'var(--gold)',
             }}
           >
-            Bidding Season {biddingYearNum} is active. Courses without evaluation data still appear,
-            and amber diamonds are spread by competitiveness rank.
+            Bidding data is available for {biddingYearNum}. Courses without evaluation data still
+            appear, and amber diamonds are spread by competitiveness rank.
           </div>
         )}
 
@@ -896,6 +895,14 @@ export default function Home({
             {showPlotMobile ? 'Hide chart ▲' : 'Show chart ▼'}
           </button>
         </div>
+
+        {filtered.some((course) => !course.has_eval && !course.has_bidding) && (
+          <p role="status" className="mb-4 text-sm text-muted">
+            {filtered.filter((course) => !course.has_eval && !course.has_bidding).length} offerings
+            have no evaluation or bidding scores yet. All are listed below and can be opened or
+            shortlisted for comparison; they have no rating coordinates to plot.
+          </p>
+        )}
 
         {/* Scatter plot: always visible on desktop, toggle-controlled on mobile */}
         <div className={showPlotMobile ? '' : 'hidden md:block'}>
