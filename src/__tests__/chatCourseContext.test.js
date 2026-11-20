@@ -7,6 +7,19 @@ import {
 } from '../components/ChatBot.jsx'
 
 describe('chat course context', () => {
+  it('retains historical attribution when sending displayed fallback scores to the advisor', () => {
+    const summary = toCourseSummary({
+      course_code: 'API-101',
+      year: 2027,
+      professor_display: 'New Teacher',
+      metrics_pct: { Instructor_Rating: 80 },
+      evaluation_source: { year: 2026, term: 'Spring', professor: 'Past Teacher' },
+      bidding_source: { label: 'Fall 2025' },
+    })
+    expect(summary.offering_history).toContain('Spring 2026, evaluated instructor Past Teacher')
+    expect(summary.offering_history).toContain('Historical bidding from Fall 2025')
+    expect(summary.year).toBe(2027)
+  })
   it.each([
     [true, true],
     [false, false],

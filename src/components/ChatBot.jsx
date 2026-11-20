@@ -1,3 +1,4 @@
+import { historicalDataLabel } from '../lib/historicalFallback.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import config from '../school.config.js'
@@ -111,6 +112,7 @@ export function toCourseSummary(course) {
   return {
     code: course.course_code,
     base_code: course.course_code_base || course.course_code,
+    offering_history: historicalDataLabel(course) || undefined,
     name: course.course_name,
     instructor: course.professor_display || course.professor,
     concentration: course.concentration,
@@ -357,6 +359,8 @@ function compactInstructorHistory(courses) {
               ]
                 .filter(([, value]) => Number.isFinite(value))
                 .map(([label, value]) => `${label} ${Math.round(value)} pct`)
+              const sourceLabel = historicalDataLabel(course)
+              if (sourceLabel) metrics.push(sourceLabel)
               return `${course.course_code} — ${course.year} ${course.term}${metrics.length > 0 ? ` (${metrics.join(', ')})` : ''}`
             }),
         ),
@@ -475,7 +479,10 @@ export function condenseCourses(courses, query, shortlistedCodes = [], history =
 
   const recentYear = Math.max(
     ...courses
-      .filter((course) => !course.is_average && course.has_eval && course.year)
+      .filter(
+        (course) =>
+          !course.is_average && course.has_eval && !course.evaluation_source && course.year,
+      )
       .map((course) => course.year),
     0,
   )

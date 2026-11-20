@@ -1,5 +1,18 @@
 import { compareCourseChronology } from './courseChronology.js'
 
+export function historicalDataLabel(course) {
+  const evaluation = course.evaluation_source
+  const bidding = course.bidding_source
+  return [
+    evaluation
+      ? `Historical evaluations from ${evaluation.term} ${evaluation.year}, evaluated instructor ${evaluation.professor}`
+      : '',
+    bidding ? `Historical bidding from ${bidding.label}` : '',
+  ]
+    .filter(Boolean)
+    .join('; ')
+}
+
 const isBidMetric = (key) => key.startsWith('Bid_')
 const hasEvaluation = (row) =>
   row.has_eval &&
