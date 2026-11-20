@@ -110,7 +110,10 @@ export function buildCourseMeta(courses) {
     (a, b) => a - b,
   )
   const evaluatedCourses = source.filter(
-    (course) => course.metrics_raw?.Instructor_Rating != null && !course.is_average,
+    (course) =>
+      course.metrics_raw?.Instructor_Rating != null &&
+      !course.is_average &&
+      !course.evaluation_source,
   )
   const byYear = {}
   for (const course of evaluatedCourses) {
@@ -119,7 +122,9 @@ export function buildCourseMeta(courses) {
     byYear[course.year].push(course.metrics_raw.Instructor_Rating)
   }
   const evalYears = source
-    .filter((course) => course.has_eval && !course.is_average && course.year)
+    .filter(
+      (course) => course.has_eval && !course.is_average && !course.evaluation_source && course.year,
+    )
     .map((course) => course.year)
 
   return {
@@ -131,7 +136,9 @@ export function buildCourseMeta(courses) {
     bidding_year:
       Math.max(
         0,
-        ...source.filter((c) => c.has_bidding && !c.is_average).map((c) => c.year || 0),
+        ...source
+          .filter((c) => c.has_bidding && !c.is_average && !c.bidding_source)
+          .map((c) => c.year || 0),
       ) || null,
     default_terms: ['Fall', 'Spring'],
     metrics: COURSE_METRICS,

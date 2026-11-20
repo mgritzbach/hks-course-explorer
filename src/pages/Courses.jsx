@@ -1,3 +1,4 @@
+import HistoricalDataNote from '../components/HistoricalDataNote.jsx'
 import {
   lazy,
   Suspense,
@@ -827,7 +828,10 @@ export default function Courses({
       selected
         ? courses
             .filter(
-              (course) => course.course_code_base === selected.course_code_base && course.has_eval,
+              (course) =>
+                course.course_code_base === selected.course_code_base &&
+                course.has_eval &&
+                !course.evaluation_source,
             )
             .sort(compareCourseHistoryNewestFirst)
         : [],
@@ -839,7 +843,9 @@ export default function Courses({
         ? courses
             .filter(
               (course) =>
-                course.course_code_base === selected.course_code_base && course.has_bidding,
+                course.course_code_base === selected.course_code_base &&
+                course.has_bidding &&
+                !course.bidding_source,
             )
             .sort(compareCourseHistoryNewestFirst)
         : [],
@@ -1290,6 +1296,7 @@ export default function Courses({
                       )}
                     </div>
 
+                    <HistoricalDataNote course={selected} />
                     {(selected.credits_min != null || selected.grading_basis) && (
                       <div className="mb-4 flex flex-wrap gap-5 text-sm">
                         {selected.credits_min != null && (

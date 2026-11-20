@@ -1,3 +1,4 @@
+import HistoricalDataNote from './HistoricalDataNote.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -480,6 +481,7 @@ export default function ScatterPlot({
           size: hasStarred ? matchedData.map((datum) => (datum._starred ? 14 : 10)) : 11,
           color: matchedData.map((datum) => (datum._starred ? '#d4a86a' : datum._color)),
           opacity: 0.55,
+          symbol: matchedData.map((datum) => (datum.evaluation_source ? 'circle-open' : 'circle')),
           line: {
             color: hasStarred
               ? matchedData.map((datum) =>
@@ -902,6 +904,7 @@ export default function ScatterPlot({
                 ? `avg ${hoverState.datum.year_range}`
                 : `${hoverState.datum.term} ${hoverState.datum.year}`}
             </p>
+            <HistoricalDataNote course={hoverState.datum} />
             {hoverState.datum.concentration && (
               <p className="mb-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
                 {hoverState.datum.concentration}
@@ -1070,6 +1073,7 @@ export default function ScatterPlot({
                 N=<span className="text-label">{pinnedDatum.n_respondents}</span> survey respondents
               </p>
             )}
+            <HistoricalDataNote course={pinnedDatum} />
             {pinnedDatum.last_bid_price != null && (
               <p>
                 Last clearing price:{' '}

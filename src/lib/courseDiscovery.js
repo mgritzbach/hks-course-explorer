@@ -1,8 +1,9 @@
+import { withHistoricalFallback } from './historicalFallback.js'
 import { fetchAllCoursesWithCache } from './courseDataCache.js'
 import { loadSnapshotRows, usesCatalogueSnapshots } from './catalogueSnapshot.js'
 import { fetchCataloguePages } from './cataloguePagination.js'
 
-// Add current offerings without assigning old evaluations to a new year or instructor.
+// Keep current offering identity separate from explicitly attributed historical data.
 export function mergeCurrentOfferings(history, live) {
   const result = [...history]
   const classifications = new Map()
@@ -53,7 +54,20 @@ export function mergeCurrentOfferings(history, live) {
       metrics_pct: {},
     })
   }
-  return result
+  return result.map((course) => {
+    const active = live.some(
+      (row) =>
+        row.is_hks &&
+        row.active !== false &&
+        row.course_code === course.course_code &&
+        row.term === `${course.year} ${course.term === 'January' ? 'Spring' : course.term}` &&
+        (row.session_description === 'January') === (course.term === 'January'),
+    )
+    return withHistoricalFallback(
+      active ? { ...course, is_current_offering: true } : course,
+      history,
+    )
+  })
 }
 
 export async function fetchCurrentHksOfferings() {
