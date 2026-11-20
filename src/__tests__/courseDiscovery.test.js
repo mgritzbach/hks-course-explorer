@@ -87,4 +87,32 @@ describe('current course discovery', () => {
       currentCatalogueError: expect.stringContaining('historical courses only'),
     })
   })
+
+  it('carries stable classifications forward without carrying scores or bidding values', () => {
+    const history = [
+      {
+        course_code_base: 'API-102',
+        year: 2026,
+        is_core: true,
+        is_stem: true,
+        stem_group: 'A',
+        stem_school: 'HKS',
+        has_eval: true,
+        has_bidding: true,
+        metrics_raw: { Instructor_Rating: 5 },
+        last_bid_price: 500,
+      },
+    ]
+    const current = mergeCurrentOfferings(history, [offering(2027)]).at(-1)
+    expect(current).toMatchObject({
+      is_core: true,
+      is_stem: true,
+      stem_group: 'A',
+      stem_school: 'HKS',
+      has_eval: false,
+      has_bidding: false,
+      metrics_raw: {},
+    })
+    expect(current.last_bid_price).toBeUndefined()
+  })
 })

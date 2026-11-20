@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { mergeCurrentOfferings } from '../lib/courseDiscovery.js'
 import {
   buildCourseOptions,
   countActiveCourseFilters,
@@ -57,7 +58,7 @@ describe('course catalogue presentation', () => {
     expect(buildCourseOptions(courses).map((course) => course.id)).toEqual(['bgp', 'api-new'])
   })
 
-  it('uses all rows for year-term availability while presenting the canonical option', () => {
+  it('selects the representative from the requested year and term', () => {
     const allOptions = buildCourseOptions(courses)
     expect(
       filterCourseOptions({
@@ -66,7 +67,7 @@ describe('course catalogue presentation', () => {
         filters: { ...defaults, year: 2024, terms: ['Fall'] },
         query: '',
       }),
-    ).toEqual([expect.objectContaining({ id: 'api-new' })])
+    ).toEqual([expect.objectContaining({ id: 'api-old' })])
   })
 
   it('applies filters, bidding order, and text search without mutating options', () => {
@@ -87,5 +88,35 @@ describe('course catalogue presentation', () => {
     expect(
       countActiveCourseFilters({ ...defaults, year: 2025, terms: ['Spring'], evalOnly: true }),
     ).toBe(3)
+  })
+
+  it('preserves historical evaluations and professor search after a future offering arrives', () => {
+    const history = [
+      {
+        ...courses[0],
+        professor_display: 'Historical Professor',
+        is_core: true,
+        is_stem: true,
+        stem_group: 'A',
+      },
+    ]
+    const combined = mergeCurrentOfferings(history, [
+      {
+        is_hks: true,
+        term: '2027 Spring',
+        course_code: 'API-101-A',
+        course_code_base: 'API-101',
+        title: 'Policy Analysis',
+        instructors: ['Current Professor'],
+      },
+    ])
+    const search = (filters, query) =>
+      filterCourseOptions({ courses: combined, filters: { ...defaults, ...filters }, query })
+    expect(search({ year: 2024, evalOnly: true }, 'Historical Professor')).toEqual(history)
+    expect(search({ evalOnly: true }, 'Historical Professor')).toEqual(history)
+    expect(
+      search({ year: 2027, coreFilter: 'core', stemGroup: 'A' }, 'Current Professor'),
+    ).toHaveLength(1)
+    expect(search({ year: 2027, evalOnly: true }, '')).toEqual([])
   })
 })

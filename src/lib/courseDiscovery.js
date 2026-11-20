@@ -5,6 +5,13 @@ import { fetchCataloguePages } from './cataloguePagination.js'
 // Add current offerings without assigning old evaluations to a new year or instructor.
 export function mergeCurrentOfferings(history, live) {
   const result = [...history]
+  const classifications = new Map()
+  for (const course of history) {
+    const base = course.course_code_base || course.course_code
+    if (course.is_average || !base) continue
+    const previous = classifications.get(base)
+    if (!previous || (course.year || 0) > (previous.year || 0)) classifications.set(base, course)
+  }
   const keys = new Set(history.map((c) => `${c.course_code}|${c.year}|${c.term}`))
   for (const row of live) {
     if (!row.is_hks || row.active === false) continue
@@ -15,6 +22,7 @@ export function mergeCurrentOfferings(history, live) {
     const key = `${row.course_code}|${year}|${term}`
     if (keys.has(key)) continue
     keys.add(key)
+    const classification = classifications.get(row.course_code_base || row.course_code)
     result.push({
       id: `current||${row.course_code}||${year}||${term}`,
       course_code: row.course_code,
@@ -32,6 +40,11 @@ export function mergeCurrentOfferings(history, live) {
       meeting_days: row.meeting_days,
       time_start: row.time_start,
       time_end: row.time_end,
+      is_core: classification?.is_core ?? false,
+      is_stem: classification?.is_stem ?? false,
+      stem_group: classification?.stem_group ?? null,
+      stem_school: classification?.stem_school ?? null,
+      academic_area: classification?.academic_area ?? null,
       is_average: false,
       is_current_offering: true,
       has_eval: false,

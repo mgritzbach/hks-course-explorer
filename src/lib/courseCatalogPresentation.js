@@ -42,60 +42,49 @@ export function buildCourseOptions(courses) {
   )
 }
 
-/**
- * Filter and order the canonical course options for the current UI filters.
- * The year-term set is deliberately indexed once before filtering to retain
- * the page's O(1) membership check for each option.
- */
-export function filterCourseOptions({ allOptions, courses, filters, query }) {
+/** Filter actual offerings before choosing one representative per base course. */
+export function filterCourseOptions({ courses, filters, query }) {
   const minPct = filters.minInstructorPct !== 'any' ? parseFloat(filters.minInstructorPct) : null
-  const yearTermKeys =
-    filters.year !== 'all'
-      ? new Set(
-          courses
-            .filter((row) => row.year === filters.year && filters.terms.includes(row.term))
-            .map((row) => row.course_code_base),
-        )
-      : null
-
-  const list = allOptions
-    .filter((course) => {
-      if (yearTermKeys !== null && !yearTermKeys.has(course.course_code_base)) return false
-      if (
-        filters.concentration !== 'All' &&
-        courseConcentration(course.course_code) !== filters.concentration
-      )
-        return false
-      if (filters.academicArea !== 'All' && course.academic_area !== filters.academicArea)
-        return false
-      if (filters.coreFilter === 'core' && !course.is_core) return false
-      if (filters.coreFilter === 'no-core' && course.is_core) return false
-      if (filters.stemGroup === 'A' && course.stem_group !== 'A') return false
-      if (filters.stemGroup === 'B' && course.stem_group !== 'B') return false
-      if (minPct !== null) {
-        const rating = course.metrics_pct?.Instructor_Rating
-        if (rating != null && rating < minPct) return false
-      }
-      if (filters.evalOnly && !course.has_eval) return false
-      return true
-    })
-    .sort((a, b) => {
-      const aBid = a.last_bid_price ?? -1
-      const bBid = b.last_bid_price ?? -1
-      if (aBid !== bBid) return bBid - aBid
-      return (a.course_name || a.course_code || '').localeCompare(
-        b.course_name || b.course_code || '',
-      )
-    })
-
-  if (!query) return list
-  const normalized = query.toLowerCase()
-  return list.filter(
-    (course) =>
-      (course.course_name || '').toLowerCase().includes(normalized) ||
-      (course.course_code || '').toLowerCase().includes(normalized) ||
-      (course.professor_display || '').toLowerCase().includes(normalized) ||
-      (course.description || '').toLowerCase().includes(normalized) ||
-      (course.academic_area || '').toLowerCase().includes(normalized),
-  )
+  const normalized = query?.toLowerCase() || ''
+  const matching = courses.filter((course) => {
+    if (
+      filters.year !== 'all' &&
+      (course.year !== filters.year || !filters.terms.includes(course.term))
+    )
+      return false
+    if (
+      filters.concentration !== 'All' &&
+      courseConcentration(course.course_code) !== filters.concentration
+    )
+      return false
+    if (filters.academicArea !== 'All' && course.academic_area !== filters.academicArea)
+      return false
+    if (filters.coreFilter === 'core' && !course.is_core) return false
+    if (filters.coreFilter === 'no-core' && course.is_core) return false
+    if (filters.stemGroup === 'A' && course.stem_group !== 'A') return false
+    if (filters.stemGroup === 'B' && course.stem_group !== 'B') return false
+    if (minPct !== null) {
+      const rating = course.metrics_pct?.Instructor_Rating
+      if (rating != null && rating < minPct) return false
+    }
+    if (filters.evalOnly && !course.has_eval) return false
+    return (
+      !normalized ||
+      [
+        course.course_name,
+        course.course_code,
+        course.professor_display,
+        course.description,
+        course.academic_area,
+      ].some((value) => (value || '').toLowerCase().includes(normalized))
+    )
+  })
+  return buildCourseOptions(matching).sort((a, b) => {
+    const aBid = a.last_bid_price ?? -1
+    const bBid = b.last_bid_price ?? -1
+    if (aBid !== bBid) return bBid - aBid
+    return (a.course_name || a.course_code || '').localeCompare(
+      b.course_name || b.course_code || '',
+    )
+  })
 }
