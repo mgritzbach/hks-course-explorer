@@ -117,6 +117,11 @@ describe('course catalogue presentation', () => {
     expect(
       search({ year: 2027, coreFilter: 'core', stemGroup: 'A' }, 'Current Professor'),
     ).toHaveLength(1)
-    expect(search({ year: 2027, evalOnly: true }, '')).toEqual([])
+    expect(search({ year: 2027, evalOnly: true }, '')).toEqual([
+      expect.objectContaining({
+        year: 2027,
+        evaluation_source: expect.objectContaining({ year: 2024 }),
+      }),
+    ])
   })
 })
