@@ -50,6 +50,7 @@ test('plots future courses with explicitly attributed historical scores and bidd
   await expect(panel.getByText('Historical bidding: Spring 2025.')).toBeVisible()
   await expect(panel.getByText(/Evaluated instructor: Avery Analyst/)).toBeVisible()
   await panel.getByRole('button', { name: 'Course Details', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Past Performance' })).toBeVisible()
   await expect(page.getByText('Historical evaluations: Spring 2025.')).toBeVisible()
   await page.getByRole('tab', { name: 'Past Performance' }).click()
   await expect(page.getByText('Historical evaluations: Spring 2025.')).toHaveCount(0)
